@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metering"
+version = "0.1.0"
+description = "Replayable measurement for a controlled hidden-fault diagnosis world"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+metering = "metering.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
