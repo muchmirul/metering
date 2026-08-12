@@ -137,7 +137,7 @@
       const fault = candidate.dataset.fault;
       const isPossible = possible.has(fault);
       const isSelected = stage.selected && fault === "fault-5";
-      const status = candidate.querySelector("small");
+      const status = candidate.querySelector(".candidate-status");
 
       candidate.classList.toggle("is-possible", isPossible && !isSelected);
       candidate.classList.toggle("is-eliminated", !isPossible);

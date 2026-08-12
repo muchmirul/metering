@@ -2,7 +2,7 @@
 
 ## Status
 
-This document defines the first implementable slice of Metering. It is intentionally smaller than the full harness-measurement vision.
+This document defines the first implementable slice of Metering. It is intentionally narrower than the full harness-measurement vision.
 
 The purpose of Metering is not to rank agent systems. It is to prove that a controlled interaction can produce a raw trace and that independently implemented meters can turn that trace into correct, reproducible measurements.
 
@@ -222,7 +222,7 @@ The GitHub release version is recorded as provenance, but a release-number chang
 
 ## Minimal repository layout
 
-Start with a small layout and split files only when real code requires it:
+Start with a direct layout and split files only when real code requires it:
 
 ```text
 metering/
@@ -305,7 +305,7 @@ These are later features, not missing work.
 
 ### External harness boundary
 
-After at least two different in-process harnesses work, extract a small external protocol. Define its legal state transitions, request identifiers, invalid-message behavior, termination, timeout handling, and resource limits before promising compatibility.
+After at least two different in-process harnesses work, extract a focused external protocol. Define its legal state transitions, request identifiers, invalid-message behavior, termination, timeout handling, and resource limits before promising compatibility.
 
 ### Replaceable inference engine
 

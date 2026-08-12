@@ -25,7 +25,7 @@ class PolicyError(RuntimeError):
 
 @runtime_checkable
 class HarnessPolicy(Protocol):
-    """The intentionally small cooperative Metering harness boundary."""
+    """The intentionally focused cooperative Metering harness boundary."""
 
     name: str
     version: str

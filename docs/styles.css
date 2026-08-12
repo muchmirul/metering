@@ -809,7 +809,7 @@ h3 {
   font-weight: 800;
 }
 
-.candidate small {
+.candidate .candidate-status {
   color: var(--green-700);
   font-size: 0.7rem;
 }
@@ -830,7 +830,7 @@ h3 {
   text-decoration: line-through;
 }
 
-.candidate.is-eliminated small {
+.candidate.is-eliminated .candidate-status {
   color: #716f68;
 }
 

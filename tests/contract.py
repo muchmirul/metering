@@ -1,8 +1,8 @@
-"""Test-side adapter for the small public API assumed by the tests.
+"""Test-side adapter for the focused public API assumed by the tests.
 
 The plan fixes concepts and module names, but it does not fix constructor or
 function spellings.  Behavioural tests import only this module.  Supporting a
-new spelling should require a small change here rather than weakening those
+new spelling should require a localized change here rather than weakening those
 tests.
 
 Expected production surface (accepted aliases are kept deliberately narrow):
@@ -148,7 +148,7 @@ def _ids_from_container(container: Any, names: Sequence[str]) -> tuple[str, ...]
 
 
 class MeteringAPI:
-    """Small normalised view of the production API used by the tests."""
+    """Normalized view of the production API used by the tests."""
 
     def __init__(self) -> None:
         self.events_module = _module("events")

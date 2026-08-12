@@ -1,6 +1,6 @@
 # Metering
 
-Metering is a small, deterministic instrument for measuring externally visible harness behavior in a controlled hidden-fault world.
+Metering is a deterministic instrument for measuring externally visible harness behavior in a controlled hidden-fault world.
 
 It is not a leaderboard and does not assign an overall agent score. Metering validates the measurement path before introducing a language model:
 
@@ -8,7 +8,7 @@ It is not a leaderboard and does not assign an overall agent score. Metering val
 controlled world -> harness actions -> raw trace -> offline verifier and meters
 ```
 
-See [`PLAN.md`](https://github.com/muchmirul/metering/blob/main/PLAN.md) for the normative scope, definitions, limitations, and acceptance criteria. The static guide lives in [documentation site](https://muchmirul.github.io/metering/) and is published through GitHub Pages.
+See [`PLAN.md`](https://github.com/muchmirul/metering/blob/main/PLAN.md) for the normative scope, definitions, limitations, and acceptance criteria. The visual guide is published on the [documentation site](https://muchmirul.github.io/metering/) through GitHub Pages.
 
 Release versions come from Git tags and [GitHub Releases](https://github.com/muchmirul/metering/releases), not from phase names embedded in the product. Source archives and packages derive their version from the release tag; see [`RELEASING.md`](https://github.com/muchmirul/metering/blob/main/RELEASING.md). Release versions are recorded as provenance. Replay requires compatible controller, verifier, and meter component versions plus accepted schemas; world, instance, and policy declarations are recorded and checked for internal consistency.
 
@@ -25,6 +25,53 @@ Release versions come from Git tags and [GitHub Releases](https://github.com/muc
 - A complete calibration command
 
 Verification feedback is content-free during a run. Whether a repair matched the hidden fault remains private until the offline report is produced, so verification cannot be used as an unmetered diagnostic oracle.
+
+## Core primitives as building blocks
+
+Metering is assembled from explicit building blocks rather than one agent framework. Each block has one responsibility and passes typed data to the next block.
+
+| Building block | Implementation | Responsibility |
+|---|---|---|
+| **World specification** | `HiddenFaultSpec` and `PublicInstance` in `hidden_fault.py` | Defines the ordered faults and diagnostic catalogue. `PublicInstance` is the truth-free description a policy may receive. |
+| **World** | `HiddenFaultWorld` in `hidden_fault.py` | Owns the selected hidden fault, validates actions, applies state changes, and returns an observation with raw action cost. |
+| **Actions and observations** | Frozen types in `events.py` | Form the protocol vocabulary: `Diagnose`, `Repair`, `Verify`, and `Finish`, plus their typed results. Plain dictionaries are not silently converted into actions. |
+| **Policy or harness** | `HarnessPolicy` and reference policies in `policies.py` | Declares its name, version, configuration, and seed policy, then chooses one action from the public instance and delivered observation history. |
+| **Controller** | `Controller`, `run_experiment`, and `run_hidden_fault` in `runner.py` | Owns the state machine, requests actions, enforces the budget, routes actions through the world, and records termination. |
+| **Trace** | `Event`, `TraceWriter`, and `TraceReader` in `events.py` and `trace.py` | Stores canonical, append-only facts with strict JSON types and contiguous steps. It records what happened without labeling the reasoning as good or bad. |
+| **Private reference and bindings** | `binding.py` plus controller-owned `reference.json` | Keeps generated truth outside the policy boundary and binds it to the run with an artifact identity, salted commitment, and byte hashes. |
+| **Replay, verifier, and meters** | `replay_trace`, `build_report`, and `regenerate_report` in `report.py` | Replays raw artifacts without running the policy, checks exact completion, and calculates separate resource and information measurements. |
+| **Calibration** | `run_calibration` in `calibration.py` | Runs every declared hidden state against known policies and verifies that the instrument produces the expected 24-versus-35 diagnostic contrast. |
+
+The blocks compose in this order during execution:
+
+```text
+HiddenFaultSpec.default() -> HiddenFaultWorld with private truth
+                                      ^
+                                      | validate and apply action
+                                      | return observation and raw cost
+                                      v
+Controller -- public instance and history --> policy.next_action(...)
+Controller <-- typed action ---------------- policy.next_action(...)
+    |
+    +--> Event --> events.jsonl
+```
+
+Interpretation happens only after execution:
+
+```text
+manifest.json + events.jsonl + private reference.json
+                         |
+                         v
+               strict offline replay
+                         |
+                         v
+       exact verifier + resource meter + information meter
+                         |
+                         v
+                    report.json
+```
+
+This separation is the core design rule. The policy never receives controller-private truth, the trace never contains qualitative judgment, and meters cannot change the run they measure. A new policy plugs into the policy block; a new measurement belongs in offline reporting and needs its own calibration evidence.
 
 ## Requirements
 

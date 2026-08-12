@@ -3,9 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_current_tree_uses_release_versions_not_phase_label():
+def _maintained_files() -> list[tuple[Path, str]]:
     project = Path(__file__).resolve().parents[1]
-    forbidden = "v" + "0"
     roots = [
         project / "README.md",
         project / "PLAN.md",
@@ -16,8 +15,7 @@ def test_current_tree_uses_release_versions_not_phase_label():
         project / "docs",
         project / ".github",
     ]
-
-    checked = []
+    files: list[tuple[Path, str]] = []
     for root in roots:
         paths = [root] if root.is_file() else root.rglob("*") if root.exists() else []
         for path in paths:
@@ -27,12 +25,23 @@ def test_current_tree_uses_release_versions_not_phase_label():
                 text = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:
                 continue
-            relative = path.relative_to(project)
-            checked.append(relative)
-            assert forbidden not in relative.as_posix().lower(), relative
-            assert forbidden not in text.lower(), relative
+            files.append((path.relative_to(project), text))
+    assert files
+    return files
 
-    assert checked
+
+def test_current_tree_uses_release_versions_not_phase_label():
+    forbidden = "v" + "0"
+    for relative, text in _maintained_files():
+        assert forbidden not in relative.as_posix().lower(), relative
+        assert forbidden not in text.lower(), relative
+
+
+def test_current_tree_avoids_size_minimizing_wording():
+    forbidden = "sma" + "ll"
+    for relative, text in _maintained_files():
+        assert forbidden not in relative.as_posix().lower(), relative
+        assert forbidden not in text.lower(), relative
 
 
 def test_package_version_is_derived_from_git_tags():
