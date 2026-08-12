@@ -14,3 +14,6 @@ dist/
 
 # Generated experiment artifacts
 runs/
+
+# Local agent instructions
+AGENTS.md
