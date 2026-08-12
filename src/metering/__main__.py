@@ -1,4 +1,4 @@
-"""Command-line entry point for Metering v0."""
+"""Command-line entry point for Metering."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from .calibration import (
     CalibrationFailure,
     run_calibration,
 )
+from .provenance import PACKAGE_VERSION
 from .report import ReportError, regenerate_report
 from .runner import DEFAULT_ACTION_BUDGET
 from .trace import TraceError
@@ -20,18 +21,23 @@ from .trace import TraceError
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m metering",
-        description="Run or replay the controlled Metering v0 experiment.",
+        description="Run or replay the controlled Metering experiment.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {PACKAGE_VERSION}",
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
     calibrate = commands.add_parser(
-        "calibrate", help="run the complete deterministic v0 calibration suite"
+        "calibrate", help="run the complete deterministic calibration suite"
     )
     calibrate.add_argument(
         "--output",
         type=Path,
-        default=Path("runs/calibration-v0"),
-        help="new or empty calibration directory (default: runs/calibration-v0)",
+        default=Path("runs/calibration"),
+        help="new or empty calibration directory (default: runs/calibration)",
     )
     calibrate.add_argument(
         "--seed", type=int, default=DEFAULT_CALIBRATION_SEED, help="random baseline seed"

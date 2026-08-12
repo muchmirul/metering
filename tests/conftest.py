@@ -4,20 +4,20 @@ import socket
 
 import pytest
 
-from v0_contract import V0API
+from contract import MeteringAPI
 
 
 @pytest.fixture(scope="session")
-def api() -> V0API:
-    return V0API()
+def api() -> MeteringAPI:
+    return MeteringAPI()
 
 
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
-    """v0 is required to run without a model server or network access."""
+    """Metering is required to run without a model server or network access."""
 
     def blocked(*args, **kwargs):
-        raise AssertionError("the deterministic v0 suite attempted network access")
+        raise AssertionError("the deterministic Metering suite attempted network access")
 
     monkeypatch.setattr(socket, "create_connection", blocked)
     monkeypatch.setattr(socket.socket, "connect", blocked)

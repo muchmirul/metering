@@ -1,14 +1,20 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "metering"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Replayable measurement for a controlled hidden-fault diagnosis world"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/muchmirul/metering"
+Documentation = "https://muchmirul.github.io/metering/"
+Repository = "https://github.com/muchmirul/metering.git"
+Releases = "https://github.com/muchmirul/metering/releases"
 
 [project.optional-dependencies]
 test = ["pytest>=8,<9"]
@@ -18,3 +24,6 @@ metering = "metering.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools_scm]
+fallback_version = "0+untagged"

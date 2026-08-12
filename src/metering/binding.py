@@ -17,7 +17,7 @@ _GENERATED_INSTANCE_KEYS = {
 
 
 class BindingError(ValueError):
-    """Raised when commitment input is not the exact v0 identity shape."""
+    """Raised when commitment input is not the exact Metering identity shape."""
 
 
 def reference_commitment_payload(

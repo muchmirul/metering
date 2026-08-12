@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from v0_contract import (
+from contract import (
     ContractError,
     canonical_events,
     event_payload,

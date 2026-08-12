@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from v0_contract import (
+from contract import (
     artifact_set_id,
     report_raw_input_sha256,
 )
@@ -165,4 +165,23 @@ def test_well_typed_policy_configuration_and_provenance_tampering_is_rejected(
         manifest_path.write_bytes(baseline_bytes)
 
     api.rebuild_report(run.run_dir)
+
+def test_release_version_is_provenance_not_replay_algorithm(api, tmp_path):
+    """GitHub release changes do not invalidate unchanged meter algorithms."""
+    run = _run_same_id(api, tmp_path / "release-version")
+    manifest_path = run.run_dir / "manifest.json"
+    reference_path = run.run_dir / "reference.json"
+
+    manifest = json.loads(manifest_path.read_bytes())
+    manifest["implementation"]["package_version"] = "999.0.0"
+    _write_json(manifest_path, manifest)
+
+    reference = json.loads(reference_path.read_bytes())
+    reference["artifact_hashes"]["manifest_sha256"] = sha256(
+        manifest_path.read_bytes()
+    ).hexdigest()
+    _write_json(reference_path, reference)
+
+    rebuilt = api.rebuild_report(run.run_dir)
+    assert rebuilt["correctness"]["overall_task_success"] is True
 

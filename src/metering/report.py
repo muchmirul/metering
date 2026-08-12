@@ -1,4 +1,4 @@
-"""Strict offline trace replay, verification, and v0 meter calculations."""
+"""Strict offline trace replay, verification, and meter calculations."""
 
 from __future__ import annotations
 
@@ -194,7 +194,7 @@ def _validate_seed_policy(value: object) -> None:
             minimum=None,
         )
         return
-    raise ReportError("manifest.policy.seed_policy.kind is not declared by v0")
+    raise ReportError("manifest.policy.seed_policy.kind is not declared by Metering")
 
 
 def _validate_manifest(
@@ -311,12 +311,12 @@ def _validate_manifest(
     if _string(execution["kind"], "manifest.execution_boundary.kind") != (
         "cooperative_in_process"
     ):
-        raise ReportError("v0 execution boundary must be cooperative_in_process")
+        raise ReportError("Metering execution boundary must be cooperative_in_process")
     if _boolean(
         execution["hostile_code_sandbox_enforced"],
         "manifest.execution_boundary.hostile_code_sandbox_enforced",
     ):
-        raise ReportError("v0 must not claim hostile-code sandbox enforcement")
+        raise ReportError("Metering must not claim hostile-code sandbox enforcement")
 
     reproducibility = _exact_keys(
         data["reproducibility"],
@@ -336,7 +336,7 @@ def _validate_manifest(
         reproducibility["event_timestamps_in_deterministic_comparison"],
         "manifest.reproducibility.event_timestamps_in_deterministic_comparison",
     ):
-        raise ReportError("v0 deterministic comparison must exclude event timestamps")
+        raise ReportError("Metering deterministic comparison must exclude event timestamps")
     if (
         _string(
             reproducibility["artifact_binding"],
@@ -344,7 +344,7 @@ def _validate_manifest(
         )
         != "sha256"
     ):
-        raise ReportError("v0 artifact binding must be sha256")
+        raise ReportError("Metering artifact binding must be sha256")
 
     implementation = _exact_keys(
         data["implementation"],
@@ -359,8 +359,20 @@ def _validate_manifest(
     )
     for key in implementation:
         _string(implementation[key], f"manifest.implementation.{key}")
-    if implementation != implementation_provenance():
+    current_implementation = implementation_provenance()
+    compatibility_keys = {
+        "package",
+        "controller_version",
+        "verifier_version",
+        "meter_version",
+    }
+    if any(
+        implementation[key] != current_implementation[key]
+        for key in compatibility_keys
+    ):
         raise ReportError("manifest implementation provenance is incompatible")
+    # The GitHub release version is provenance, not an algorithm version.
+    # Component versions above decide whether this installation can replay it.
 
     _finite_json(data, "manifest")
     return instance, budget, artifact_set_id, run_id, reference_commitment
@@ -860,7 +872,7 @@ def replay_trace(
 
     # Semantic replay runs before encoding and binding comparisons so a
     # contradictory observation is reported as trace corruption rather than
-    # merely a hash mismatch.  Completed v0 raw artifacts have one canonical
+    # merely a hash mismatch.  Completed Metering raw artifacts have one canonical
     # byte representation.
     canonical_inputs = {
         "manifest": canonical_document_bytes(dict(manifest)),

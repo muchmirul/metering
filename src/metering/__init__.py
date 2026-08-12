@@ -1,4 +1,4 @@
-"""Metering v0: replayable measurement for a controlled hidden-fault world."""
+"""Metering: replayable measurement for a controlled hidden-fault world."""
 
 from .calibration import (
     CalibrationFailure,

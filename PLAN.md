@@ -1,14 +1,14 @@
-# Metering: v0 Plan
+# Metering Plan
 
 ## Status
 
 This document defines the first implementable slice of Metering. It is intentionally smaller than the full harness-measurement vision.
 
-The purpose of v0 is not to rank agent systems. It is to prove that a controlled interaction can produce a raw trace and that independently implemented meters can turn that trace into correct, reproducible measurements.
+The purpose of Metering is not to rank agent systems. It is to prove that a controlled interaction can produce a raw trace and that independently implemented meters can turn that trace into correct, reproducible measurements.
 
 ## The first question
 
-v0 answers one narrow question:
+Metering answers one narrow question:
 
 > Can the instrument distinguish a careful diagnostic policy from a wasteful one using exact, replayable measurements?
 
@@ -16,14 +16,14 @@ If it cannot answer this correctly, adding language models, real repositories, f
 
 ## Claims and non-claims
 
-v0 may measure:
+Metering may measure:
 
 - whether a task was completed correctly;
 - how many observations and actions were used;
 - how much uncertainty the supplied observations removed;
 - how much diagnostic information was delivered per observation.
 
-v0 does not measure:
+Metering does not measure:
 
 - whether a model understood an observation;
 - private reasoning inside a model;
@@ -70,7 +70,7 @@ Required operations:
 
 A typed command produced by a harness.
 
-v0 actions are:
+Metering actions are:
 
 - `diagnose(test_id)`
 - `repair(fault_id)`
@@ -89,9 +89,9 @@ A typed result returned after an action. Diagnostic observations contain only th
 
 ### Harness
 
-Chooses the next action from the public instance description and the observations it has received. Every canonical v0 harness must also provide a finite JSON descriptor containing its name, version, configuration, and declared seed policy; undeclared policy provenance is rejected. Reference harnesses run in process during v0.
+Chooses the next action from the public instance description and the observations it has received. Every canonical Metering harness must also provide a finite JSON descriptor containing its name, version, configuration, and declared seed policy; undeclared policy provenance is rejected. Reference harnesses run in process during calibration.
 
-The v0 harness is cooperative. It is not treated as hostile code, and v0 must not claim sandbox enforcement.
+The harness is cooperative. It is not treated as hostile code, and Metering must not claim sandbox enforcement.
 
 ### Controller
 
@@ -160,7 +160,7 @@ Reports separate counts for:
 - total actions;
 - budget exhaustion.
 
-v0 does not combine these into invented points.
+Metering does not combine these into invented points.
 
 ### 3. Diagnostic information exposure
 
@@ -218,13 +218,15 @@ Raw schemas use exact key sets and strict JSON types. A Boolean or floating-poin
 
 The generated instance itself is saved. A seed alone is not considered a complete reproducibility record.
 
+The GitHub release version is recorded as provenance, but a release-number change alone does not invalidate an artifact. Replay requires the recorded controller, verifier, and meter versions to match the installed implementations, and every schema must be accepted by its strict decoder. World, instance, and policy declarations are recorded and checked for consistency inside the artifact set; they are not compared with a global current-version constant. A behavioral or interpretive change must bump the component version that replay uses as its compatibility gate.
+
 ## Minimal repository layout
 
 Start with a small layout and split files only when real code requires it:
 
 ```text
 metering/
-    V0_PLAN.md
+    PLAN.md
     pyproject.toml
     src/
         metering/
@@ -258,7 +260,7 @@ It runs every hidden state against the declared reference policies, writes run a
 
 ## Acceptance criteria
 
-v0 is complete only when all of the following are true:
+The instrument is complete only when all of the following are true:
 
 - The documented public callback inputs do not contain the hidden fault. This is API non-disclosure, not sandbox security.
 - All eight hidden states are covered by calibration.
@@ -269,7 +271,7 @@ v0 is complete only when all of the following are true:
 - Invalid actions produce explicit protocol failures.
 - A harness that keeps returning non-finish actions is stopped by the fixed action budget without a later callback.
 - An ordinary exception raised by `next_action` produces an explicit harness-crash termination record.
-- The in-process v0 does not claim to stop a callback that never returns or survive hard process exits, segmentation faults, out-of-memory termination, or interpreter failure.
+- The in-process instrument does not claim to stop a callback that never returns or survive hard process exits, segmentation faults, out-of-memory termination, or interpreter failure.
 - Every event has a strict schema version and a contiguous monotonic step number.
 - Equal Boolean or floating-point substitutes are rejected for integer schema and count fields.
 - The materialized public instance and controller-private selected state are stored separately.
@@ -282,7 +284,7 @@ v0 is complete only when all of the following are true:
 
 ## Explicitly deferred
 
-v0 does not include:
+The current instrument does not include:
 
 - Qwen or any other language model;
 - an inference-provider abstraction;
@@ -297,15 +299,15 @@ v0 does not include:
 - a public benchmark or leaderboard;
 - an overall harness score.
 
-These are later features, not missing v0 work.
+These are later features, not missing work.
 
-## Development sequence after v0
+## Future development sequence
 
-### v1: external harness boundary
+### External harness boundary
 
 After at least two different in-process harnesses work, extract a small external protocol. Define its legal state transitions, request identifiers, invalid-message behavior, termination, timeout handling, and resource limits before promising compatibility.
 
-### v2: replaceable inference engine
+### Replaceable inference engine
 
 Add a brokered inference interface and a deterministic synthetic brain. Then add one pinned local Qwen configuration.
 
@@ -313,15 +315,15 @@ A model is the brain, not the harness. The harness includes context construction
 
 For model-backed runs, record model and tokenizer hashes, quantization, runtime build, chat template, tool definitions, sampling settings, token limits, and complete requests and responses. A fixed seed alone does not guarantee GPU determinism.
 
-### v3: controlled failure experiments
+### Controlled failure experiments
 
 Add one failure mechanism at a time, beginning with ambiguous completion or lost responses. Add safe and unsafe scripted references and validate the expected behavior before testing a real model-backed harness.
 
-### v4: additional worlds and real adapters
+### Additional worlds and real adapters
 
 Add another world only when it measures something that the hidden-fault world cannot. Results remain conditional on their declared worlds and configurations.
 
-### v5: standardized benchmark
+### Standardized benchmark
 
 A benchmark may be assembled only after individual measurements have stable definitions, calibration behavior, reproducible procedures, and clearly stated limitations.
 

@@ -1,4 +1,4 @@
-"""Complete deterministic v0 calibration suite."""
+"""Complete deterministic Metering calibration suite."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from .trace import interaction_signature, write_json_atomic
 
 CALIBRATION_SCHEMA_VERSION = 1
 DEFAULT_CALIBRATION_SEED = 20260722
-CALIBRATION_MARKER_NAME = ".metering-calibration-v0"
+CALIBRATION_MARKER_NAME = ".metering-calibration"
 CALIBRATION_MARKER_BYTES = (
     b'{"format":"metering-calibration-output","schema_version":1}\n'
 )
@@ -173,13 +173,13 @@ def _termination_reason(result: RunResult) -> str:
 
 
 def run_calibration(
-    output_dir: str | Path = "runs/calibration-v0",
+    output_dir: str | Path = "runs/calibration",
     *,
     seed: int = DEFAULT_CALIBRATION_SEED,
     action_budget: int = DEFAULT_ACTION_BUDGET,
     force: bool = False,
 ) -> CalibrationResult:
-    """Run all states and policies, regenerate reports, and enforce v0 checks."""
+    """Run all states and policies, regenerate reports, and enforce calibration checks."""
 
     if type(seed) is not int:
         raise CalibrationFailure("seed must be an integer")
@@ -190,7 +190,7 @@ def run_calibration(
 
     output = Path(output_dir)
     _prepare_output(output, force)
-    spec = HiddenFaultSpec.v0()
+    spec = HiddenFaultSpec.default()
     failures: list[dict[str, str]] = []
     checks: dict[str, bool] = {}
     regenerated_run_count = 0
@@ -255,7 +255,7 @@ def run_calibration(
                 relative,
                 policy,
                 fault_id,
-                run_id=f"calibration-v0-{policy_key}-{index:02d}",
+                run_id=f"calibration-{policy_key}-{index:02d}",
             )
             primary[policy_key].append(result)
             public_descriptions.append(dict(result.manifest["instance"]))
@@ -377,7 +377,7 @@ def run_calibration(
             f"replay/seeded_random/{index:02d}",
             SeededRandomSearchPolicy(seed),
             fault_id,
-            run_id=f"calibration-v0-seeded-random-replay-{index:02d}",
+            run_id=f"calibration-seeded-random-replay-{index:02d}",
         )
         replay_results.append(replay)
         check(
@@ -391,7 +391,7 @@ def run_calibration(
         "controller_checks/invalid_action",
         _InvalidActionPolicy(),
         spec.fault_ids[0],
-        run_id="calibration-v0-invalid-action",
+        run_id="calibration-invalid-action",
     )
     check(
         "invalid_action_is_explicit",
@@ -406,7 +406,7 @@ def run_calibration(
         "controller_checks/budget_exhaustion",
         never_finish,
         spec.fault_ids[0],
-        run_id="calibration-v0-budget-exhaustion",
+        run_id="calibration-budget-exhaustion",
     )
     check(
         "budget_stops_without_extra_request",
@@ -420,7 +420,7 @@ def run_calibration(
         "controller_checks/harness_crash",
         _CrashPolicy(),
         spec.fault_ids[0],
-        run_id="calibration-v0-harness-crash",
+        run_id="calibration-harness-crash",
     )
     check(
         "harness_crash_is_explicit",
@@ -435,7 +435,7 @@ def run_calibration(
         "controller_checks/finish_at_budget_boundary",
         boundary_policy,
         spec.fault_ids[0],
-        run_id="calibration-v0-finish-at-boundary",
+        run_id="calibration-finish-at-boundary",
         budget=boundary_budget,
     )
     check(

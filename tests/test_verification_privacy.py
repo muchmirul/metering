@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from v0_contract import (
+from contract import (
     jsonable,
     recursive_keys,
     verification_fact,

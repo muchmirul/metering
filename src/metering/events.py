@@ -1,4 +1,4 @@
-"""Typed commands, observations, and canonical trace events for Metering v0.
+"""Typed commands, observations, and canonical trace events for Metering.
 
 The event module contains data only.  It deliberately does not interpret a run;
 that work belongs to :mod:`metering.report`.
@@ -109,7 +109,7 @@ ACTION_TYPES = (Diagnose, Repair, Verify, Finish)
 def action_to_dict(action: Action) -> dict[str, Any]:
     """Return the canonical JSON object for a typed action.
 
-    A plain mapping is intentionally not accepted.  The in-process v0 boundary
+    A plain mapping is intentionally not accepted.  The in-process Metering boundary
     is typed, and malformed harness output must reach the controller as an
     explicit protocol failure rather than being silently repaired.
     """
@@ -183,7 +183,7 @@ class VerificationObservation:
     """Content-free acknowledgement that verification was performed.
 
     Whether the repair passed remains controller-private.  A harness may not
-    use verification as a hidden-state oracle in v0.
+    use verification as a hidden-state oracle in Metering.
     """
 
     kind: ClassVar[str] = "verification_acknowledged"

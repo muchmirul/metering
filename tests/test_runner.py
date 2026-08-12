@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from v0_contract import (
+from contract import (
     CrashingHarness,
     ScriptedHarness,
     event_payload,

@@ -1,4 +1,4 @@
-"""Deterministic in-process reference policies for the v0 calibration world."""
+"""Deterministic in-process reference policies for the calibration world."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ class PolicyError(RuntimeError):
 
 @runtime_checkable
 class HarnessPolicy(Protocol):
-    """The intentionally small cooperative v0 harness boundary."""
+    """The intentionally small cooperative Metering harness boundary."""
 
     name: str
     version: str

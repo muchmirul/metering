@@ -8,7 +8,7 @@ import uuid
 
 import pytest
 
-from v0_contract import (
+from contract import (
     ScriptedHarness,
     jsonable,
     recursive_keys,

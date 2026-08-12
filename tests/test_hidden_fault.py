@@ -5,7 +5,7 @@ import math
 
 import pytest
 
-from v0_contract import diagnostic_result, jsonable, recursive_keys
+from contract import diagnostic_result, jsonable, recursive_keys
 
 
 def _raw_cost_is_nonnegative(cost) -> bool:
@@ -20,14 +20,14 @@ def _raw_cost_is_nonnegative(cost) -> bool:
     return False
 
 
-def test_v0_spec_declares_exactly_eight_distinct_hidden_states(api):
+def test_spec_declares_exactly_eight_distinct_hidden_states(api):
     """Calibration means the complete declared set, not eight sampled draws."""
     assert len(api.fault_ids) == 8
     assert len(set(api.fault_ids)) == 8
 
 
 
-def test_v0_catalogue_contains_three_bit_splits_and_all_singletons(api):
+def test_catalogue_contains_three_bit_splits_and_all_singletons(api):
     """Pin the controlled fixture that makes exact calibration costs meaningful."""
     public = jsonable(api.public_description(api.world(api.fault_ids[0])))
     tests = public["diagnostic_tests"]

@@ -1,4 +1,4 @@
-"""The deterministic eight-state hidden-fault world used by Metering v0."""
+"""The deterministic eight-state hidden-fault world used by Metering."""
 
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ class DiagnosticTest:
 
 @dataclass(frozen=True, slots=True)
 class PublicInstance:
-    """Everything a cooperative v0 harness is allowed to receive."""
+    """Everything a cooperative Metering harness is allowed to receive."""
 
     world_id: str
     world_version: str
@@ -201,8 +201,8 @@ class HiddenFaultSpec:
         self.public_instance()
 
     @classmethod
-    def v0(cls) -> "HiddenFaultSpec":
-        """Return the canonical eight-fault v0 specification."""
+    def default(cls) -> "HiddenFaultSpec":
+        """Return the canonical eight-fault specification."""
 
         fault_ids = tuple(f"fault-{index}" for index in range(8))
         tests: list[DiagnosticTest] = []
@@ -307,7 +307,7 @@ class HiddenFaultWorld:
     """One mutable instance with private hidden state.
 
     The controller gives a harness only :meth:`public_description`; it never
-    gives the world object itself.  v0 is an in-process cooperative boundary,
+    gives the world object itself.  Metering uses an in-process cooperative boundary,
     not a hostile-code sandbox.
     """
 

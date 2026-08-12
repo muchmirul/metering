@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib.metadata import version
 import json
 import math
 import os
@@ -9,7 +10,7 @@ import sys
 
 import pytest
 
-from v0_contract import (
+from contract import (
     RunArtifacts,
     canonical_events,
     get_path,
@@ -114,7 +115,7 @@ def test_calibration_information_aggregation_is_ratio_of_sums(api, tmp_path):
 
 
 def test_zero_diagnostics_reports_null_efficiency_not_zero(api, tmp_path):
-    from v0_contract import ScriptedHarness
+    from contract import ScriptedHarness
 
     artifacts = api.run(
         harness=ScriptedHarness([api.action("finish")]),
@@ -198,14 +199,14 @@ def _policy_name(manifest):
 def test_required_calibrate_command_covers_every_state_and_reference_policy(
     api, tmp_path
 ):
-    """This invokes the exact command promised by V0_PLAN.md."""
+    """This invokes the exact command promised by PLAN.md."""
     project_root = Path(__file__).resolve().parents[1]
     environment = os.environ.copy()
     source_path = str(project_root / "src")
     environment["PYTHONPATH"] = os.pathsep.join(
         value for value in (source_path, environment.get("PYTHONPATH", "")) if value
     )
-    # Make accidental client use fail quickly even though v0 should import none.
+    # Make accidental client use fail quickly even though Metering should import none.
     environment.update(
         {
             "HTTP_PROXY": "http://127.0.0.1:1",
@@ -265,6 +266,7 @@ def test_required_calibrate_command_covers_every_state_and_reference_policy(
 
     summaries = list(tmp_path.rglob("calibration.json"))
     assert len(summaries) == 1
+    assert summaries[0] == tmp_path / "runs" / "calibration" / "calibration.json"
     summary = json.loads(summaries[0].read_text())
     assert summary["status"] == "passed"
     assert summary["world"]["hidden_states"] == list(api.fault_ids)
@@ -274,3 +276,14 @@ def test_required_calibrate_command_covers_every_state_and_reference_policy(
     assert summary["aggregates"]["sequential"]["information_per_observation_bits"] == pytest.approx(24.0 / 35.0)
     assert summary["checks"]["aggregate_efficiency_uses_ratio_of_sums"] is True
     assert all(summary["checks"].values())
+
+def test_cli_reports_tag_derived_package_version(tmp_path):
+    completed = subprocess.run(
+        [sys.executable, "-m", "metering", "--version"],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == f"python -m metering {version('metering')}"

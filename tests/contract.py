@@ -1,4 +1,4 @@
-"""Test-side adapter for the small public API assumed by the v0 tests.
+"""Test-side adapter for the small public API assumed by the tests.
 
 The plan fixes concepts and module names, but it does not fix constructor or
 function spellings.  Behavioural tests import only this module.  Supporting a
@@ -8,7 +8,7 @@ tests.
 Expected production surface (accepted aliases are kept deliberately narrow):
 
 * ``metering.events.Action`` with typed diagnose/repair/verify/finish factories;
-* ``metering.hidden_fault`` exposes the v0 spec, its eight fault ids, and a
+* ``metering.hidden_fault`` exposes the canonical spec, its eight fault ids, and a
   ``HiddenFaultWorld`` (or ``make_world``);
 * ``metering.runner.run`` executes one policy and writes a run directory;
 * ``metering.policies`` exposes balanced, sequential, and seeded-random
@@ -35,7 +35,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
 class ContractError(AssertionError):
-    """The implementation does not expose a concept required by the v0 plan."""
+    """The implementation does not expose a concept required by the plan."""
 
 
 def _module(name: str):
@@ -147,7 +147,7 @@ def _ids_from_container(container: Any, names: Sequence[str]) -> tuple[str, ...]
     return None
 
 
-class V0API:
+class MeteringAPI:
     """Small normalised view of the production API used by the tests."""
 
     def __init__(self) -> None:
@@ -181,10 +181,10 @@ class V0API:
             self.world_module, ("HiddenFaultSpec", "WorldSpec"), required=False
         )
         if spec_class is not None:
-            constructor = _first_attr(spec_class, ("default", "v0"), required=False)
+            constructor = _first_attr(spec_class, ("default",), required=False)
             self._spec = constructor() if constructor else spec_class()
             return self._spec
-        # A module-level catalogue plus a spec-less world is also a reasonable v0 API.
+        # A module-level catalogue plus a spec-less world is also a reasonable Metering API.
         self._spec = self.world_module
         return self._spec
 
@@ -533,7 +533,7 @@ class RunArtifacts:
 
 
 class ScriptedHarness:
-    """Cooperative harness double implementing the v0 in-process protocol."""
+    """Cooperative harness double implementing the Metering in-process protocol."""
 
     name = "pytest-scripted-harness"
     version = "1"
@@ -690,7 +690,7 @@ def information_value(report: Mapping[str, Any], name: str) -> Any:
     section = report_information(report)
     if name == "remaining":
         # The plan asks for uncertainty after *each* diagnostic result.  Some
-        # reports expose that as a direct list; the canonical v0 report keeps a
+        # reports expose that as a direct list; the canonical Metering report keeps a
         # richer progression with the same values.
         for key in (
             "uncertainty_remaining_bits",

@@ -1,4 +1,4 @@
-"""In-process v0 controller and run-artifact orchestration."""
+"""In-process Metering controller and run-artifact orchestration."""
 
 from __future__ import annotations
 
@@ -99,7 +99,7 @@ def _is_canonical_uuid4(value: object) -> bool:
 
 
 class Controller:
-    """Own the v0 action loop and record canonical public events.
+    """Own the Metering action loop and record canonical public events.
 
     The policy receives only the immutable public instance and the observation
     tuple delivered so far.  The controller never passes it the world or the
@@ -118,7 +118,7 @@ class Controller:
         action_budget: int = DEFAULT_ACTION_BUDGET,
     ) -> None:
         if type(world) is not HiddenFaultWorld:
-            raise RunnerError("world must be an exact HiddenFaultWorld in v0")
+            raise RunnerError("world must be an exact HiddenFaultWorld in Metering")
         if type(run_id) is not str or not run_id:
             raise RunnerError("run_id must be a non-empty string")
         if not _is_canonical_uuid4(artifact_set_id):
@@ -195,7 +195,7 @@ class Controller:
             except Exception:
                 # Exception text is deliberately not interpreted by any meter.
                 # Hard process exits and callbacks that never return are outside
-                # the cooperative in-process v0 boundary.
+                # the cooperative in-process Metering boundary.
                 return self._terminate(TERMINATION_HARNESS_CRASH)
 
             validation: ActionValidation = self.world.validate_action(output)
@@ -268,7 +268,7 @@ def _policy_descriptor(policy: object) -> dict[str, Any]:
     descriptor_method = getattr(policy, "descriptor", None)
     if not callable(descriptor_method):
         raise RunnerError(
-            "canonical v0 policies must declare descriptor() with name, version, "
+            "canonical Metering policies must declare descriptor() with name, version, "
             "configuration, and seed policy"
         )
     raw = descriptor_method()
@@ -322,10 +322,10 @@ def run_experiment(
     action_budget: int = DEFAULT_ACTION_BUDGET,
     sync_trace: bool = False,
 ) -> RunResult:
-    """Run one policy/world pair and write the four bound v0 artifacts."""
+    """Run one policy/world pair and write the four bound Metering artifacts."""
 
     if type(world) is not HiddenFaultWorld:
-        raise RunnerError("world must be an exact HiddenFaultWorld in v0")
+        raise RunnerError("world must be an exact HiddenFaultWorld in Metering")
     if type(action_budget) is not int or action_budget < 1:
         raise RunnerError("action_budget must be a positive integer")
     if run_id is None:
@@ -437,9 +437,9 @@ def run_hidden_fault(
     action_budget: int = DEFAULT_ACTION_BUDGET,
     sync_trace: bool = False,
 ) -> RunResult:
-    """Create one v0 hidden-fault instance and run a cooperative policy."""
+    """Create one hidden-fault instance and run a cooperative policy."""
 
-    actual_spec = spec or HiddenFaultSpec.v0()
+    actual_spec = spec or HiddenFaultSpec.default()
     world = HiddenFaultWorld.from_spec(
         actual_spec, hidden_fault_id, instance_id=instance_id
     )

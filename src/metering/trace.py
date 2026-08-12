@@ -141,7 +141,7 @@ def read_json(path: str | Path) -> dict[str, Any]:
 
 @dataclass(frozen=True, slots=True)
 class RunPaths:
-    """The four v0 artifact paths in one run directory."""
+    """The four Metering artifact paths in one run directory."""
 
     run_dir: Path
 
