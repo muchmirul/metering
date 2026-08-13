@@ -6,7 +6,7 @@ The task is the hidden-fault world. The controller selects one of eight faults a
 
 Metering does not rank agents and does not produce an overall score. It answers one narrow question, which is whether the instrument can tell a careful diagnostic policy apart from a wasteful one using exact and replayable numbers.
 
-Full documentation is published at the [documentation site](https://muchmirul.github.io/metering/). [`PLAN.md`](https://github.com/muchmirul/metering/blob/main/PLAN.md) is the normative source for scope, definitions, limitations, and acceptance criteria.
+Full documentation is published at the [documentation site](https://muchmirul.github.io/metering/). For a copyable walkthrough in the repository, read the [Markdown usage guide](docs/usage.md). [`PLAN.md`](https://github.com/muchmirul/metering/blob/main/PLAN.md) is the normative source for scope, definitions, limitations, and acceptance criteria.
 
 ## Quick start
 
