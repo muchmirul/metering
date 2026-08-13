@@ -1,23 +1,40 @@
-"""Salted commitment for controller-private generated-instance truth."""
+"""Salted commitment for controller-private generated-instance truth.
+
+Before the policy runs, the controller hashes the selected fault together with
+a fresh random nonce and publishes only that hash in the manifest.  After the
+run, the reference artifact reveals both the fault and the nonce, and replay
+recomputes the hash to confirm they match.
+
+The nonce is what makes this useful.  Publishing a bare hash of one of eight
+faults would be worthless, because a reader could hash all eight and see which
+one matched.  With the nonce held back, the manifest commits to the truth
+without disclosing it, so a hidden fault cannot be chosen or changed after the
+policy has already acted.
+"""
 
 from __future__ import annotations
 
 from typing import Any, Mapping
 
+from .schema import SchemaError, StrictFields
 from .trace import canonical_json, sha256_hex
 
 REFERENCE_COMMITMENT_ALGORITHM = "sha256"
-_GENERATED_INSTANCE_KEYS = {
+
+_GENERATED_INSTANCE_FIELDS = (
     "world_id",
     "world_version",
     "instance_id",
     "instance_version",
     "hidden_fault_id",
-}
+)
 
 
-class BindingError(ValueError):
+class BindingError(SchemaError):
     """Raised when commitment input is not the exact Metering identity shape."""
+
+
+_check = StrictFields(BindingError)
 
 
 def reference_commitment_payload(
@@ -27,29 +44,23 @@ def reference_commitment_payload(
 ) -> dict[str, Any]:
     """Return the unambiguous JSON value committed by the controller.
 
-    The caller validates UUID syntax.  This helper enforces the complete
-    generated-instance identity so adding or omitting a truth-bearing field
-    cannot silently change what the commitment means.
+    The caller validates UUID syntax.  This helper requires the complete
+    generated-instance identity, so adding or omitting a truth-bearing field
+    cannot quietly change what the commitment covers.
     """
 
-    if type(artifact_set_id) is not str or not artifact_set_id:
-        raise BindingError("artifact_set_id must be a non-empty string")
-    if type(binding_nonce) is not str or not binding_nonce:
-        raise BindingError("binding_nonce must be a non-empty string")
-    if type(generated_instance) is not dict or set(generated_instance) != (
-        _GENERATED_INSTANCE_KEYS
-    ):
-        raise BindingError("generated_instance has an invalid commitment schema")
-    identity: dict[str, str] = {}
-    for key in sorted(_GENERATED_INSTANCE_KEYS):
-        value = generated_instance[key]
-        if type(value) is not str or not value:
-            raise BindingError(f"generated_instance.{key} must be a string")
-        identity[key] = value
+    _check.text(artifact_set_id, "artifact_set_id")
+    _check.text(binding_nonce, "binding_nonce")
+    fields = _check.exact_keys(
+        generated_instance, _GENERATED_INSTANCE_FIELDS, "generated_instance"
+    )
     return {
         "artifact_set_id": artifact_set_id,
         "binding_nonce": binding_nonce,
-        "generated_instance": identity,
+        "generated_instance": {
+            key: _check.text(fields[key], f"generated_instance.{key}")
+            for key in sorted(_GENERATED_INSTANCE_FIELDS)
+        },
     }
 
 
@@ -58,7 +69,7 @@ def compute_reference_commitment(
     binding_nonce: str,
     generated_instance: Mapping[str, Any],
 ) -> str:
-    """Hash UTF-8 canonical JSON without an artifact newline."""
+    """Hash UTF-8 canonical JSON without a trailing newline."""
 
     payload = reference_commitment_payload(
         artifact_set_id, binding_nonce, generated_instance

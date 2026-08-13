@@ -1,12 +1,26 @@
-"""Metering: replayable measurement for a controlled hidden-fault world."""
+"""Metering: replayable measurement for a controlled hidden-fault world.
 
+The package is assembled from focused modules with one responsibility each, and
+they are listed here in the order a run passes through them.
+
+``schema`` holds the artifact vocabulary and the strict decoding rules that
+every other module reuses.  ``events`` defines the typed actions, observations,
+and trace events.  ``hidden_fault`` defines the world and the truth-free public
+instance a policy is allowed to see.  ``policies`` is the harness boundary.
+``runner`` owns the action loop and writes the artifacts.  ``trace`` provides
+canonical encoding and append-only JSONL.  ``binding`` commits to the private
+truth before the run.  ``replay`` rebuilds a finished run from its files, and
+``report`` measures what it rebuilt.  ``calibration`` runs the whole instrument
+against answers that are already known.
+"""
+
+from .binding import BindingError, compute_reference_commitment
 from .calibration import (
     CalibrationFailure,
     CalibrationResult,
     run_calibration,
 )
 from .events import (
-    EVENT_SCHEMA_VERSION,
     Action,
     Diagnose,
     DiagnosticObservation,
@@ -48,13 +62,12 @@ from .provenance import (
     PACKAGE_VERSION,
     VERIFIER_VERSION,
 )
+from .replay import ReplayState, replay_trace
 from .report import (
     ReportError,
-    ReplayState,
     aggregate_reports,
     build_report,
     regenerate_report,
-    replay_trace,
 )
 from .runner import (
     DEFAULT_ACTION_BUDGET,
@@ -64,6 +77,16 @@ from .runner import (
     RunnerError,
     run_experiment,
     run_hidden_fault,
+)
+from .schema import (
+    EVENT_SCHEMA_VERSION,
+    MANIFEST_SCHEMA_VERSION,
+    REPORT_SCHEMA_VERSION,
+    TERMINATION_BUDGET_EXHAUSTED,
+    TERMINATION_HARNESS_CRASH,
+    TERMINATION_INVALID_ACTION,
+    TERMINATION_NORMAL,
+    SchemaError,
 )
 from .trace import (
     RunPaths,
@@ -81,11 +104,12 @@ __all__ = [
     "Action",
     "ActionValidation",
     "BalancedSearchPolicy",
+    "BindingError",
+    "CONTROLLER_VERSION",
     "CalibrationFailure",
     "CalibrationResult",
     "Controller",
     "ControllerOutcome",
-    "CONTROLLER_VERSION",
     "DEFAULT_ACTION_BUDGET",
     "Diagnose",
     "DiagnosticObservation",
@@ -100,11 +124,13 @@ __all__ = [
     "HiddenFaultSpec",
     "HiddenFaultWorld",
     "InvalidActionError",
+    "MANIFEST_SCHEMA_VERSION",
     "METER_VERSION",
     "Observation",
     "PACKAGE_VERSION",
     "PolicyError",
     "PublicInstance",
+    "REPORT_SCHEMA_VERSION",
     "RawActionCost",
     "Repair",
     "RepairObservation",
@@ -113,8 +139,13 @@ __all__ = [
     "RunPaths",
     "RunResult",
     "RunnerError",
+    "SchemaError",
     "SeededRandomSearchPolicy",
     "SequentialSearchPolicy",
+    "TERMINATION_BUDGET_EXHAUSTED",
+    "TERMINATION_HARNESS_CRASH",
+    "TERMINATION_INVALID_ACTION",
+    "TERMINATION_NORMAL",
     "TraceError",
     "TraceReader",
     "TraceWriter",
@@ -126,6 +157,7 @@ __all__ = [
     "aggregate_reports",
     "build_report",
     "canonical_json",
+    "compute_reference_commitment",
     "observation_from_dict",
     "observation_to_dict",
     "read_events",

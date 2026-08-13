@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Python API reference for Metering: actions, world, policies, runner, traces, replay, reports, and calibration.">
+  <title>Python API · Metering</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="nav" aria-label="Main navigation">
+    <a class="brand" href="index.html">Metering</a>
+    <a href="index.html">Overview</a><a href="quickstart.html">Quickstart</a>
+    <a href="api.html" aria-current="page">API</a><a href="developer.html">Developer</a>
+    <a href="https://github.com/muchmirul/metering">GitHub</a>
+  </nav></header>
+
+  <main id="main">
+    <div class="page-layout">
+      <aside class="toc" aria-label="API modules">
+        <strong>Modules</strong>
+        <ul>
+          <li><a href="#schema">Schema</a></li>
+          <li><a href="#events">Actions and events</a></li>
+          <li><a href="#world">Hidden-fault world</a></li>
+          <li><a href="#policies">Policies</a></li>
+          <li><a href="#runner">Runner</a></li>
+          <li><a href="#trace">Traces</a></li>
+          <li><a href="#binding">Binding</a></li>
+          <li><a href="#replay">Replay</a></li>
+          <li><a href="#reports">Reports</a></li>
+          <li><a href="#calibration">Calibration</a></li>
+        </ul>
+      </aside>
+      <article class="content">
+        <p class="eyebrow">Reference</p>
+        <h1>Python API</h1>
+        <p class="lede">Every public type and function, ordered the way a run passes through them.</p>
+        <p>Common names are re-exported from the package root, so <code>from metering import run_hidden_fault</code> works and the module paths below tell you where each one lives. Every decoder in this API is strict, which means an unknown field, an incorrect JSON type, or a Boolean standing in for an integer is rejected rather than repaired.</p>
+
+        <h2 id="schema">Schema</h2>
+        <p class="module-note"><code>metering.schema</code> holds the artifact vocabulary and the strict decoding rules that every other module reuses. Nothing here reads or writes files, so it is the one module with no dependencies inside the package.</p>
+        <section class="api-entry" id="metering.schema.StrictFields"><h3><code>StrictFields(error=SchemaError)</code></h3><p>Strict JSON field checks bound to one error type. Methods are <code>mapping</code>, <code>exact_keys</code>, <code>text</code>, <code>integer</code>, <code>boolean</code>, <code>sha256_digest</code>, <code>uuid4</code>, and <code>finite_json</code>. The error type is chosen by the caller because the same rules are enforced at several boundaries, so a malformed action raises <code>EventError</code> and a malformed manifest raises <code>ReportError</code> while both use these checks.</p></section>
+        <section class="api-entry" id="metering.schema.SchemaError"><h3><code>SchemaError</code></h3><p>Base class for every strict-decoding failure, derived from <code>ValueError</code>. <code>EventError</code>, <code>HiddenFaultError</code>, <code>TraceError</code>, <code>BindingError</code>, and <code>ReportError</code> all derive from it, so a caller can catch one boundary precisely or catch them all at once.</p></section>
+        <section class="api-entry" id="metering.schema.constants"><h3>Constants</h3><p>Schema versions for events, public instances, references, manifests, reports, and calibration summaries. Event types are <code>run_started</code>, <code>interaction</code>, <code>protocol_error</code>, and <code>termination</code>. Termination reasons are <code>normal_finish</code>, <code>invalid_action</code>, <code>harness_crash</code>, and <code>budget_exhausted</code>. Changing a schema version is a compatibility decision, because each one gates a strict decoder that replay depends on.</p></section>
+
+        <h2 id="events">Actions, observations, and events</h2>
+        <p class="module-note"><code>metering.events</code> defines the complete protocol vocabulary and its canonical JSON conversion. The module carries data only and never interprets a run.</p>
+        <section class="api-entry" id="metering.events.Diagnose"><h3><code>Diagnose(test_id: str)</code></h3><p>Request one test from the public diagnostic catalogue.</p></section>
+        <section class="api-entry" id="metering.events.Repair"><h3><code>Repair(fault_id: str)</code></h3><p>Select a public fault identifier as the proposed repair. A later repair replaces an earlier one and makes any verification before it stale.</p></section>
+        <section class="api-entry" id="metering.events.Verify"><h3><code>Verify()</code></h3><p>Verify the current repair. Valid only after a repair has been selected, and the delivered result is a content-free acknowledgement.</p></section>
+        <section class="api-entry" id="metering.events.Finish"><h3><code>Finish()</code></h3><p>Ask the controller to terminate the run normally. This is the only action that produces a successful termination.</p></section>
+        <section class="api-entry" id="metering.events.DiagnosticObservation"><h3><code>DiagnosticObservation(test_id: str, positive: bool)</code></h3><p>The deterministic Boolean outcome of one public diagnostic test. This is the only observation that carries diagnostic content, and it is the only one the information meter reads.</p></section>
+        <section class="api-entry" id="metering.events.RepairObservation"><h3><code>RepairObservation(fault_id: str)</code></h3><p>Acknowledges which repair was applied, without saying whether it matches the hidden fault.</p></section>
+        <section class="api-entry" id="metering.events.VerificationObservation"><h3><code>VerificationObservation()</code></h3><p>Acknowledges that verification happened and carries no result. Returning the outcome here would turn verification into a second diagnostic oracle that no meter counts.</p></section>
+        <section class="api-entry" id="metering.events.FinishObservation"><h3><code>FinishObservation()</code></h3><p>Acknowledges a valid finish action.</p></section>
+        <section class="api-entry" id="metering.events.RawActionCost"><h3><code>RawActionCost(...)</code></h3><pre class="signature"><code>RawActionCost(
+    diagnostic_observations: int = 0,
+    repair_actions: int = 0,
+    verification_actions: int = 0,
+    total_actions: int = 0,
+)</code></pre><p>Uncombined resource counts from one action. Instances add together with <code>+</code>, and <code>zero()</code>, <code>to_dict()</code>, and strict <code>from_dict()</code> are provided. The counts stay in separate columns at every layer, because only the reader knows how to trade a diagnostic against a repair.</p></section>
+        <section class="api-entry" id="metering.events.Event"><h3><code>Event(...)</code></h3><pre class="signature"><code>Event(run_id, world_id, world_version, instance_id, instance_version,
+      step, event_type, payload, resources=RawActionCost(), schema_version=1)</code></pre><p>One canonical, interpretation-free fact in an append-only trace. The payload is deep-copied and checked for finite JSON on construction, so an event cannot be mutated after it is recorded.</p></section>
+        <section class="api-entry" id="metering.events.action_from_dict"><h3><code>action_from_dict(data) → Action</code></h3><p>Decode one canonical action object, rejecting unknown or extra fields. <code>action_to_dict(action)</code> is the inverse and accepts only typed actions, since a plain mapping arriving from a harness must surface as a protocol failure.</p></section>
+        <section class="api-entry" id="metering.events.observation_from_dict"><h3><code>observation_from_dict(data) → Observation</code></h3><p>Decode one canonical observation object. <code>observation_to_dict(observation)</code> is the inverse.</p></section>
+
+        <h2 id="world">Hidden-fault world</h2>
+        <p class="module-note"><code>metering.hidden_fault</code> defines the fixed public catalogue, the truth-free instance a policy may receive, and the mutable world that owns the selected fault.</p>
+        <section class="api-entry" id="metering.hidden_fault.DiagnosticTest"><h3><code>DiagnosticTest(test_id, description, positive_fault_ids)</code></h3><p>A public deterministic yes/no test. <code>positive_fault_ids</code> is the published observation model, which is what lets a policy and an offline meter compute the same candidate set. <code>outcome(fault_id)</code> returns the result for a declared fault. A test that is positive in every state is rejected, because it would cost one action and remove zero bits.</p></section>
+        <section class="api-entry" id="metering.hidden_fault.PublicInstance"><h3><code>PublicInstance(...)</code></h3><p>Everything a cooperative policy is allowed to receive: world and instance identity, the ordered fault identifiers, and the diagnostic catalogue. It contains no selected fault, and calibration checks that it is byte-identical across all eight states.</p></section>
+        <section class="api-entry" id="metering.hidden_fault.HiddenFaultSpec"><h3><code>HiddenFaultSpec(...)</code></h3><p>A versioned world definition. <code>HiddenFaultSpec.default()</code> returns the canonical eight-fault specification, whose catalogue holds three balanced split tests followed by one singleton test per fault. <code>public_instance(instance_id)</code> materializes the public description.</p></section>
+        <section class="api-entry" id="metering.hidden_fault.HiddenFaultWorld"><h3><code>HiddenFaultWorld(spec, hidden_fault_id, *, instance_id=...)</code></h3><p>Owns the selected fault and the mutable repair state. <code>public_description()</code> returns the truth-free instance, <code>validate_action()</code> decides legality without changing state, and <code>apply()</code> performs one validated action and returns its observation and raw cost. The controller-only methods <code>generated_instance_reference()</code> and <code>final_reference_state()</code> supply private material for the commitment and the offline verifier.</p></section>
+        <section class="api-entry" id="metering.hidden_fault.ActionValidation"><h3><code>ActionValidation(valid, code, message)</code></h3><p>Structured validation result built with <code>accept()</code> or <code>reject(code, message)</code>. Validation is separate from application because a rejected action still costs one unit of budget and must be recorded.</p></section>
+
+        <h2 id="policies">Policies</h2>
+        <p class="module-note"><code>metering.policies</code> defines the cooperative harness contract and three deterministic reference policies.</p>
+        <section class="api-entry" id="metering.policies.HarnessPolicy"><h3><code>HarnessPolicy</code></h3><pre class="signature"><code>next_action(instance: PublicInstance,
+            observations: Sequence[Observation]) → Action
+
+descriptor() → dict[str, Any]</code></pre><p>A policy returns exactly one typed action per call, plus a descriptor holding its name, version, configuration, and a seed policy of either <code>{"kind": "none"}</code> or <code>{"kind": "fixed", "seed": int}</code>. The descriptor is validated before the run starts, because an undeclared configuration would make the result impossible to reproduce.</p></section>
+        <section class="api-entry" id="metering.policies.remaining_candidates"><h3><code>remaining_candidates(instance, observations) → tuple[str, ...]</code></h3><p>Filter the fault list using delivered diagnostic outcomes and the published observation model. Repair and verification results are ignored, since neither is diagnostic evidence. A history that no state can explain raises <code>PolicyError</code>.</p></section>
+        <section class="api-entry" id="metering.policies.BalancedSearchPolicy"><h3><code>BalancedSearchPolicy()</code></h3><p>Chooses the unused catalogue test whose split of the remaining candidates is most even, breaking ties by catalogue order. It identifies every fault in three observations, for 24 across the suite.</p></section>
+        <section class="api-entry" id="metering.policies.SequentialSearchPolicy"><h3><code>SequentialSearchPolicy()</code></h3><p>Checks singleton candidates in public order and infers the eighth state after seven negative results rather than testing it redundantly. Its per-state costs are <code>[1, 2, 3, 4, 5, 6, 7, 7]</code>, for 35 across the suite.</p></section>
+        <section class="api-entry" id="metering.policies.SeededRandomSearchPolicy"><h3><code>SeededRandomSearchPolicy(seed: int = 20260722)</code></h3><p>Ranks informative unused tests by a SHA-256 hash of the seed, the diagnostic history, and the test identifier. Hashing rather than <code>random.Random</code> keeps replay stable across Python releases, which is what makes this policy useful as a determinism check.</p></section>
+
+        <h2 id="runner">Runner</h2>
+        <p class="module-note"><code>metering.runner</code> owns the action loop and writes the four artifacts of a run in a fixed order.</p>
+        <section class="api-entry" id="metering.runner.run_hidden_fault"><h3><code>run_hidden_fault(...)</code></h3><pre class="signature"><code>run_hidden_fault(
+    policy: HarnessPolicy,
+    hidden_fault_id: str,
+    run_dir: str | Path,
+    *,
+    spec: HiddenFaultSpec | None = None,
+    instance_id: str = "hidden-fault-public-v1",
+    run_id: str | None = None,
+    action_budget: int = 16,
+    sync_trace: bool = False,
+) → RunResult</code></pre><p>Create one hidden-fault world and run a cooperative policy against it. The run directory must be new or empty. Passing <code>sync_trace=True</code> flushes each event to disk, which costs time and is worth it when studying crashes.</p></section>
+        <section class="api-entry" id="metering.runner.run_experiment"><h3><code>run_experiment(...)</code></h3><pre class="signature"><code>run_experiment(world, policy, run_dir, *, run_id=None,
+               action_budget=16, sync_trace=False) → RunResult</code></pre><p>Run an existing <code>HiddenFaultWorld</code> and write the artifacts. Use this when the world needs to be constructed separately, for example with a non-default specification.</p></section>
+        <section class="api-entry" id="metering.runner.RunResult"><h3><code>RunResult</code></h3><p>Holds <code>paths</code>, the decoded <code>manifest</code>, the tuple of <code>events</code>, the private <code>reference</code>, and the derived <code>report</code>. The <code>succeeded</code> property reports exact overall completion, and <code>run_dir</code> is a shortcut to the directory.</p></section>
+        <section class="api-entry" id="metering.runner.Controller"><h3><code>Controller(world, policy, trace, *, run_id, artifact_set_id, action_budget=16)</code></h3><p>The action loop itself. <code>run()</code> requests actions until the policy finishes, breaks the protocol, crashes, or exhausts the budget, and returns a <code>ControllerOutcome</code>. Use <code>run_experiment</code> unless you are writing artifacts yourself.</p></section>
+
+        <h2 id="trace">Traces and canonical encoding</h2>
+        <p class="module-note"><code>metering.trace</code> provides the one valid byte representation of every artifact, plus strict reading and append-only writing.</p>
+        <section class="api-entry" id="metering.trace.canonical_json"><h3><code>canonical_json(value) → str</code></h3><p>Encode finite JSON deterministically with sorted keys and compact separators. <code>canonical_document_bytes(value)</code> adds the trailing newline that a document artifact carries, and <code>canonical_events_bytes(events)</code> does the same per line for a trace.</p></section>
+        <section class="api-entry" id="metering.trace.strict_json_loads"><h3><code>strict_json_loads(text, *, context="JSON") → Any</code></h3><p>Decode JSON while rejecting duplicate object keys and non-finite numbers. Both are rejected rather than resolved, because either one would let two readers disagree about what a file says.</p></section>
+        <section class="api-entry" id="metering.trace.write_json_atomic"><h3><code>write_json_atomic(path, value, *, private=False) → Path</code></h3><p>Write one canonical document through a temporary file and an atomic rename, so a reader never sees a partial artifact. Private output is created with restrictive permissions.</p></section>
+        <section class="api-entry" id="metering.trace.RunPaths"><h3><code>RunPaths(run_dir)</code></h3><p>The four artifact paths of one run directory, as <code>manifest</code>, <code>events</code>, <code>reference</code>, and <code>report</code>. Build one with <code>RunPaths.at(path)</code>.</p></section>
+        <section class="api-entry" id="metering.trace.TraceWriter"><h3><code>TraceWriter(path, *, sync=False)</code></h3><p>Create a new trace with exclusive creation and append canonical events with <code>append(event)</code>. Each append checks the next monotonic step and the stable run identity, so a trace cannot silently skip a step or mix two runs.</p></section>
+        <section class="api-entry" id="metering.trace.TraceReader"><h3><code>TraceReader(path)</code></h3><p>Decode a trace while validating schemas, identity, and contiguous step order. <code>load(require_nonempty=True)</code> returns the events as a tuple, and <code>read_events(path)</code> is the shorthand.</p></section>
+        <section class="api-entry" id="metering.trace.interaction_signature"><h3><code>interaction_signature(events) → tuple[str, ...]</code></h3><p>A signature of what happened, with controller-generated identifiers masked. Two runs of the same seeded policy get different run identifiers by design, so this is what a determinism check compares.</p></section>
+
+        <h2 id="binding">Binding</h2>
+        <p class="module-note"><code>metering.binding</code> commits to the private truth before the policy runs.</p>
+        <section class="api-entry" id="metering.binding.compute_reference_commitment"><h3><code>compute_reference_commitment(artifact_set_id, binding_nonce, generated_instance) → str</code></h3><p>Hash the artifact identity, a fresh random nonce, and the complete generated-instance identity into one digest. The nonce is what makes this useful, because a bare hash of one of eight faults could be reversed by hashing all eight. With the nonce held back until the reference is revealed, the manifest commits to the truth without disclosing it.</p></section>
+        <section class="api-entry" id="metering.binding.reference_commitment_payload"><h3><code>reference_commitment_payload(...) → dict</code></h3><p>The exact JSON value that gets hashed. It requires the complete identity, so adding or omitting a truth-bearing field cannot quietly change what the commitment covers.</p></section>
+
+        <h2 id="replay">Replay</h2>
+        <p class="module-note"><code>metering.replay</code> rebuilds a finished run from its files without executing any policy or world code.</p>
+        <section class="api-entry" id="metering.replay.replay_trace"><h3><code>replay_trace(...)</code></h3><pre class="signature"><code>replay_trace(manifest, events, reference, *, artifact_bytes=None)
+    → ReplayState</code></pre><p>Validate the manifest and reference schemas, the artifact identity, the private commitment, every event envelope, every transition and its recorded cost, the termination reason, and the private final state, then compare the exact artifact bytes and their bound hashes. Pass <code>artifact_bytes</code> when the bytes on disk are available, since that is what binds the result to files a reader can inspect.</p></section>
+        <section class="api-entry" id="metering.replay.ReplayState"><h3><code>ReplayState</code></h3><p>The reconstructed controller state: the public instance, the revealed hidden fault, the artifact identity and hashes, the budget, the replayed interactions, the termination reason and step, the final repair and its step, the verification steps, and whether a finish or a protocol error occurred.</p></section>
+        <section class="api-entry" id="metering.replay.ReplayedInteraction"><h3><code>ReplayedInteraction(event_step, action, observation)</code></h3><p>One action and its observation, recovered from the trace as typed values.</p></section>
+
+        <h2 id="reports">Reports</h2>
+        <p class="module-note"><code>metering.report</code> turns a replayed state into three separate readings. Nothing here can affect a run, because it reads artifacts that are already written and hashed.</p>
+        <section class="api-entry" id="metering.report.build_report"><h3><code>build_report(...)</code></h3><pre class="signature"><code>build_report(manifest, events, reference, *, artifact_bytes=None)
+    → dict[str, Any]</code></pre><p>Replay the artifacts, then return correctness, raw resources, diagnostic information, the declared scope, and the hashes of the three inputs. The scope block names what every reading is conditional on, which keeps a number from being quoted later as though it described agents in general.</p></section>
+        <section class="api-entry" id="metering.report.regenerate_report"><h3><code>regenerate_report(run_dir) → dict[str, Any]</code></h3><p>Read the three raw artifacts from disk and atomically replace <code>report.json</code>, but only after strict replay succeeds. A run whose artifacts disagree keeps whatever report it already had.</p></section>
+        <section class="api-entry" id="metering.report.aggregate_reports"><h3><code>aggregate_reports(reports) → dict[str, Any]</code></h3><p>Sum the raw units across runs and divide total bits by total observations. Averaging the per-run ratios instead would give a one-observation run the same weight as a seven-observation run, which would report a suite as more efficient than the observations it paid for.</p></section>
+
+        <h2 id="calibration">Calibration</h2>
+        <p class="module-note"><code>metering.calibration</code> runs the whole instrument against answers that are already known.</p>
+        <section class="api-entry" id="metering.calibration.run_calibration"><h3><code>run_calibration(...)</code></h3><pre class="signature"><code>run_calibration(
+    output_dir: str | Path = "runs/calibration",
+    *, seed: int = 20260722,
+    action_budget: int = 16,
+    force: bool = False,
+) → CalibrationResult</code></pre><p>Run every hidden state against every reference policy, rebuild each report from disk, check the expected readings, confirm seeded replay determinism, exercise all four termination paths, and confirm that a corrupted trace is rejected. Every check is recorded in <code>calibration.json</code> whether it passed or not. The budget must be at least 10, since a reference policy may need seven diagnostics plus a repair, a verification, and a finish.</p></section>
+        <section class="api-entry" id="metering.calibration.CalibrationResult"><h3><code>CalibrationResult(output_dir, summary)</code></h3><p>The output path and the aggregate summary, including per-state diagnostic counts, total bits, and efficiency for each reference policy.</p></section>
+        <section class="api-entry" id="metering.calibration.CalibrationFailure"><h3><code>CalibrationFailure(message, summary=None)</code></h3><p>Raised after one or more declared checks fail. The summary is attached to the exception and has already been written to disk.</p></section>
+      </article>
+    </div>
+  </main>
+  <footer><div class="footer-inner"><p>Metering documentation</p><p><a href="developer.html">Next: Developer guide →</a></p></div></footer>
+</body>
+</html>

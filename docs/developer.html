@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Developer guide for Metering: the stack from high level to low level, execution semantics, artifacts, replay, testing, and releases.">
+  <title>Developer guide · Metering</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="nav" aria-label="Main navigation">
+    <a class="brand" href="index.html">Metering</a>
+    <a href="index.html">Overview</a><a href="quickstart.html">Quickstart</a>
+    <a href="api.html">API</a><a href="developer.html" aria-current="page">Developer</a>
+    <a href="https://github.com/muchmirul/metering">GitHub</a>
+  </nav></header>
+
+  <main id="main">
+    <div class="page-layout">
+      <aside class="toc" aria-label="Developer topics">
+        <strong>Developer topics</strong>
+        <ul>
+          <li><a href="#stack">The stack</a></li>
+          <li><a href="#walk">Layer by layer</a></li>
+          <li><a href="#execution">Execution semantics</a></li>
+          <li><a href="#lifecycle">Artifact lifecycle</a></li>
+          <li><a href="#layout">Repository layout</a></li>
+          <li><a href="#artifacts">Integrity and replay</a></li>
+          <li><a href="#extending">Extending Metering</a></li>
+          <li><a href="#testing">Testing and releases</a></li>
+        </ul>
+      </aside>
+      <article class="content">
+        <p class="eyebrow">Contributor documentation</p>
+        <h1>Developer guide</h1>
+        <p class="lede">Read this before changing execution, measurement, artifact, or replay behavior.</p>
+
+        <h2 id="stack">The stack</h2>
+        <p>Metering is built as a sequence of layers rather than as one framework with plug-in points. Each layer depends only on the layers below it, which means you can read the code top down and never need to jump back up to understand what a value means. The diagram shows the full stack, from the command you type down to the strict decoding rules that everything shares.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 900 676" role="img" aria-labelledby="dev-stack-title dev-stack-desc">
+            <title id="dev-stack-title">The Metering module stack from entry points down to strict decoding</title>
+            <desc id="dev-stack-desc">Nine layers. Entry points, calibration, the controller loop, the split between the policy and the world, the typed protocol and canonical encoding, the run artifacts on disk, strict replay, the verifier and meters, and the shared schema module underneath all of them.</desc>
+
+            <line class="rule" x1="14" y1="44" x2="14" y2="626"></line>
+            <polygon points="14,640 8,626 20,626" fill="currentColor" opacity="0.35"></polygon>
+            <text class="axis" x="0" y="32">HIGH LEVEL</text>
+            <text class="axis" x="0" y="668">LOW LEVEL</text>
+
+            <rect class="layer-box" x="40" y="44" width="856" height="54" rx="6"></rect>
+            <text class="layer-name" x="56" y="66">__main__.py</text>
+            <text class="layer-title" x="200" y="66">Entry points</text>
+            <text class="layer-note" x="200" y="85">metering calibrate · metering report DIR · run_hidden_fault(policy, fault, run_dir)</text>
+
+            <rect class="layer-box" x="40" y="108" width="856" height="54" rx="6"></rect>
+            <text class="layer-name" x="56" y="130">calibration.py</text>
+            <text class="layer-title" x="200" y="130">The self check</text>
+            <text class="layer-note" x="200" y="149">Eight hidden states against three reference policies, then every report rebuilt from disk</text>
+
+            <rect class="layer-box" x="40" y="172" width="856" height="54" rx="6"></rect>
+            <text class="layer-name" x="56" y="194">runner.py</text>
+            <text class="layer-title" x="200" y="194">Controller loop</text>
+            <text class="layer-note" x="200" y="213">Ask for one action, charge the budget, apply it, record one event, decide whether to stop</text>
+
+            <rect class="layer-box" x="40" y="236" width="856" height="92" rx="6"></rect>
+            <text class="layer-name" x="56" y="258">policies.py</text>
+            <text class="layer-name" x="56" y="300">hidden_fault.py</text>
+            <rect class="layer-box" x="196" y="248" width="336" height="68" rx="5"></rect>
+            <text class="layer-title" x="212" y="272">Harness boundary</text>
+            <text class="layer-note" x="212" y="292">next_action(public instance,</text>
+            <text class="layer-note" x="212" y="308">observations delivered so far)</text>
+            <rect class="layer-box" x="548" y="248" width="332" height="68" rx="5"></rect>
+            <text class="layer-title" x="564" y="272">World</text>
+            <text class="layer-note" x="564" y="292">Owns the selected fault, validates</text>
+            <text class="layer-note" x="564" y="308">and applies, returns cost</text>
+
+            <rect class="layer-box" x="40" y="338" width="856" height="54" rx="6"></rect>
+            <text class="layer-name" x="56" y="360">events · trace</text>
+            <text class="layer-name" x="56" y="378">binding</text>
+            <text class="layer-title" x="200" y="360">Typed protocol and canonical bytes</text>
+            <text class="layer-note" x="200" y="379">Four actions, four observations, append-only JSONL, salted commitment to private truth</text>
+
+            <rect class="layer-box" x="40" y="402" width="856" height="54" rx="6"></rect>
+            <text class="layer-name" x="56" y="424">on disk</text>
+            <text class="layer-title" x="200" y="424">Run artifacts</text>
+            <text class="layer-note" x="200" y="443">manifest.json · events.jsonl · reference.json</text>
+
+            <rect class="layer-box" x="40" y="466" width="856" height="54" rx="6"></rect>
+            <text class="layer-name" x="56" y="488">replay.py</text>
+            <text class="layer-title" x="200" y="488">Strict offline replay</text>
+            <text class="layer-note" x="200" y="507">Rebuild controller state from files, check identity, transitions, costs, commitment, hashes</text>
+
+            <rect class="layer-box" x="40" y="530" width="856" height="54" rx="6"></rect>
+            <text class="layer-name" x="56" y="552">report.py</text>
+            <text class="layer-title" x="200" y="552">Verifier and meters</text>
+            <text class="layer-note" x="200" y="571">Exact correctness · separate raw counts · information in bits → report.json</text>
+
+            <rect class="base-box" x="40" y="594" width="856" height="48" rx="6"></rect>
+            <text class="layer-name" x="56" y="623">schema.py</text>
+            <text class="layer-note" x="200" y="623">One strict decoder for every layer above: exact key sets, exact types, finite numbers, no duplicate keys</text>
+          </svg>
+          <figcaption>Layers run top to bottom during a run, except for the last two, which run afterwards and read only what is already on disk.</figcaption>
+        </figure>
+
+        <h2 id="walk">Layer by layer</h2>
+        <p>The sections below walk the same stack in order, saying what each layer is responsible for and what it deliberately refuses to do.</p>
+
+        <h3>Entry points</h3>
+        <p><code>__main__.py</code> exposes two commands and nothing else. <code>metering calibrate</code> runs the self check, and <code>metering report DIR</code> rebuilds one report from saved files. Both return a non-zero exit status on failure and print the reason to standard error, so they compose with a shell script or a continuous integration job. The Python entry point <code>run_hidden_fault</code> is the equivalent for a single run.</p>
+
+        <h3>Calibration</h3>
+        <p><code>calibration.py</code> is the layer that decides whether the instrument is trustworthy. It runs eight hidden states against three reference policies, rebuilds every report from disk, and then compares the readings against values that follow from the world definition rather than from the code that produced them. It also exercises the four termination paths and confirms that flipping one recorded outcome makes replay fail. If any check fails, the summary is written to <code>calibration.json</code> before the command exits, so the reason survives.</p>
+
+        <h3>Controller</h3>
+        <p><code>runner.py</code> owns the state machine. It requests one action at a time, charges every attempt to the budget including invalid ones, routes valid actions through the world, appends one event per step, and records exactly why the run stopped. The controller never repairs malformed harness output, because doing so would hide a defect in the thing being measured. It also never passes the world object or the private truth into a callback.</p>
+
+        <h3>Harness boundary and world</h3>
+        <p>This is the layer where the design rule lives. <code>policies.py</code> defines the callback that receives an immutable public instance and the observations delivered so far, and <code>hidden_fault.py</code> defines the world that holds the selected fault. The two never meet directly, so the only channel between them is a typed action going one way and a typed observation coming back, and every crossing costs budget and appears in the trace.</p>
+
+        <h3>Protocol and canonical bytes</h3>
+        <p><code>events.py</code> defines four actions, four observations, the per-action raw cost, and the canonical event. <code>trace.py</code> gives every artifact exactly one valid byte representation, which is what makes a SHA-256 hash meaningful, since two readers of the same values always produce the same bytes. <code>binding.py</code> hashes the selected fault together with a fresh nonce so the manifest can commit to the truth without revealing it.</p>
+
+        <h3>Replay and meters</h3>
+        <p><code>replay.py</code> rebuilds the controller state from files and refuses anything inconsistent, and <code>report.py</code> turns that state into three separate readings. Neither one calls a policy or a world, which is what lets an old run be re-measured by newer code and still describe the same execution. It also means a change to a meter can never change a raw trace, so a measurement is always a claim about evidence that already exists.</p>
+
+        <h3>Schema</h3>
+        <p><code>schema.py</code> sits underneath everything and has no dependencies inside the package. It holds the schema versions, the event and termination vocabulary, and one set of strict field checks that every layer above reuses through <code>StrictFields</code>. Binding the checks to a caller-chosen error type is what lets a malformed action surface as <code>EventError</code> and a malformed manifest as <code>ReportError</code> while the rule itself is written once.</p>
+
+        <h2 id="execution">Execution semantics</h2>
+        <p>A policy selects one typed action from public input and the observations it has already received:</p>
+        <pre><code>def next_action(self, instance, observations):
+    ...</code></pre>
+        <p>The callback returns exactly one of <code>Diagnose(test_id)</code>, <code>Repair(fault_id)</code>, <code>Verify()</code>, or <code>Finish()</code>. Plain mappings are not converted into actions, because an untyped value arriving from a harness is a defect worth recording rather than a formatting difference worth fixing.</p>
+
+        <h3>Action lifecycle</h3>
+        <p>For one valid non-finish action, the controller does the following in order:</p>
+        <ol class="steps">
+          <li>asks the policy for one action;</li>
+          <li>validates the action against the current world state;</li>
+          <li>applies it to the world and receives an observation and a raw cost;</li>
+          <li>charges the cost against the budget;</li>
+          <li>records the typed action, the typed observation, and the cost as one event;</li>
+          <li>includes the observation in the history for the next callback.</li>
+        </ol>
+        <p>A valid <code>Finish()</code> records normal termination and produces no further callback.</p>
+
+        <h3>Verification privacy</h3>
+        <p><code>Verify()</code> is valid only after a repair has been selected. Its public result acknowledges that verification happened and says nothing about whether the repair matches private truth. The outcome is recorded privately and appears only in the offline report. If verification returned pass or fail, a policy could call it repeatedly to identify the fault, and the resource meter would count cheap verifications instead of the diagnostics that were really being performed. A later repair also makes an earlier verification stale, so the verifier requires a verification strictly after the final repair.</p>
+
+        <h3>Budget boundary</h3>
+        <p>Every attempt consumes one total-action unit, including an invalid attempt and including <code>Finish()</code>. The boundary behavior is worth stating precisely:</p>
+        <ul>
+          <li>A valid <code>Finish()</code> spent as the last budgeted action terminates normally, because the policy did finish and the budget did hold.</li>
+          <li>A non-finish action at that same boundary is recorded first, and the run then terminates as budget exhaustion.</li>
+          <li>No callback is made once the budget is reached, so a policy cannot observe the boundary and react to it.</li>
+        </ul>
+
+        <h3>Failures and process limits</h3>
+        <p>An invalid action produces a typed protocol-error event carrying the rejection code and the attempted action, then terminates the run. An ordinary exception from <code>next_action</code> is recorded as a harness crash, and the exception text is deliberately neither stored nor interpreted, since a meter that read error strings would be measuring prose.</p>
+        <aside class="notice"><p>The boundary is cooperative and in process. Metering cannot stop a callback that never returns, and it cannot recover from a hard process exit, a segmentation fault, an out-of-memory kill, or an interpreter failure. Process isolation is deferred rather than partially implemented, because a partial sandbox would invite a claim the code cannot support.</p></aside>
+
+        <h2 id="lifecycle">Artifact lifecycle</h2>
+        <p>The order in which a run writes its files is part of what the artifacts prove. The manifest commits to the hidden fault before the policy gets its first callback, and the reference reveals that fault only after the policy can no longer act on it.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 900 300" role="img" aria-labelledby="life-title life-desc">
+            <title id="life-title">The order in which a run writes its four artifacts</title>
+            <desc id="life-desc">A timeline with four milestones. The manifest is written before the run and contains a salted commitment. The event trace is appended during the run, which is the only window in which the policy acts. The private reference is written after the policy ends and is where the hidden fault is disclosed. The report is written last.</desc>
+
+            <rect class="layer-box" x="44" y="40" width="172" height="70" rx="6"></rect>
+            <text class="layer-title" x="58" y="64">manifest.json</text>
+            <text class="layer-note" x="58" y="84">public instance, budget,</text>
+            <text class="layer-note" x="58" y="100">policy, commitment</text>
+
+            <rect class="layer-box" x="252" y="40" width="178" height="70" rx="6"></rect>
+            <text class="layer-title" x="266" y="64">events.jsonl</text>
+            <text class="layer-note" x="266" y="84">append-only facts,</text>
+            <text class="layer-note" x="266" y="100">one line per step</text>
+
+            <rect class="layer-box" x="466" y="40" width="186" height="70" rx="6"></rect>
+            <text class="layer-title" x="480" y="64">reference.json</text>
+            <text class="layer-note" x="480" y="84">hidden fault, nonce,</text>
+            <text class="layer-note" x="480" y="100">byte bindings</text>
+
+            <rect class="layer-box" x="688" y="40" width="172" height="70" rx="6"></rect>
+            <text class="layer-title" x="702" y="64">report.json</text>
+            <text class="layer-note" x="702" y="84">correctness, resources,</text>
+            <text class="layer-note" x="702" y="100">information</text>
+
+            <line class="rule" x1="40" y1="146" x2="860" y2="146"></line>
+            <polygon points="876,146 860,140 860,152" fill="currentColor" opacity="0.35"></polygon>
+            <circle class="marker" cx="130" cy="146" r="6"></circle>
+            <circle class="marker" cx="341" cy="146" r="6"></circle>
+            <circle class="marker" cx="559" cy="146" r="6"></circle>
+            <circle class="marker" cx="774" cy="146" r="6"></circle>
+            <text class="layer-note" x="58" y="172">before the run</text>
+            <text class="layer-note" x="266" y="172">during the run</text>
+            <text class="layer-note" x="480" y="172">after the policy ends</text>
+            <text class="layer-note" x="702" y="172">last</text>
+
+            <rect class="band" x="252" y="200" width="178" height="30" rx="5"></rect>
+            <text class="band-label" x="266" y="220">policy acts here</text>
+            <text class="layer-note" x="450" y="220">The policy has had its last callback before anything below runs.</text>
+
+            <rect class="band" x="466" y="248" width="186" height="30" rx="5"></rect>
+            <text class="band-label" x="480" y="268">truth revealed here</text>
+            <text class="layer-note" x="672" y="268">Replay recomputes the digest.</text>
+          </svg>
+          <figcaption>The commitment is published first and opened last, so a hidden fault cannot be chosen or changed after the policy has already acted.</figcaption>
+        </figure>
+
+        <h2 id="layout">Repository layout</h2>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Path</th><th>Responsibility</th></tr></thead>
+          <tbody>
+            <tr><td><code>src/metering/schema.py</code></td><td>Schema versions, event and termination vocabulary, and the strict field checks every layer shares. <a href="api.html#schema">API</a></td></tr>
+            <tr><td><code>src/metering/events.py</code></td><td>Typed actions, observations, raw costs, canonical events, and strict conversion. <a href="api.html#events">API</a></td></tr>
+            <tr><td><code>src/metering/hidden_fault.py</code></td><td>Public catalogue, truth-free instance, and the world holding the selected fault. <a href="api.html#world">API</a></td></tr>
+            <tr><td><code>src/metering/policies.py</code></td><td>The harness contract, candidate filtering, and three reference policies. <a href="api.html#policies">API</a></td></tr>
+            <tr><td><code>src/metering/runner.py</code></td><td>Controller loop, artifact identity, and run orchestration. <a href="api.html#runner">API</a></td></tr>
+            <tr><td><code>src/metering/trace.py</code></td><td>Canonical encoding, strict decoding, atomic writes, and append-only JSONL. <a href="api.html#trace">API</a></td></tr>
+            <tr><td><code>src/metering/binding.py</code></td><td>Salted commitment binding private truth to an artifact identity. <a href="api.html#binding">API</a></td></tr>
+            <tr><td><code>src/metering/replay.py</code></td><td>Strict offline replay of a saved run. <a href="api.html#replay">API</a></td></tr>
+            <tr><td><code>src/metering/report.py</code></td><td>Exact verifier, resource meter, information meter, and aggregation. <a href="api.html#reports">API</a></td></tr>
+            <tr><td><code>src/metering/calibration.py</code></td><td>The full self check and its expected readings. <a href="api.html#calibration">API</a></td></tr>
+            <tr><td><code>src/metering/provenance.py</code></td><td>Package and component versions recorded in every manifest.</td></tr>
+            <tr><td><code>tests/</code></td><td>Executable contracts for world shape, behavior, schemas, replay, privacy, integrity, and versions.</td></tr>
+          </tbody>
+        </table></div>
+
+        <h2 id="artifacts">Integrity and replay</h2>
+        <h3>Canonical encoding</h3>
+        <p>JSON documents use sorted keys, compact separators, UTF-8, and a trailing newline, and a trace uses one canonical object per line. Strict decoders reject duplicate keys, unexpected fields, non-finite numbers, and Boolean or floating-point substitutes for integer fields. Rejecting rather than resolving matters because either behavior would let two readers disagree about what a file says, and a hash over an ambiguous file proves nothing.</p>
+
+        <h3>Artifact identity</h3>
+        <p>The caller-controlled <code>run_id</code> is only a label. Every execution also receives a controller-generated <code>artifact_set_id</code>, which is a fresh UUID4 that no caller can influence. Because of this, files from two executions cannot be mixed accidentally even when their run labels are identical, and replay notices immediately when they are.</p>
+
+        <h3>Private commitment</h3>
+        <p>Before the first callback, the controller hashes the artifact identity, a fresh nonce, and the complete generated-instance identity, and publishes only the digest in the manifest. After the run, the reference reveals both the fault and the nonce, and replay recomputes the digest. Publishing a bare hash of one of eight faults would be worthless, since a reader could hash all eight and compare. Holding the nonce back is what keeps the truth committed and undisclosed at the same time.</p>
+
+        <h3>What the checks do not cover</h3>
+        <aside class="notice"><p>Hashes and commitments detect corruption, staleness, and accidentally mixed artifacts. They are not signatures, and they do not defend against someone who rewrites an entire artifact set coherently. Treat them as a check on accident rather than on intent.</p></aside>
+
+        <h3>The replay checklist</h3>
+        <p><a href="api.html#metering.replay.replay_trace"><code>replay_trace</code></a> runs these checks in this order, and the order is deliberate. Semantic checks come before byte comparisons so that a contradictory observation is reported as trace corruption rather than as an unexplained hash mismatch.</p>
+        <ol class="steps">
+          <li>exact manifest and reference schemas, including the declared execution boundary and reproducibility claims;</li>
+          <li>controller, verifier, and meter version compatibility with the installed implementation;</li>
+          <li>artifact-set identity and the private-truth commitment;</li>
+          <li>contiguous step numbers and stable run, world, and instance identity on every event;</li>
+          <li>legal transitions, correct observations, correct per-event costs, and a consistent termination reason;</li>
+          <li>the replayed private final state against the recorded one;</li>
+          <li>exact canonical bytes for all three inputs and the manifest and event hashes bound by the reference.</li>
+        </ol>
+        <p>The package release version is recorded as provenance only. Compatibility is decided by the component versions, because those are the parts whose behavior a replay actually depends on. A behavioral or interpretive change must bump the component version that replay uses as its gate.</p>
+
+        <h2 id="extending">Extending Metering</h2>
+        <p>Where a change belongs follows from the stack. Adding a policy means writing one class at the harness boundary and nothing else, and the run it produces is comparable with the reference policies because the world and the meters did not move. Adding a measurement belongs in <code>report.py</code>, and it needs its own calibration evidence, which means a case where the expected reading follows from the world definition rather than from the new code.</p>
+        <p>Changing the world, the schemas, or the protocol is a larger decision. Those changes alter what a saved artifact means, so they need matching updates to <code>PLAN.md</code>, the tests, the implementation, and the user documentation, plus a statement about whether existing runs remain readable. When those four sources disagree, stop and name the disagreement instead of picking whichever one is easiest to change.</p>
+
+        <h2 id="testing">Testing and releases</h2>
+        <h3>Development environment</h3>
+        <pre><code>uv sync --extra test</code></pre>
+        <p>The runtime package and the static documentation have no third-party dependencies.</p>
+
+        <h3>Validate a change</h3>
+        <pre><code>uv lock --check
+uv run --extra test pytest -q
+python -m compileall -q src tests
+uvx ruff check --select E9,F63,F7,F82 src tests</code></pre>
+        <p>The suite covers the fixed catalogue, reference-policy costs, information calculations, budget behavior, crash records, strict schemas, artifact mixing, private-truth binding, verification privacy, offline replay, force safety, and tag-derived package versions. It runs without a network connection or a model server.</p>
+
+        <h3>Run a fresh calibration</h3>
+        <pre><code>uv run python -m metering calibrate --output /tmp/metering-check</code></pre>
+        <p>Run this for any change to execution, traces, reports, policies, or calibration itself. The expected totals are 24 diagnostics for balanced search and 35 for sequential search. Seeded-random output depends on the seed but is deterministic for a given one.</p>
+
+        <h3>Check offline regeneration</h3>
+        <pre><code>uv run python -m metering report PATH_TO_RUN_DIRECTORY</code></pre>
+        <p>Run this for any change to replay. Delete or copy a generated <code>report.json</code> first, then confirm that the rebuilt file matches the original. Also confirm the negative case, since a corrupt input must fail and leave the previous report in place.</p>
+
+        <h3>Preview the documentation</h3>
+        <p>The documentation is static HTML with no build step, and GitHub Pages deploys the same files directly from <code>docs/</code>.</p>
+        <pre><code>python -m http.server --directory docs 8000</code></pre>
+
+        <h3>Releases and compatibility</h3>
+        <p>Numeric Git tags and GitHub Releases are the source of the package version, and <code>setuptools-scm</code> derives the installed value:</p>
+        <pre><code>uv run python -m metering --version</code></pre>
+        <p>See <a href="https://github.com/muchmirul/metering/blob/main/RELEASING.md">RELEASING.md</a> for the process. Before changing a schema, a component version, an action, an observation, an artifact field, a policy descriptor, or a replay rule, state explicitly whether existing runs remain readable and what a user has to do if they do not.</p>
+      </article>
+    </div>
+  </main>
+  <footer><div class="footer-inner"><p>Metering documentation</p><p><a href="https://github.com/muchmirul/metering/edit/main/docs/developer.html">Edit this page</a></p></div></footer>
+</body>
+</html>

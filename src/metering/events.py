@@ -1,39 +1,28 @@
 """Typed commands, observations, and canonical trace events for Metering.
 
-The event module contains data only.  It deliberately does not interpret a run;
-that work belongs to :mod:`metering.report`.
+This module carries data only.  It deliberately does not interpret a run,
+because interpretation belongs to :mod:`metering.report` and must be able to
+change without changing any recorded trace.
+
+The four actions and four observations below are the complete protocol
+vocabulary.  A policy returns one action, the world returns one observation,
+and the controller records both as one canonical event.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import json
 from typing import Any, ClassVar, Mapping, TypeAlias
 
-EVENT_SCHEMA_VERSION = 1
+from .schema import EVENT_SCHEMA_VERSION, SchemaError, StrictFields
 
 
-class EventError(ValueError):
+class EventError(SchemaError):
     """Raised when an action, observation, or event cannot be decoded."""
 
 
-def _strict_keys(data: Mapping[str, Any], required: set[str]) -> None:
-    keys = set(data)
-    missing = required - keys
-    extra = keys - required
-    if missing or extra:
-        parts: list[str] = []
-        if missing:
-            parts.append(f"missing keys: {sorted(missing)!r}")
-        if extra:
-            parts.append(f"unexpected keys: {sorted(extra)!r}")
-        raise EventError("; ".join(parts))
-
-
-def _nonempty_string(value: Any, field: str) -> str:
-    if type(value) is not str or not value:
-        raise EventError(f"{field} must be a non-empty string")
-    return value
+_check = StrictFields(EventError)
 
 
 def _json_mapping(value: Mapping[str, Any], field: str) -> dict[str, Any]:
@@ -56,10 +45,9 @@ class Diagnose:
 
     test_id: str
     kind: ClassVar[str] = "diagnose"
-    type: str = field(default="diagnose", init=False)
 
     def __post_init__(self) -> None:
-        _nonempty_string(self.test_id, "test_id")
+        _check.text(self.test_id, "test_id")
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": self.kind, "test_id": self.test_id}
@@ -71,10 +59,9 @@ class Repair:
 
     fault_id: str
     kind: ClassVar[str] = "repair"
-    type: str = field(default="repair", init=False)
 
     def __post_init__(self) -> None:
-        _nonempty_string(self.fault_id, "fault_id")
+        _check.text(self.fault_id, "fault_id")
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": self.kind, "fault_id": self.fault_id}
@@ -85,7 +72,6 @@ class Verify:
     """Verify the currently selected repair."""
 
     kind: ClassVar[str] = "verify"
-    type: str = field(default="verify", init=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": self.kind}
@@ -96,22 +82,21 @@ class Finish:
     """Ask the controller to terminate the run normally."""
 
     kind: ClassVar[str] = "finish"
-    type: str = field(default="finish", init=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": self.kind}
 
 
 Action: TypeAlias = Diagnose | Repair | Verify | Finish
-ACTION_TYPES = (Diagnose, Repair, Verify, Finish)
+ACTION_TYPES: tuple[type, ...] = (Diagnose, Repair, Verify, Finish)
 
 
 def action_to_dict(action: Action) -> dict[str, Any]:
     """Return the canonical JSON object for a typed action.
 
-    A plain mapping is intentionally not accepted.  The in-process Metering boundary
-    is typed, and malformed harness output must reach the controller as an
-    explicit protocol failure rather than being silently repaired.
+    A plain mapping is intentionally not accepted.  The in-process Metering
+    boundary is typed, so malformed harness output must reach the controller as
+    an explicit protocol failure rather than being silently repaired.
     """
 
     if not isinstance(action, ACTION_TYPES):
@@ -122,20 +107,19 @@ def action_to_dict(action: Action) -> dict[str, Any]:
 def action_from_dict(data: Mapping[str, Any]) -> Action:
     """Decode a canonical action object, rejecting unknown or extra fields."""
 
-    if type(data) is not dict:
-        raise EventError("action must be an object")
+    _check.mapping(data, "action")
     action_type = data.get("type")
     if action_type == Diagnose.kind:
-        _strict_keys(data, {"type", "test_id"})
-        return Diagnose(_nonempty_string(data["test_id"], "test_id"))
+        _check.exact_keys(data, {"type", "test_id"}, "diagnose action")
+        return Diagnose(data["test_id"])
     if action_type == Repair.kind:
-        _strict_keys(data, {"type", "fault_id"})
-        return Repair(_nonempty_string(data["fault_id"], "fault_id"))
+        _check.exact_keys(data, {"type", "fault_id"}, "repair action")
+        return Repair(data["fault_id"])
     if action_type == Verify.kind:
-        _strict_keys(data, {"type"})
+        _check.exact_keys(data, {"type"}, "verify action")
         return Verify()
     if action_type == Finish.kind:
-        _strict_keys(data, {"type"})
+        _check.exact_keys(data, {"type"}, "finish action")
         return Finish()
     raise EventError(f"unknown action type: {action_type!r}")
 
@@ -149,9 +133,8 @@ class DiagnosticObservation:
     kind: ClassVar[str] = "diagnostic_result"
 
     def __post_init__(self) -> None:
-        _nonempty_string(self.test_id, "test_id")
-        if type(self.positive) is not bool:
-            raise EventError("positive must be a bool")
+        _check.text(self.test_id, "test_id")
+        _check.boolean(self.positive, "positive")
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -165,14 +148,15 @@ class DiagnosticObservation:
 class RepairObservation:
     """Acknowledgement that a repair selection was applied.
 
-    It does not say whether the selection matches the hidden fault.
+    The acknowledgement does not say whether the selection matches the hidden
+    fault, because that fact stays with the controller until offline reporting.
     """
 
     fault_id: str
     kind: ClassVar[str] = "repair_applied"
 
     def __post_init__(self) -> None:
-        _nonempty_string(self.fault_id, "fault_id")
+        _check.text(self.fault_id, "fault_id")
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": self.kind, "fault_id": self.fault_id}
@@ -182,12 +166,11 @@ class RepairObservation:
 class VerificationObservation:
     """Content-free acknowledgement that verification was performed.
 
-    Whether the repair passed remains controller-private.  A harness may not
-    use verification as a hidden-state oracle in Metering.
+    Because the acknowledgement carries no result, a harness cannot use
+    verification as a second diagnostic oracle that no meter would count.
     """
 
     kind: ClassVar[str] = "verification_acknowledged"
-    type: str = field(default="verification_acknowledged", init=False)
 
     def to_dict(self) -> dict[str, Any]:
         return {"type": self.kind}
@@ -209,7 +192,7 @@ Observation: TypeAlias = (
     | VerificationObservation
     | FinishObservation
 )
-OBSERVATION_TYPES = (
+OBSERVATION_TYPES: tuple[type, ...] = (
     DiagnosticObservation,
     RepairObservation,
     VerificationObservation,
@@ -228,32 +211,41 @@ def observation_to_dict(observation: Observation) -> dict[str, Any]:
 def observation_from_dict(data: Mapping[str, Any]) -> Observation:
     """Decode one canonical observation object."""
 
-    if type(data) is not dict:
-        raise EventError("observation must be an object")
+    _check.mapping(data, "observation")
     observation_type = data.get("type")
     if observation_type == DiagnosticObservation.kind:
-        _strict_keys(data, {"type", "test_id", "positive"})
-        positive = data["positive"]
-        if type(positive) is not bool:
-            raise EventError("positive must be a bool")
-        return DiagnosticObservation(
-            _nonempty_string(data["test_id"], "test_id"), positive
+        _check.exact_keys(
+            data, {"type", "test_id", "positive"}, "diagnostic observation"
         )
+        return DiagnosticObservation(data["test_id"], data["positive"])
     if observation_type == RepairObservation.kind:
-        _strict_keys(data, {"type", "fault_id"})
-        return RepairObservation(_nonempty_string(data["fault_id"], "fault_id"))
+        _check.exact_keys(data, {"type", "fault_id"}, "repair observation")
+        return RepairObservation(data["fault_id"])
     if observation_type == VerificationObservation.kind:
-        _strict_keys(data, {"type"})
+        _check.exact_keys(data, {"type"}, "verification observation")
         return VerificationObservation()
     if observation_type == FinishObservation.kind:
-        _strict_keys(data, {"type"})
+        _check.exact_keys(data, {"type"}, "finish observation")
         return FinishObservation()
     raise EventError(f"unknown observation type: {observation_type!r}")
 
 
+_COST_FIELDS = (
+    "diagnostic_observations",
+    "repair_actions",
+    "verification_actions",
+    "total_actions",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class RawActionCost:
-    """Uncombined resource counts produced by applying one action."""
+    """Uncombined resource counts produced by applying one action.
+
+    The counts stay separate at every layer.  Metering never folds them into a
+    single score, because a diagnostic observation and a repair are different
+    kinds of expense and only the caller knows how to trade them off.
+    """
 
     diagnostic_observations: int = 0
     repair_actions: int = 0
@@ -261,12 +253,7 @@ class RawActionCost:
     total_actions: int = 0
 
     def __post_init__(self) -> None:
-        for field_name in (
-            "diagnostic_observations",
-            "repair_actions",
-            "verification_actions",
-            "total_actions",
-        ):
+        for field_name in _COST_FIELDS:
             value = getattr(self, field_name)
             if type(value) is not int or value < 0:
                 raise EventError(f"{field_name} must be a non-negative integer")
@@ -276,39 +263,36 @@ class RawActionCost:
         return cls()
 
     def to_dict(self) -> dict[str, int]:
-        return {
-            "diagnostic_observations": self.diagnostic_observations,
-            "repair_actions": self.repair_actions,
-            "verification_actions": self.verification_actions,
-            "total_actions": self.total_actions,
-        }
+        return {name: getattr(self, name) for name in _COST_FIELDS}
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "RawActionCost":
-        if type(data) is not dict:
-            raise EventError("resources must be an object")
-        required = {
-            "diagnostic_observations",
-            "repair_actions",
-            "verification_actions",
-            "total_actions",
-        }
-        _strict_keys(data, required)
-        return cls(**{key: data[key] for key in required})
+        _check.exact_keys(data, _COST_FIELDS, "resources")
+        return cls(**{name: data[name] for name in _COST_FIELDS})
 
     def __add__(self, other: "RawActionCost") -> "RawActionCost":
         if type(other) is not RawActionCost:
             return NotImplemented
         return RawActionCost(
-            diagnostic_observations=(
-                self.diagnostic_observations + other.diagnostic_observations
-            ),
-            repair_actions=self.repair_actions + other.repair_actions,
-            verification_actions=(
-                self.verification_actions + other.verification_actions
-            ),
-            total_actions=self.total_actions + other.total_actions,
+            **{
+                name: getattr(self, name) + getattr(other, name)
+                for name in _COST_FIELDS
+            }
         )
+
+
+_EVENT_FIELDS = (
+    "schema_version",
+    "run_id",
+    "world_id",
+    "world_version",
+    "instance_id",
+    "instance_version",
+    "step",
+    "event_type",
+    "payload",
+    "resources",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,10 +319,12 @@ class Event:
             "instance_version",
             "event_type",
         ):
-            _nonempty_string(getattr(self, field_name), field_name)
-        if type(self.step) is not int or self.step < 0:
-            raise EventError("step must be a non-negative integer")
-        if type(self.schema_version) is not int or self.schema_version != EVENT_SCHEMA_VERSION:
+            _check.text(getattr(self, field_name), field_name)
+        _check.integer(self.step, "step")
+        if (
+            type(self.schema_version) is not int
+            or self.schema_version != EVENT_SCHEMA_VERSION
+        ):
             raise EventError(
                 f"unsupported event schema version: {self.schema_version!r}"
             )
@@ -362,30 +348,12 @@ class Event:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "Event":
-        if type(data) is not dict:
-            raise EventError("event must be an object")
-        required = {
-            "schema_version",
-            "run_id",
-            "world_id",
-            "world_version",
-            "instance_id",
-            "instance_version",
-            "step",
-            "event_type",
-            "payload",
-            "resources",
-        }
-        _strict_keys(data, required)
+        fields = _check.exact_keys(data, _EVENT_FIELDS, "event")
         return cls(
-            schema_version=data["schema_version"],
-            run_id=data["run_id"],
-            world_id=data["world_id"],
-            world_version=data["world_version"],
-            instance_id=data["instance_id"],
-            instance_version=data["instance_version"],
-            step=data["step"],
-            event_type=data["event_type"],
-            payload=data["payload"],
-            resources=RawActionCost.from_dict(data["resources"]),
+            **{
+                name: fields[name]
+                for name in _EVENT_FIELDS
+                if name != "resources"
+            },
+            resources=RawActionCost.from_dict(fields["resources"]),
         )

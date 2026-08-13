@@ -1,18 +1,28 @@
-"""In-process Metering controller and run-artifact orchestration."""
+"""In-process Metering controller and run-artifact orchestration.
+
+The controller owns the loop that turns a policy into a trace.  It hands the
+policy a truth-free public instance plus the observations delivered so far,
+takes back exactly one typed action, charges it against the budget, routes it
+through the world, and records the result as one canonical event.
+
+Around that loop, :func:`run_experiment` produces the four files of a run in a
+fixed order.  The manifest is written before the policy starts and already
+contains a salted commitment to the generated truth.  The trace is appended
+during execution.  The private reference is written afterwards and binds the
+exact bytes of the first two files.  Only then do the meters run, which is what
+makes a report a claim about artifacts that already exist rather than about a
+process the reader has to trust.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import math
 from pathlib import Path
 from typing import Any, Mapping
 import uuid
 
-from .binding import (
-    REFERENCE_COMMITMENT_ALGORITHM,
-    compute_reference_commitment,
-)
+from .binding import REFERENCE_COMMITMENT_ALGORITHM, compute_reference_commitment
 from .events import (
     Action,
     Event,
@@ -25,13 +35,13 @@ from .events import (
 )
 from .hidden_fault import (
     DEFAULT_INSTANCE_ID,
-    ActionValidation,
     HiddenFaultSpec,
     HiddenFaultWorld,
 )
 from .policies import HarnessPolicy
 from .provenance import implementation_provenance
-from .report import (
+from .report import build_report
+from .schema import (
     EVENT_INTERACTION,
     EVENT_PROTOCOL_ERROR,
     EVENT_RUN_STARTED,
@@ -41,21 +51,21 @@ from .report import (
     TERMINATION_HARNESS_CRASH,
     TERMINATION_INVALID_ACTION,
     TERMINATION_NORMAL,
-    build_report,
+    StrictFields,
+    is_canonical_uuid4,
 )
-from .trace import (
-    RunPaths,
-    TraceWriter,
-    read_events,
-    sha256_hex,
-    write_json_atomic,
-)
+from .trace import RunPaths, TraceWriter, read_events, sha256_hex, write_json_atomic
 
 DEFAULT_ACTION_BUDGET = 16
+
+_DESCRIPTOR_FIELDS = ("name", "version", "configuration", "seed_policy")
 
 
 class RunnerError(RuntimeError):
     """Raised when a run cannot be configured or its artifacts cannot be made."""
+
+
+_check = StrictFields(RunnerError)
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,23 +98,14 @@ class RunResult:
         )
 
 
-def _is_canonical_uuid4(value: object) -> bool:
-    if type(value) is not str:
-        return False
-    try:
-        parsed = uuid.UUID(value)
-    except (ValueError, AttributeError):
-        return False
-    return parsed.version == 4 and str(parsed) == value
-
-
 class Controller:
     """Own the Metering action loop and record canonical public events.
 
-    The policy receives only the immutable public instance and the observation
-    tuple delivered so far.  The controller never passes it the world or the
-    controller-private reference state.  This is a cooperative in-process
-    boundary; it is intentionally not process isolation or a hostile sandbox.
+    The policy receives only the immutable public instance and the observations
+    delivered so far.  The controller never passes it the world object or the
+    private reference state.  This is a cooperative in-process boundary, which
+    prevents accidental disclosure through the documented API and provides no
+    protection against code that sets out to break the rules.
     """
 
     def __init__(
@@ -121,7 +122,7 @@ class Controller:
             raise RunnerError("world must be an exact HiddenFaultWorld in Metering")
         if type(run_id) is not str or not run_id:
             raise RunnerError("run_id must be a non-empty string")
-        if not _is_canonical_uuid4(artifact_set_id):
+        if not is_canonical_uuid4(artifact_set_id):
             raise RunnerError("artifact_set_id must be a canonical UUID4 string")
         if type(action_budget) is not int or action_budget < 1:
             raise RunnerError("action_budget must be a positive integer")
@@ -171,6 +172,33 @@ class Controller:
             observations=tuple(self._observations),
         )
 
+    def _reject(self, output: object, code: str, message: str) -> ControllerOutcome:
+        """Record a rejected action, charge it, and terminate the run.
+
+        A rejected attempt still costs one unit of budget.  Charging it is what
+        stops a harness from probing the validator for free, and recording the
+        attempt keeps the failure explicit instead of silently repaired.
+        """
+
+        try:
+            attempted_action: dict[str, Any] | None = action_to_dict(output)  # type: ignore[arg-type]
+        except EventError:
+            attempted_action = None
+        self._actions_used += 1
+        self.trace.append(
+            self._event(
+                EVENT_PROTOCOL_ERROR,
+                {
+                    "code": code,
+                    "message": message,
+                    "received_type": type(output).__name__,
+                    "attempted_action": attempted_action,
+                },
+                RawActionCost(total_actions=1),
+            )
+        )
+        return self._terminate(TERMINATION_INVALID_ACTION)
+
     def run(self) -> ControllerOutcome:
         public = self.world.public_description()
         self.trace.append(
@@ -185,41 +213,23 @@ class Controller:
         )
 
         while True:
-            # No B+1 request is made.  A finish applied as action B is handled
-            # below before this boundary is considered again.
+            # No request is made past the budget.  A finish applied as the last
+            # budgeted action is handled below before this point is reached
+            # again.
             if self._actions_used >= self.action_budget:
                 return self._terminate(TERMINATION_BUDGET_EXHAUSTED)
 
             try:
                 output = self.policy.next_action(public, tuple(self._observations))
             except Exception:
-                # Exception text is deliberately not interpreted by any meter.
-                # Hard process exits and callbacks that never return are outside
-                # the cooperative in-process Metering boundary.
+                # The exception text is deliberately not recorded or
+                # interpreted.  Hard process exits and callbacks that never
+                # return are outside this cooperative boundary entirely.
                 return self._terminate(TERMINATION_HARNESS_CRASH)
 
-            validation: ActionValidation = self.world.validate_action(output)
-            attempted_action: dict[str, Any] | None
-            try:
-                attempted_action = action_to_dict(output)  # type: ignore[arg-type]
-            except EventError:
-                attempted_action = None
-
+            validation = self.world.validate_action(output)
             if not validation.valid:
-                self._actions_used += 1
-                self.trace.append(
-                    self._event(
-                        EVENT_PROTOCOL_ERROR,
-                        {
-                            "code": validation.code,
-                            "message": validation.message,
-                            "received_type": type(output).__name__,
-                            "attempted_action": attempted_action,
-                        },
-                        RawActionCost(total_actions=1),
-                    )
-                )
-                return self._terminate(TERMINATION_INVALID_ACTION)
+                return self._reject(output, validation.code, validation.message)
 
             action: Action = output  # type: ignore[assignment]
             observation, cost = self.world.apply(action)
@@ -236,53 +246,38 @@ class Controller:
                 )
             )
 
-            # A valid finish at exactly the budget boundary is normal success,
-            # not budget exhaustion.
+            # A valid finish at exactly the budget boundary is normal success
+            # rather than budget exhaustion.
             if isinstance(action, Finish):
                 return self._terminate(TERMINATION_NORMAL)
             if self._actions_used >= self.action_budget:
                 return self._terminate(TERMINATION_BUDGET_EXHAUSTED)
 
 
-def _validate_policy_json(value: object, name: str) -> None:
-    if value is None or type(value) in {str, bool, int}:
-        return
-    if type(value) is float:
-        if not math.isfinite(value):
-            raise RunnerError(f"{name} contains a non-finite number")
-        return
-    if type(value) is list:
-        for index, item in enumerate(value):
-            _validate_policy_json(item, f"{name}[{index}]")
-        return
-    if type(value) is dict:
-        for key, item in value.items():
-            if type(key) is not str:
-                raise RunnerError(f"{name} contains a non-string key")
-            _validate_policy_json(item, f"{name}.{key}")
-        return
-    raise RunnerError(f"{name} contains a non-JSON value")
-
-
 def _policy_descriptor(policy: object) -> dict[str, Any]:
+    """Require a complete, finite JSON descriptor from the policy.
+
+    Metering records how a run was configured rather than inferring it later.
+    A policy that does not declare its name, version, configuration, and seed
+    policy is rejected before the run starts, because its result would not be
+    reproducible by anyone reading the artifacts.
+    """
+
     descriptor_method = getattr(policy, "descriptor", None)
     if not callable(descriptor_method):
         raise RunnerError(
-            "canonical Metering policies must declare descriptor() with name, version, "
-            "configuration, and seed policy"
+            "canonical Metering policies must declare descriptor() with name, "
+            "version, configuration, and seed policy"
         )
-    raw = descriptor_method()
-    if type(raw) is not dict:
-        raise RunnerError("policy descriptor must be an exact object")
-    descriptor = raw
-    if set(descriptor) != {"name", "version", "configuration", "seed_policy"}:
+    descriptor = descriptor_method()
+    if type(descriptor) is not dict or set(descriptor) != set(_DESCRIPTOR_FIELDS):
         raise RunnerError("policy descriptor has missing or unexpected fields")
     for key in ("name", "version"):
         if type(descriptor[key]) is not str or not descriptor[key]:
             raise RunnerError("policy name and version must be non-empty strings")
     if type(descriptor["configuration"]) is not dict:
         raise RunnerError("policy configuration must be an exact object")
-    _validate_policy_json(descriptor["configuration"], "policy configuration")
+
     seed_policy = descriptor["seed_policy"]
     if type(seed_policy) is not dict or type(seed_policy.get("kind")) is not str:
         raise RunnerError("policy seed_policy must be a declared object")
@@ -294,7 +289,8 @@ def _policy_descriptor(policy: object) -> dict[str, Any]:
             raise RunnerError("fixed seed policy requires one exact integer seed")
     else:
         raise RunnerError("unknown policy seed declaration")
-    _validate_policy_json(descriptor, "policy descriptor")
+
+    _check.finite_json(descriptor, "policy descriptor")
     try:
         return json.loads(json.dumps(descriptor, allow_nan=False, sort_keys=True))
     except (TypeError, ValueError) as exc:
@@ -313,6 +309,49 @@ def _prepare_run_directory(run_dir: str | Path) -> RunPaths:
     return RunPaths.at(path)
 
 
+def _build_manifest(
+    world: HiddenFaultWorld,
+    descriptor: Mapping[str, Any],
+    *,
+    run_id: str,
+    artifact_set_id: str,
+    reference_commitment: str,
+    action_budget: int,
+) -> dict[str, Any]:
+    """Describe the run completely enough to replay it, without the truth."""
+
+    public = world.public_description()
+    return {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "artifact_set_id": artifact_set_id,
+        "reference_commitment": {
+            "algorithm": REFERENCE_COMMITMENT_ALGORITHM,
+            "digest": reference_commitment,
+        },
+        "run_id": run_id,
+        "world": {
+            "world_id": public.world_id,
+            "world_version": public.world_version,
+        },
+        "instance": public.to_dict(),
+        "world_specification": world.spec.to_dict(),
+        "controller": {"action_budget": action_budget},
+        "policy": dict(descriptor),
+        # These two blocks state what the artifact does and does not promise,
+        # and strict replay refuses a manifest that claims more.
+        "execution_boundary": {
+            "kind": "cooperative_in_process",
+            "hostile_code_sandbox_enforced": False,
+        },
+        "reproducibility": {
+            "generated_instance_materialized": True,
+            "event_timestamps_in_deterministic_comparison": False,
+            "artifact_binding": "sha256",
+        },
+        "implementation": implementation_provenance(),
+    }
+
+
 def run_experiment(
     world: HiddenFaultWorld,
     policy: HarnessPolicy,
@@ -322,7 +361,7 @@ def run_experiment(
     action_budget: int = DEFAULT_ACTION_BUDGET,
     sync_trace: bool = False,
 ) -> RunResult:
-    """Run one policy/world pair and write the four bound Metering artifacts."""
+    """Run one policy and world pair and write the four bound Metering artifacts."""
 
     if type(world) is not HiddenFaultWorld:
         raise RunnerError("world must be an exact HiddenFaultWorld in Metering")
@@ -335,46 +374,26 @@ def run_experiment(
     else:
         raise RunnerError("run_id must be None or a non-empty string")
 
-    # This binding identifier is controller-owned and never derived from the
-    # caller's display-oriented run_id.
+    # The binding identifier is controller-owned and never derived from the
+    # caller's display-oriented run_id, so two runs sharing a label still have
+    # artifacts that cannot be mixed.
     artifact_set_id = str(uuid.uuid4())
     reference_binding_nonce = str(uuid.uuid4())
-    generated_instance = world.generated_instance_reference()
     reference_commitment = compute_reference_commitment(
         artifact_set_id,
         reference_binding_nonce,
-        generated_instance,
+        world.generated_instance_reference(),
     )
     descriptor = _policy_descriptor(policy)
     paths = _prepare_run_directory(run_dir)
-    public = world.public_description()
-    manifest: dict[str, Any] = {
-        "schema_version": MANIFEST_SCHEMA_VERSION,
-        "artifact_set_id": artifact_set_id,
-        "reference_commitment": {
-            "algorithm": REFERENCE_COMMITMENT_ALGORITHM,
-            "digest": reference_commitment,
-        },
-        "run_id": actual_run_id,
-        "world": {
-            "world_id": public.world_id,
-            "world_version": public.world_version,
-        },
-        "instance": public.to_dict(),
-        "world_specification": world.spec.to_dict(),
-        "controller": {"action_budget": action_budget},
-        "policy": descriptor,
-        "execution_boundary": {
-            "kind": "cooperative_in_process",
-            "hostile_code_sandbox_enforced": False,
-        },
-        "reproducibility": {
-            "generated_instance_materialized": True,
-            "event_timestamps_in_deterministic_comparison": False,
-            "artifact_binding": "sha256",
-        },
-        "implementation": implementation_provenance(),
-    }
+    manifest = _build_manifest(
+        world,
+        descriptor,
+        run_id=actual_run_id,
+        artifact_set_id=artifact_set_id,
+        reference_commitment=reference_commitment,
+        action_budget=action_budget,
+    )
     write_json_atomic(paths.manifest, manifest)
 
     with TraceWriter(paths.events, sync=sync_trace) as trace:
@@ -387,11 +406,11 @@ def run_experiment(
             action_budget=action_budget,
         ).run()
 
-    # Hash only after the append-only event writer is closed.  Both source
-    # artifacts were written canonically, and the events hash covers the exact
-    # bytes on disk.
+    # Hashing happens only after the append-only writer is closed, so the events
+    # digest covers the exact bytes a reader will find on disk.
     manifest_bytes = paths.manifest.read_bytes()
     events_bytes = paths.events.read_bytes()
+    public = world.public_description()
     reference = {
         **world.final_reference_state(),
         "artifact_set_id": artifact_set_id,
@@ -410,7 +429,8 @@ def run_experiment(
     write_json_atomic(paths.reference, reference, private=True)
     reference_bytes = paths.reference.read_bytes()
 
-    # Meters run only after world execution, binding, and tracing are complete.
+    # The meters run last, over files that are already committed.  A failure
+    # here leaves the raw record intact and recoverable with `metering report`.
     events = read_events(paths.events)
     report = build_report(
         manifest,
@@ -437,11 +457,10 @@ def run_hidden_fault(
     action_budget: int = DEFAULT_ACTION_BUDGET,
     sync_trace: bool = False,
 ) -> RunResult:
-    """Create one hidden-fault instance and run a cooperative policy."""
+    """Create one hidden-fault instance and run a cooperative policy against it."""
 
-    actual_spec = spec or HiddenFaultSpec.default()
-    world = HiddenFaultWorld.from_spec(
-        actual_spec, hidden_fault_id, instance_id=instance_id
+    world = HiddenFaultWorld(
+        spec or HiddenFaultSpec.default(), hidden_fault_id, instance_id=instance_id
     )
     return run_experiment(
         world,

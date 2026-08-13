@@ -1,590 +1,207 @@
 <!doctype html>
-<html lang="en" class="no-js">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A visual guide to Metering: exact, replayable measurements in a controlled hidden-fault world.">
-  <meta name="theme-color" content="#123c36">
-  <title>Metering — a visual guide to replayable measurement</title>
+  <meta name="description" content="Documentation for Metering, a replayable measurement instrument for a controlled hidden-fault world.">
+  <title>Metering documentation</title>
   <link rel="stylesheet" href="styles.css">
-  <script>document.documentElement.classList.replace('no-js', 'js');</script>
-  <script src="app.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Skip to the guide</a>
-
+  <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
-    <a class="brand" href="#top" aria-label="Metering home">
-      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-      <span>Metering</span>
-    </a>
-    <nav aria-label="Guide sections">
-      <a href="#measure">Measures</a>
-      <a href="#example">Example</a>
-      <a href="#policies">Policies</a>
-      <a href="#start">Get started</a>
-      <a href="#artifacts">Artifacts</a>
-      <a href="#policy-api">Policy API</a>
-      <a href="#limits">Limits</a>
+    <nav class="nav" aria-label="Main navigation">
+      <a class="brand" href="index.html">Metering</a>
+      <a href="index.html" aria-current="page">Overview</a>
+      <a href="quickstart.html">Quickstart</a>
+      <a href="api.html">API</a>
+      <a href="developer.html">Developer</a>
+      <a href="https://github.com/muchmirul/metering">GitHub</a>
     </nav>
-    <a class="header-link" href="https://github.com/muchmirul/metering" aria-label="Metering source repository on GitHub">Source</a>
   </header>
 
-  <main id="main-content">
-    <section class="hero" id="top" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <p class="eyebrow">Controlled experiment · offline meters · exact replay</p>
-        <h1 id="hero-title">Measure the trace.<br><em>Do not guess the mind.</em></h1>
-        <p class="hero-lede">Metering gives a policy a tiny diagnosis problem, records every visible action, and builds a report after the run. It measures exact task success, raw action costs, and diagnostic information delivered by the public tests.</p>
-        <div class="hero-actions">
-          <a class="button primary" href="#example">Walk through one run</a>
-          <a class="button secondary" href="#start">Run the calibration</a>
-        </div>
-        <ul class="fact-strip" aria-label="Key facts">
-          <li><strong>8</strong><span>possible faults</span></li>
-          <li><strong>4</strong><span>typed actions</span></li>
-          <li><strong>0</strong><span>runtime dependencies</span></li>
-        </ul>
-      </div>
-
-      <div class="hero-visual" aria-label="Metering flow from a private controlled world through public policy actions to an offline report">
-        <div class="orbit orbit-one" aria-hidden="true"></div>
-        <div class="orbit orbit-two" aria-hidden="true"></div>
-        <div class="flow-card world-card">
-          <span class="flow-label">Controller private</span>
-          <strong>Hidden fault</strong>
-          <span class="secret-token" aria-label="hidden value">?</span>
-        </div>
-        <div class="flow-arrow arrow-one" aria-hidden="true">↓</div>
-        <div class="flow-card policy-card">
-          <span class="flow-label">Public boundary</span>
-          <strong>Policy actions</strong>
-          <span class="action-pills" aria-hidden="true"><i>test</i><i>repair</i><i>verify</i></span>
-        </div>
-        <div class="flow-arrow arrow-two" aria-hidden="true">↓</div>
-        <div class="flow-card report-card">
-          <span class="flow-label">After execution</span>
-          <strong>Offline report</strong>
-          <span class="report-lines" aria-hidden="true"><i></i><i></i><i></i></span>
-        </div>
+  <main id="main">
+    <section class="hero">
+      <p class="eyebrow">Controlled world · canonical trace · offline report</p>
+      <h1>Metering</h1>
+      <p class="lede">Metering runs a policy against a deterministic hidden-fault world, records everything the policy did, and measures the recording afterwards.</p>
+      <div class="actions">
+        <a class="button primary" href="quickstart.html">Get started</a>
+        <a class="button" href="developer.html#stack">Read the architecture</a>
       </div>
     </section>
 
-    <aside class="scope-note" aria-label="Scope warning">
-      <span aria-hidden="true">◎</span>
-      <p><strong>This is an instrument calibration, not a leaderboard.</strong> Results describe the declared eight-fault world, policy, budget, and configuration. They are not an overall agent score or a universal measure of harness quality.</p>
-    </aside>
-
-    <section class="section" id="measure" aria-labelledby="measure-title">
-      <div class="section-heading">
-        <p class="eyebrow">01 · What it measures</p>
-        <h2 id="measure-title">Three answers that stay separate</h2>
-        <p>Low cost cannot cancel a wrong result. Metering first checks exact completion, then reports costs and delivered diagnostic information in their own units.</p>
-      </div>
-
-      <ol class="measurement-grid">
-        <li class="measure-card correctness-card">
-          <div class="measure-number" aria-hidden="true">1</div>
-          <h3>Exact correctness</h3>
-          <p>A successful run must satisfy every condition below.</p>
-          <ul class="check-list">
-            <li>The final repair matches the hidden fault.</li>
-            <li>Verification happened after the final repair.</li>
-            <li>The policy ended with a valid finish action.</li>
-            <li>The action budget was respected.</li>
-          </ul>
-        </li>
-        <li class="measure-card resources-card">
-          <div class="measure-number" aria-hidden="true">2</div>
-          <h3>Raw resource counts</h3>
-          <p>The report keeps diagnostic observations, repairs, verifications, total actions, and budget exhaustion separate. It never blends them into invented points.</p>
-          <div class="mini-ledger" aria-label="Example separate resource counters">
-            <span><b>3</b> diagnose</span>
-            <span><b>1</b> repair</span>
-            <span><b>1</b> verify</span>
-            <span><b>6</b> total</span>
-          </div>
-        </li>
-        <li class="measure-card information-card">
-          <div class="measure-number" aria-hidden="true">3</div>
-          <h3>Information exposure</h3>
-          <p>The meter counts how much uncertainty the delivered catalogue results remove. With eight equally likely candidates, three even yes-or-no splits can narrow the set to one.</p>
-          <div class="funnel" aria-label="Candidate counts shrink from eight to four to two to one">
-            <span style="--size: 100%">8 candidates</span>
-            <span style="--size: 72%">4 candidates</span>
-            <span style="--size: 48%">2 candidates</span>
-            <span style="--size: 30%">1 candidate</span>
-          </div>
-        </li>
-      </ol>
-
-      <div class="plain-note">
-        <h3>What “information” means here</h3>
-        <p>It is the realized reduction in uncertainty caused by diagnostic results the policy actually received. Choosing a test is not evidence. Repairing, verifying, and finishing do not reduce the diagnostic candidate set. This meter does not know whether a model understood or internally used an observation.</p>
-      </div>
+    <section aria-labelledby="welcome">
+      <h2 id="welcome">Welcome to the docs for Metering</h2>
+      <p>Metering is a measuring instrument for the visible behavior of an agent harness. A harness is everything around a language model that decides what to do next, including the prompts, the tools, the retries, and the stopping rule. Measuring a harness honestly is hard, because most of what happens is invisible from the outside and easy to describe in flattering language. Metering starts from the opposite end by building one task where the correct answer is known in advance, then checking that the measurements come out right before any language model is involved.</p>
+      <p>The task is called the hidden-fault world. The controller picks one of eight faults and keeps it private. A policy receives the list of fault identifiers and a catalogue of diagnostic tests, spends actions to narrow the possibilities, proposes a repair, asks for verification, and finishes. Because the world is deterministic and its rules are published, anyone reading a saved run can recompute exactly what a policy could have known at every step. This is what makes the measurements checkable rather than merely reported.</p>
+      <p>Metering does not rank agents and does not produce an overall score. It answers one narrow question, which is whether the instrument can tell a careful diagnostic policy apart from a wasteful one using exact and replayable numbers. The rest of this page shows what those numbers look like and how the parts fit together.</p>
     </section>
 
-    <section class="section example-section" id="example" aria-labelledby="example-title">
-      <div class="section-heading light-heading">
-        <p class="eyebrow">02 · A hidden-fault run</p>
-        <h2 id="example-title">Watch eight possibilities become one</h2>
-        <p>This teaching example uses <code>fault-5</code>. The page shows the secret so you can follow the run; the policy callback never receives that private value.</p>
-      </div>
-
-      <div class="example-shell">
-        <div class="boundary-banner">
-          <div>
-            <span class="boundary-label">Controller-private view</span>
-            <strong>Selected secret: <code>fault-5</code></strong>
-          </div>
-          <div class="boundary-divider" aria-hidden="true"><span>not passed across</span></div>
-          <div>
-            <span class="boundary-label">Policy view</span>
-            <strong>Public catalogue + history</strong>
-          </div>
-        </div>
-
-        <div class="example-body">
-          <div class="candidate-panel">
-            <div class="panel-topline">
-              <h3>Possible faults in the policy’s public model</h3>
-              <span id="candidate-count" class="count-badge">8 remain</span>
-            </div>
-            <div class="candidate-board" id="candidate-board" aria-label="Eight candidate faults">
-              <div class="candidate is-possible" data-fault="fault-0"><span>fault-0</span><span class="candidate-status">possible</span></div>
-              <div class="candidate is-possible" data-fault="fault-1"><span>fault-1</span><span class="candidate-status">possible</span></div>
-              <div class="candidate is-possible" data-fault="fault-2"><span>fault-2</span><span class="candidate-status">possible</span></div>
-              <div class="candidate is-possible" data-fault="fault-3"><span>fault-3</span><span class="candidate-status">possible</span></div>
-              <div class="candidate is-possible" data-fault="fault-4"><span>fault-4</span><span class="candidate-status">possible</span></div>
-              <div class="candidate is-possible" data-fault="fault-5"><span>fault-5</span><span class="candidate-status">possible</span></div>
-              <div class="candidate is-possible" data-fault="fault-6"><span>fault-6</span><span class="candidate-status">possible</span></div>
-              <div class="candidate is-possible" data-fault="fault-7"><span>fault-7</span><span class="candidate-status">possible</span></div>
-            </div>
-            <div class="history-strip" aria-label="Public diagnostic history">
-              <span>Public history</span>
-              <strong id="history-value">No observations yet</strong>
-            </div>
-          </div>
-
-          <div class="step-panel" aria-live="polite" aria-atomic="true">
-            <p id="stage-kicker" class="stage-kicker">Before action 1</p>
-            <h3 id="stage-title">The controller chooses a fault</h3>
-            <p id="stage-detail">All eight identifiers remain possible in the public view. The policy gets the same catalogue no matter which fault was selected.</p>
-            <dl class="action-readout">
-              <div><dt>Policy action</dt><dd id="stage-action">None yet</dd></div>
-              <div><dt>Delivered observation</dt><dd id="stage-observation">None yet</dd></div>
-            </dl>
-            <p class="private-note"><span aria-hidden="true">🔒</span><span id="stage-private">Only the controller holds the selected fault and private commitment nonce.</span></p>
-            <div class="stage-metrics" aria-label="Current run counts">
-              <span><b id="metric-diagnostics">0</b> diagnostics</span>
-              <span><b id="metric-actions">0</b> actions</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="step-controls">
-          <button class="step-button" id="previous-step" type="button" disabled><span aria-hidden="true">←</span> Previous</button>
-          <ol class="step-dots" aria-label="Choose an example step">
-            <li><button type="button" data-step="0" aria-label="Step 1: choose the fault" aria-current="step">1</button></li>
-            <li><button type="button" data-step="1" aria-label="Step 2: first diagnostic">2</button></li>
-            <li><button type="button" data-step="2" aria-label="Step 3: second diagnostic">3</button></li>
-            <li><button type="button" data-step="3" aria-label="Step 4: third diagnostic">4</button></li>
-            <li><button type="button" data-step="4" aria-label="Step 5: repair">5</button></li>
-            <li><button type="button" data-step="5" aria-label="Step 6: verify">6</button></li>
-            <li><button type="button" data-step="6" aria-label="Step 7: finish and report">7</button></li>
-          </ol>
-          <button class="step-button" id="next-step" type="button">Next <span aria-hidden="true">→</span></button>
-        </div>
-      </div>
-
-      <noscript>
-        <div class="noscript-steps">
-          <h3>The same run, listed step by step</h3>
-          <ol>
-            <li>The controller privately chooses <code>fault-5</code>; all eight candidates look possible to the policy.</li>
-            <li><code>split-1</code> returns positive, leaving faults 1, 3, 5, and 7.</li>
-            <li><code>split-2</code> returns negative, leaving faults 1 and 5.</li>
-            <li><code>split-3</code> returns positive, leaving only fault 5.</li>
-            <li>The policy repairs fault 5 and receives only an acknowledgement.</li>
-            <li>The policy verifies and receives a content-free acknowledgement, not pass or fail.</li>
-            <li>The policy finishes. The offline verifier can now compare the repair with private truth.</li>
-          </ol>
-        </div>
-      </noscript>
-    </section>
-
-    <section class="section" id="policies" aria-labelledby="policies-title">
-      <div class="section-heading">
-        <p class="eyebrow">03 · Balanced versus sequential</p>
-        <h2 id="policies-title">Same correct destination, different diagnostic cost</h2>
-        <p>The complete calibration runs every hidden state, so this comparison does not depend on a lucky sample. These numbers describe the built-in policies in this declared world.</p>
-      </div>
-
-      <div class="comparison-layout">
-        <div class="bar-chart" role="img" aria-label="Balanced policy uses three diagnostic observations for every fault. Sequential policy uses one, two, three, four, five, six, seven, and seven observations.">
-          <div class="chart-legend" aria-hidden="true"><span class="balanced-key">Balanced</span><span class="sequential-key">Sequential</span></div>
-          <div class="chart-scale" aria-hidden="true"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div>
-          <div class="chart-row"><b>fault-0</b><div><i class="balanced-bar" style="--n:3">3</i><i class="sequential-bar" style="--n:1">1</i></div></div>
-          <div class="chart-row"><b>fault-1</b><div><i class="balanced-bar" style="--n:3">3</i><i class="sequential-bar" style="--n:2">2</i></div></div>
-          <div class="chart-row"><b>fault-2</b><div><i class="balanced-bar" style="--n:3">3</i><i class="sequential-bar" style="--n:3">3</i></div></div>
-          <div class="chart-row"><b>fault-3</b><div><i class="balanced-bar" style="--n:3">3</i><i class="sequential-bar" style="--n:4">4</i></div></div>
-          <div class="chart-row"><b>fault-4</b><div><i class="balanced-bar" style="--n:3">3</i><i class="sequential-bar" style="--n:5">5</i></div></div>
-          <div class="chart-row"><b>fault-5</b><div><i class="balanced-bar" style="--n:3">3</i><i class="sequential-bar" style="--n:6">6</i></div></div>
-          <div class="chart-row"><b>fault-6</b><div><i class="balanced-bar" style="--n:3">3</i><i class="sequential-bar" style="--n:7">7</i></div></div>
-          <div class="chart-row"><b>fault-7</b><div><i class="balanced-bar" style="--n:3">3</i><i class="sequential-bar" style="--n:7">7</i></div></div>
-        </div>
-
-        <div class="policy-explanations">
-          <article class="policy-card balanced-policy">
-            <span class="policy-tag">Balanced search</span>
-            <h3>Split the remaining group as evenly as the catalogue allows.</h3>
-            <p>Each of the three public split tests halves the candidates. Every hidden state takes exactly three diagnostic observations.</p>
-            <dl><div><dt>Across 8 states</dt><dd>24 diagnostics</dd></div><div><dt>Delivered information per diagnostic</dt><dd>1 bit</dd></div></dl>
-          </article>
-          <article class="policy-card sequential-policy">
-            <span class="policy-tag">Sequential search</span>
-            <h3>Check candidates one at a time in public order.</h3>
-            <p>The last candidate is inferred after seven negative singleton checks, so it is not tested again. The exact cost vector is 1, 2, 3, 4, 5, 6, 7, 7.</p>
-            <dl><div><dt>Across 8 states</dt><dd>35 diagnostics</dd></div><div><dt>Delivered information per diagnostic</dt><dd>about 0.686 bits</dd></div></dl>
-          </article>
-        </div>
-      </div>
-
-      <div class="comparison-footnote">
-        <strong>Both built-in policies succeed on all eight calibration runs.</strong>
-        <p>Each suite exposes 24 bits in total because each run ultimately identifies one of eight states. Suite efficiency divides total exposed bits by total diagnostics; it is not an average of eight per-run ratios.</p>
-      </div>
-    </section>
-
-    <section class="section start-section" id="start" aria-labelledby="start-title">
-      <div class="section-heading light-heading">
-        <p class="eyebrow">04 · Install and run</p>
-        <h2 id="start-title">From checkout to calibrated artifacts</h2>
-        <p>Metering requires Python 3.11 or newer. The runtime package has no third-party dependencies. Development commands use <a href="https://docs.astral.sh/uv/">uv</a>.</p>
-      </div>
-
-      <div class="command-grid">
-        <article class="command-card">
-          <div class="command-title"><span>Option A</span><h3>Run directly from a checkout</h3></div>
-          <pre><code>git clone https://github.com/muchmirul/metering.git
+    <section aria-labelledby="install">
+      <h2 id="install">Install and run it</h2>
+      <p>Metering needs Python 3.11 or newer and <a href="https://docs.astral.sh/uv/">uv</a>. The runtime package has no third-party dependencies, so the checkout below is everything you need.</p>
+      <pre><code>git clone https://github.com/muchmirul/metering.git
 cd metering
-uv run python -m metering calibrate \
-  --output runs/calibration</code></pre>
-          <p><code>uv run</code> creates or uses the project environment and runs the package from the checkout.</p>
-        </article>
-        <article class="command-card">
-          <div class="command-title"><span>Option B</span><h3>Install this checkout</h3></div>
-          <pre><code>python -m pip install .
-metering calibrate --output runs/calibration</code></pre>
-          <p>The module form, <code>python -m metering</code>, and the installed <code>metering</code> command provide the same subcommands.</p>
-        </article>
-      </div>
-
-      <div class="terminal" aria-label="Expected calibration output">
-        <div class="terminal-bar"><span></span><span></span><span></span><b>terminal</b></div>
-        <pre><code>$ uv run python -m metering calibrate --output runs/calibration
-calibration passed: runs/calibration
+uv run python -m metering calibrate</code></pre>
+      <p>That command runs the full calibration suite, which executes every hidden state against every reference policy and then rebuilds each report from the files it just wrote. It finishes with the headline contrast between the two search strategies:</p>
+      <pre><code>calibration passed: runs/calibration
 balanced diagnostics: 24; sequential diagnostics: 35</code></pre>
-      </div>
+    </section>
 
-      <div class="run-notes">
-        <article>
-          <h3>Output safety</h3>
-          <p>The output directory must be new or empty. <code>--force</code> replaces only a directory carrying Metering’s own calibration marker; it refuses an arbitrary non-empty directory.</p>
+    <section aria-labelledby="readings">
+      <h2 id="readings">What a run reports</h2>
+      <p>Every report carries three readings that stay in separate columns. Keeping them apart matters because they answer different questions, and combining them would let a cheap failure look better than an expensive success.</p>
+      <div class="grid">
+        <article class="card">
+          <h3>Exact correctness</h3>
+          <p>Four conditions are checked and reported one by one. The final repair must match the hidden fault, a verification must come after that repair, the policy must finish normally, and the budget must hold. Overall success needs all four.</p>
         </article>
-        <article>
-          <h3>Useful options</h3>
-          <p><code>--seed</code> declares the seeded baseline’s integer seed. <code>--budget</code> sets the reference-run action budget and must be at least 10 for calibration.</p>
+        <article class="card">
+          <h3>Raw resource cost</h3>
+          <p>Diagnostic observations, repairs, verifications, and total actions are counted separately, together with whether the run ran out of budget. Metering never adds them together into invented points.</p>
         </article>
-        <article>
-          <h3>Run the test suite</h3>
-          <pre><code>uv run --extra test pytest -q</code></pre>
-          <p>The tests do not need network access or a model server.</p>
+        <article class="card">
+          <h3>Diagnostic information</h3>
+          <p>The prior is uniform over eight states, so a run starts with three bits of uncertainty. The meter reports how many of those bits the delivered test results actually removed, and how many bits each observation was worth.</p>
         </article>
-      </div>
-
-      <div class="api-example">
-        <div class="api-copy">
-          <p class="eyebrow">One run from Python</p>
-          <h3>Choose the controller’s hidden state and a policy.</h3>
-          <p>The <code>hidden_fault_id</code> argument configures the controller-owned world. It is not included in the public value passed to <code>next_action</code>. The run directory must be new or empty.</p>
-        </div>
-        <pre><code>from metering import BalancedSearchPolicy, run_hidden_fault
-
-result = run_hidden_fault(
-    BalancedSearchPolicy(),
-    hidden_fault_id="fault-5",
-    run_dir="runs/example",
-    run_id="example",
-    action_budget=16,
-)
-
-print(result.succeeded)
-print(result.report["resources"])
-print(result.report["diagnostic_information"])</code></pre>
       </div>
     </section>
 
-    <section class="section" id="artifacts" aria-labelledby="artifacts-title">
-      <div class="section-heading">
-        <p class="eyebrow">05 · Artifacts and replay</p>
-        <h2 id="artifacts-title">The saved run is the experiment record</h2>
-        <p>A seed is not enough. Metering saves the materialized public instance, the raw interaction, private reference state, policy descriptor, implementation provenance, and the derived report.</p>
-      </div>
-
-      <div class="artifact-layout">
-        <div class="file-tree" aria-label="Four files in a run directory">
-          <div class="tree-root"><span aria-hidden="true">▾</span> runs/example/</div>
-          <div class="tree-file public-file"><code>manifest.json</code><span>declared setup + opaque commitment</span></div>
-          <div class="tree-file public-file"><code>events.jsonl</code><span>append-only actions and observations</span></div>
-          <div class="tree-file private-file"><code>reference.json</code><span>private truth + nonce + input bindings</span></div>
-          <div class="tree-file derived-file"><code>report.json</code><span>offline verifier and meter output</span></div>
-        </div>
-
-        <div class="artifact-cards">
-          <article>
-            <span class="file-kind public-kind">Declared</span>
-            <h3><code>manifest.json</code></h3>
-            <p>Contains the public instance, world specification, budget, exact policy descriptor, implementation versions, execution boundary, fresh artifact-set identifier, and salted commitment to private generated truth.</p>
-          </article>
-          <article>
-            <span class="file-kind public-kind">Raw</span>
-            <h3><code>events.jsonl</code></h3>
-            <p>Canonical JSON Lines with strict schemas and contiguous steps. It records the start, each typed interaction or protocol error, raw resource units, and termination.</p>
-          </article>
-          <article>
-            <span class="file-kind private-kind">Keep private</span>
-            <h3><code>reference.json</code></h3>
-            <p>Contains the selected hidden fault, private commitment nonce, final controller state, and exact manifest and event hashes. It is never passed to the policy.</p>
-          </article>
-          <article>
-            <span class="file-kind derived-kind">Derived</span>
-            <h3><code>report.json</code></h3>
-            <p>Contains separate correctness facts, resource counts, information progression, scope limits, and byte-exact hashes of all three raw inputs. It does not expose the nonce.</p>
-          </article>
-        </div>
-      </div>
-
-      <div class="replay-panel">
-        <div>
-          <p class="eyebrow">Offline regeneration</p>
-          <h3>Delete or distrust the report? Rebuild it from the three bound raw inputs.</h3>
-          <pre><code>python -m metering report runs/example</code></pre>
-        </div>
-        <ol class="replay-flow">
-          <li><span>1</span><div><strong>Read strictly</strong><p>Decode the manifest, event stream, and private reference. Duplicate keys, unexpected fields, non-finite numbers, and wrong JSON types are rejected.</p></div></li>
-          <li><span>2</span><div><strong>Bind and replay</strong><p>Check identifiers, byte hashes, private commitment, implementation provenance, transitions, observations, and costs without calling the policy or world.</p></div></li>
-          <li><span>3</span><div><strong>Replace atomically</strong><p>Only a valid reconstruction replaces <code>report.json</code>. A failed replay does not overwrite an existing good report.</p></div></li>
-        </ol>
-      </div>
-
-      <p class="artifact-extra"><strong>Calibration adds a suite summary.</strong> The chosen output root contains <code>calibration.json</code>, reference runs for all policies and states, seeded replay runs, and controller checks. Every individual run still has the same four-file shape.</p>
+    <section aria-labelledby="showcase">
+      <h2 id="showcase">The calibrated contrast</h2>
+      <p>The three reference policies all solve the task correctly, so correctness alone cannot separate them. What separates them is what they spent to get there. Balanced search asks questions that split the remaining candidates in half, which means every observation is worth a full bit. Sequential search checks one candidate at a time, so an early negative result removes very little. The table below is the measured output of the calibration suite, not an estimate.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Policy</th><th>Correct</th><th>Diagnostics per state</th><th>Total</th><th>Bits removed</th><th>Bits per observation</th></tr></thead>
+        <tbody>
+          <tr><td>Balanced search</td><td>8 / 8</td><td><code>[3, 3, 3, 3, 3, 3, 3, 3]</code></td><td>24</td><td>24.0</td><td>1.0000</td></tr>
+          <tr><td>Sequential search</td><td>8 / 8</td><td><code>[1, 2, 3, 4, 5, 6, 7, 7]</code></td><td>35</td><td>24.0</td><td>0.6857</td></tr>
+          <tr><td>Seeded random search</td><td>8 / 8</td><td><code>[4, 4, 4, 1, 4, 4, 4, 3]</code></td><td>28</td><td>24.0</td><td>0.8571</td></tr>
+        </tbody>
+      </table></div>
+      <p>Each policy removes the same 24 bits in total, because each one ends up knowing the answer in all eight states. The efficiency column is the total bits divided by the total observations, which is the ratio of the sums rather than the average of the per-run ratios. Averaging the ratios would give a lucky one-observation run the same weight as a seven-observation run and would overstate how efficient the suite really was.</p>
     </section>
 
-    <section class="section boundary-section" id="boundary" aria-labelledby="boundary-title">
-      <div class="section-heading light-heading">
-        <p class="eyebrow">06 · Integrity and privacy boundary</p>
-        <h2 id="boundary-title">Detect mixing and corruption without pretending it is authentication</h2>
-        <p>The mechanism is deliberately narrow. It provides API non-disclosure and internally consistent artifacts for a cooperative, in-process experiment.</p>
-      </div>
+    <section aria-labelledby="stack">
+      <h2 id="stack">The system, from high level to low level</h2>
+      <p>Metering is assembled from focused modules rather than one large framework. Each module has one responsibility and passes typed data to the next one, so a change in how a run is measured cannot reach back and change how the run was executed. The diagram reads from the command you type at the top down to the strict decoding rules that every layer shares at the bottom.</p>
 
-      <div class="privacy-map">
-        <article class="public-zone">
-          <div class="zone-heading"><span aria-hidden="true">◉</span><h3>Policy receives</h3></div>
-          <ul>
-            <li>Immutable public instance</li>
-            <li>Eight public fault identifiers</li>
-            <li>Fixed diagnostic catalogue</li>
-            <li>Delivered observation history</li>
-            <li>Content-free verification acknowledgement</li>
-          </ul>
-        </article>
-        <div class="boundary-wall" aria-hidden="true"><span>callback boundary</span></div>
-        <article class="private-zone">
-          <div class="zone-heading"><span aria-hidden="true">◆</span><h3>Controller keeps private</h3></div>
-          <ul>
-            <li>Selected hidden fault</li>
-            <li>Commitment nonce</li>
-            <li>Verification pass or fail during execution</li>
-            <li>Final reference state</li>
-            <li><code>reference.json</code> contents</li>
-          </ul>
-        </article>
-      </div>
+      <figure class="diagram">
+        <svg viewBox="0 0 900 676" role="img" aria-labelledby="stack-title stack-desc">
+          <title id="stack-title">The Metering module stack from entry points down to strict decoding</title>
+          <desc id="stack-desc">Nine layers. Entry points, calibration, the controller loop, the split between the policy and the world, the typed protocol and canonical encoding, the run artifacts on disk, strict replay, the verifier and meters, and the shared schema module underneath all of them.</desc>
 
-      <div class="integrity-grid">
-        <article>
-          <span class="integrity-icon" aria-hidden="true">ID</span>
-          <h3>Fresh artifact identity</h3>
-          <p>A caller-controlled <code>run_id</code> is only a label. Every execution receives a controller-generated <code>artifact_set_id</code>, so swapping one raw file between runs is detected even if labels match.</p>
-        </article>
-        <article>
-          <span class="integrity-icon" aria-hidden="true">#</span>
-          <h3>Salted private commitment</h3>
-          <p>Before the first callback, the controller commits to the generated-instance identity with SHA-256 and a fresh private nonce. The public manifest carries only the opaque digest.</p>
-        </article>
-        <article>
-          <span class="integrity-icon" aria-hidden="true">↻</span>
-          <h3>Exact byte bindings</h3>
-          <p>The private reference binds the manifest and events; the report records hashes of all three raw inputs. Replay also checks semantic consistency rather than trusting hashes alone.</p>
-        </article>
-      </div>
+          <line class="rule" x1="14" y1="44" x2="14" y2="626"></line>
+          <polygon points="14,640 8,626 20,626" fill="currentColor" opacity="0.35"></polygon>
+          <text class="axis" x="0" y="32">HIGH LEVEL</text>
+          <text class="axis" x="0" y="668">LOW LEVEL</text>
 
-      <div class="warning-box">
-        <strong>Hashes and commitments are not signatures.</strong>
-        <p>They detect corruption, stale files, and accidental mixing. They do not authenticate an artifact set against an attacker who can coherently rewrite every file. The in-process callback boundary is not a hostile-code sandbox.</p>
-      </div>
+          <rect class="layer-box" x="40" y="44" width="856" height="54" rx="6"></rect>
+          <text class="layer-name" x="56" y="66">__main__.py</text>
+          <text class="layer-title" x="200" y="66">Entry points</text>
+          <text class="layer-note" x="200" y="85">metering calibrate · metering report DIR · run_hidden_fault(policy, fault, run_dir)</text>
+
+          <rect class="layer-box" x="40" y="108" width="856" height="54" rx="6"></rect>
+          <text class="layer-name" x="56" y="130">calibration.py</text>
+          <text class="layer-title" x="200" y="130">The self check</text>
+          <text class="layer-note" x="200" y="149">Eight hidden states against three reference policies, then every report rebuilt from disk</text>
+
+          <rect class="layer-box" x="40" y="172" width="856" height="54" rx="6"></rect>
+          <text class="layer-name" x="56" y="194">runner.py</text>
+          <text class="layer-title" x="200" y="194">Controller loop</text>
+          <text class="layer-note" x="200" y="213">Ask for one action, charge the budget, apply it, record one event, decide whether to stop</text>
+
+          <rect class="layer-box" x="40" y="236" width="856" height="92" rx="6"></rect>
+          <text class="layer-name" x="56" y="258">policies.py</text>
+          <text class="layer-name" x="56" y="300">hidden_fault.py</text>
+          <rect class="layer-box" x="196" y="248" width="336" height="68" rx="5"></rect>
+          <text class="layer-title" x="212" y="272">Harness boundary</text>
+          <text class="layer-note" x="212" y="292">next_action(public instance,</text>
+          <text class="layer-note" x="212" y="308">observations delivered so far)</text>
+          <rect class="layer-box" x="548" y="248" width="332" height="68" rx="5"></rect>
+          <text class="layer-title" x="564" y="272">World</text>
+          <text class="layer-note" x="564" y="292">Owns the selected fault, validates</text>
+          <text class="layer-note" x="564" y="308">and applies, returns cost</text>
+
+          <rect class="layer-box" x="40" y="338" width="856" height="54" rx="6"></rect>
+          <text class="layer-name" x="56" y="360">events · trace</text>
+          <text class="layer-name" x="56" y="378">binding</text>
+          <text class="layer-title" x="200" y="360">Typed protocol and canonical bytes</text>
+          <text class="layer-note" x="200" y="379">Four actions, four observations, append-only JSONL, salted commitment to private truth</text>
+
+          <rect class="layer-box" x="40" y="402" width="856" height="54" rx="6"></rect>
+          <text class="layer-name" x="56" y="424">on disk</text>
+          <text class="layer-title" x="200" y="424">Run artifacts</text>
+          <text class="layer-note" x="200" y="443">manifest.json · events.jsonl · reference.json</text>
+
+          <rect class="layer-box" x="40" y="466" width="856" height="54" rx="6"></rect>
+          <text class="layer-name" x="56" y="488">replay.py</text>
+          <text class="layer-title" x="200" y="488">Strict offline replay</text>
+          <text class="layer-note" x="200" y="507">Rebuild controller state from files, check identity, transitions, costs, commitment, hashes</text>
+
+          <rect class="layer-box" x="40" y="530" width="856" height="54" rx="6"></rect>
+          <text class="layer-name" x="56" y="552">report.py</text>
+          <text class="layer-title" x="200" y="552">Verifier and meters</text>
+          <text class="layer-note" x="200" y="571">Exact correctness · separate raw counts · information in bits → report.json</text>
+
+          <rect class="base-box" x="40" y="594" width="856" height="48" rx="6"></rect>
+          <text class="layer-name" x="56" y="623">schema.py</text>
+          <text class="layer-note" x="200" y="623">One strict decoder for every layer above: exact key sets, exact types, finite numbers, no duplicate keys</text>
+        </svg>
+        <figcaption>Layers above the dashed foundation run in order during a run. The bottom two layers run afterwards and read only what is already on disk.</figcaption>
+      </figure>
+
+      <p>The boundary in the middle of the diagram is the design rule everything else follows. The controller hands the policy an immutable public instance and the observations delivered so far, and it never hands over the world object or the selected fault. Because of this, a policy cannot read the answer even by accident, and the only way it can learn anything is through actions that the trace records and the meters count.</p>
+      <p>The separation at the bottom matters just as much. Replay and the meters read files that are already written and hashed, so changing how a measurement is calculated cannot change a raw trace that was recorded earlier. This is what lets an old run be re-measured by newer code and still describe the same execution.</p>
     </section>
 
-    <section class="section" id="policy-api" aria-labelledby="policy-title">
-      <div class="section-heading">
-        <p class="eyebrow">07 · Implement a policy</p>
-        <h2 id="policy-title">Return one typed action at a time</h2>
-        <p>A policy needs two methods. <code>descriptor()</code> declares exact provenance. <code>next_action(instance, observations)</code> receives only public state and returns <code>Diagnose</code>, <code>Repair</code>, <code>Verify</code>, or <code>Finish</code>.</p>
-      </div>
-
-      <div class="policy-api-layout">
-        <div class="code-window">
-          <div class="code-window-title"><span>first_useful_policy.py</span><span>Python</span></div>
-          <pre><code>from metering import (
-    Diagnose,
-    DiagnosticObservation,
-    Finish,
-    Repair,
-    RepairObservation,
-    VerificationObservation,
-    Verify,
-    remaining_candidates,
-    run_hidden_fault,
-)
-
-class FirstUsefulPolicy:
-    name = "first-useful"
-    version = "1"
-
-    def descriptor(self):
-        return {
-            "name": self.name,
-            "version": self.version,
-            "configuration": {
-                "choice": "public_catalogue_order"
-            },
-            "seed_policy": {"kind": "none"},
-        }
-
-    def next_action(self, instance, observations):
-        if observations and isinstance(
-            observations[-1], VerificationObservation
-        ):
-            return Finish()
-        if observations and isinstance(
-            observations[-1], RepairObservation
-        ):
-            return Verify()
-
-        candidates = remaining_candidates(
-            instance, observations
-        )
-        if len(candidates) == 1:
-            return Repair(candidates[0])
-
-        used = {
-            item.test_id for item in observations
-            if isinstance(item, DiagnosticObservation)
-        }
-        candidate_set = set(candidates)
-        for test in instance.diagnostic_tests:
-            positive = candidate_set.intersection(
-                test.positive_fault_ids
-            )
-            if (test.test_id not in used
-                    and 0 &lt; len(positive) &lt; len(candidates)):
-                return Diagnose(test.test_id)
-
-        raise RuntimeError("no informative test remains")
-
-result = run_hidden_fault(
-    FirstUsefulPolicy(),
-    "fault-5",
-    "runs/first-useful",
-    action_budget=16,
-)
-print(result.succeeded)</code></pre>
-        </div>
-
-        <div class="contract-list">
-          <article>
-            <span>01</span>
-            <div><h3>Use the exact descriptor shape</h3><p>The only top-level keys are <code>name</code>, <code>version</code>, <code>configuration</code>, and <code>seed_policy</code>. Values must be finite JSON data. A random policy declares <code>{"kind": "fixed", "seed": 123}</code>.</p></div>
-          </article>
-          <article>
-            <span>02</span>
-            <div><h3>Read only delivered evidence</h3><p><code>remaining_candidates</code> filters the public candidates using diagnostic observations. It ignores repair and verification acknowledgements, as the information meter does.</p></div>
-          </article>
-          <article>
-            <span>03</span>
-            <div><h3>Return typed actions</h3><p>A plain dictionary is not repaired into an action. Unknown tests, unknown faults, verifying before repair, and malformed return values end as explicit protocol failures.</p></div>
-          </article>
-          <article>
-            <span>04</span>
-            <div><h3>Repair, verify, then finish</h3><p>Verification is valid only after a repair. A later repair makes earlier verification stale. The acknowledgement does not reveal whether the repair matched.</p></div>
-          </article>
-        </div>
-      </div>
-
-      <div class="budget-note">
-        <strong>Budget behavior is observable.</strong>
-        <p>Every returned action attempt, including an invalid attempt and <code>Finish</code>, uses one action unit. The controller makes no extra callback after the budget is exhausted. An ordinary exception from <code>next_action</code> is recorded as a harness crash.</p>
-      </div>
+    <section aria-labelledby="phases">
+      <h2 id="phases">Two paths through one run</h2>
+      <p>A run has an execution path and an interpretation path, and they never touch each other. During execution the controller and the world exchange typed values while the trace collects facts without judging them:</p>
+      <pre class="ascii"><code>HiddenFaultSpec.default()  ->  HiddenFaultWorld holding one private fault
+                                        ^
+                     validate and apply  |  observation and raw cost
+                                        v
+Controller  -- public instance + history -->  policy.next_action(...)
+Controller  &lt;------------- one typed action --  policy.next_action(...)
+     |
+     +--> Event --> events.jsonl</code></pre>
+      <p>Interpretation happens only after execution has ended and the files are closed. Replay reads them back, rebuilds the same controller state, and hands that state to the verifier and the meters:</p>
+      <pre class="ascii"><code>manifest.json + events.jsonl + private reference.json
+                        |
+                        v
+              strict offline replay
+                        |
+                        v
+   exact verifier + resource meter + information meter
+                        |
+                        v
+                   report.json</code></pre>
+      <p>Because the second path never calls the policy or the world, a report can be rebuilt on a different machine, months later, from nothing but the saved files. The <a href="quickstart.html#replay">quickstart</a> walks through doing exactly that.</p>
     </section>
 
-    <section class="section limits-section" id="limits" aria-labelledby="limits-title">
-      <div class="section-heading light-heading">
-        <p class="eyebrow">08 · Read the boundary literally</p>
-        <h2 id="limits-title">What Metering does not establish</h2>
-        <p>A controlled measurement is useful because its limits are explicit.</p>
-      </div>
-
-      <div class="limits-grid">
-        <article><span aria-hidden="true">01</span><h3>Not model understanding</h3><p>The information meter sees delivered diagnostic results. It cannot observe private reasoning or prove that a model understood or used them.</p></article>
-        <article><span aria-hidden="true">02</span><h3>Not universal quality</h3><p>The calibrated costs belong to one deterministic eight-state world with a uniform prior and fixed catalogue. They do not measure real software work.</p></article>
-        <article><span aria-hidden="true">03</span><h3>Not a security sandbox</h3><p>Policies run cooperatively in process. Metering cannot stop a callback that never returns or recover from hard exits, segmentation faults, out-of-memory termination, or interpreter failure.</p></article>
-        <article><span aria-hidden="true">04</span><h3>Not authentication</h3><p>SHA-256 bindings are integrity checks, not signatures. A party able to rewrite a complete artifact set can construct a different internally consistent set.</p></article>
-        <article><span aria-hidden="true">05</span><h3>Not a combined score</h3><p>Correctness, diagnostics, repairs, verifications, and total actions remain separate. The package does not turn them into a leaderboard number.</p></article>
-        <article><span aria-hidden="true">06</span><h3>Not a production failure lab</h3><p>There is no external harness protocol, process isolation, model provider, injected timeout, dropped-response simulation, database, or dashboard in the implemented scope.</p></article>
-      </div>
+    <section aria-labelledby="scope">
+      <h2 id="scope">What Metering deliberately leaves out</h2>
+      <p>An instrument is only useful if its limits are stated as plainly as its results. The following boundaries are chosen rather than pending, and they are recorded inside every artifact so that a number cannot be quoted later without them.</p>
+      <ul>
+        <li>The harness boundary is cooperative and in process. Metering cannot stop a callback that never returns, and it cannot survive a hard process exit, a segmentation fault, or an out-of-memory kill. It provides API non-disclosure and claims nothing about hostile code.</li>
+        <li>The information meter measures uncertainty removed by delivered results. It says nothing about whether a model understood or internally used what it was told.</li>
+        <li>Every reading is conditional on the declared world, policy, budget, and configuration. A result here is not a statement about harness quality in general.</li>
+        <li>Hashes and commitments detect corruption and accidentally mixed artifacts. They are not signatures, and they do not defend against someone who rewrites an entire artifact set coherently.</li>
+      </ul>
+      <p><a href="https://github.com/muchmirul/metering/blob/main/PLAN.md">PLAN.md</a> is the normative source for the accepted scope, the definitions, and the acceptance criteria that calibration enforces.</p>
     </section>
 
-    <section class="release-section" id="releases" aria-labelledby="releases-title">
-      <div>
-        <p class="eyebrow">Versions and release notes</p>
-        <h2 id="releases-title">Use published releases as the version source</h2>
-        <p>This guide does not hard-code a “latest” release number. GitHub Releases is the place to find published versions, change notes, and source archives. A checkout of the main branch may contain changes made after a release.</p>
-        <p>The release/package version is recorded as provenance, but it does not by itself block replay. Accepted schemas and compatible controller, verifier, and meter versions are the replay gates.</p>
-        <div class="release-actions">
-          <a class="button primary" href="https://github.com/muchmirul/metering/releases">Open GitHub Releases</a>
-          <a class="button secondary" href="https://github.com/muchmirul/metering/blob/main/PLAN.md">Read the normative plan</a>
-        </div>
-      </div>
-      <div class="version-terminal">
-        <span>Check the installed package</span>
-        <pre><code>python -m metering --version</code></pre>
+    <section aria-labelledby="next">
+      <h2 id="next">Read next</h2>
+      <div class="grid">
+        <article class="card"><h3><a href="quickstart.html">Quickstart</a></h3><p>Run the calibration, execute one fault, read the artifacts, write your own policy, and rebuild a report offline.</p></article>
+        <article class="card"><h3><a href="api.html">Python API</a></h3><p>Actions, world types, the policy contract, runner functions, canonical traces, replay, reports, and calibration.</p></article>
+        <article class="card"><h3><a href="developer.html">Developer guide</a></h3><p>Execution semantics layer by layer, artifact integrity, the replay checklist, testing, and release compatibility.</p></article>
       </div>
     </section>
   </main>
 
-  <footer>
-    <div class="footer-brand">
-      <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-      <div><strong>Metering</strong><p>Replayable measurement for a controlled hidden-fault world.</p></div>
-    </div>
-    <nav aria-label="Project links">
-      <a href="https://github.com/muchmirul/metering">Source</a>
-      <a href="https://github.com/muchmirul/metering/blob/main/README.md">README</a>
-      <a href="https://github.com/muchmirul/metering/blob/main/PLAN.md">Plan</a>
-      <a href="https://github.com/muchmirul/metering/tree/main/tests">Executable checks</a>
-      <a href="https://github.com/muchmirul/metering/releases">Releases</a>
-    </nav>
-  </footer>
+  <footer><div class="footer-inner"><p>Metering documentation</p><p><a href="https://github.com/muchmirul/metering">Source repository</a></p></div></footer>
 </body>
 </html>

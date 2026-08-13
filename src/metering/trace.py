@@ -1,4 +1,15 @@
-"""Append-only JSONL traces and canonical run-artifact I/O."""
+"""Append-only JSONL traces and canonical run-artifact I/O.
+
+Every Metering artifact has exactly one valid byte representation.  Keys are
+sorted, separators are compact, the encoding is UTF-8, and each document ends
+with one newline.  Having a single representation is what makes a SHA-256 hash
+a meaningful binding, because two readers of the same values always produce the
+same bytes.
+
+Reading is deliberately stricter than the JSON standard.  Duplicate object keys
+and non-finite numbers are rejected rather than resolved, since either one
+would let two readers disagree about what a file says.
+"""
 
 from __future__ import annotations
 
@@ -12,9 +23,10 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator
 
 from .events import Event, EventError
+from .schema import EVENT_RUN_STARTED, SchemaError
 
 
-class TraceError(ValueError):
+class TraceError(SchemaError):
     """Raised when a trace or artifact is malformed."""
 
 
@@ -300,14 +312,20 @@ def read_events(path: str | Path) -> tuple[Event, ...]:
 
 
 def interaction_signature(events: Iterable[Event]) -> tuple[str, ...]:
-    """Return a run-id and artifact-set-independent deterministic signature."""
+    """Return a deterministic signature of what happened during a run.
+
+    Two runs of the same seeded policy against the same state produce different
+    run identifiers and different artifact-set identifiers, because those are
+    generated fresh each time.  Masking them leaves the part that determinism
+    actually claims: the same actions, observations, and costs in the same
+    order.
+    """
 
     signatures: list[str] = []
     for event in events:
-        payload = json.loads(canonical_json(event.payload))
-        if event.event_type == "run_started" and type(payload) is dict:
-            if "artifact_set_id" in payload:
-                payload["artifact_set_id"] = "<artifact-set-id>"
+        payload = dict(event.payload)
+        if event.event_type == EVENT_RUN_STARTED and "artifact_set_id" in payload:
+            payload["artifact_set_id"] = "<artifact-set-id>"
         signatures.append(
             canonical_json(
                 {

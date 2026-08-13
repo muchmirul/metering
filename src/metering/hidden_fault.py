@@ -1,4 +1,11 @@
-"""The deterministic eight-state hidden-fault world used by Metering."""
+"""The deterministic eight-state hidden-fault world used by Metering.
+
+The world owns one selected fault and answers questions about it.  A policy
+never sees the world object.  It receives :class:`PublicInstance`, which
+describes the fault identifiers and the diagnostic catalogue without naming the
+selected fault, so the only way to narrow the candidates is to spend actions on
+diagnostics that the controller records.
+"""
 
 from __future__ import annotations
 
@@ -19,16 +26,25 @@ from .events import (
     VerificationObservation,
     Verify,
 )
+from .schema import (
+    PUBLIC_INSTANCE_SCHEMA_VERSION,
+    REFERENCE_SCHEMA_VERSION,
+    SchemaError,
+    StrictFields,
+)
 
 WORLD_ID = "hidden-fault"
 WORLD_VERSION = "1"
 INSTANCE_VERSION = "1"
 DEFAULT_INSTANCE_ID = "hidden-fault-public-v1"
-PUBLIC_INSTANCE_SCHEMA_VERSION = 1
-REFERENCE_SCHEMA_VERSION = 1
+
+# Eight faults need three yes/no answers to separate, so the catalogue carries
+# three balanced split tests alongside one singleton test per fault.
+FAULT_COUNT = 8
+SPLIT_TEST_COUNT = 3
 
 
-class HiddenFaultError(ValueError):
+class HiddenFaultError(SchemaError):
     """Base error for an invalid hidden-fault specification or operation."""
 
 
@@ -41,12 +57,44 @@ class InvalidActionError(HiddenFaultError):
         self.message = message
 
 
+_check = StrictFields(HiddenFaultError)
+
+_TEST_FIELDS = ("test_id", "description", "positive_fault_ids")
+_INSTANCE_FIELDS = (
+    "schema_version",
+    "world_id",
+    "world_version",
+    "instance_id",
+    "instance_version",
+    "fault_ids",
+    "diagnostic_tests",
+)
+_SPEC_FIELDS = (
+    "world_id",
+    "world_version",
+    "instance_version",
+    "fault_ids",
+    "diagnostic_tests",
+)
+
+
+def _string_tuple(value: object, name: str) -> tuple[str, ...]:
+    if type(value) is not list:
+        raise HiddenFaultError(f"{name} must be a list")
+    for item in value:
+        _check.text(item, f"{name} entry")
+    return tuple(value)
+
+
 @dataclass(frozen=True, slots=True)
 class DiagnosticTest:
     """A public deterministic yes/no test.
 
-    ``positive_fault_ids`` is the public observation model: the test is positive
-    exactly in those candidate states.  It reveals no selected hidden state.
+    ``positive_fault_ids`` is the public observation model, which means the
+    test is positive in exactly those candidate states.  Publishing the model
+    reveals nothing about which state was selected, and it is what lets an
+    offline meter recompute the same candidate set the policy could have
+    computed.
     """
 
     test_id: str
@@ -54,18 +102,16 @@ class DiagnosticTest:
     positive_fault_ids: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        if type(self.test_id) is not str or not self.test_id:
-            raise HiddenFaultError("test_id must be a non-empty string")
-        if type(self.description) is not str or not self.description:
-            raise HiddenFaultError("description must be a non-empty string")
+        _check.text(self.test_id, "test_id")
+        _check.text(self.description, "description")
         if type(self.positive_fault_ids) is not tuple:
             raise HiddenFaultError("positive_fault_ids must be a tuple")
         if not self.positive_fault_ids:
             raise HiddenFaultError("a diagnostic test must be positive somewhere")
         if len(set(self.positive_fault_ids)) != len(self.positive_fault_ids):
             raise HiddenFaultError("positive_fault_ids must be unique")
-        if any(type(item) is not str or not item for item in self.positive_fault_ids):
-            raise HiddenFaultError("positive_fault_ids must contain non-empty strings")
+        for item in self.positive_fault_ids:
+            _check.text(item, "positive_fault_ids entry")
 
     def outcome(self, fault_id: str) -> bool:
         return fault_id in self.positive_fault_ids
@@ -79,15 +125,12 @@ class DiagnosticTest:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "DiagnosticTest":
-        if type(data) is not dict:
-            raise HiddenFaultError("diagnostic test must be an object")
-        expected = {"test_id", "description", "positive_fault_ids"}
-        if set(data) != expected:
-            raise HiddenFaultError("diagnostic test has missing or unexpected fields")
-        positive = data["positive_fault_ids"]
-        if type(positive) is not list:
-            raise HiddenFaultError("positive_fault_ids must be a list")
-        return cls(data["test_id"], data["description"], tuple(positive))
+        fields = _check.exact_keys(data, _TEST_FIELDS, "diagnostic test")
+        return cls(
+            fields["test_id"],
+            fields["description"],
+            _string_tuple(fields["positive_fault_ids"], "positive_fault_ids"),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,17 +152,18 @@ class PublicInstance:
             "instance_id",
             "instance_version",
         ):
-            value = getattr(self, field_name)
-            if type(value) is not str or not value:
-                raise HiddenFaultError(f"{field_name} must be a non-empty string")
-        if type(self.schema_version) is not int or self.schema_version != PUBLIC_INSTANCE_SCHEMA_VERSION:
+            _check.text(getattr(self, field_name), field_name)
+        if (
+            type(self.schema_version) is not int
+            or self.schema_version != PUBLIC_INSTANCE_SCHEMA_VERSION
+        ):
             raise HiddenFaultError(
                 f"unsupported public instance schema: {self.schema_version!r}"
             )
         if not self.fault_ids or len(set(self.fault_ids)) != len(self.fault_ids):
             raise HiddenFaultError("fault_ids must be non-empty and unique")
-        if any(type(item) is not str or not item for item in self.fault_ids):
-            raise HiddenFaultError("fault_ids must contain non-empty strings")
+        for item in self.fault_ids:
+            _check.text(item, "fault_ids entry")
         if not self.diagnostic_tests:
             raise HiddenFaultError("diagnostic_tests must not be empty")
         test_ids = [test.test_id for test in self.diagnostic_tests]
@@ -135,6 +179,8 @@ class PublicInstance:
                     f"test {test.test_id!r} refers to an unknown fault"
                 )
             if positives == known:
+                # A test that is positive everywhere would cost one action and
+                # remove zero bits, so the catalogue refuses to contain one.
                 raise HiddenFaultError(
                     f"test {test.test_id!r} must distinguish at least one state"
                 )
@@ -158,32 +204,22 @@ class PublicInstance:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "PublicInstance":
-        if type(data) is not dict:
-            raise HiddenFaultError("public instance must be an object")
-        expected = {
-            "schema_version",
-            "world_id",
-            "world_version",
-            "instance_id",
-            "instance_version",
-            "fault_ids",
-            "diagnostic_tests",
-        }
-        if set(data) != expected:
-            raise HiddenFaultError("public instance has missing or unexpected fields")
-        fault_ids = data["fault_ids"]
-        tests = data["diagnostic_tests"]
-        if type(fault_ids) is not list or type(tests) is not list:
-            raise HiddenFaultError("fault_ids and diagnostic_tests must be lists")
+        fields = _check.exact_keys(data, _INSTANCE_FIELDS, "public instance")
         return cls(
-            schema_version=data["schema_version"],
-            world_id=data["world_id"],
-            world_version=data["world_version"],
-            instance_id=data["instance_id"],
-            instance_version=data["instance_version"],
-            fault_ids=tuple(fault_ids),
-            diagnostic_tests=tuple(DiagnosticTest.from_dict(item) for item in tests),
+            schema_version=fields["schema_version"],
+            world_id=fields["world_id"],
+            world_version=fields["world_version"],
+            instance_id=fields["instance_id"],
+            instance_version=fields["instance_version"],
+            fault_ids=_string_tuple(fields["fault_ids"], "fault_ids"),
+            diagnostic_tests=_tests_from_list(fields["diagnostic_tests"]),
         )
+
+
+def _tests_from_list(value: object) -> tuple[DiagnosticTest, ...]:
+    if type(value) is not list:
+        raise HiddenFaultError("diagnostic_tests must be a list")
+    return tuple(DiagnosticTest.from_dict(item) for item in value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,19 +233,28 @@ class HiddenFaultSpec:
     diagnostic_tests: tuple[DiagnosticTest, ...]
 
     def __post_init__(self) -> None:
-        # Reuse all catalogue validation in the public boundary type.
+        # Materializing the public instance reuses all catalogue validation
+        # instead of repeating it here.
         self.public_instance()
 
     @classmethod
     def default(cls) -> "HiddenFaultSpec":
-        """Return the canonical eight-fault specification."""
+        """Return the canonical eight-fault specification.
 
-        fault_ids = tuple(f"fault-{index}" for index in range(8))
+        The catalogue holds two families of tests.  The three split tests each
+        answer one bit of the fault index, so three of them identify any of the
+        eight states.  The eight singleton tests each name one state, which is
+        a correct but wasteful way to search.  Having both families in one
+        public catalogue is what lets calibration show a careful policy and a
+        wasteful policy solving the same task at different cost.
+        """
+
+        fault_ids = tuple(f"fault-{index}" for index in range(FAULT_COUNT))
         tests: list[DiagnosticTest] = []
 
-        # These three catalogue entries form a balanced decision tree.  They
-        # come first so the reference policy has a stable tie break.
-        for bit in range(3):
+        # The balanced splits come first so that a policy breaking ties by
+        # catalogue order gets a stable and sensible default.
+        for bit in range(SPLIT_TEST_COUNT):
             positives = tuple(
                 fault_id
                 for index, fault_id in enumerate(fault_ids)
@@ -223,7 +268,6 @@ class HiddenFaultSpec:
                 )
             )
 
-        # Singleton tests support the deliberately wasteful sequential policy.
         for index, fault_id in enumerate(fault_ids):
             tests.append(
                 DiagnosticTest(
@@ -262,27 +306,13 @@ class HiddenFaultSpec:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "HiddenFaultSpec":
-        if type(data) is not dict:
-            raise HiddenFaultError("world specification must be an object")
-        expected = {
-            "world_id",
-            "world_version",
-            "instance_version",
-            "fault_ids",
-            "diagnostic_tests",
-        }
-        if set(data) != expected:
-            raise HiddenFaultError("world specification has missing or unexpected fields")
-        faults = data["fault_ids"]
-        tests = data["diagnostic_tests"]
-        if type(faults) is not list or type(tests) is not list:
-            raise HiddenFaultError("fault_ids and diagnostic_tests must be lists")
+        fields = _check.exact_keys(data, _SPEC_FIELDS, "world specification")
         return cls(
-            world_id=data["world_id"],
-            world_version=data["world_version"],
-            instance_version=data["instance_version"],
-            fault_ids=tuple(faults),
-            diagnostic_tests=tuple(DiagnosticTest.from_dict(item) for item in tests),
+            world_id=fields["world_id"],
+            world_version=fields["world_version"],
+            instance_version=fields["instance_version"],
+            fault_ids=_string_tuple(fields["fault_ids"], "fault_ids"),
+            diagnostic_tests=_tests_from_list(fields["diagnostic_tests"]),
         )
 
 
@@ -306,9 +336,10 @@ class ActionValidation:
 class HiddenFaultWorld:
     """One mutable instance with private hidden state.
 
-    The controller gives a harness only :meth:`public_description`; it never
-    gives the world object itself.  Metering uses an in-process cooperative boundary,
-    not a hostile-code sandbox.
+    The controller gives a harness only :meth:`public_description`, never the
+    world object itself.  This is a cooperative in-process boundary rather than
+    a hostile-code sandbox, so it prevents accidental disclosure through the
+    documented API and nothing more.
     """
 
     def __init__(
@@ -331,23 +362,9 @@ class HiddenFaultWorld:
         self._finished = False
         self._actions_applied = 0
 
-    @classmethod
-    def from_spec(
-        cls,
-        spec: HiddenFaultSpec,
-        hidden_fault_id: str,
-        *,
-        instance_id: str = DEFAULT_INSTANCE_ID,
-    ) -> "HiddenFaultWorld":
-        return cls(spec, hidden_fault_id, instance_id=instance_id)
-
     @property
     def spec(self) -> HiddenFaultSpec:
         return self._spec
-
-    @property
-    def public_instance(self) -> PublicInstance:
-        return self._public
 
     def public_description(self) -> PublicInstance:
         """Return the immutable public boundary object."""
@@ -355,13 +372,22 @@ class HiddenFaultWorld:
         return self._public
 
     def validate_action(self, action: object) -> ActionValidation:
+        """Decide whether an action is legal without changing any state.
+
+        Validation is separate from :meth:`apply` because the controller has to
+        record a rejected action as a protocol failure that still costs one
+        unit of budget.
+        """
+
         if not isinstance(action, ACTION_TYPES):
             return ActionValidation.reject(
                 "invalid_action_type",
                 "harness output must be a typed Metering action",
             )
         if self._finished:
-            return ActionValidation.reject("world_finished", "the world is already finished")
+            return ActionValidation.reject(
+                "world_finished", "the world is already finished"
+            )
         if isinstance(action, Diagnose):
             if self._public.diagnostic_test(action.test_id) is None:
                 return ActionValidation.reject(
@@ -376,7 +402,8 @@ class HiddenFaultWorld:
         elif isinstance(action, Verify):
             if self._selected_repair is None:
                 return ActionValidation.reject(
-                    "verify_without_repair", "a repair must be selected before verification"
+                    "verify_without_repair",
+                    "a repair must be selected before verification",
                 )
         return ActionValidation.accept()
 
@@ -408,6 +435,8 @@ class HiddenFaultWorld:
             )
 
         if isinstance(action, Verify):
+            # The result is recorded privately and the harness receives only an
+            # acknowledgement, so verification cannot become a free diagnostic.
             passed = self._selected_repair == self._hidden_fault_id
             self._verification_results.append(passed)
             return (
@@ -424,8 +453,8 @@ class HiddenFaultWorld:
     def generated_instance_reference(self) -> dict[str, str]:
         """Return the complete controller-private generated-instance identity.
 
-        The runner uses this before policy execution only to create a salted
-        commitment.  The world object and this value are never passed to the
+        The runner uses this before policy execution only to build a salted
+        commitment.  Neither the world object nor this value is passed to the
         cooperative harness.
         """
 
@@ -440,7 +469,7 @@ class HiddenFaultWorld:
     def final_reference_state(self) -> dict[str, Any]:
         """Return controller-private truth for the offline verifier.
 
-        This method is called only after controller execution.  Its result is
+        This is called only after controller execution has ended.  The result is
         written to ``reference.json`` and is never passed to the harness.
         """
 

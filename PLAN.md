@@ -220,9 +220,9 @@ The generated instance itself is saved. A seed alone is not considered a complet
 
 The GitHub release version is recorded as provenance, but a release-number change alone does not invalidate an artifact. Replay requires the recorded controller, verifier, and meter versions to match the installed implementations, and every schema must be accepted by its strict decoder. World, instance, and policy declarations are recorded and checked for consistency inside the artifact set; they are not compared with a global current-version constant. A behavioral or interpretive change must bump the component version that replay uses as its compatibility gate.
 
-## Minimal repository layout
+## Repository layout
 
-Start with a direct layout and split files only when real code requires it:
+Start with a direct layout and split a file only when real code requires it. Each module below has one responsibility, and each depends only on the modules listed after it:
 
 ```text
 metering/
@@ -231,18 +231,26 @@ metering/
     src/
         metering/
             __init__.py
-            events.py
-            hidden_fault.py
-            runner.py
-            trace.py
-            policies.py
-            report.py
+            __main__.py       entry points
+            calibration.py    the full self check
+            runner.py         controller loop and run orchestration
+            policies.py       harness boundary and reference policies
+            hidden_fault.py   world, public instance, and catalogue
+            report.py         verifier and meters
+            replay.py         strict offline replay
+            binding.py        salted commitment to private truth
+            trace.py          canonical encoding and append-only JSONL
+            events.py         typed actions, observations, and events
+            provenance.py     recorded implementation versions
+            schema.py         schema versions and strict field checks
     tests/
         test_hidden_fault.py
         test_runner.py
         test_trace_replay.py
         test_calibration.py
 ```
+
+Two splits earn their place. `schema.py` exists because the writer, the reader, and the meters must agree on one definition of strict decoding, and three similar copies would drift apart. `replay.py` exists because rebuilding a saved run and measuring it are separate jobs with separate failure modes, and keeping them apart makes it obvious that a meter cannot change what it measures.
 
 Theory should guide definitions and tests. It should not force one software module per academic field.
 
