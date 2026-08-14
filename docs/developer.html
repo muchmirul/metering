@@ -11,8 +11,9 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav" aria-label="Main navigation">
     <a class="brand" href="index.html">Metering</a>
-    <a href="index.html">Overview</a><a href="quickstart.html">Quickstart</a>
-    <a href="api.html">API</a><a href="developer.html" aria-current="page">Developer</a>
+    <a href="index.html">Overview</a><a href="theory.html">Theory &amp; scope</a>
+    <a href="quickstart.html">Quickstart</a><a href="api.html">API</a>
+    <a href="developer.html" aria-current="page">Developer</a>
     <a href="https://github.com/muchmirul/metering">GitHub</a>
   </nav></header>
 
@@ -35,6 +36,7 @@
         <p class="eyebrow">Contributor documentation</p>
         <h1>Developer guide</h1>
         <p class="lede">Read this before changing execution, measurement, artifact, or replay behavior.</p>
+        <p>The <a href="theory.html">theory and scope guide</a> explains why each measurement exists and places the relevant mathematics beside the code that implements it. This page starts from that contract and follows the implementation layer by layer.</p>
 
         <h2 id="stack">The stack</h2>
         <p>Metering is built as a sequence of layers rather than as one framework with plug-in points. Each layer depends only on the layers below it, which means you can read the code top down and never need to jump back up to understand what a value means. The diagram shows the full stack, from the command you type down to the strict decoding rules that everything shares.</p>

@@ -13,6 +13,7 @@
     <nav class="nav" aria-label="Main navigation">
       <a class="brand" href="index.html">Metering</a>
       <a href="index.html" aria-current="page">Overview</a>
+      <a href="theory.html">Theory &amp; scope</a>
       <a href="quickstart.html">Quickstart</a>
       <a href="api.html">API</a>
       <a href="developer.html">Developer</a>
@@ -27,7 +28,7 @@
       <p class="lede">Metering runs a policy against a deterministic hidden-fault world, records everything the policy did, and measures the recording afterwards.</p>
       <div class="actions">
         <a class="button primary" href="quickstart.html">Get started</a>
-        <a class="button" href="developer.html#stack">Read the architecture</a>
+        <a class="button" href="theory.html">See the theory and limits</a>
       </div>
     </section>
 
@@ -180,21 +181,41 @@ Controller  &lt;------------- one typed action --  policy.next_action(...)
       <p>Because the second path never calls the policy or the world, a report can be rebuilt on a different machine, months later, from nothing but the saved files. The <a href="quickstart.html#replay">quickstart</a> walks through doing exactly that.</p>
     </section>
 
+    <section aria-labelledby="eligible">
+      <h2 id="eligible">What can be measured today</h2>
+      <p>Metering directly accepts one kind of harness: a cooperative Python object implementing <code>HarnessPolicy</code>. It runs inside the Metering process, receives the public hidden-fault instance and its observation history, and returns one typed action at a time. A custom diagnostic controller can use this boundary immediately.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Harness</th><th>Current support</th></tr></thead>
+        <tbody>
+          <tr><td>Built-in or custom Python diagnostic policy</td><td>Supported directly</td></tr>
+          <tr><td>Python wrapper around a model or service</td><td>Possible only through an adapter written by the user</td></tr>
+          <tr><td>Agent CLI, HTTP harness, or separate process</td><td>No direct support</td></tr>
+          <tr><td>Coding, browser, shell, or repository agent</td><td>Not supported by the current hidden-fault world</td></tr>
+          <tr><td>Hostile or potentially nonreturning callback</td><td>Not supported</td></tr>
+        </tbody>
+      </table></div>
+      <p>The <a href="theory.html#eligible">theory and scope guide</a> gives the exact callback contract, shows its implementation, and explains what an external adapter would still need to supply.</p>
+    </section>
+
     <section aria-labelledby="scope">
       <h2 id="scope">What Metering deliberately leaves out</h2>
-      <p>An instrument is only useful if its limits are stated as plainly as its results. The following boundaries are chosen rather than pending, and they are recorded inside every artifact so that a number cannot be quoted later without them.</p>
+      <p>An instrument is useful only when its limits are as clear as its results. These boundaries define what the current measurements mean, and they are recorded inside every report.</p>
       <ul>
-        <li>The harness boundary is cooperative and in process. Metering cannot stop a callback that never returns, and it cannot survive a hard process exit, a segmentation fault, or an out-of-memory kill. It provides API non-disclosure and claims nothing about hostile code.</li>
-        <li>The information meter measures uncertainty removed by delivered results. It says nothing about whether a model understood or internally used what it was told.</li>
-        <li>Every reading is conditional on the declared world, policy, budget, and configuration. A result here is not a statement about harness quality in general.</li>
-        <li>Hashes and commitments detect corruption and accidentally mixed artifacts. They are not signatures, and they do not defend against someone who rewrites an entire artifact set coherently.</li>
+        <li>The current result covers one deterministic eight-state world. It does not measure performance on real software work or harness quality in general.</li>
+        <li>There is no external harness protocol, model adapter, subprocess controller, enforced timeout, tool runner, or repository task.</li>
+        <li>The harness boundary is cooperative and in process. Metering cannot stop a callback that never returns, and it cannot survive a hard process exit, a segmentation fault, an out-of-memory kill, or an interpreter failure.</li>
+        <li>The information meter reports uncertainty removed by delivered results. It says nothing about whether a model understood, remembered, trusted, or used them.</li>
+        <li>The entropy calculation assumes the declared uniform prior and deterministic observation table. A different world needs a newly calibrated meter.</li>
+        <li>Correctness, resources, and information remain separate. Metering has no overall score, ranking, or leaderboard.</li>
+        <li>Hashes and commitments detect corruption and accidental mixing. They are not signatures and do not prevent coherent malicious rewriting.</li>
       </ul>
-      <p><a href="https://github.com/muchmirul/metering/blob/main/PLAN.md">PLAN.md</a> is the normative source for the accepted scope, the definitions, and the acceptance criteria that calibration enforces.</p>
+      <p><a href="https://github.com/muchmirul/metering/blob/main/PLAN.md">PLAN.md</a> is the normative source for the accepted scope, definitions, and acceptance criteria.</p>
     </section>
 
     <section aria-labelledby="next">
       <h2 id="next">Read next</h2>
       <div class="grid">
+        <article class="card"><h3><a href="theory.html">Theory and scope</a></h3><p>Follow the mathematics into the implementation, then see exactly which harnesses fit the current boundary.</p></article>
         <article class="card"><h3><a href="quickstart.html">Quickstart</a></h3><p>Run the calibration, execute one fault, read the artifacts, write your own policy, and rebuild a report offline.</p></article>
         <article class="card"><h3><a href="api.html">Python API</a></h3><p>Actions, world types, the policy contract, runner functions, canonical traces, replay, reports, and calibration.</p></article>
         <article class="card"><h3><a href="developer.html">Developer guide</a></h3><p>Execution semantics layer by layer, artifact integrity, the replay checklist, testing, and release compatibility.</p></article>

@@ -11,8 +11,9 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav" aria-label="Main navigation">
     <a class="brand" href="index.html">Metering</a>
-    <a href="index.html">Overview</a><a href="quickstart.html" aria-current="page">Quickstart</a>
-    <a href="api.html">API</a><a href="developer.html">Developer</a>
+    <a href="index.html">Overview</a><a href="theory.html">Theory &amp; scope</a>
+    <a href="quickstart.html" aria-current="page">Quickstart</a><a href="api.html">API</a>
+    <a href="developer.html">Developer</a>
     <a href="https://github.com/muchmirul/metering">GitHub</a>
   </nav></header>
 
@@ -165,6 +166,7 @@ result = run_hidden_fault(FirstUnusedSplitPolicy(), "fault-6", "runs/mine")
 print(result.report["diagnostic_information"]["uncertainty_removed_per_diagnostic_observation_bits"])</code></pre>
         <p>The helper <code>remaining_candidates</code> does the reasoning a policy is entitled to do. It filters the fault list using delivered diagnostic outcomes and the published observation model, and it ignores repair and verification results because those are not diagnostic evidence. Writing that logic yourself is fine, and using the helper keeps a policy honest about what it was allowed to know.</p>
         <p>A policy that returns something other than a typed action, or that names a test outside the catalogue, is not quietly corrected. The controller records a protocol error, charges it one unit of budget, and stops the run. A descriptor that is missing a field is rejected before the run starts at all, because a result nobody can reproduce is worse than no result.</p>
+        <aside class="notice"><p>This Python callback is the entire harness boundary in the current release. Metering has no direct protocol for an agent CLI, HTTP service, or separate process, and it does not yet run coding, browser, shell, or repository tasks. A model-backed policy needs an adapter written by the user and still runs under the cooperative in-process boundary. See <a href="theory.html#eligible">which harnesses are eligible</a> for the full boundary.</p></aside>
 
         <h2 id="replay">Rebuild a report offline</h2>
         <p>A report is a calculation over saved files, so it can be thrown away and rebuilt at any time. Delete it and ask for it back:</p>
@@ -190,6 +192,7 @@ uv run python -m metering report runs/example</code></pre>
 
         <h2 id="next">Next steps</h2>
         <ul>
+          <li>Read the <a href="theory.html">theory and scope guide</a> to connect each measurement to its implementation and limits.</li>
           <li>Look up a type or a function in the <a href="api.html">Python API reference</a>.</li>
           <li>Read the <a href="developer.html#execution">execution semantics</a> before depending on budget or failure behavior.</li>
           <li>Read the <a href="developer.html#artifacts">artifact and replay rules</a> before changing a schema or adding a measurement.</li>

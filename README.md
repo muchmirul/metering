@@ -37,6 +37,39 @@ The three reference policies all solve the task correctly, so correctness alone 
 
 Each policy removes the same 24 bits in total, because each one ends up knowing the answer in all eight states. The efficiency column is total bits divided by total observations, which is the ratio of the sums rather than the average of the per-run ratios. Averaging the ratios would give a lucky one-observation run the same weight as a seven-observation run and would overstate how efficient the suite really was.
 
+## Why this controlled experiment matters
+
+Metering starts with measurement rather than a leaderboard. A complicated agent run mixes the model, prompts, tools, retries, verification, stopping logic, and luck. If the quantities being reported have not first been tested in a world with known answers, a precise-looking harness score proves very little. The hidden-fault world is a calibration standard: it is compact enough for the correct readings to follow from mathematics, but rich enough to expose redundant diagnosis, invalid actions, stale verification, budget exhaustion, and lucky guesses.
+
+The initial uncertainty is exactly
+
+```text
+H₀ = log₂(8) = 3 bits.
+```
+
+With a uniform prior and deterministic tests, a result that narrows the candidates from `n` to `k` removes
+
+```text
+ΔH = log₂(n) - log₂(k) = log₂(n / k) bits.
+```
+
+A balanced decision tree follows `8 → 4 → 2 → 1`, so every result removes one bit. No binary decision tree can identify eight states in fewer than three results, since a depth-`d` tree has at most `2ᵈ` leaves. Sequential search remains correct, but spends more observations to remove the same uncertainty.
+
+Every theoretical claim has a direct implementation:
+
+| Idea | Meaning | Implementation |
+|---|---|---|
+| Finite hypothesis space | Eight public candidates and one controller-private selected fault | [`hidden_fault.py`](src/metering/hidden_fault.py) |
+| Deterministic Bayesian filtering | Keep exactly the candidates consistent with delivered results | [`remaining_candidates` in `policies.py`](src/metering/policies.py) |
+| Realized entropy reduction | Calculate `log₂` candidate counts before and after each result | [`_information_report` in `report.py`](src/metering/report.py) |
+| Binary decision trees | Compare balanced splits with singleton search | [`BalancedSearchPolicy` and `SequentialSearchPolicy`](src/metering/policies.py) |
+| Operational state machine | Request, validate, apply, charge, record, and terminate | [`Controller` in `runner.py`](src/metering/runner.py) |
+| Information-flow boundary | Verification acknowledges the action without revealing pass or fail | [`HiddenFaultWorld.apply` in `hidden_fault.py`](src/metering/hidden_fault.py) |
+| Measurement without interference | Replay and reporting operate only on completed artifacts | [`replay.py`](src/metering/replay.py) and [`report.py`](src/metering/report.py) |
+| Calibration | Exhaust all eight states and compare with exact expected totals | [`calibration.py`](src/metering/calibration.py) |
+
+The [theory and scope guide](https://muchmirul.github.io/metering/theory.html) derives these readings and places each explanation beside the code that computes it.
+
 ## What a run reports
 
 Every report carries three readings that stay in separate columns, because they answer different questions and combining them would let a cheap failure look better than an expensive success.
@@ -180,11 +213,29 @@ uv run python -m metering --version
 
 Release versions come from Git tags and [GitHub Releases](https://github.com/muchmirul/metering/releases) rather than from names embedded in the product, and [`RELEASING.md`](https://github.com/muchmirul/metering/blob/main/RELEASING.md) describes the process. The release version is recorded as provenance only. Replay compatibility is decided by the recorded controller, verifier, and meter versions plus the accepted strict schemas, because those are the parts whose behavior a replay actually depends on. World, instance, and policy declarations are recorded and checked for consistency inside each artifact set.
 
+## Which harnesses can Metering test today?
+
+The directly supported harness is a cooperative Python object implementing `HarnessPolicy`. It runs inside the Metering process, declares a finite JSON descriptor, receives only `PublicInstance` and its observation history through the documented callback, and returns one typed `Diagnose`, `Repair`, `Verify`, or `Finish` action at a time. It must solve the built-in hidden-fault task and return from each callback normally.
+
+A custom decision rule, planner, or deterministic controller that fits this contract can be measured now. A model-backed or external harness can be tested only after the user writes an in-process adapter that translates the callback into that system's requests and translates its response back into a typed Metering action. Metering does not provide that adapter, an external JSONL protocol, subprocess management, timeouts, or model provenance capture yet.
+
+| Harness | Supported now? | Reason |
+|---|---|---|
+| Built-in balanced, sequential, or seeded policy | Yes | Implements the exact in-process contract |
+| Custom Python diagnostic policy | Yes | Works when it declares provenance and returns typed actions |
+| Python wrapper that calls a model or service | Only manually | The user must write the adapter; Metering still sees only a cooperative callback |
+| Agent CLI, HTTP service, or another process directly | No | No external harness protocol or process controller exists |
+| General coding, browser, shell, or repository agent | No | The only implemented world is the eight-state hidden-fault task |
+| Untrusted or potentially nonreturning code | No | The boundary is not a sandbox and has no enforced timeout |
+
 ## What Metering deliberately leaves out
 
 An instrument is only useful if its limits are stated as plainly as its results. These boundaries are chosen rather than pending, and they are recorded inside every artifact so a number cannot be quoted later without them.
 
-- The harness boundary is cooperative and in process. Metering cannot stop a callback that never returns, and it cannot survive a hard process exit, a segmentation fault, or an out-of-memory kill. It provides API non-disclosure and claims nothing about hostile code.
-- The information meter measures uncertainty removed by delivered results. It says nothing about whether a model understood or internally used what it was told.
-- Every reading is conditional on the declared world, policy, budget, and configuration, so a result here does not describe harness quality in general.
+- The current result calibrates one eight-state deterministic world. It is not evidence of performance on real software work and not a universal harness-quality measurement.
+- The harness boundary is cooperative and in process. Metering cannot stop a callback that never returns, and it cannot survive a hard process exit, a segmentation fault, an out-of-memory kill, or an interpreter failure. It provides API non-disclosure and claims nothing about hostile code.
+- No external harness protocol, model adapter, process isolation, timeout enforcement, tool runner, or repository task is implemented.
+- The information meter measures uncertainty removed by delivered results. It says nothing about whether a model understood, trusted, remembered, or internally used that evidence.
+- The entropy calculation assumes the declared uniform prior and deterministic public observation model. A different world needs its own prior, observation semantics, calibration cases, and validated meter.
+- Correctness, raw resources, and diagnostic information remain separate. Metering does not produce an overall score, ranking, or leaderboard.
 - Hashes and commitments detect corruption and accidentally mixed artifacts. They are not signatures, and they do not defend against someone who rewrites an entire artifact set coherently.

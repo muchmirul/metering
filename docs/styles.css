@@ -103,7 +103,7 @@ main { max-width: var(--max); margin: auto; padding: 3.5rem 1.25rem 6rem; }
   color: #332b17;
 }
 .notice p { margin: 0; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1rem; }
 .card {
   padding: 1.2rem;
   border: 1px solid var(--line);
@@ -170,6 +170,32 @@ th { background: var(--surface); }
 .api-entry p:last-child { margin-bottom: 0; }
 .module-note { color: var(--muted); }
 .muted { color: var(--muted); }
+.theory-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 1.25rem;
+  align-items: start;
+  margin: 1.5rem 0 2rem;
+}
+.theory-pair > div { min-width: 0; }
+.theory-pair h3 { margin-top: 0; }
+.implementation {
+  padding: 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+}
+.implementation pre { margin-bottom: 0.8rem; }
+.implementation p:last-child { margin-bottom: 0; }
+.formula {
+  margin: 1rem 0;
+  padding: 0.8rem 1rem;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 1.05rem;
+  overflow-x: auto;
+}
+.formula code { white-space: nowrap; }
 
 footer { border-top: 1px solid var(--line); }
 .footer-inner { display: flex; justify-content: space-between; gap: 1rem; max-width: var(--max); margin: auto; padding: 1.5rem 1.25rem; color: var(--muted); font-size: 0.85rem; }
@@ -179,7 +205,7 @@ footer { border-top: 1px solid var(--line); }
   .nav { gap: 0.8rem; overflow-x: auto; }
   .nav a { white-space: nowrap; }
   main { padding-top: 2rem; }
-  .grid, .flow { grid-template-columns: 1fr; }
+  .grid, .flow, .theory-pair { grid-template-columns: 1fr; }
   .flow div:not(:last-child)::after { right: auto; bottom: -1.05rem; left: 1rem; content: "↓"; }
   .page-layout { grid-template-columns: 1fr; gap: 1rem; }
   .toc { position: static; padding: 0.8rem 1rem; border: 1px solid var(--line); border-radius: 0.4rem; }

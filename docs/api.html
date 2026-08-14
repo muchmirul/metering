@@ -11,8 +11,9 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav" aria-label="Main navigation">
     <a class="brand" href="index.html">Metering</a>
-    <a href="index.html">Overview</a><a href="quickstart.html">Quickstart</a>
-    <a href="api.html" aria-current="page">API</a><a href="developer.html">Developer</a>
+    <a href="index.html">Overview</a><a href="theory.html">Theory &amp; scope</a>
+    <a href="quickstart.html">Quickstart</a><a href="api.html" aria-current="page">API</a>
+    <a href="developer.html">Developer</a>
     <a href="https://github.com/muchmirul/metering">GitHub</a>
   </nav></header>
 
@@ -79,7 +80,7 @@
         <section class="api-entry" id="metering.policies.HarnessPolicy"><h3><code>HarnessPolicy</code></h3><pre class="signature"><code>next_action(instance: PublicInstance,
             observations: Sequence[Observation]) → Action
 
-descriptor() → dict[str, Any]</code></pre><p>A policy returns exactly one typed action per call, plus a descriptor holding its name, version, configuration, and a seed policy of either <code>{"kind": "none"}</code> or <code>{"kind": "fixed", "seed": int}</code>. The descriptor is validated before the run starts, because an undeclared configuration would make the result impossible to reproduce.</p></section>
+descriptor() → dict[str, Any]</code></pre><p>A policy returns exactly one typed action per call, plus a descriptor holding its name, version, configuration, and a seed policy of either <code>{"kind": "none"}</code> or <code>{"kind": "fixed", "seed": int}</code>. The descriptor is validated before the run starts, because an undeclared configuration would make the result impossible to reproduce. This cooperative in-process Python callback is the only harness boundary implemented today. See <a href="theory.html#eligible">eligible harnesses and current limits</a> before wrapping a model or external service.</p></section>
         <section class="api-entry" id="metering.policies.remaining_candidates"><h3><code>remaining_candidates(instance, observations) → tuple[str, ...]</code></h3><p>Filter the fault list using delivered diagnostic outcomes and the published observation model. Repair and verification results are ignored, since neither is diagnostic evidence. A history that no state can explain raises <code>PolicyError</code>.</p></section>
         <section class="api-entry" id="metering.policies.BalancedSearchPolicy"><h3><code>BalancedSearchPolicy()</code></h3><p>Chooses the unused catalogue test whose split of the remaining candidates is most even, breaking ties by catalogue order. It identifies every fault in three observations, for 24 across the suite.</p></section>
         <section class="api-entry" id="metering.policies.SequentialSearchPolicy"><h3><code>SequentialSearchPolicy()</code></h3><p>Checks singleton candidates in public order and infers the eighth state after seven negative results rather than testing it redundantly. Its per-state costs are <code>[1, 2, 3, 4, 5, 6, 7, 7]</code>, for 35 across the suite.</p></section>
