@@ -27,15 +27,17 @@ balanced diagnostics: 24; sequential diagnostics: 35
 
 ## The calibrated contrast
 
-The three reference policies all solve the task correctly, so correctness alone cannot separate them. What separates them is what they spent. Balanced search asks questions that halve the candidate set, so every observation is worth a full bit. Sequential search checks one candidate at a time, so an early negative result removes very little.
+With the default calibration seed, the three reference policies all solve the task correctly, so correctness alone cannot separate them. What separates them is what they spent. Balanced search asks questions that halve the candidate set, so every observation is worth a full bit. Sequential search checks one candidate at a time, so an early negative result removes very little.
 
-| Policy | Correct | Diagnostics per state | Total | Bits removed | Bits per observation |
-|---|---|---|---|---|---|
-| Balanced search | 8 / 8 | `[3, 3, 3, 3, 3, 3, 3, 3]` | 24 | 24.0 | 1.0000 |
-| Sequential search | 8 / 8 | `[1, 2, 3, 4, 5, 6, 7, 7]` | 35 | 24.0 | 0.6857 |
-| Seeded random search | 8 / 8 | `[4, 4, 4, 1, 4, 4, 4, 3]` | 28 | 24.0 | 0.8571 |
+| Policy | Correct | Diagnostics per state | Total | Bits removed | Bits per observation | Excess observations |
+|---|---|---|---|---|---|---|
+| Balanced search | 8 / 8 | `[3, 3, 3, 3, 3, 3, 3, 3]` | 24 | 24.0 | 1.0000 | 0 |
+| Sequential search | 8 / 8 | `[1, 2, 3, 4, 5, 6, 7, 7]` | 35 | 24.0 | 0.6857 | 11 |
+| Seeded random search | 8 / 8 | `[4, 4, 4, 1, 4, 4, 4, 3]` | 28 | 24.0 | 0.8571 | 4 |
 
 Each policy removes the same 24 bits in total, because each one ends up knowing the answer in all eight states. The efficiency column is total bits divided by total observations, which is the ratio of the sums rather than the average of the per-run ratios. Averaging the ratios would give a lucky one-observation run the same weight as a seven-observation run and would overstate how efficient the suite really was.
+
+The excess column has a natural zero. A binary decision tree with eight leaves needs a minimum total leaf depth of 24, so the suite meter subtracts 24 from the total observations. This calculation applies only to the complete eight-state suite. It is not reported per run, because a valid short path can use fewer than three observations without violating the tree bound.
 
 ## Why this controlled experiment matters
 
@@ -79,6 +81,8 @@ Every report carries three readings that stay in separate columns, because they 
 - **Diagnostic information.** Eight equally likely faults carry three bits of uncertainty. The meter reports how many of those bits the delivered test results actually removed, and how many bits each observation was worth.
 
 Verification feedback is content-free while a run is in progress. Whether a repair matched the hidden fault stays private until the offline report is built, so a policy cannot use verification as a second diagnostic oracle that no meter counts.
+
+A complete eight-state suite also reports `excess_observations`, measured against the 24-observation binary-tree minimum. Individual run reports do not contain this field.
 
 ## The system, from high level to low level
 

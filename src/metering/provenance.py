@@ -18,7 +18,7 @@ def _package_version() -> str:
 PACKAGE_VERSION: Final = _package_version()
 CONTROLLER_VERSION: Final = "1"
 VERIFIER_VERSION: Final = "1"
-METER_VERSION: Final = "1"
+METER_VERSION: Final = "2"
 
 
 def implementation_provenance() -> dict[str, str]:

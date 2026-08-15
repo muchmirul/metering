@@ -71,16 +71,16 @@ balanced diagnostics: 24; sequential diagnostics: 35</code></pre>
 
     <section aria-labelledby="showcase">
       <h2 id="showcase">The calibrated contrast</h2>
-      <p>The three reference policies all solve the task correctly, so correctness alone cannot separate them. What separates them is what they spent to get there. Balanced search asks questions that split the remaining candidates in half, which means every observation is worth a full bit. Sequential search checks one candidate at a time, so an early negative result removes very little. The table below is the measured output of the calibration suite, not an estimate.</p>
+      <p>With the default calibration seed, the three reference policies all solve the task correctly, so correctness alone cannot separate them. What separates them is what they spent to get there. Balanced search asks questions that split the remaining candidates in half, which means every observation is worth a full bit. Sequential search checks one candidate at a time, so an early negative result removes very little. The table below is the measured output of the calibration suite, not an estimate.</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>Policy</th><th>Correct</th><th>Diagnostics per state</th><th>Total</th><th>Bits removed</th><th>Bits per observation</th></tr></thead>
+        <thead><tr><th>Policy</th><th>Correct</th><th>Diagnostics per state</th><th>Total</th><th>Bits removed</th><th>Bits per observation</th><th>Excess observations</th></tr></thead>
         <tbody>
-          <tr><td>Balanced search</td><td>8 / 8</td><td><code>[3, 3, 3, 3, 3, 3, 3, 3]</code></td><td>24</td><td>24.0</td><td>1.0000</td></tr>
-          <tr><td>Sequential search</td><td>8 / 8</td><td><code>[1, 2, 3, 4, 5, 6, 7, 7]</code></td><td>35</td><td>24.0</td><td>0.6857</td></tr>
-          <tr><td>Seeded random search</td><td>8 / 8</td><td><code>[4, 4, 4, 1, 4, 4, 4, 3]</code></td><td>28</td><td>24.0</td><td>0.8571</td></tr>
+          <tr><td>Balanced search</td><td>8 / 8</td><td><code>[3, 3, 3, 3, 3, 3, 3, 3]</code></td><td>24</td><td>24.0</td><td>1.0000</td><td>0</td></tr>
+          <tr><td>Sequential search</td><td>8 / 8</td><td><code>[1, 2, 3, 4, 5, 6, 7, 7]</code></td><td>35</td><td>24.0</td><td>0.6857</td><td>11</td></tr>
+          <tr><td>Seeded random search</td><td>8 / 8</td><td><code>[4, 4, 4, 1, 4, 4, 4, 3]</code></td><td>28</td><td>24.0</td><td>0.8571</td><td>4</td></tr>
         </tbody>
       </table></div>
-      <p>Each policy removes the same 24 bits in total, because each one ends up knowing the answer in all eight states. The efficiency column is the total bits divided by the total observations, which is the ratio of the sums rather than the average of the per-run ratios. Averaging the ratios would give a lucky one-observation run the same weight as a seven-observation run and would overstate how efficient the suite really was.</p>
+      <p>Each policy removes the same 24 bits in total, because each one ends up knowing the answer in all eight states. The efficiency column is the total bits divided by the total observations, which is the ratio of the sums rather than the average of the per-run ratios. The excess column subtracts the binary-tree minimum total leaf depth of 24, giving the suite a natural zero. It is not calculated per run, because a valid short path can use fewer than three observations.</p>
     </section>
 
     <section aria-labelledby="stack">

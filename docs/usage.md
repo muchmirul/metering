@@ -71,7 +71,9 @@ calibration passed: runs/calibration
 balanced diagnostics: 24; sequential diagnostics: 35
 ```
 
-Those two totals are the point of the exercise. Balanced search uses three diagnostic observations for each of the eight faults, or 24 in total, while sequential search uses `[1, 2, 3, 4, 5, 6, 7, 7]`, or 35 in total. Both policies solve all eight states correctly, so correctness alone cannot tell them apart, and the difference in cost is what shows that the meters can separate careful diagnosis from wasteful diagnosis. A meter that could not make that separation would not be ready for a policy whose behavior nobody knows in advance.
+Those two totals are the point of the exercise. Balanced search uses three diagnostic observations for each of the eight faults, or 24 in total, while sequential search uses `[1, 2, 3, 4, 5, 6, 7, 7]`, or 35 in total. With the default seed, the seeded-random reference uses 28. All three policies solve all eight states correctly.
+
+A binary decision tree with eight leaves has a minimum total leaf depth of 24. The calibration summary therefore reports suite-level `excess_observations` of 0 for balanced search, 4 for seeded random search, and 11 for sequential search. This field does not appear in individual run reports, because a valid short path can be shallower than the worst-case depth.
 
 ### Calibration options
 

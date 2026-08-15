@@ -55,7 +55,13 @@ CALIBRATION_MARKER_BYTES = (
 # three observations identify any of the eight states.  Sequential search checks
 # singletons in order and infers the eighth state after seven negatives.
 EXPECTED_BALANCED_DIAGNOSTICS = [3] * 8
+EXPECTED_DEFAULT_SEEDED_RANDOM_DIAGNOSTICS = [4, 4, 4, 1, 4, 4, 4, 3]
 EXPECTED_SEQUENTIAL_DIAGNOSTICS = [1, 2, 3, 4, 5, 6, 7, 7]
+EXPECTED_EXCESS_OBSERVATIONS = {
+    "balanced": 0,
+    "seeded_random": 4,
+    "sequential": 11,
+}
 INITIAL_UNCERTAINTY_BITS = 3.0
 
 # A reference policy needs at most seven diagnostics plus a repair, a
@@ -228,11 +234,15 @@ def _information_removed(results: Sequence[RunResult]) -> list[float]:
     ]
 
 
-def _efficiency(results: Sequence[RunResult]) -> float:
+def _suite_information(results: Sequence[RunResult]) -> Mapping[str, Any]:
     aggregate = aggregate_reports([result.report for result in results])
-    return float(
-        aggregate["diagnostic_information"]["bits_per_diagnostic_observation"]
-    )
+    return aggregate["diagnostic_information"]
+
+
+def _kraft_sum(depths: Sequence[int]) -> float:
+    """Return the Kraft sum for one complete reference decision tree."""
+
+    return sum(2.0 ** -depth for depth in depths)
 
 
 class _Suite:
@@ -264,8 +274,8 @@ class _Suite:
 
         Rebuilding every run is the cheapest way to prove the two properties
         calibration cares about most.  The regenerated report must equal the
-        original, and the trace it was rebuilt from must be unchanged, which is
-        what shows that meters read the record without touching it.
+        original, and all three raw artifacts must remain byte-identical, which
+        shows that meters read the record without touching it.
         """
 
         result = run_hidden_fault(
@@ -277,10 +287,18 @@ class _Suite:
             action_budget=budget or self.action_budget,
         )
         original_report = dict(result.report)
-        trace_before = result.paths.events.read_bytes()
+        raw_before = {
+            "manifest": result.paths.manifest.read_bytes(),
+            "events": result.paths.events.read_bytes(),
+            "reference": result.paths.reference.read_bytes(),
+        }
         result.paths.report.unlink()
         regenerated = regenerate_report(result.paths.run_dir)
-        trace_after = result.paths.events.read_bytes()
+        raw_after = {
+            "manifest": result.paths.manifest.read_bytes(),
+            "events": result.paths.events.read_bytes(),
+            "reference": result.paths.reference.read_bytes(),
+        }
         self.regenerated_run_count += 1
         self.check(
             f"report_regeneration:{relative}",
@@ -289,8 +307,13 @@ class _Suite:
         )
         self.check(
             f"trace_unchanged_by_meter:{relative}",
-            trace_after == trace_before,
+            raw_after["events"] == raw_before["events"],
             "offline report regeneration changed events.jsonl",
+        )
+        self.check(
+            f"raw_artifacts_unchanged_by_meter:{relative}",
+            raw_after == raw_before,
+            "offline report regeneration changed a raw artifact",
         )
         return result
 
@@ -343,13 +366,23 @@ def _run_reference_policies(
 
 
 def _check_expected_readings(
-    suite: _Suite, primary: dict[str, list[RunResult]]
+    suite: _Suite, primary: dict[str, list[RunResult]], seed: int
 ) -> dict[str, Any]:
     """Compare the measured contrast against the readings the world implies."""
 
     diagnostics = {key: _diagnostics(runs) for key, runs in primary.items()}
     information = {key: _information_removed(runs) for key, runs in primary.items()}
-    efficiency = {key: _efficiency(runs) for key, runs in primary.items()}
+    suite_information = {
+        key: _suite_information(runs) for key, runs in primary.items()
+    }
+    efficiency = {
+        key: float(values["bits_per_diagnostic_observation"])
+        for key, values in suite_information.items()
+    }
+    excess = {
+        key: int(values["excess_observations"])
+        for key, values in suite_information.items()
+    }
 
     for key in primary:
         suite.check(
@@ -362,12 +395,38 @@ def _check_expected_readings(
         diagnostics["balanced"] == EXPECTED_BALANCED_DIAGNOSTICS,
         f"got {diagnostics['balanced']!r}; expected three per hidden state",
     )
+    if seed == DEFAULT_CALIBRATION_SEED:
+        suite.check(
+            "seeded_random_exact_diagnostic_cost",
+            diagnostics["seeded_random"]
+            == EXPECTED_DEFAULT_SEEDED_RANDOM_DIAGNOSTICS,
+            f"got {diagnostics['seeded_random']!r}; "
+            f"expected {EXPECTED_DEFAULT_SEEDED_RANDOM_DIAGNOSTICS!r}",
+        )
     suite.check(
         "sequential_exact_diagnostic_cost",
         diagnostics["sequential"] == EXPECTED_SEQUENTIAL_DIAGNOSTICS,
         f"got {diagnostics['sequential']!r}; "
         f"expected {EXPECTED_SEQUENTIAL_DIAGNOSTICS!r}",
     )
+    for key, depths in diagnostics.items():
+        kraft_sum = _kraft_sum(depths)
+        suite.check(
+            f"{key}_reference_depth_vector_satisfies_kraft_equality",
+            kraft_sum == 1.0,
+            f"Kraft sum for {key} was {kraft_sum!r}, expected 1.0",
+        )
+    expected_excess = {
+        key: value
+        for key, value in EXPECTED_EXCESS_OBSERVATIONS.items()
+        if key != "seeded_random" or seed == DEFAULT_CALIBRATION_SEED
+    }
+    for key, expected in expected_excess.items():
+        suite.check(
+            f"{key}_exact_excess_observations",
+            excess[key] == expected,
+            f"got {excess[key]!r}; expected {expected!r}",
+        )
     suite.check(
         "sequential_aggregate_cost_larger",
         sum(diagnostics["sequential"]) == 35
@@ -400,6 +459,7 @@ def _check_expected_readings(
             "diagnostic_observations_total": sum(diagnostics[key]),
             "information_exposed_bits_total": sum(information[key]),
             "information_per_observation_bits": efficiency[key],
+            "excess_observations": excess[key],
         }
         for key in primary
     }
@@ -555,7 +615,7 @@ def run_calibration(
     suite = _Suite(output, spec, action_budget)
 
     primary = _run_reference_policies(suite, seed)
-    aggregates = _check_expected_readings(suite, primary)
+    aggregates = _check_expected_readings(suite, primary, seed)
     replays = _check_seeded_replay(suite, seed, primary["seeded_random"])
     controller_check_runs = _check_termination_paths(suite)
     _check_corruption_is_detected(suite, primary["balanced"][0])
