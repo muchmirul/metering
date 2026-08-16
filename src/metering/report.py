@@ -71,6 +71,11 @@ _RESOURCE_FIELDS = (
     "budget_exhaustion",
 )
 
+# A complete calibration suite has one run for each of eight equally likely
+# faults. Kraft's inequality makes 24 the minimum total external path length of
+# a binary decision tree with eight leaves.
+_MINIMUM_SUITE_DIAGNOSTIC_OBSERVATIONS = 24
+
 
 def _correctness_report(state: ReplayState) -> dict[str, Any]:
     """Report the four exact completion conditions and their conjunction.
@@ -239,12 +244,16 @@ def build_report(
 
 
 def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Aggregate raw units across runs, with efficiency as a ratio of sums.
+    """Aggregate raw units and efficiency across a complete calibration suite.
 
     Suite efficiency divides the total bits removed by the total diagnostics
     spent.  Averaging the per-run ratios instead would give a cheap run and an
     expensive run equal weight, which would report a suite as more efficient
     than the observations it actually paid for.
+
+    Excess observations use the 24-observation binary-tree bound for all eight
+    hidden states.  The value belongs only here, never in a per-run report: a
+    short path can beat the worst-case depth without beating the suite bound.
     """
 
     totals = dict.fromkeys(
@@ -295,6 +304,9 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             "total_uncertainty_removed_bits": information_total,
             "bits_per_diagnostic_observation": (
                 information_total / diagnostic_total if diagnostic_total else None
+            ),
+            "excess_observations": (
+                diagnostic_total - _MINIMUM_SUITE_DIAGNOSTIC_OBSERVATIONS
             ),
             "aggregation": "ratio_of_sums",
         },

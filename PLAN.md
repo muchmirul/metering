@@ -177,6 +177,14 @@ The natural unit is bits. This is realized posterior-entropy reduction in the de
 
 Suite-level efficiency is the sum of exposed bits divided by the sum of diagnostic observations. It is not the average of the individual run ratios.
 
+### 4. Suite-level excess observations
+
+For the complete eight-state calibration suite, the minimum total external path length of a binary decision tree is 24. This follows from Kraft's equality: the eight leaf depths $d$ satisfy $\sum 2^{-d}=1$, and the balanced depth vector `[3, 3, 3, 3, 3, 3, 3, 3]` has the minimum total.
+
+The suite meter reports `excess_observations = total_diagnostic_observations - 24`. Balanced search therefore reports 0, seeded random search with the default calibration seed reports 4, and sequential search reports 11.
+
+This value is never reported for an individual run. The bound `ceil(log2 N)` is a worst-case depth, not a lower bound for every leaf. A valid one-observation path must not be assigned a negative excess.
+
 ## Calibration policies
 
 ### Balanced search
@@ -275,6 +283,9 @@ The instrument is complete only when all of the following are true:
 - Balanced search succeeds with exactly 24 diagnostic observations across the suite.
 - Sequential search succeeds with the exact vector `[1, 2, 3, 4, 5, 6, 7, 7]`, or 35 observations in total.
 - Suite information efficiency uses the ratio of sums.
+- The reference depth vectors each satisfy Kraft's equality exactly.
+- Suite excess observations are exactly 0 for balanced search, 4 for seeded random search with the default calibration seed, and 11 for sequential search.
+- No per-run report contains an excess-observation value.
 - Seeded policies replay deterministically after controller-owned artifact identifiers are normalized.
 - Invalid actions produce explicit protocol failures.
 - A harness that keeps returning non-finish actions is stopped by the fixed action budget without a later callback.

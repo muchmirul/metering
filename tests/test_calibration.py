@@ -111,7 +111,19 @@ def test_calibration_information_aggregation_is_ratio_of_sums(api, tmp_path):
             "diagnostic_information.bits_per_diagnostic_observation",
             "bits_per_diagnostic_observation",
         )
+        excess = get_path(
+            summary,
+            "information.excess_observations",
+            "diagnostic_information.excess_observations",
+            "excess_observations",
+        )
         assert measured == pytest.approx(ratio_of_sums)
+        assert excess == 11
+        assert all(
+            "excess_observations"
+            not in get_path(report, "information", "diagnostic_information")
+            for report in reports
+        )
 
 
 def test_zero_diagnostics_reports_null_efficiency_not_zero(api, tmp_path):
@@ -271,10 +283,21 @@ def test_required_calibrate_command_covers_every_state_and_reference_policy(
     assert summary["status"] == "passed"
     assert summary["world"]["hidden_states"] == list(api.fault_ids)
     assert summary["aggregates"]["balanced"]["diagnostic_observations_total"] == 24
+    assert summary["aggregates"]["seeded_random"]["diagnostic_observations_total"] == 28
     assert summary["aggregates"]["sequential"]["diagnostic_observations_total"] == 35
     assert summary["aggregates"]["balanced"]["information_per_observation_bits"] == pytest.approx(1.0)
     assert summary["aggregates"]["sequential"]["information_per_observation_bits"] == pytest.approx(24.0 / 35.0)
+    assert {
+        key: summary["aggregates"][key]["excess_observations"]
+        for key in ("balanced", "seeded_random", "sequential")
+    } == {"balanced": 0, "seeded_random": 4, "sequential": 11}
     assert summary["checks"]["aggregate_efficiency_uses_ratio_of_sums"] is True
+    assert all(
+        summary["checks"][
+            f"{key}_reference_depth_vector_satisfies_kraft_equality"
+        ]
+        for key in ("balanced", "seeded_random", "sequential")
+    )
     assert all(summary["checks"].values())
 
 def test_cli_reports_tag_derived_package_version(tmp_path):

@@ -213,6 +213,9 @@ return (
             <p>Correctness answers whether the declared task was completed. Resource fields count diagnostics, repairs, verifications, and total actions. Information reports how much uncertainty the diagnostic results removed. The reader may compare these columns, but the instrument does not invent an exchange rate between them.</p>
             <p>At suite level, efficiency is a ratio of sums. This gives every paid observation equal weight:</p>
             <div class="formula"><code>efficiency = total bits removed / total diagnostics.</code></div>
+            <p>The complete eight-state suite also has a natural zero-cost reference. Kraft's equality gives a minimum total leaf depth of 24 for a binary tree with eight leaves:</p>
+            <div class="formula"><code>excess observations = total diagnostics - 24.</code></div>
+            <p>This second value is suite-only. A single leaf may be reached in one observation, so subtracting a worst-case depth from one run would produce a meaningless negative value.</p>
           </div>
           <div class="implementation">
             <h3>Implemented in <a href="https://github.com/muchmirul/metering/blob/main/src/metering/report.py"><code>report.py</code></a></h3>
@@ -228,8 +231,9 @@ return (
     if diagnostic_total
     else None
 ),
+"excess_observations": diagnostic_total - 24,
 "aggregation": "ratio_of_sums",</code></pre>
-            <p>Averaging the per-run efficiencies would give a lucky one-observation run the same influence as a seven-observation run. The implementation instead divides the 24 total bits by the 35 observations actually purchased by sequential search.</p>
+            <p>Averaging the per-run efficiencies would give a lucky one-observation run the same influence as a seven-observation run. The implementation instead divides the 24 total bits by the 35 observations purchased by sequential search and reports 11 observations above the binary-tree minimum.</p>
           </div>
         </div>
 
