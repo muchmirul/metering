@@ -215,7 +215,7 @@ return (
             <div class="formula"><code>efficiency = total bits removed / total diagnostics.</code></div>
             <p>The complete eight-state suite also has a natural zero-cost reference. Kraft's equality gives a minimum total leaf depth of 24 for a binary tree with eight leaves:</p>
             <div class="formula"><code>excess observations = total diagnostics - 24.</code></div>
-            <p>This second value is suite-only. A single leaf may be reached in one observation, so subtracting a worst-case depth from one run would produce a meaningless negative value.</p>
+            <p>This second value is suite-only. A single leaf may be reached in one observation, so subtracting a worst-case depth from one run would produce a meaningless negative value. General aggregation remains available for any collection, but its excess field is null unless it contains exactly eight successful reports. Calibration separately proves that those eight reports cover every state under one reference policy; a report cannot prove its own private state coverage without leaking the answer.</p>
           </div>
           <div class="implementation">
             <h3>Implemented in <a href="https://github.com/muchmirul/metering/blob/main/src/metering/report.py"><code>report.py</code></a></h3>
@@ -226,12 +226,20 @@ return (
     "diagnostic_information": _information_report(state),
     "scope": {...},
 }</code></pre>
-            <pre><code>"bits_per_diagnostic_observation": (
+            <pre><code>suite_bound_applies = (
+    len(reports) == 8 and successful_runs == 8
+)
+
+"bits_per_diagnostic_observation": (
     information_total / diagnostic_total
     if diagnostic_total
     else None
 ),
-"excess_observations": diagnostic_total - 24,
+"excess_observations": (
+    diagnostic_total - 24
+    if suite_bound_applies
+    else None
+),
 "aggregation": "ratio_of_sums",</code></pre>
             <p>Averaging the per-run efficiencies would give a lucky one-observation run the same influence as a seven-observation run. The implementation instead divides the 24 total bits by the 35 observations purchased by sequential search and reports 11 observations above the binary-tree minimum.</p>
           </div>

@@ -18,10 +18,11 @@ path that only works when everything goes well is not a measurement path.
 
 from __future__ import annotations
 
+import shutil
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
-import shutil
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any
 
 from .events import Action, Diagnose, Finish, Observation
 from .hidden_fault import HiddenFaultSpec, PublicInstance
@@ -220,16 +221,13 @@ def _termination_reason(result: RunResult) -> str:
 
 def _diagnostics(results: Sequence[RunResult]) -> list[int]:
     return [
-        int(result.report["resources"]["diagnostic_observations"])
-        for result in results
+        int(result.report["resources"]["diagnostic_observations"]) for result in results
     ]
 
 
 def _information_removed(results: Sequence[RunResult]) -> list[float]:
     return [
-        float(
-            result.report["diagnostic_information"]["total_uncertainty_removed_bits"]
-        )
+        float(result.report["diagnostic_information"]["total_uncertainty_removed_bits"])
         for result in results
     ]
 
@@ -242,7 +240,17 @@ def _suite_information(results: Sequence[RunResult]) -> Mapping[str, Any]:
 def _kraft_sum(depths: Sequence[int]) -> float:
     """Return the Kraft sum for one complete reference decision tree."""
 
-    return sum(2.0 ** -depth for depth in depths)
+    return sum(2.0**-depth for depth in depths)
+
+
+def _raw_artifact_bytes(result: RunResult) -> dict[str, bytes]:
+    """Read the three immutable inputs used to build a report."""
+
+    return {
+        "manifest": result.paths.manifest.read_bytes(),
+        "events": result.paths.events.read_bytes(),
+        "reference": result.paths.reference.read_bytes(),
+    }
 
 
 class _Suite:
@@ -284,21 +292,13 @@ class _Suite:
             self.output / relative,
             spec=self.spec,
             run_id=run_id,
-            action_budget=budget or self.action_budget,
+            action_budget=self.action_budget if budget is None else budget,
         )
         original_report = dict(result.report)
-        raw_before = {
-            "manifest": result.paths.manifest.read_bytes(),
-            "events": result.paths.events.read_bytes(),
-            "reference": result.paths.reference.read_bytes(),
-        }
+        raw_before = _raw_artifact_bytes(result)
         result.paths.report.unlink()
         regenerated = regenerate_report(result.paths.run_dir)
-        raw_after = {
-            "manifest": result.paths.manifest.read_bytes(),
-            "events": result.paths.events.read_bytes(),
-            "reference": result.paths.reference.read_bytes(),
-        }
+        raw_after = _raw_artifact_bytes(result)
         self.regenerated_run_count += 1
         self.check(
             f"report_regeneration:{relative}",
@@ -318,9 +318,7 @@ class _Suite:
         return result
 
 
-def _run_reference_policies(
-    suite: _Suite, seed: int
-) -> dict[str, list[RunResult]]:
+def _run_reference_policies(suite: _Suite, seed: int) -> dict[str, list[RunResult]]:
     """Run every reference policy against every hidden state."""
 
     factories: dict[str, Callable[[], HarnessPolicy]] = {
@@ -372,43 +370,35 @@ def _check_expected_readings(
 
     diagnostics = {key: _diagnostics(runs) for key, runs in primary.items()}
     information = {key: _information_removed(runs) for key, runs in primary.items()}
-    suite_information = {
-        key: _suite_information(runs) for key, runs in primary.items()
-    }
+    suite_information = {key: _suite_information(runs) for key, runs in primary.items()}
     efficiency = {
-        key: float(values["bits_per_diagnostic_observation"])
+        key: values["bits_per_diagnostic_observation"]
         for key, values in suite_information.items()
     }
     excess = {
-        key: int(values["excess_observations"])
-        for key, values in suite_information.items()
+        key: values["excess_observations"] for key, values in suite_information.items()
     }
 
-    for key in primary:
+    for key, runs in primary.items():
         suite.check(
             f"{key}_all_successful",
-            all(result.succeeded for result in primary[key]),
+            all(result.succeeded for result in runs),
             f"at least one {key} run did not satisfy every verifier condition",
         )
-    suite.check(
-        "balanced_exact_diagnostic_cost",
-        diagnostics["balanced"] == EXPECTED_BALANCED_DIAGNOSTICS,
-        f"got {diagnostics['balanced']!r}; expected three per hidden state",
-    )
+    expected_diagnostics = {
+        "balanced": EXPECTED_BALANCED_DIAGNOSTICS,
+        "sequential": EXPECTED_SEQUENTIAL_DIAGNOSTICS,
+    }
     if seed == DEFAULT_CALIBRATION_SEED:
-        suite.check(
-            "seeded_random_exact_diagnostic_cost",
-            diagnostics["seeded_random"]
-            == EXPECTED_DEFAULT_SEEDED_RANDOM_DIAGNOSTICS,
-            f"got {diagnostics['seeded_random']!r}; "
-            f"expected {EXPECTED_DEFAULT_SEEDED_RANDOM_DIAGNOSTICS!r}",
+        expected_diagnostics["seeded_random"] = (
+            EXPECTED_DEFAULT_SEEDED_RANDOM_DIAGNOSTICS
         )
-    suite.check(
-        "sequential_exact_diagnostic_cost",
-        diagnostics["sequential"] == EXPECTED_SEQUENTIAL_DIAGNOSTICS,
-        f"got {diagnostics['sequential']!r}; "
-        f"expected {EXPECTED_SEQUENTIAL_DIAGNOSTICS!r}",
-    )
+    for key, expected in expected_diagnostics.items():
+        suite.check(
+            f"{key}_exact_diagnostic_cost",
+            diagnostics[key] == expected,
+            f"got {diagnostics[key]!r}; expected {expected!r}",
+        )
     for key, depths in diagnostics.items():
         kraft_sum = _kraft_sum(depths)
         suite.check(
@@ -416,11 +406,9 @@ def _check_expected_readings(
             kraft_sum == 1.0,
             f"Kraft sum for {key} was {kraft_sum!r}, expected 1.0",
         )
-    expected_excess = {
-        key: value
-        for key, value in EXPECTED_EXCESS_OBSERVATIONS.items()
-        if key != "seeded_random" or seed == DEFAULT_CALIBRATION_SEED
-    }
+    expected_excess = dict(EXPECTED_EXCESS_OBSERVATIONS)
+    if seed != DEFAULT_CALIBRATION_SEED:
+        del expected_excess["seeded_random"]
     for key, expected in expected_excess.items():
         suite.check(
             f"{key}_exact_excess_observations",

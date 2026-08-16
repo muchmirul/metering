@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from importlib.metadata import version
 import json
-import math
 import os
-from pathlib import Path
 import subprocess
 import sys
+from importlib.metadata import version
+from itertools import pairwise
+from pathlib import Path
 
 import pytest
-
 from contract import (
     RunArtifacts,
+    ScriptedHarness,
     canonical_events,
     get_path,
     information_value,
@@ -46,7 +46,8 @@ def test_balanced_search_succeeds_for_all_states_at_exact_known_cost(api, tmp_pa
         assert resource_count(report, "diagnostic") == 3
         assert resource_count(report, "repair") == 1
         assert resource_count(report, "verification") == 1
-        assert resource_count(report, "total") == 6  # diagnose x3 + repair + verify + finish
+        # Three diagnostics, one repair, one verification, and one finish.
+        assert resource_count(report, "total") == 6
         assert resource_count(report, "budget_exhausted") is False
 
 
@@ -64,7 +65,9 @@ def test_sequential_search_exact_cost_vector_and_aggregate(api, tmp_path):
     reports = [
         _run_policy(api, tmp_path, "sequential", index).report for index in range(8)
     ]
-    diagnostic_counts = [int(resource_count(report, "diagnostic")) for report in reports]
+    diagnostic_counts = [
+        int(resource_count(report, "diagnostic")) for report in reports
+    ]
 
     assert diagnostic_counts == [1, 2, 3, 4, 5, 6, 7, 7]
     assert sum(diagnostic_counts) == 35
@@ -79,9 +82,11 @@ def test_sequential_search_exact_cost_vector_and_aggregate(api, tmp_path):
         remaining = information_value(report, "remaining")
         assert len(remaining) == count
         assert remaining[-1] == pytest.approx(0.0)
-        assert all(left >= right for left, right in zip(remaining, remaining[1:]))
+        assert all(left >= right for left, right in pairwise(remaining))
         assert information_value(report, "removed") == pytest.approx(3.0)
-        assert information_value(report, "per_observation") == pytest.approx(3.0 / count)
+        assert information_value(report, "per_observation") == pytest.approx(
+            3.0 / count
+        )
 
 
 def test_calibration_information_aggregation_is_ratio_of_sums(api, tmp_path):
@@ -89,8 +94,12 @@ def test_calibration_information_aggregation_is_ratio_of_sums(api, tmp_path):
     reports = [
         _run_policy(api, tmp_path, "sequential", index).report for index in range(8)
     ]
-    total_removed = sum(float(information_value(report, "removed")) for report in reports)
-    total_observations = sum(int(resource_count(report, "diagnostic")) for report in reports)
+    total_removed = sum(
+        float(information_value(report, "removed")) for report in reports
+    )
+    total_observations = sum(
+        int(resource_count(report, "diagnostic")) for report in reports
+    )
     ratio_of_sums = total_removed / total_observations
     unweighted_mean = sum(
         float(information_value(report, "per_observation")) for report in reports
@@ -126,9 +135,60 @@ def test_calibration_information_aggregation_is_ratio_of_sums(api, tmp_path):
         )
 
 
-def test_zero_diagnostics_reports_null_efficiency_not_zero(api, tmp_path):
-    from contract import ScriptedHarness
+def test_suite_bound_is_null_for_arbitrary_report_collections(api, tmp_path):
+    report = _run_policy(
+        api, tmp_path, "balanced", 0, suffix="-incomplete-suite"
+    ).report
 
+    for report_count in (0, 7, 9):
+        aggregate = api.report_module.aggregate_reports([report] * report_count)
+        assert aggregate["run_count"] == report_count
+        assert aggregate["diagnostic_information"]["excess_observations"] is None
+
+
+def test_failed_suite_reports_no_excess_observation_value(api, tmp_path):
+    reports = [
+        api.run(
+            harness=ScriptedHarness([api.action("finish")]),
+            fault_id=fault_id,
+            parent_dir=tmp_path,
+            budget=4,
+            run_id=f"failed-{index}",
+        ).report
+        for index, fault_id in enumerate(api.fault_ids)
+    ]
+
+    aggregate = api.report_module.aggregate_reports(reports)
+
+    assert aggregate["run_count"] == 8
+    assert aggregate["successful_runs"] == 0
+    assert aggregate["diagnostic_information"]["excess_observations"] is None
+
+
+def test_suite_aggregation_requires_exact_success_flags(api, tmp_path):
+    report = api.run(
+        harness=ScriptedHarness([api.action("finish")]),
+        fault_id=api.fault_ids[0],
+        parent_dir=tmp_path,
+        budget=4,
+        run_id="malformed-success",
+    ).report
+    malformed = {
+        **report,
+        "correctness": {
+            **report["correctness"],
+            "overall_task_success": 1,
+        },
+    }
+
+    with pytest.raises(
+        api.report_module.ReportError,
+        match=r"report 0 overall_task_success must be an exact bool$",
+    ):
+        api.report_module.aggregate_reports([malformed] * 8)
+
+
+def test_zero_diagnostics_reports_null_efficiency_not_zero(api, tmp_path):
     artifacts = api.run(
         harness=ScriptedHarness([api.action("finish")]),
         fault_id=api.fault_ids[0],
@@ -169,7 +229,13 @@ def test_seeded_random_policy_replays_identically_for_same_seed(api, tmp_path):
     for manifest in (first.manifest, second.manifest):
         recorded_seeds.extend(
             value
-            for path in ("seed", "policy.seed", "policy.seed_policy.seed", "configuration.seed", "seed_policy.seed")
+            for path in (
+                "seed",
+                "policy.seed",
+                "policy.seed_policy.seed",
+                "configuration.seed",
+                "seed_policy.seed",
+            )
             for value in [_optional_path(manifest, path)]
             if value is not None
         )
@@ -234,6 +300,7 @@ def test_required_calibrate_command_covers_every_state_and_reference_policy(
         text=True,
         capture_output=True,
         timeout=60,
+        check=False,
     )
     assert completed.returncode == 0, (
         f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}"
@@ -285,20 +352,23 @@ def test_required_calibrate_command_covers_every_state_and_reference_policy(
     assert summary["aggregates"]["balanced"]["diagnostic_observations_total"] == 24
     assert summary["aggregates"]["seeded_random"]["diagnostic_observations_total"] == 28
     assert summary["aggregates"]["sequential"]["diagnostic_observations_total"] == 35
-    assert summary["aggregates"]["balanced"]["information_per_observation_bits"] == pytest.approx(1.0)
-    assert summary["aggregates"]["sequential"]["information_per_observation_bits"] == pytest.approx(24.0 / 35.0)
+    assert summary["aggregates"]["balanced"][
+        "information_per_observation_bits"
+    ] == pytest.approx(1.0)
+    assert summary["aggregates"]["sequential"][
+        "information_per_observation_bits"
+    ] == pytest.approx(24.0 / 35.0)
     assert {
         key: summary["aggregates"][key]["excess_observations"]
         for key in ("balanced", "seeded_random", "sequential")
     } == {"balanced": 0, "seeded_random": 4, "sequential": 11}
     assert summary["checks"]["aggregate_efficiency_uses_ratio_of_sums"] is True
     assert all(
-        summary["checks"][
-            f"{key}_reference_depth_vector_satisfies_kraft_equality"
-        ]
+        summary["checks"][f"{key}_reference_depth_vector_satisfies_kraft_equality"]
         for key in ("balanced", "seeded_random", "sequential")
     )
     assert all(summary["checks"].values())
+
 
 def test_cli_reports_tag_derived_package_version(tmp_path):
     completed = subprocess.run(

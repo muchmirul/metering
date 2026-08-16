@@ -56,6 +56,19 @@ balanced diagnostics: 24; sequential diagnostics: 35</code></pre>
         <p>The default output directory is <code>runs/calibration</code>, and a non-empty directory is never overwritten. Passing <code>--force</code> replaces a directory only when it carries Metering's own marker file, so a mistyped path cannot turn calibration into a recursive delete. To write somewhere else, name it:</p>
         <pre><code>uv run python -m metering calibrate --output /tmp/metering-check</code></pre>
         <p>Every check, whether it passed or failed, is written to <code>calibration.json</code> in that directory. A failing suite still writes the file before it exits, so the reason stays available after the terminal has scrolled away.</p>
+        <h3>Read the suite-level excess</h3>
+        <p>The calibration summary contains the direct observation overhead above the 24-observation binary-tree minimum:</p>
+        <pre><code>import json
+from pathlib import Path
+
+summary = json.loads(Path("runs/calibration/calibration.json").read_text())
+for policy in ("balanced", "seeded_random", "sequential"):
+    result = summary["aggregates"][policy]
+    print(policy, result["excess_observations"])</code></pre>
+        <pre><code>balanced 0
+seeded_random 4
+sequential 11</code></pre>
+        <p>Use this value only for a successful, complete eight-state suite. <a href="api.html#metering.report.aggregate_reports"><code>aggregate_reports()</code></a> still totals resources and information for collections of any size, but its excess value is null unless it receives exactly eight successful reports. To interpret a non-null value, supply one report per hidden state from the same policy under the same declared world and configuration.</p>
 
         <h2 id="one-run">Run one hidden fault</h2>
         <p>A single run is one call. Create a file called <code>example.py</code> in the checkout:</p>

@@ -75,6 +75,41 @@ Those two totals are the point of the exercise. Balanced search uses three diagn
 
 A binary decision tree with eight leaves has a minimum total leaf depth of 24. The calibration summary therefore reports suite-level `excess_observations` of 0 for balanced search, 4 for seeded random search, and 11 for sequential search. This field does not appear in individual run reports, because a valid short path can be shallower than the worst-case depth.
 
+### Read the suite-level result
+
+`calibration.json` is the simplest place to read the new value:
+
+```bash
+uv run python - <<'PY'
+import json
+from pathlib import Path
+
+summary = json.loads(Path("runs/calibration/calibration.json").read_text())
+for policy in ("balanced", "seeded_random", "sequential"):
+    result = summary["aggregates"][policy]
+    print(policy, result["diagnostic_observations_total"], result["excess_observations"])
+PY
+```
+
+The default calibration prints:
+
+```text
+balanced 24 0
+seeded_random 28 4
+sequential 35 11
+```
+
+To aggregate your own results, pass one report for every hidden state:
+
+```python
+from metering import aggregate_reports
+
+suite = aggregate_reports(all_eight_reports)
+print(suite["diagnostic_information"]["excess_observations"])
+```
+
+`aggregate_reports()` continues to aggregate resources and information for collections of any size. The excess value is `None` unless the collection contains exactly eight successful reports. To interpret a non-null value, those reports must cover one run per hidden state under the same policy, world, and configuration. The function can check count and success, but it cannot infer private state coverage or common policy provenance from report files; the caller must establish those facts, as calibration does.
+
 ### Calibration options
 
 Write to another directory:
@@ -503,6 +538,8 @@ An instrument is useful only when its limits are as clear as its results. These 
 - Diagnostic information is realized uncertainty reduction from delivered catalogue results. It says nothing about whether a model understood, remembered, trusted, or used that evidence.
 - The entropy calculation assumes the declared uniform prior and deterministic observation table. A different world needs its own prior, observation semantics, calibration cases, and validated meter.
 - Correctness, raw resources, and information remain separate. Metering has no overall score, ranking, or leaderboard.
+- Suite-level excess observations apply only to a successful, complete eight-state suite. General aggregation still works for one run or an arbitrary collection, but its excess value is null.
+- Meter version 2 adds the suite-level interpretation. Strict replay of meter-v1 artifacts still requires a v1-compatible checkout; controller, verifier, and artifact schema versions remain at 1.
 - Hashes and commitments detect corruption and accidental artifact mixing. They provide neither authentication nor protection from coherent malicious rewriting.
 
 ## Further reading

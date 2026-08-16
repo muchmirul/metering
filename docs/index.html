@@ -81,6 +81,7 @@ balanced diagnostics: 24; sequential diagnostics: 35</code></pre>
         </tbody>
       </table></div>
       <p>Each policy removes the same 24 bits in total, because each one ends up knowing the answer in all eight states. The efficiency column is the total bits divided by the total observations, which is the ratio of the sums rather than the average of the per-run ratios. The excess column subtracts the binary-tree minimum total leaf depth of 24, giving the suite a natural zero. It is not calculated per run, because a valid short path can use fewer than three observations.</p>
+      <p>The values are stored under <code>aggregates.&lt;policy&gt;.excess_observations</code> in <code>calibration.json</code>. Direct API aggregation still totals arbitrary report collections, but its excess field is null unless it receives exactly eight successful reports. A non-null value is meaningful only when those reports cover one run per state under the same policy and declared conditions.</p>
     </section>
 
     <section aria-labelledby="stack">

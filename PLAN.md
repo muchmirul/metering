@@ -21,7 +21,8 @@ Metering may measure:
 - whether a task was completed correctly;
 - how many observations and actions were used;
 - how much uncertainty the supplied observations removed;
-- how much diagnostic information was delivered per observation.
+- how much diagnostic information was delivered per observation;
+- how many diagnostic observations a successful complete suite spent above the binary-tree minimum.
 
 Metering does not measure:
 
@@ -183,7 +184,7 @@ For the complete eight-state calibration suite, the minimum total external path 
 
 The suite meter reports `excess_observations = total_diagnostic_observations - 24`. Balanced search therefore reports 0, seeded random search with the default calibration seed reports 4, and sequential search reports 11.
 
-This value is never reported for an individual run. The bound `ceil(log2 N)` is a worst-case depth, not a lower bound for every leaf. A valid one-observation path must not be assigned a negative excess.
+This value is never reported for an individual run. The bound `ceil(log2 N)` is a worst-case depth, not a lower bound for every leaf. A valid one-observation path must not be assigned a negative excess. General resource and information aggregation remains available for any report collection, but `excess_observations` is null unless the collection contains exactly eight successful runs. The decision-tree lower bound applies only when the policy identifies every state. Calibration establishes that those eight reports cover every hidden state under one reference policy; the aggregate function cannot infer private state coverage from report files alone.
 
 ## Calibration policies
 
@@ -286,6 +287,7 @@ The instrument is complete only when all of the following are true:
 - The reference depth vectors each satisfy Kraft's equality exactly.
 - Suite excess observations are exactly 0 for balanced search, 4 for seeded random search with the default calibration seed, and 11 for sequential search.
 - No per-run report contains an excess-observation value.
+- Suite aggregation reports null excess unless the collection contains exactly eight successful reports.
 - Seeded policies replay deterministically after controller-owned artifact identifiers are normalized.
 - Invalid actions produce explicit protocol failures.
 - A harness that keeps returning non-finish actions is stopped by the fixed action budget without a later callback.

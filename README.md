@@ -25,6 +25,19 @@ calibration passed: runs/calibration
 balanced diagnostics: 24; sequential diagnostics: 35
 ```
 
+Read the suite-level excess values from the calibration summary:
+
+```bash
+uv run python - <<'PY'
+import json
+from pathlib import Path
+
+summary = json.loads(Path("runs/calibration/calibration.json").read_text())
+for policy in ("balanced", "seeded_random", "sequential"):
+    print(policy, summary["aggregates"][policy]["excess_observations"])
+PY
+```
+
 ## The calibrated contrast
 
 With the default calibration seed, the three reference policies all solve the task correctly, so correctness alone cannot separate them. What separates them is what they spent. Balanced search asks questions that halve the candidate set, so every observation is worth a full bit. Sequential search checks one candidate at a time, so an early negative result removes very little.
@@ -38,6 +51,8 @@ With the default calibration seed, the three reference policies all solve the ta
 Each policy removes the same 24 bits in total, because each one ends up knowing the answer in all eight states. The efficiency column is total bits divided by total observations, which is the ratio of the sums rather than the average of the per-run ratios. Averaging the ratios would give a lucky one-observation run the same weight as a seven-observation run and would overstate how efficient the suite really was.
 
 The excess column has a natural zero. A binary decision tree with eight leaves needs a minimum total leaf depth of 24, so the suite meter subtracts 24 from the total observations. This calculation applies only to the complete eight-state suite. It is not reported per run, because a valid short path can use fewer than three observations without violating the tree bound.
+
+`aggregate_reports()` still aggregates resources and information for any report collection. It returns a non-null `excess_observations` only for exactly eight successful reports. To interpret that value, supply one report for each hidden state, produced by the same policy under the same declared world and configuration. Calibration establishes state coverage and common policy provenance; individual report files deliberately do not reveal enough private state to prove that coverage on their own.
 
 ## Why this controlled experiment matters
 
@@ -82,7 +97,7 @@ Every report carries three readings that stay in separate columns, because they 
 
 Verification feedback is content-free while a run is in progress. Whether a repair matched the hidden fault stays private until the offline report is built, so a policy cannot use verification as a second diagnostic oracle that no meter counts.
 
-A complete eight-state suite also reports `excess_observations`, measured against the 24-observation binary-tree minimum. Individual run reports do not contain this field.
+A successful, complete eight-state suite also reports `excess_observations`, measured against the 24-observation binary-tree minimum. An unsuccessful suite reports null, and individual run reports do not contain this field.
 
 ## The system, from high level to low level
 
@@ -214,6 +229,8 @@ uv run python -m metering --version
 ```
 
 ## Versions and compatibility
+
+Meter version 2 adds the suite-level excess-observation interpretation. Controller version 1, verifier version 1, and all artifact schema versions remain unchanged. Per-run report content and raw execution artifacts therefore keep the same shape, but strict replay still requires the recorded meter version to match the installed implementation. A meter-v1 artifact needs a v1-compatible checkout; it is not silently reinterpreted by meter v2.
 
 Release versions come from Git tags and [GitHub Releases](https://github.com/muchmirul/metering/releases) rather than from names embedded in the product, and [`RELEASING.md`](https://github.com/muchmirul/metering/blob/main/RELEASING.md) describes the process. The release version is recorded as provenance only. Replay compatibility is decided by the recorded controller, verifier, and meter versions plus the accepted strict schemas, because those are the parts whose behavior a replay actually depends on. World, instance, and policy declarations are recorded and checked for consistency inside each artifact set.
 

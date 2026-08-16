@@ -257,6 +257,7 @@
           <li>exact canonical bytes for all three inputs and the manifest and event hashes bound by the reference.</li>
         </ol>
         <p>The package release version is recorded as provenance only. Compatibility is decided by the component versions, because those are the parts whose behavior a replay actually depends on. A behavioral or interpretive change must bump the component version that replay uses as its gate.</p>
+        <p>The current implementation records meter version 2, controller version 1, and verifier version 1; all artifact schemas remain at version 1. Meter version 2 adds the suite-level excess-observation interpretation without changing per-run schema shape or raw execution semantics. Strict replay does not reinterpret meter-v1 artifacts: use a v1-compatible checkout for those runs.</p>
 
         <h2 id="extending">Extending Metering</h2>
         <p>Where a change belongs follows from the stack. Adding a policy means writing one class at the harness boundary and nothing else, and the run it produces is comparable with the reference policies because the world and the meters did not move. Adding a measurement belongs in <code>report.py</code>, and it needs its own calibration evidence, which means a case where the expected reading follows from the world definition rather than from the new code.</p>
@@ -272,7 +273,7 @@
 uv run --extra test pytest -q
 python -m compileall -q src tests
 uvx ruff check --select E9,F63,F7,F82 src tests</code></pre>
-        <p>The suite covers the fixed catalogue, reference-policy costs, information calculations, budget behavior, crash records, strict schemas, artifact mixing, private-truth binding, verification privacy, offline replay, force safety, and tag-derived package versions. It runs without a network connection or a model server.</p>
+        <p>The suite covers the fixed catalogue, reference-policy costs, information calculations, complete-suite bound applicability, budget behavior, crash records, strict schemas, artifact mixing, private-truth binding, verification privacy, offline replay, force safety, and tag-derived package versions. It runs without a network connection or a model server.</p>
 
         <h3>Run a fresh calibration</h3>
         <pre><code>uv run python -m metering calibrate --output /tmp/metering-check</code></pre>

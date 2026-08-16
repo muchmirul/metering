@@ -18,12 +18,13 @@ already written and hashed.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from .events import Diagnose, DiagnosticObservation, Event, RawActionCost
 from .provenance import METER_VERSION
-from .replay import ReplayState, ReplayedInteraction, replay_trace
+from .replay import ReplayedInteraction, ReplayState, replay_trace
 from .schema import (
     EVENT_INTERACTION,
     EVENT_PROTOCOL_ERROR,
@@ -74,6 +75,7 @@ _RESOURCE_FIELDS = (
 # A complete calibration suite has one run for each of eight equally likely
 # faults. Kraft's inequality makes 24 the minimum total external path length of
 # a binary decision tree with eight leaves.
+_COMPLETE_SUITE_RUN_COUNT = 8
 _MINIMUM_SUITE_DIAGNOSTIC_OBSERVATIONS = 24
 
 
@@ -94,9 +96,7 @@ def _correctness_report(state: ReplayState) -> dict[str, Any]:
             state.final_repair == state.hidden_fault_id
         ),
         "verification_occurred_after_final_repair": verified_after_final_repair,
-        "harness_terminated_normally": (
-            state.termination_reason == TERMINATION_NORMAL
-        ),
+        "harness_terminated_normally": (state.termination_reason == TERMINATION_NORMAL),
         "action_budget_was_respected": state.actions_used <= state.action_budget,
     }
     return {**conditions, "overall_task_success": all(conditions.values())}
@@ -113,9 +113,7 @@ def _resource_report(state: ReplayState, events: Sequence[Event]) -> dict[str, A
     return {
         **total.to_dict(),
         "action_budget": state.action_budget,
-        "budget_exhaustion": (
-            state.termination_reason == TERMINATION_BUDGET_EXHAUSTED
-        ),
+        "budget_exhaustion": (state.termination_reason == TERMINATION_BUDGET_EXHAUSTED),
     }
 
 
@@ -254,11 +252,20 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     Excess observations use the 24-observation binary-tree bound for all eight
     hidden states.  The value belongs only here, never in a per-run report: a
     short path can beat the worst-case depth without beating the suite bound.
+    It is null unless the collection contains eight successful runs, so an
+    incomplete or failed suite cannot appear to beat the bound.  Calibration
+    establishes state coverage and common policy provenance before interpreting
+    the value.
     """
 
+    report_count = len(reports)
     totals = dict.fromkeys(
-        ("diagnostic_observations", "repair_actions", "verification_actions",
-         "total_actions"),
+        (
+            "diagnostic_observations",
+            "repair_actions",
+            "verification_actions",
+            "total_actions",
+        ),
         0,
     )
     information_total = 0.0
@@ -278,9 +285,7 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             report.get("correctness"), f"report {index}.correctness"
         )
         for name in totals:
-            totals[name] += _check.integer(
-                resources[name], f"report {index} {name}"
-            )
+            totals[name] += _check.integer(resources[name], f"report {index} {name}")
         removed = information.get("total_uncertainty_removed_bits")
         if type(removed) not in {int, float}:
             raise ReportError(f"report {index} information removed must be numeric")
@@ -288,7 +293,10 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         if not math.isfinite(removed_float) or removed_float < 0:
             raise ReportError(f"report {index} information removed is invalid")
         information_total += removed_float
-        if correctness.get("overall_task_success") is True:
+        if _check.boolean(
+            correctness.get("overall_task_success"),
+            f"report {index} overall_task_success",
+        ):
             successful_runs += 1
         if _check.boolean(
             resources["budget_exhaustion"], f"report {index} budget_exhaustion"
@@ -296,8 +304,12 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             budget_exhausted_runs += 1
 
     diagnostic_total = totals["diagnostic_observations"]
+    suite_bound_applies = (
+        report_count == _COMPLETE_SUITE_RUN_COUNT
+        and successful_runs == _COMPLETE_SUITE_RUN_COUNT
+    )
     return {
-        "run_count": len(reports),
+        "run_count": report_count,
         "successful_runs": successful_runs,
         "resources": {**totals, "budget_exhausted_runs": budget_exhausted_runs},
         "diagnostic_information": {
@@ -307,6 +319,8 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             ),
             "excess_observations": (
                 diagnostic_total - _MINIMUM_SUITE_DIAGNOSTIC_OBSERVATIONS
+                if suite_bound_applies
+                else None
             ),
             "aggregation": "ratio_of_sums",
         },
