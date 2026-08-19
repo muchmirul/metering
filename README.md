@@ -6,7 +6,7 @@ The task is the hidden-fault world. The controller selects one of eight faults a
 
 Metering does not rank agents and does not produce an overall score. It answers one narrow question, which is whether the instrument can tell a careful diagnostic policy apart from a wasteful one using exact and replayable numbers.
 
-Full documentation is published at the [documentation site](https://muchmirul.github.io/metering/). For a copyable walkthrough in the repository, read the [Markdown usage guide](docs/usage.md). [`PLAN.md`](https://github.com/muchmirul/metering/blob/main/PLAN.md) is the normative source for scope, definitions, limitations, and acceptance criteria.
+Full documentation is published at the [documentation site](https://muchmirul.github.io/metering/). For a copyable walkthrough in the repository, read the [Markdown usage guide](docs/usage.md). [`PLAN.md`](https://github.com/muchmirul/metering/blob/main/PLAN.md) is the normative source for scope, definitions, limitations, and acceptance criteria. An agent measuring its own harness can start from [`HARNESS.md`](HARNESS.md) and the committed suite driver [`examples/run_suite.py`](examples/run_suite.py).
 
 ## Quick start
 
@@ -238,7 +238,7 @@ Release versions come from Git tags and [GitHub Releases](https://github.com/muc
 
 The directly supported harness is a cooperative Python object implementing `HarnessPolicy`. It runs inside the Metering process, declares a finite JSON descriptor, receives only `PublicInstance` and its observation history through the documented callback, and returns one typed `Diagnose`, `Repair`, `Verify`, or `Finish` action at a time. It must solve the built-in hidden-fault task and return from each callback normally.
 
-A custom decision rule, planner, or deterministic controller that fits this contract can be measured now. A model-backed or external harness can be tested only after the user writes an in-process adapter that translates the callback into that system's requests and translates its response back into a typed Metering action. Metering does not provide that adapter, an external JSONL protocol, subprocess management, timeouts, or model provenance capture yet.
+A custom decision rule, planner, or deterministic controller that fits this contract can be measured now. A model-backed or external harness can be tested only after the user writes an in-process adapter that translates the callback into that system's requests and translates its response back into a typed Metering action. Metering does not provide that adapter, an external JSONL protocol, subprocess management, timeouts, or model provenance capture yet. [`HARNESS.md`](HARNESS.md) is the step-by-step path for writing such a policy and running it across the full suite with [`examples/run_suite.py`](examples/run_suite.py).
 
 | Harness | Supported now? | Reason |
 |---|---|---|

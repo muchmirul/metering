@@ -1,4 +1,6 @@
 include README.md
 include PLAN.md
 include RELEASING.md
+include HARNESS.md
 recursive-include docs *
+recursive-include examples *.py

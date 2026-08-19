@@ -181,6 +181,8 @@ The run directory must be new or empty, because a run owns the files it writes a
 
 The `hidden_fault_id` argument sets controller-private truth. The controller passes neither that value nor the world object to the policy callback, so choosing the fault here tells the policy nothing and the run stays a fair measurement.
 
+The committed driver [`examples/run_suite.py`](../examples/run_suite.py) extends this single run into the complete eight-state suite and prints the aggregate readings, so measuring a policy across every hidden state does not require writing the loop yourself.
+
 ## 4. Choose a built-in policy
 
 Metering includes three reference policies, and all three are deterministic:
@@ -434,6 +436,8 @@ A Python policy may call a model or remote service internally, but Metering prov
 | Agent CLI, HTTP harness, or separate process | No direct protocol or process controller |
 | Coding, browser, shell, or repository agent | Not supported by the current world |
 | Hostile or potentially nonreturning callback | Not supported |
+
+For a step-by-step path aimed at an external agent testing its own harness, read [`HARNESS.md`](../HARNESS.md) in the repository root.
 
 ## 9. Rebuild a report offline
 
