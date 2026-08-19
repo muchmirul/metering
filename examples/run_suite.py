@@ -64,9 +64,7 @@ def load_policy(spec: str) -> HarnessPolicy:
         return REFERENCE_POLICIES[spec]()
     if ":" not in spec:
         names = ", ".join(sorted(REFERENCE_POLICIES))
-        raise SystemExit(
-            f"unknown policy {spec!r}: expected one of {names}, or module:ClassName"
-        )
+        raise ValueError(f"expected one of {names}, or module:ClassName")
     module_name, _, class_name = spec.partition(":")
     sys.path.insert(0, os.getcwd())
     module = importlib.import_module(module_name)
@@ -134,7 +132,11 @@ def print_human(rows: list[dict[str, Any]], suite: dict[str, Any]) -> None:
     )
     print(
         "excess observations:           "
-        + (str(excess) if excess is not None else "not applicable (needs 8 successful runs)")
+        + (
+            str(excess)
+            if excess is not None
+            else "not applicable (needs one successful run per hidden state)"
+        )
     )
 
 
@@ -173,7 +175,10 @@ def main(argv: list[str] | None = None) -> int:
     parent = args.run_parent
     if parent is None:
         parent = Path("runs") / ("suite-" + time.strftime("%Y%m%d-%H%M%S"))
-    if parent.exists() and any(parent.iterdir()):
+    if parent.exists() and not parent.is_dir():
+        print(f"run parent {parent} exists and is not a directory", file=sys.stderr)
+        return 2
+    if parent.is_dir() and any(parent.iterdir()):
         print(
             f"run parent {parent} is not empty; each run owns a fresh directory,"
             " so pass a new --run-parent or remove the old one deliberately",
@@ -183,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         policy = load_policy(args.policy)
-    except (ImportError, AttributeError, TypeError, ValueError) as error:
+    except Exception as error:  # importing user code can raise anything
         print(f"could not load policy {args.policy!r}: {error}", file=sys.stderr)
         return 2
 

@@ -183,8 +183,6 @@ def _prepare_output(path: Path, force: bool) -> None:
     mistyped path cannot turn calibration into a recursive delete.
     """
 
-    if type(force) is not bool:
-        raise CalibrationFailure("force must be an exact bool")
     if path.exists():
         if path.is_symlink() or not path.is_dir():
             raise CalibrationFailure(
@@ -481,7 +479,7 @@ def _check_seeded_replay(
     return replays
 
 
-def _check_termination_paths(suite: _Suite) -> int:
+def _check_termination_paths(suite: _Suite) -> list[RunResult]:
     """Exercise each way a run can end other than an ordinary finish."""
 
     first_fault = suite.spec.fault_ids[0]
@@ -544,7 +542,7 @@ def _check_termination_paths(suite: _Suite) -> int:
         and boundary.report["resources"]["total_actions"] == boundary_budget,
         "a valid finish as the last budgeted action was misclassified",
     )
-    return 4
+    return [invalid, exhausted, crash, boundary]
 
 
 def _check_corruption_is_detected(suite: _Suite, sample: RunResult) -> None:
@@ -589,8 +587,6 @@ def run_calibration(
     available for inspection instead of only appearing on a terminal.
     """
 
-    if type(seed) is not int:
-        raise CalibrationFailure("seed must be an integer")
     if type(action_budget) is not int or action_budget < MINIMUM_CALIBRATION_BUDGET:
         raise CalibrationFailure(
             "calibration action_budget must be at least "
@@ -605,7 +601,7 @@ def run_calibration(
     primary = _run_reference_policies(suite, seed)
     aggregates = _check_expected_readings(suite, primary, seed)
     replays = _check_seeded_replay(suite, seed, primary["seeded_random"])
-    controller_check_runs = _check_termination_paths(suite)
+    controller_checks = _check_termination_paths(suite)
     _check_corruption_is_detected(suite, primary["balanced"][0])
 
     summary: dict[str, Any] = {
@@ -626,7 +622,7 @@ def run_calibration(
         "artifact_counts": {
             "primary_runs": sum(len(runs) for runs in primary.values()),
             "seeded_replay_runs": len(replays),
-            "controller_check_runs": controller_check_runs,
+            "controller_check_runs": len(controller_checks),
             "reports_deleted_and_regenerated": suite.regenerated_run_count,
         },
         "checks": suite.checks,

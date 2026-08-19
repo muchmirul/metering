@@ -52,7 +52,7 @@ Each policy removes the same 24 bits in total, because each one ends up knowing 
 
 The excess column has a natural zero. A binary decision tree with eight leaves needs a minimum total leaf depth of 24, so the suite meter subtracts 24 from the total observations. This calculation applies only to the complete eight-state suite. It is not reported per run, because a valid short path can use fewer than three observations without violating the tree bound.
 
-`aggregate_reports()` still aggregates resources and information for any report collection. It returns a non-null `excess_observations` only for exactly eight successful reports. To interpret that value, supply one report for each hidden state, produced by the same policy under the same declared world and configuration. Calibration establishes state coverage and common policy provenance; individual report files deliberately do not reveal enough private state to prove that coverage on their own.
+`aggregate_reports()` still aggregates resources and information for any report collection. It returns a non-null `excess_observations` only when every report succeeded, all reports name the same world and instance, and the collection holds exactly one report per hidden state of that world — eight for the canonical world — which it checks against each report's declared initial uncertainty. To interpret that value, supply one report for each hidden state, produced by the same policy under the same declared world and configuration. Calibration establishes state coverage and common policy provenance; individual report files deliberately do not reveal enough private state to prove distinct-state coverage on their own.
 
 ## Why this controlled experiment matters
 

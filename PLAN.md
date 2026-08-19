@@ -184,7 +184,7 @@ For the complete eight-state calibration suite, the minimum total external path 
 
 The suite meter reports `excess_observations = total_diagnostic_observations - 24`. Balanced search therefore reports 0, seeded random search with the default calibration seed reports 4, and sequential search reports 11.
 
-This value is never reported for an individual run. The bound `ceil(log2 N)` is a worst-case depth, not a lower bound for every leaf. A valid one-observation path must not be assigned a negative excess. General resource and information aggregation remains available for any report collection, but `excess_observations` is null unless the collection contains exactly eight successful runs. The decision-tree lower bound applies only when the policy identifies every state. Calibration establishes that those eight reports cover every hidden state under one reference policy; the aggregate function cannot infer private state coverage from report files alone.
+This value is never reported for an individual run. The bound `ceil(log2 N)` is a worst-case depth, not a lower bound for every leaf. A valid one-observation path must not be assigned a negative excess. General resource and information aggregation remains available for any report collection, but `excess_observations` is null unless every run succeeded, every report names the same world and instance, and the collection holds exactly one run per hidden state of that world — eight for the declared world — which the aggregate function checks against each report's declared initial uncertainty. The decision-tree lower bound applies only when the policy identifies every state. Calibration establishes that those eight reports cover every hidden state under one reference policy; the aggregate function cannot infer distinct-state coverage from report files alone.
 
 ## Calibration policies
 
@@ -287,7 +287,7 @@ The instrument is complete only when all of the following are true:
 - The reference depth vectors each satisfy Kraft's equality exactly.
 - Suite excess observations are exactly 0 for balanced search, 4 for seeded random search with the default calibration seed, and 11 for sequential search.
 - No per-run report contains an excess-observation value.
-- Suite aggregation reports null excess unless the collection contains exactly eight successful reports.
+- Suite aggregation reports null excess unless the collection is exactly one successful report per hidden state of one declared world — eight for the canonical world.
 - Seeded policies replay deterministically after controller-owned artifact identifiers are normalized.
 - Invalid actions produce explicit protocol failures.
 - A harness that keeps returning non-finish actions is stopped by the fixed action budget without a later callback.

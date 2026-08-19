@@ -31,12 +31,9 @@ def _json_mapping(value: Mapping[str, Any], field: str) -> dict[str, Any]:
     try:
         # This both makes a defensive deep copy and rejects non-JSON facts.
         encoded = json.dumps(dict(value), allow_nan=False, sort_keys=True)
-        decoded = json.loads(encoded)
+        return json.loads(encoded)
     except (TypeError, ValueError) as exc:
         raise EventError(f"{field} must contain only finite JSON values") from exc
-    if type(decoded) is not dict:  # pragma: no cover - guarded by Mapping
-        raise EventError(f"{field} must be a JSON object")
-    return decoded
 
 
 @dataclass(frozen=True, slots=True)

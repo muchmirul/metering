@@ -87,9 +87,10 @@ uv run python examples/run_suite.py my_policy:MyPolicy --json
 
 The `module:Class` argument is imported with your current working directory on
 the import path, and the class must be constructible with no arguments. The
-driver runs one fresh directory per hidden fault, prints every per-run reading
-and the suite aggregate, and exits 0 only when all eight runs succeed, so it
-can gate a continuous-integration check directly. Without `--json` it prints
+driver runs one fresh directory per hidden fault, prints the headline per-run
+readings and the suite aggregate — the complete readings stay in each run's
+`report.json` — and exits 0 only when all eight runs succeed, so it can gate a
+continuous-integration check directly. Without `--json` it prints
 human-readable tables; sanity-check the plumbing first with a reference
 policy:
 
@@ -141,14 +142,17 @@ The suite aggregate from `aggregate_reports` adds:
   `uncertainty_removed_per_diagnostic_observation_bits`.
 - `excess_observations` — total diagnostic observations minus 24, the minimum
   total external path length of a binary decision tree over eight leaves. It
-  is `null` unless the collection holds exactly eight successful reports, and
-  interpreting a non-null value requires one run per hidden state under the
-  same policy and configuration, which only you as the caller can guarantee.
+  is `null` unless every report succeeded, all reports name the same world and
+  instance, and the collection holds exactly one report per hidden state of
+  that world — eight here. Interpreting a non-null value still requires one
+  run per distinct hidden state under the same policy and configuration,
+  which only you as the caller can guarantee.
 
 ## 5. Expected reference values
 
 Run each reference policy through the driver before trusting your own
-measurement. At the default seed these values are exact:
+measurement. At the default seed, the observation counts and excess values are
+exact; the ratios are rounded here to four decimal places:
 
 | Policy | Total diagnostics | Bits per observation | Excess observations |
 |---|---:|---:|---:|

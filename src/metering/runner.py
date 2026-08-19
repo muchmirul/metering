@@ -52,7 +52,6 @@ from .schema import (
     TERMINATION_INVALID_ACTION,
     TERMINATION_NORMAL,
     StrictFields,
-    is_canonical_uuid4,
 )
 from .trace import RunPaths, TraceWriter, read_events, sha256_hex, write_json_atomic
 
@@ -106,6 +105,10 @@ class Controller:
     private reference state.  This is a cooperative in-process boundary, which
     prevents accidental disclosure through the documented API and provides no
     protection against code that sets out to break the rules.
+
+    Input validation lives in :func:`run_experiment`, the entry point that
+    creates controllers, because it must reject bad input before it touches
+    the filesystem.  The controller trusts what it is given.
     """
 
     def __init__(
@@ -118,14 +121,6 @@ class Controller:
         artifact_set_id: str,
         action_budget: int = DEFAULT_ACTION_BUDGET,
     ) -> None:
-        if type(world) is not HiddenFaultWorld:
-            raise RunnerError("world must be an exact HiddenFaultWorld in Metering")
-        if type(run_id) is not str or not run_id:
-            raise RunnerError("run_id must be a non-empty string")
-        if not is_canonical_uuid4(artifact_set_id):
-            raise RunnerError("artifact_set_id must be a canonical UUID4 string")
-        if type(action_budget) is not int or action_budget < 1:
-            raise RunnerError("action_budget must be a positive integer")
         self.world = world
         self.policy = policy
         self.trace = trace
@@ -212,13 +207,11 @@ class Controller:
             )
         )
 
+        # Budget is enforced once, after each charged action.  The loop is
+        # entered only with budget remaining, so no request is ever made past
+        # the budget: run_experiment requires a budget of at least one, and
+        # every iteration that spends the last unit terminates below.
         while True:
-            # No request is made past the budget.  A finish applied as the last
-            # budgeted action is handled below before this point is reached
-            # again.
-            if self._actions_used >= self.action_budget:
-                return self._terminate(TERMINATION_BUDGET_EXHAUSTED)
-
             try:
                 output = self.policy.next_action(public, tuple(self._observations))
             except Exception:

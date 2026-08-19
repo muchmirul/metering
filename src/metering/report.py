@@ -24,17 +24,10 @@ from typing import Any
 
 from .events import Diagnose, DiagnosticObservation, Event, RawActionCost
 from .provenance import METER_VERSION
-from .replay import ReplayedInteraction, ReplayState, replay_trace
+from .replay import ReplayState, replay_trace
 from .schema import (
-    EVENT_INTERACTION,
-    EVENT_PROTOCOL_ERROR,
-    EVENT_RUN_STARTED,
-    EVENT_TERMINATION,
-    MANIFEST_SCHEMA_VERSION,
     REPORT_SCHEMA_VERSION,
     TERMINATION_BUDGET_EXHAUSTED,
-    TERMINATION_HARNESS_CRASH,
-    TERMINATION_INVALID_ACTION,
     TERMINATION_NORMAL,
     ReportError,
     StrictFields,
@@ -42,23 +35,10 @@ from .schema import (
 from .trace import RunPaths, read_events, read_json_bytes, write_json_atomic
 
 __all__ = [
-    "EVENT_INTERACTION",
-    "EVENT_PROTOCOL_ERROR",
-    "EVENT_RUN_STARTED",
-    "EVENT_TERMINATION",
-    "MANIFEST_SCHEMA_VERSION",
-    "REPORT_SCHEMA_VERSION",
-    "TERMINATION_BUDGET_EXHAUSTED",
-    "TERMINATION_HARNESS_CRASH",
-    "TERMINATION_INVALID_ACTION",
-    "TERMINATION_NORMAL",
-    "ReplayState",
-    "ReplayedInteraction",
     "ReportError",
     "aggregate_reports",
     "build_report",
     "regenerate_report",
-    "replay_trace",
 ]
 
 _check = StrictFields(ReportError)
@@ -72,11 +52,38 @@ _RESOURCE_FIELDS = (
     "budget_exhaustion",
 )
 
-# A complete calibration suite has one run for each of eight equally likely
-# faults. Kraft's inequality makes 24 the minimum total external path length of
-# a binary decision tree with eight leaves.
-_COMPLETE_SUITE_RUN_COUNT = 8
-_MINIMUM_SUITE_DIAGNOSTIC_OBSERVATIONS = 24
+# The four report fields that name the world a run was measured against.  A
+# suite-level bound is meaningful only when every report shares them.
+_WORLD_IDENTITY_FIELDS = (
+    "world_id",
+    "world_version",
+    "instance_id",
+    "instance_version",
+)
+
+
+def _finite_bits(value: Any, name: str) -> float:
+    """Require a finite non-negative bit count from a report being aggregated."""
+
+    if type(value) not in {int, float}:
+        raise ReportError(f"{name} must be numeric")
+    result = float(value)
+    if not math.isfinite(result) or result < 0:
+        raise ReportError(f"{name} is invalid")
+    return result
+
+
+def _suite_minimum_diagnostics(state_count: int) -> int:
+    """Return the minimum total external path length of a binary decision tree.
+
+    With one equally likely run per hidden state, a policy's per-state
+    diagnostic counts are the leaf depths of a binary decision tree with
+    ``state_count`` leaves, and Kraft's inequality bounds their total from
+    below.  For the canonical eight-state world this is 24.
+    """
+
+    depth = state_count.bit_length() - 1
+    return state_count * depth + 2 * (state_count - (1 << depth))
 
 
 def _correctness_report(state: ReplayState) -> dict[str, Any]:
@@ -242,20 +249,24 @@ def build_report(
 
 
 def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    """Aggregate raw units and efficiency across a complete calibration suite.
+    """Aggregate raw units and efficiency across a suite of run reports.
 
     Suite efficiency divides the total bits removed by the total diagnostics
     spent.  Averaging the per-run ratios instead would give a cheap run and an
     expensive run equal weight, which would report a suite as more efficient
     than the observations it actually paid for.
 
-    Excess observations use the 24-observation binary-tree bound for all eight
-    hidden states.  The value belongs only here, never in a per-run report: a
-    short path can beat the worst-case depth without beating the suite bound.
-    It is null unless the collection contains eight successful runs, so an
-    incomplete or failed suite cannot appear to beat the bound.  Calibration
-    establishes state coverage and common policy provenance before interpreting
-    the value.
+    Excess observations measure the diagnostics spent above the binary
+    decision-tree minimum for one run per hidden state, which is 24 for the
+    canonical eight-state world.  The value belongs only here, never in a
+    per-run report: a short path can beat the worst-case depth without beating
+    the suite bound.  It is null unless every run succeeded, every report
+    names the same world and instance, and the collection is exactly one run
+    per hidden state of that world, checked against each report's declared
+    initial uncertainty.  Report files deliberately do not reveal which hidden
+    state a run drew, so distinct-state coverage and common policy provenance
+    stay with the caller; calibration establishes both before interpreting the
+    value.
     """
 
     report_count = len(reports)
@@ -271,6 +282,8 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     information_total = 0.0
     successful_runs = 0
     budget_exhausted_runs = 0
+    world_identities: set[tuple[Any, ...]] = set()
+    initial_uncertainties: set[float] = set()
 
     for index, report in enumerate(reports):
         _check.mapping(report, f"report {index}")
@@ -284,15 +297,21 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         correctness = _check.mapping(
             report.get("correctness"), f"report {index}.correctness"
         )
+        world_identities.add(
+            tuple(report.get(field) for field in _WORLD_IDENTITY_FIELDS)
+        )
         for name in totals:
             totals[name] += _check.integer(resources[name], f"report {index} {name}")
-        removed = information.get("total_uncertainty_removed_bits")
-        if type(removed) not in {int, float}:
-            raise ReportError(f"report {index} information removed must be numeric")
-        removed_float = float(removed)
-        if not math.isfinite(removed_float) or removed_float < 0:
-            raise ReportError(f"report {index} information removed is invalid")
-        information_total += removed_float
+        information_total += _finite_bits(
+            information.get("total_uncertainty_removed_bits"),
+            f"report {index} information removed",
+        )
+        initial_uncertainties.add(
+            _finite_bits(
+                information.get("initial_uncertainty_bits"),
+                f"report {index} initial uncertainty",
+            )
+        )
         if _check.boolean(
             correctness.get("overall_task_success"),
             f"report {index} overall_task_success",
@@ -304,9 +323,16 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
             budget_exhausted_runs += 1
 
     diagnostic_total = totals["diagnostic_observations"]
+    # One run per state means the state count equals the run count and each
+    # run's declared prior is uniform over exactly that many states.
     suite_bound_applies = (
-        report_count == _COMPLETE_SUITE_RUN_COUNT
-        and successful_runs == _COMPLETE_SUITE_RUN_COUNT
+        report_count >= 1
+        and successful_runs == report_count
+        and len(world_identities) == 1
+        and all(
+            type(value) is str and value for value in next(iter(world_identities))
+        )
+        and initial_uncertainties == {math.log2(report_count)}
     )
     return {
         "run_count": report_count,
@@ -318,7 +344,7 @@ def aggregate_reports(reports: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
                 information_total / diagnostic_total if diagnostic_total else None
             ),
             "excess_observations": (
-                diagnostic_total - _MINIMUM_SUITE_DIAGNOSTIC_OBSERVATIONS
+                diagnostic_total - _suite_minimum_diagnostics(report_count)
                 if suite_bound_applies
                 else None
             ),

@@ -108,7 +108,7 @@ suite = aggregate_reports(all_eight_reports)
 print(suite["diagnostic_information"]["excess_observations"])
 ```
 
-`aggregate_reports()` continues to aggregate resources and information for collections of any size. The excess value is `None` unless the collection contains exactly eight successful reports. To interpret a non-null value, those reports must cover one run per hidden state under the same policy, world, and configuration. The function can check count and success, but it cannot infer private state coverage or common policy provenance from report files; the caller must establish those facts, as calibration does.
+`aggregate_reports()` continues to aggregate resources and information for collections of any size. The excess value is `None` unless every report succeeded, all reports name the same world and instance, and the collection holds exactly one report per hidden state of that world — eight for the canonical world — which the function checks against each report's declared initial uncertainty. To interpret a non-null value, those reports must cover one run per hidden state under the same policy, world, and configuration. The function can check count, success, and world identity, but it cannot infer distinct-state coverage or common policy provenance from report files; the caller must establish those facts, as calibration does.
 
 ### Calibration options
 
@@ -542,7 +542,7 @@ An instrument is useful only when its limits are as clear as its results. These 
 - Diagnostic information is realized uncertainty reduction from delivered catalogue results. It says nothing about whether a model understood, remembered, trusted, or used that evidence.
 - The entropy calculation assumes the declared uniform prior and deterministic observation table. A different world needs its own prior, observation semantics, calibration cases, and validated meter.
 - Correctness, raw resources, and information remain separate. Metering has no overall score, ranking, or leaderboard.
-- Suite-level excess observations apply only to a successful, complete eight-state suite. General aggregation still works for one run or an arbitrary collection, but its excess value is null.
+- Suite-level excess observations apply only to a successful suite with one run per hidden state of one declared world — eight runs for the canonical world. General aggregation still works for one run or an arbitrary collection, but its excess value is null.
 - Meter version 2 adds the suite-level interpretation. Strict replay of meter-v1 artifacts still requires a v1-compatible checkout; controller, verifier, and artifact schema versions remain at 1.
 - Hashes and commitments detect corruption and accidental artifact mixing. They provide neither authentication nor protection from coherent malicious rewriting.
 

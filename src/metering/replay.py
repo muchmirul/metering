@@ -151,6 +151,15 @@ class ManifestFacts:
 
 
 @dataclass(frozen=True, slots=True)
+class ReferenceFacts:
+    """The parts of a validated reference that later checks depend on."""
+
+    hidden_fault_id: str
+    final_state: Mapping[str, Any]
+    bound_hashes: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
 class ReplayState:
     """Controller state reconstructed without executing a policy or RNG."""
 
@@ -339,7 +348,7 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> ManifestFacts:
 
 def _validate_reference(
     reference: Mapping[str, Any], facts: ManifestFacts
-) -> tuple[str, dict[str, Any], dict[str, str]]:
+) -> ReferenceFacts:
     """Check the private artifact against the manifest and its commitment.
 
     The manifest published a salted hash of the generated truth before the
@@ -439,7 +448,7 @@ def _validate_reference(
         for name in ("manifest_sha256", "events_sha256")
     }
     _check.finite_json(data, "reference")
-    return hidden_fault_id, final_state, bound_hashes
+    return ReferenceFacts(hidden_fault_id, final_state, bound_hashes)
 
 
 def _canonical_bytes(
@@ -827,15 +836,13 @@ def replay_trace(
     """
 
     facts = _validate_manifest(manifest)
-    hidden_fault_id, recorded_final_state, bound_hashes = _validate_reference(
-        reference, facts
-    )
+    reference_facts = _validate_reference(reference, facts)
     supplied = None if artifact_bytes is None else _supplied_bytes(artifact_bytes)
 
     _validate_event_envelopes(events, facts)
     _validate_run_started(events[0], facts)
-    walk = _walk_trace(events, facts, hidden_fault_id)
-    _compare_final_state(walk, recorded_final_state)
+    walk = _walk_trace(events, facts, reference_facts.hidden_fault_id)
+    _compare_final_state(walk, reference_facts.final_state)
 
     # Byte comparisons come last so that a contradictory observation is reported
     # as trace corruption rather than as an unexplained hash mismatch.
@@ -848,7 +855,7 @@ def replay_trace(
         f"{name}_sha256": sha256_hex(raw[name]) for name in _ARTIFACT_NAMES
     }
     for name in ("manifest_sha256", "events_sha256"):
-        if computed_hashes[name] != bound_hashes[name]:
+        if computed_hashes[name] != reference_facts.bound_hashes[name]:
             raise ReportError(
                 f"{name} does not match the reference artifact binding"
             )
@@ -857,7 +864,7 @@ def replay_trace(
     assert walk.termination_step is not None
     return ReplayState(
         public_instance=facts.instance,
-        hidden_fault_id=hidden_fault_id,
+        hidden_fault_id=reference_facts.hidden_fault_id,
         artifact_set_id=facts.artifact_set_id,
         artifact_hashes=computed_hashes,
         action_budget=facts.action_budget,

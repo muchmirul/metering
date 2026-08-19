@@ -27,7 +27,6 @@ def _run_policy(api, tmp_path, policy_name, fault_index, *, seed=None, suffix=""
         parent_dir=tmp_path / policy_name,
         budget=64,
         run_id=f"{policy_name}-{fault_index}{suffix}",
-        seed=seed,
     )
 
 
@@ -111,28 +110,15 @@ def test_calibration_information_aggregation_is_ratio_of_sums(api, tmp_path):
     assert ratio_of_sums != pytest.approx(unweighted_mean)
     assert ratio_of_sums < 1.0  # balanced aggregate is exactly one bit per observation
 
-    aggregate = getattr(api.report_module, "aggregate_reports", None)
-    if aggregate is not None:
-        summary = aggregate(reports)
-        measured = get_path(
-            summary,
-            "information.bits_per_diagnostic_observation",
-            "diagnostic_information.bits_per_diagnostic_observation",
-            "bits_per_diagnostic_observation",
-        )
-        excess = get_path(
-            summary,
-            "information.excess_observations",
-            "diagnostic_information.excess_observations",
-            "excess_observations",
-        )
-        assert measured == pytest.approx(ratio_of_sums)
-        assert excess == 11
-        assert all(
-            "excess_observations"
-            not in get_path(report, "information", "diagnostic_information")
-            for report in reports
-        )
+    summary = api.report_module.aggregate_reports(reports)
+    measured = get_path(summary, "diagnostic_information.bits_per_diagnostic_observation")
+    excess = get_path(summary, "diagnostic_information.excess_observations")
+    assert measured == pytest.approx(ratio_of_sums)
+    assert excess == 11
+    assert all(
+        "excess_observations" not in get_path(report, "diagnostic_information")
+        for report in reports
+    )
 
 
 def test_suite_bound_is_null_for_arbitrary_report_collections(api, tmp_path):
@@ -211,7 +197,6 @@ def test_seeded_random_policy_replays_identically_for_same_seed(api, tmp_path):
         parent_dir=tmp_path / "first",
         budget=64,
         run_id="seeded-one",
-        seed=seed,
     )
     second = api.run(
         harness=api.policy("seeded_random", seed=seed),
@@ -219,7 +204,6 @@ def test_seeded_random_policy_replays_identically_for_same_seed(api, tmp_path):
         parent_dir=tmp_path / "second",
         budget=64,
         run_id="seeded-two",
-        seed=seed,
     )
 
     assert canonical_events(first.events) == canonical_events(second.events)
