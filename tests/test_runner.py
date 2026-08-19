@@ -254,6 +254,34 @@ def test_finish_as_last_budgeted_action_is_normal_not_exhaustion(api, tmp_path):
     _assert_reason_contains(artifacts, "normal", "finish")
 
 
+def test_full_success_is_recorded_when_the_winning_sequence_fills_the_budget(
+    api, tmp_path
+):
+    """A correct diagnose-repair-verify-finish run whose finish lands on the
+    last budgeted action must be recorded as a success, not as exhaustion."""
+    fault = api.fault_ids[2]
+    budget = 6
+    actions = [
+        api.action("diagnose", api.test_ids[0]),
+        api.action("diagnose", api.test_ids[1]),
+        api.action("diagnose", api.test_ids[2]),
+        api.action("repair", fault),
+        api.action("verify"),
+        api.action("finish"),
+    ]
+    harness, artifacts = _run_script(
+        api, tmp_path, fault, actions, budget=budget, run_id="success-at-boundary"
+    )
+
+    assert harness.action_calls == budget
+    assert resource_count(artifacts.report, "total") == budget
+    assert resource_count(artifacts.report, "budget_exhausted") is False
+    assert verification_fact(artifacts.report, "success") is True
+    assert verification_fact(artifacts.report, "repair_matches") is True
+    assert verification_fact(artifacts.report, "verified_after_final_repair") is True
+    assert verification_fact(artifacts.report, "terminated_normally") is True
+
+
 class DescriptorlessHarness:
     """Name/version attributes must not revive the removed implicit fallback."""
 

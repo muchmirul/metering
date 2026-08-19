@@ -181,7 +181,7 @@ The run directory must be new or empty, because a run owns the files it writes a
 
 The `hidden_fault_id` argument sets controller-private truth. The controller passes neither that value nor the world object to the policy callback, so choosing the fault here tells the policy nothing and the run stays a fair measurement.
 
-The committed driver [`examples/run_suite.py`](../examples/run_suite.py) extends this single run into the complete eight-state suite and prints the aggregate readings, so measuring a policy across every hidden state does not require writing the loop yourself.
+The committed driver [`examples/run_suite.py`](../examples/run_suite.py) extends this single run into the complete eight-state suite and prints the aggregate readings, so measuring a policy across every hidden state does not require writing the loop yourself. The driver constructs a fresh policy instance for every hidden state, which keeps the eight runs independent: state a policy keeps on `self` cannot carry over from one run into the next.
 
 ## 4. Choose a built-in policy
 

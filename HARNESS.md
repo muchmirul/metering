@@ -87,9 +87,11 @@ uv run python examples/run_suite.py my_policy:MyPolicy --json
 
 The `module:Class` argument is imported with your current working directory on
 the import path, and the class must be constructible with no arguments. The
-driver runs one fresh directory per hidden fault, prints the headline per-run
-readings and the suite aggregate — the complete readings stay in each run's
-`report.json` — and exits 0 only when all eight runs succeed, so it can gate a
+driver constructs a fresh policy instance and a fresh directory for every
+hidden fault, so the eight runs stay independent even when a policy keeps
+state on `self`. It prints the headline per-run readings and the suite
+aggregate — the complete readings stay in each run's `report.json` — and
+exits 0 only when all eight runs succeed, so it can gate a
 continuous-integration check directly. Without `--json` it prints
 human-readable tables; sanity-check the plumbing first with a reference
 policy:

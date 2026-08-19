@@ -15,8 +15,10 @@ Usage, from the repository root:
 
 A ``module:Class`` argument is imported with the current working directory on
 the import path, so a ``my_policy.py`` beside your shell prompt works
-directly.  The class must be constructible with no arguments; to pass
-configuration, edit ``load_policy`` below and build the instance yourself.
+directly.  The class must be constructible with no arguments, and the driver
+constructs a fresh instance for every hidden state so that state kept on a
+policy object cannot leak between the eight runs.  To pass configuration,
+edit ``load_policy_factory`` below and return your own zero-argument factory.
 
 The script exits 0 only when every run in the suite succeeds, so it can gate
 continuous-integration checks for a harness.  The run directories are always
@@ -33,6 +35,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -57,11 +60,11 @@ REFERENCE_POLICIES = {
 }
 
 
-def load_policy(spec: str) -> HarnessPolicy:
-    """Return a policy instance for a reference name or ``module:Class`` spec."""
+def load_policy_factory(spec: str) -> Callable[[], HarnessPolicy]:
+    """Return a zero-argument policy factory for a name or ``module:Class`` spec."""
 
     if spec in REFERENCE_POLICIES:
-        return REFERENCE_POLICIES[spec]()
+        return REFERENCE_POLICIES[spec]
     if ":" not in spec:
         names = ", ".join(sorted(REFERENCE_POLICIES))
         raise ValueError(f"expected one of {names}, or module:ClassName")
@@ -69,18 +72,28 @@ def load_policy(spec: str) -> HarnessPolicy:
     sys.path.insert(0, os.getcwd())
     module = importlib.import_module(module_name)
     policy_class = getattr(module, class_name)
-    # To hardcode a configured policy instead, replace this call with your own
-    # construction, for example ``return MyPolicy(depth=2)``.
-    return policy_class()
+    # To hardcode a configured policy instead, return your own zero-argument
+    # factory here, for example ``lambda: MyPolicy(depth=2)``.
+    return policy_class
 
 
 def run_suite(
-    policy: HarnessPolicy, parent: Path, action_budget: int
+    policy_factory: Callable[[], HarnessPolicy], parent: Path, action_budget: int
 ) -> list[RunResult]:
-    """Run the policy once per hidden fault, each into a fresh directory."""
+    """Run one fresh policy per hidden fault, each into a fresh directory.
+
+    A new instance per run keeps the eight runs independent.  Reusing one
+    object would leak instance state across hidden states, making an honest
+    stateful policy fail every run after its first and letting a policy that
+    counts invocations exploit the fixed fault order.
+    """
 
     results: list[RunResult] = []
     for fault_id in HiddenFaultSpec.default().fault_ids:
+        try:
+            policy = policy_factory()
+        except Exception as error:  # constructing user code can raise anything
+            raise PolicyError(f"could not construct policy: {error}") from error
         results.append(
             run_hidden_fault(
                 policy,
@@ -187,17 +200,18 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        policy = load_policy(args.policy)
+        policy_factory = load_policy_factory(args.policy)
     except Exception as error:  # importing user code can raise anything
         print(f"could not load policy {args.policy!r}: {error}", file=sys.stderr)
         return 2
 
     try:
-        results = run_suite(policy, parent, args.budget)
+        results = run_suite(policy_factory, parent, args.budget)
     except (RunnerError, PolicyError) as error:
-        # These mean the descriptor, world, or configuration was rejected
-        # before or between runs.  A crash inside next_action() does not raise;
-        # it terminates that run and appears in its report as harness_crash.
+        # These mean the policy could not be constructed or its descriptor,
+        # world, or configuration was rejected before or between runs.  A
+        # crash inside next_action() does not raise; it terminates that run
+        # and appears in its report as harness_crash.
         print(f"suite rejected: {error}", file=sys.stderr)
         return 1
 
@@ -210,7 +224,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.as_json:
         document = {
-            "policy": policy.descriptor(),
+            # The descriptor as validated and recorded for the first run; all
+            # runs share it because they come from the same factory.
+            "policy": dict(results[0].manifest["policy"]),
             "run_parent": str(parent),
             "per_run": rows,
             "suite": suite,

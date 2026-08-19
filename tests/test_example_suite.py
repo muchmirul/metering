@@ -142,3 +142,139 @@ def test_example_suite_driver_loads_module_colon_class_policies(tmp_path):
     suite = document["suite"]
     assert suite["successful_runs"] == 8
     assert suite["diagnostic_information"]["excess_observations"] is not None
+
+
+STATEFUL_POLICY_SOURCE = """
+from metering import Diagnose, Finish, Repair, Verify
+from metering.events import DiagnosticObservation
+from metering.policies import remaining_candidates
+
+
+class StatefulPolicy:
+    \"\"\"Correct policy that keeps its phase on the instance between calls.\"\"\"
+
+    name = "stateful-phase"
+    version = "1"
+
+    def __init__(self):
+        self.repaired = False
+        self.verified = False
+
+    def descriptor(self):
+        return {
+            "name": self.name,
+            "version": self.version,
+            "configuration": {"keeps_phase_on_instance": True},
+            "seed_policy": {"kind": "none"},
+        }
+
+    def next_action(self, instance, observations):
+        if self.verified:
+            return Finish()
+        if self.repaired:
+            self.verified = True
+            return Verify()
+        candidates = remaining_candidates(instance, observations)
+        if len(candidates) == 1:
+            self.repaired = True
+            return Repair(candidates[0])
+        used = {
+            item.test_id
+            for item in observations
+            if isinstance(item, DiagnosticObservation)
+        }
+        for test in instance.diagnostic_tests:
+            positive = set(candidates) & set(test.positive_fault_ids)
+            if test.test_id not in used and 0 < len(positive) < len(candidates):
+                return Diagnose(test.test_id)
+        return Repair(candidates[0])
+"""
+
+
+def test_example_suite_driver_constructs_a_fresh_policy_per_run(tmp_path):
+    """A shared instance would leak phase state from run one into runs two
+    through eight, so a correct stateful policy would score one success out
+    of eight.  The driver must construct a fresh instance per hidden state."""
+    (tmp_path / "stateful_policy.py").write_text(
+        STATEFUL_POLICY_SOURCE, encoding="utf-8"
+    )
+
+    completed = _run_driver(
+        [
+            "stateful_policy:StatefulPolicy",
+            "--run-parent",
+            str(tmp_path / "suite"),
+            "--json",
+        ],
+        cwd=tmp_path,
+    )
+    assert completed.returncode == 0, (
+        f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}"
+    )
+
+    document = json.loads(completed.stdout)
+    assert document["policy"]["name"] == "stateful-phase"
+    assert document["suite"]["successful_runs"] == 8
+    assert all(row["overall_task_success"] is True for row in document["per_run"])
+
+
+ORDER_COUNTER_POLICY_SOURCE = """
+from metering import Finish, Repair, Verify
+from metering.events import RepairObservation, VerificationObservation
+
+
+class OrderCounterPolicy:
+    \"\"\"Repairs blind by counting how often this one object has been used.\"\"\"
+
+    name = "order-counter"
+    version = "1"
+
+    def __init__(self):
+        self.runs_seen = 0
+
+    def descriptor(self):
+        return {
+            "name": self.name,
+            "version": self.version,
+            "configuration": {"counts_runs_across_reuse": True},
+            "seed_policy": {"kind": "none"},
+        }
+
+    def next_action(self, instance, observations):
+        if not observations:
+            self.runs_seen += 1
+            return Repair(instance.fault_ids[self.runs_seen - 1])
+        if isinstance(observations[-1], RepairObservation):
+            return Verify()
+        return Finish()
+"""
+
+
+def test_example_suite_driver_keeps_the_eight_runs_independent(tmp_path):
+    """With a shared instance, counting invocations exploits the fixed fault
+    order: eight successes with zero diagnostics and a negative excess that
+    beats the binary-tree bound.  Fresh instances make every run identical,
+    so a blind first-fault repair succeeds exactly once."""
+    (tmp_path / "order_counter_policy.py").write_text(
+        ORDER_COUNTER_POLICY_SOURCE, encoding="utf-8"
+    )
+
+    completed = _run_driver(
+        [
+            "order_counter_policy:OrderCounterPolicy",
+            "--run-parent",
+            str(tmp_path / "suite"),
+            "--json",
+        ],
+        cwd=tmp_path,
+    )
+    assert completed.returncode == 1, (
+        f"stdout:\n{completed.stdout}\n\nstderr:\n{completed.stderr}"
+    )
+
+    document = json.loads(completed.stdout)
+    successes = [row["overall_task_success"] for row in document["per_run"]]
+    assert successes == [True] + [False] * 7
+    suite = document["suite"]
+    assert suite["successful_runs"] == 1
+    assert suite["diagnostic_information"]["excess_observations"] is None

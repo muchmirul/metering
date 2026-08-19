@@ -18,6 +18,12 @@ from contract import (
     resource_count,
     verification_fact,
 )
+from metering import (
+    BalancedSearchPolicy,
+    DiagnosticTest,
+    HiddenFaultSpec,
+    run_hidden_fault,
+)
 
 
 def _run_policy(api, tmp_path, policy_name, fault_index, *, seed=None, suffix=""):
@@ -130,6 +136,77 @@ def test_suite_bound_is_null_for_arbitrary_report_collections(api, tmp_path):
         aggregate = api.report_module.aggregate_reports([report] * report_count)
         assert aggregate["run_count"] == report_count
         assert aggregate["diagnostic_information"]["excess_observations"] is None
+
+
+def _world_spec(state_count, split_bits, instance_version="1"):
+    """Build a valid non-canonical world with balanced splits and singletons."""
+    faults = tuple(f"fault-{index}" for index in range(state_count))
+    tests = [
+        DiagnosticTest(
+            f"split-{bit + 1}",
+            f"split {bit + 1}",
+            tuple(fault for index, fault in enumerate(faults) if (index >> bit) & 1),
+        )
+        for bit in range(split_bits)
+    ]
+    tests += [DiagnosticTest(f"check-{f}", f"check {f}", (f,)) for f in faults]
+    return HiddenFaultSpec("hidden-fault", "1", instance_version, faults, tuple(tests))
+
+
+def _successful_reports(spec, parent, fault_ids=None, instance_id=None):
+    reports = []
+    for fault_id in fault_ids or spec.fault_ids:
+        keywords = {} if instance_id is None else {"instance_id": instance_id}
+        result = run_hidden_fault(
+            BalancedSearchPolicy(), fault_id, parent / fault_id, spec=spec, **keywords
+        )
+        assert result.report["correctness"]["overall_task_success"] is True
+        reports.append(result.report)
+    return reports
+
+
+def test_suite_bound_derives_from_the_declared_world(api, tmp_path):
+    """The bound is the tree minimum for the world's own state count, not 24."""
+    reports = _successful_reports(_world_spec(4, 2), tmp_path / "four-state")
+    aggregate = api.report_module.aggregate_reports(reports)
+
+    assert aggregate["successful_runs"] == 4
+    # Four leaves need a total depth of eight, and balanced search spends
+    # exactly two observations per state, so the suite sits on the bound.
+    assert aggregate["resources"]["diagnostic_observations"] == 8
+    assert aggregate["diagnostic_information"]["excess_observations"] == 0
+
+
+def test_suite_bound_is_null_for_partial_coverage_of_a_larger_world(api, tmp_path):
+    """Eight successful runs of a sixteen-state world must not be metered
+    against the eight-state bound of 24."""
+    spec = _world_spec(16, 4)
+    reports = _successful_reports(
+        spec, tmp_path / "sixteen-state", spec.fault_ids[:8]
+    )
+    aggregate = api.report_module.aggregate_reports(reports)
+
+    assert aggregate["run_count"] == 8
+    assert aggregate["successful_runs"] == 8
+    assert aggregate["diagnostic_information"]["excess_observations"] is None
+
+
+def test_suite_bound_is_null_for_mixed_world_collections(api, tmp_path):
+    """Reports from two different worlds never combine into one suite bound."""
+    canonical = [
+        _run_policy(api, tmp_path, "balanced", index, suffix="-mixed").report
+        for index in range(4)
+    ]
+    other = _successful_reports(
+        _world_spec(4, 2),
+        tmp_path / "other-world",
+        instance_id="four-state-instance",
+    )
+    aggregate = api.report_module.aggregate_reports(canonical + other)
+
+    assert aggregate["run_count"] == 8
+    assert aggregate["successful_runs"] == 8
+    assert aggregate["diagnostic_information"]["excess_observations"] is None
 
 
 def test_failed_suite_reports_no_excess_observation_value(api, tmp_path):
