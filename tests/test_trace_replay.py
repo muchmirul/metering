@@ -1,21 +1,16 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
 from contract import (
-    ContractError,
     canonical_events,
     event_payload,
     event_step,
     get_path,
     recursive_keys,
-    recursive_values_for_keys,
-    report_resources,
     termination_reason,
-    verification_fact,
 )
 
 
@@ -323,3 +318,40 @@ def test_meter_failure_cannot_change_completed_world_execution_or_trace(
         name: (run_dir / name).read_bytes()
         for name in ("manifest.json", "events.jsonl", "reference.json")
     } == raw_before
+
+
+def test_failed_atomic_write_does_not_close_a_descriptor_it_no_longer_owns(
+    api, tmp_path, monkeypatch
+):
+    """A failing artifact write must not close an unrelated open file.
+
+    ``write_json_atomic`` hands its temporary descriptor to ``os.fdopen``.  Once
+    that succeeds the file object owns the descriptor, and the number can be
+    reissued to any file opened afterwards.  Closing the raw number again on the
+    error path would then reach whatever now holds it.
+    """
+
+    victim_path = tmp_path / "unrelated.txt"
+    victim_path.write_text("important payload\n")
+    opened = []
+
+    def failing_replace(source, destination):
+        # Stands in for any file opened between the write and the error handler.
+        # The descriptor freed moments ago is the one the kernel hands out here.
+        opened.append(victim_path.open("r"))
+        raise OSError(18, "Invalid cross-device link")
+
+    monkeypatch.setattr(api.trace_module.os, "replace", failing_replace)
+    with pytest.raises(OSError):
+        api.trace_module.write_json_atomic(tmp_path / "artifact.json", {"a": 1})
+    monkeypatch.undo()
+
+    victim = opened[0]
+    try:
+        assert victim.read() == "important payload\n"
+    finally:
+        victim.close()
+
+    # The failed write also leaves no partial artifact and no temporary file.
+    assert not (tmp_path / "artifact.json").exists()
+    assert [path.name for path in tmp_path.iterdir()] == ["unrelated.txt"]

@@ -333,6 +333,52 @@ class ActionValidation:
         return cls(False, code, message)
 
 
+def validate_action_in_state(
+    instance: PublicInstance,
+    action: object,
+    *,
+    finished: bool,
+    selected_repair: str | None,
+) -> ActionValidation:
+    """Decide whether one action is legal, from public state alone.
+
+    The rule set lives here, outside the world object, because two callers need
+    it and they must never disagree.  A live run asks through
+    :meth:`HiddenFaultWorld.validate_action`, and offline replay asks directly
+    to recompute why the controller rejected a recorded attempt.  Nothing in
+    these rules depends on the selected fault, so replay can apply them without
+    a world and without the truth.
+    """
+
+    if not isinstance(action, ACTION_TYPES):
+        return ActionValidation.reject(
+            "invalid_action_type",
+            "harness output must be a typed Metering action",
+        )
+    if finished:
+        return ActionValidation.reject(
+            "world_finished", "the world is already finished"
+        )
+    if isinstance(action, Diagnose):
+        if instance.diagnostic_test(action.test_id) is None:
+            return ActionValidation.reject(
+                "unknown_test_id",
+                "diagnostic test is not in the public catalogue",
+            )
+    elif isinstance(action, Repair):
+        if action.fault_id not in instance.fault_ids:
+            return ActionValidation.reject(
+                "unknown_fault_id", "repair is not in the public fault catalogue"
+            )
+    elif isinstance(action, Verify):
+        if selected_repair is None:
+            return ActionValidation.reject(
+                "verify_without_repair",
+                "a repair must be selected before verification",
+            )
+    return ActionValidation.accept()
+
+
 class HiddenFaultWorld:
     """One mutable instance with private hidden state.
 
@@ -379,33 +425,12 @@ class HiddenFaultWorld:
         unit of budget.
         """
 
-        if not isinstance(action, ACTION_TYPES):
-            return ActionValidation.reject(
-                "invalid_action_type",
-                "harness output must be a typed Metering action",
-            )
-        if self._finished:
-            return ActionValidation.reject(
-                "world_finished", "the world is already finished"
-            )
-        if isinstance(action, Diagnose):
-            if self._public.diagnostic_test(action.test_id) is None:
-                return ActionValidation.reject(
-                    "unknown_test_id",
-                    "diagnostic test is not in the public catalogue",
-                )
-        elif isinstance(action, Repair):
-            if action.fault_id not in self._public.fault_ids:
-                return ActionValidation.reject(
-                    "unknown_fault_id", "repair is not in the public fault catalogue"
-                )
-        elif isinstance(action, Verify):
-            if self._selected_repair is None:
-                return ActionValidation.reject(
-                    "verify_without_repair",
-                    "a repair must be selected before verification",
-                )
-        return ActionValidation.accept()
+        return validate_action_in_state(
+            self._public,
+            action,
+            finished=self._finished,
+            selected_repair=self._selected_repair,
+        )
 
     def apply(self, action: Action) -> tuple[Observation, RawActionCost]:
         """Apply one validated action and return its observation and raw cost."""

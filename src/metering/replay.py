@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from .binding import (
+    GENERATED_INSTANCE_FIELDS,
     REFERENCE_COMMITMENT_ALGORITHM,
     BindingError,
     compute_reference_commitment,
@@ -40,7 +41,7 @@ from .events import (
     action_from_dict,
     observation_from_dict,
 )
-from .hidden_fault import HiddenFaultSpec, PublicInstance
+from .hidden_fault import HiddenFaultSpec, PublicInstance, validate_action_in_state
 from .provenance import implementation_provenance
 from .schema import (
     EVENT_INTERACTION,
@@ -75,22 +76,6 @@ _MANIFEST_FIELDS = (
     "reproducibility",
     "implementation",
 )
-_INSTANCE_FIELDS = (
-    "schema_version",
-    "world_id",
-    "world_version",
-    "instance_id",
-    "instance_version",
-    "fault_ids",
-    "diagnostic_tests",
-)
-_SPECIFICATION_FIELDS = (
-    "world_id",
-    "world_version",
-    "instance_version",
-    "fault_ids",
-    "diagnostic_tests",
-)
 _REFERENCE_FIELDS = (
     "schema_version",
     "artifact_set_id",
@@ -103,13 +88,6 @@ _REFERENCE_FIELDS = (
     "generated_instance",
     "final_world_state",
     "artifact_hashes",
-)
-_GENERATED_INSTANCE_FIELDS = (
-    "world_id",
-    "world_version",
-    "instance_id",
-    "instance_version",
-    "hidden_fault_id",
 )
 _FINAL_STATE_FIELDS = (
     "selected_repair",
@@ -299,17 +277,11 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> ManifestFacts:
     )
     run_id = _check.text(data["run_id"], "manifest.run_id")
 
+    # Both decoders enforce their own exact key sets, so replay decodes instead
+    # of repeating those field lists and risking a stale second copy.
     try:
-        instance = PublicInstance.from_dict(
-            _check.exact_keys(data["instance"], _INSTANCE_FIELDS, "manifest.instance")
-        )
-        specification = HiddenFaultSpec.from_dict(
-            _check.exact_keys(
-                data["world_specification"],
-                _SPECIFICATION_FIELDS,
-                "manifest.world_specification",
-            )
-        )
+        instance = PublicInstance.from_dict(data["instance"])
+        specification = HiddenFaultSpec.from_dict(data["world_specification"])
     except ValueError as exc:
         raise ReportError(f"invalid manifest world definition: {exc}") from exc
     if specification.public_instance(instance.instance_id) != instance:
@@ -382,7 +354,7 @@ def _validate_reference(
 
     generated = _check.exact_keys(
         data["generated_instance"],
-        _GENERATED_INSTANCE_FIELDS,
+        GENERATED_INSTANCE_FIELDS,
         "reference.generated_instance",
     )
     for key in ("world_id", "world_version", "instance_id", "instance_version"):
@@ -551,7 +523,12 @@ def _expected_interaction(
 def _expected_protocol_error_code(
     attempted: Any, instance: PublicInstance, selected_repair: str | None
 ) -> str:
-    """Recompute why the controller must have rejected the recorded attempt."""
+    """Recompute why the controller must have rejected the recorded attempt.
+
+    The rules come from :func:`validate_action_in_state`, the same function the
+    live world uses, so replay cannot drift away from what the controller
+    actually enforced.
+    """
 
     if attempted is None:
         return "invalid_action_type"
@@ -562,13 +539,14 @@ def _expected_protocol_error_code(
         raise ReportError(
             f"protocol error has a malformed action record: {exc}"
         ) from exc
-    if isinstance(action, Diagnose) and instance.diagnostic_test(action.test_id) is None:
-        return "unknown_test_id"
-    if isinstance(action, Repair) and action.fault_id not in instance.fault_ids:
-        return "unknown_fault_id"
-    if isinstance(action, Verify) and selected_repair is None:
-        return "verify_without_repair"
-    raise ReportError("protocol_error records an action valid in replayed state")
+    # A protocol error never follows a finish, because the walk requires a
+    # finish to be followed immediately by termination.
+    validation = validate_action_in_state(
+        instance, action, finished=False, selected_repair=selected_repair
+    )
+    if validation.valid:
+        raise ReportError("protocol_error records an action valid in replayed state")
+    return validation.code
 
 
 def _validate_event_envelopes(
@@ -617,13 +595,7 @@ def _validate_run_started(first: Event, facts: ManifestFacts) -> None:
     ):
         raise ReportError("run_started artifact_set_id does not match manifest")
     try:
-        start_instance = PublicInstance.from_dict(
-            _check.exact_keys(
-                start["public_instance"],
-                _INSTANCE_FIELDS,
-                "run_started.public_instance",
-            )
-        )
+        start_instance = PublicInstance.from_dict(start["public_instance"])
     except ValueError as exc:
         raise ReportError(f"invalid run_started public instance: {exc}") from exc
     if start_instance != facts.instance:

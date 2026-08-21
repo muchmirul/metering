@@ -87,6 +87,13 @@ def _unused_informative_tests(
     observations: Sequence[Observation],
     candidates: Sequence[str],
 ) -> list[tuple[int, DiagnosticTest]]:
+    """Return the unused catalogue tests that still split the candidates.
+
+    An empty result means the policy has been asked to keep searching with
+    nothing left that could narrow anything, so it raises here rather than
+    leaving each caller to repeat the same check.
+    """
+
     used = {
         observation.test_id
         for observation in observations
@@ -100,6 +107,8 @@ def _unused_informative_tests(
         positive_count = len(candidate_set.intersection(test.positive_fault_ids))
         if 0 < positive_count < len(candidate_set):
             result.append((catalogue_index, test))
+    if not result:
+        raise PolicyError("no unused catalogue test can separate the candidates")
     return result
 
 
@@ -129,8 +138,6 @@ class BalancedSearchPolicy:
             return Repair(candidates[0])
 
         choices = _unused_informative_tests(instance, observations, candidates)
-        if not choices:
-            raise PolicyError("no unused catalogue test can separate the candidates")
 
         candidate_set = set(candidates)
         # max(min(side sizes)) selects the most even split.  Negating the
@@ -221,8 +228,6 @@ class SeededRandomSearchPolicy:
             return Repair(candidates[0])
 
         choices = _unused_informative_tests(instance, observations, candidates)
-        if not choices:
-            raise PolicyError("no unused catalogue test can separate the candidates")
 
         diagnostic_history = ";".join(
             f"{item.test_id}:{int(item.positive)}"

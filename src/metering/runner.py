@@ -283,11 +283,11 @@ def _policy_descriptor(policy: object) -> dict[str, Any]:
     else:
         raise RunnerError("unknown policy seed declaration")
 
+    # finite_json has already rejected everything JSON cannot carry exactly, so
+    # this round trip cannot fail.  It is here to take a deep copy, which stops
+    # a policy that kept a reference from editing the manifest after the fact.
     _check.finite_json(descriptor, "policy descriptor")
-    try:
-        return json.loads(json.dumps(descriptor, allow_nan=False, sort_keys=True))
-    except (TypeError, ValueError) as exc:
-        raise RunnerError("policy descriptor must contain finite JSON values") from exc
+    return json.loads(json.dumps(descriptor, allow_nan=False, sort_keys=True))
 
 
 def _prepare_run_directory(run_dir: str | Path) -> RunPaths:
@@ -298,7 +298,13 @@ def _prepare_run_directory(run_dir: str | Path) -> RunPaths:
         if any(path.iterdir()):
             raise RunnerError(f"run directory is not empty: {path}")
     else:
-        path.mkdir(parents=True)
+        # exists() is already False for a dangling symlink, and an unwritable
+        # parent fails here too, so both arrive as this module's error type
+        # instead of a bare OSError from the middle of a run.
+        try:
+            path.mkdir(parents=True)
+        except OSError as exc:
+            raise RunnerError(f"cannot create run directory {path}: {exc}") from exc
     return RunPaths.at(path)
 
 

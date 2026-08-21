@@ -112,18 +112,23 @@ def write_json_atomic(path: str | Path, value: Any, *, private: bool = False) ->
         prefix=f".{destination.name}.", dir=destination.parent
     )
     temporary = Path(temporary_name)
+    # The descriptor is closed by exactly one owner.  Until os.fdopen succeeds
+    # that owner is this function; afterwards it is the file object, and closing
+    # the raw number a second time could reach an unrelated file that reused it.
     try:
         os.fchmod(file_descriptor, mode)
-        with os.fdopen(file_descriptor, "wb") as handle:
+        handle = os.fdopen(file_descriptor, "wb")
+    except BaseException:
+        os.close(file_descriptor)
+        temporary.unlink(missing_ok=True)
+        raise
+    try:
+        with handle:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, destination)
     except BaseException:
-        try:
-            os.close(file_descriptor)
-        except OSError:
-            pass
         temporary.unlink(missing_ok=True)
         raise
     return destination

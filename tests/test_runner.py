@@ -9,7 +9,6 @@ from contract import (
     ScriptedHarness,
     event_payload,
     event_type,
-    jsonable,
     recursive_keys,
     resource_count,
     termination_reason,
@@ -314,3 +313,22 @@ def test_harness_without_exact_callable_descriptor_is_rejected_before_execution(
     assert harness.action_calls == 0
     assert not requested.exists()
     assert not list(tmp_path.rglob("events.jsonl"))
+
+
+def test_unusable_run_path_fails_with_the_runner_error_type(api, tmp_path):
+    """A run directory that cannot be created must raise RunnerError.
+
+    ``Path.exists()`` is False for a dangling symlink, so the create branch is
+    reached and ``mkdir`` fails.  Callers catch this module's error type, and a
+    bare OSError escaping from inside a run would slip past them.
+    """
+
+    dangling = tmp_path / "dangling"
+    dangling.symlink_to(tmp_path / "no-such-target")
+    assert not dangling.exists() and dangling.is_symlink()
+
+    harness = ScriptedHarness([api.action("finish")])
+    with pytest.raises(api.runner_module.RunnerError, match="run directory"):
+        api.runner_module.run_hidden_fault(
+            harness, api.fault_ids[0], dangling, spec=api.spec, action_budget=8
+        )

@@ -21,7 +21,7 @@ from .trace import canonical_json, sha256_hex
 
 REFERENCE_COMMITMENT_ALGORITHM = "sha256"
 
-_GENERATED_INSTANCE_FIELDS = (
+GENERATED_INSTANCE_FIELDS = (
     "world_id",
     "world_version",
     "instance_id",
@@ -52,14 +52,14 @@ def reference_commitment_payload(
     _check.text(artifact_set_id, "artifact_set_id")
     _check.text(binding_nonce, "binding_nonce")
     fields = _check.exact_keys(
-        generated_instance, _GENERATED_INSTANCE_FIELDS, "generated_instance"
+        generated_instance, GENERATED_INSTANCE_FIELDS, "generated_instance"
     )
     return {
         "artifact_set_id": artifact_set_id,
         "binding_nonce": binding_nonce,
         "generated_instance": {
             key: _check.text(fields[key], f"generated_instance.{key}")
-            for key in sorted(_GENERATED_INSTANCE_FIELDS)
+            for key in sorted(GENERATED_INSTANCE_FIELDS)
         },
     }
 
