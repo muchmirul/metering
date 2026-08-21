@@ -1,0 +1,109 @@
+{
+  "per_run": [
+    {
+      "diagnostic_observations": 3,
+      "fault_id": "fault-0",
+      "overall_task_success": true,
+      "run_dir": "/home/dev/metering-self/runs/iter1-memory4/fault-0",
+      "termination_reason": "normal_finish",
+      "uncertainty_removed_bits": 3.0
+    },
+    {
+      "diagnostic_observations": 3,
+      "fault_id": "fault-1",
+      "overall_task_success": true,
+      "run_dir": "/home/dev/metering-self/runs/iter1-memory4/fault-1",
+      "termination_reason": "normal_finish",
+      "uncertainty_removed_bits": 3.0
+    },
+    {
+      "diagnostic_observations": 3,
+      "fault_id": "fault-2",
+      "overall_task_success": true,
+      "run_dir": "/home/dev/metering-self/runs/iter1-memory4/fault-2",
+      "termination_reason": "normal_finish",
+      "uncertainty_removed_bits": 3.0
+    },
+    {
+      "diagnostic_observations": 3,
+      "fault_id": "fault-3",
+      "overall_task_success": true,
+      "run_dir": "/home/dev/metering-self/runs/iter1-memory4/fault-3",
+      "termination_reason": "normal_finish",
+      "uncertainty_removed_bits": 3.0
+    },
+    {
+      "diagnostic_observations": 3,
+      "fault_id": "fault-4",
+      "overall_task_success": true,
+      "run_dir": "/home/dev/metering-self/runs/iter1-memory4/fault-4",
+      "termination_reason": "normal_finish",
+      "uncertainty_removed_bits": 3.0
+    },
+    {
+      "diagnostic_observations": 3,
+      "fault_id": "fault-5",
+      "overall_task_success": true,
+      "run_dir": "/home/dev/metering-self/runs/iter1-memory4/fault-5",
+      "termination_reason": "normal_finish",
+      "uncertainty_removed_bits": 3.0
+    },
+    {
+      "diagnostic_observations": 3,
+      "fault_id": "fault-6",
+      "overall_task_success": true,
+      "run_dir": "/home/dev/metering-self/runs/iter1-memory4/fault-6",
+      "termination_reason": "normal_finish",
+      "uncertainty_removed_bits": 3.0
+    },
+    {
+      "diagnostic_observations": 3,
+      "fault_id": "fault-7",
+      "overall_task_success": true,
+      "run_dir": "/home/dev/metering-self/runs/iter1-memory4/fault-7",
+      "termination_reason": "normal_finish",
+      "uncertainty_removed_bits": 3.0
+    }
+  ],
+  "policy": {
+    "configuration": {
+      "harness_provenance": {
+        "entries_global": 0,
+        "entries_local": 4,
+        "generator_version": 2,
+        "harness_state_digest": "9b99989deca6125daedbed62bb3df438da4bda9670caa577af249c92774fd6af",
+        "memory_ids": [
+          "ipython-nested-quote-workaround",
+          "qwen-evolve-artifact-location",
+          "qwen-evolve-failclosed-design",
+          "qwen-evolve-self-refine-state"
+        ]
+      },
+      "strategy": "balanced",
+      "tie_break": "public_catalogue_order"
+    },
+    "name": "self-evolve-generated",
+    "seed_policy": {
+      "kind": "none"
+    },
+    "version": "2"
+  },
+  "run_parent": "/home/dev/metering-self/runs/iter1-memory4",
+  "suite": {
+    "diagnostic_information": {
+      "aggregation": "ratio_of_sums",
+      "bits_per_diagnostic_observation": 1.0,
+      "excess_observations": 0,
+      "total_uncertainty_removed_bits": 24.0
+    },
+    "resources": {
+      "budget_exhausted_runs": 0,
+      "diagnostic_observations": 24,
+      "repair_actions": 8,
+      "total_actions": 48,
+      "verification_actions": 8
+    },
+    "run_count": 8,
+    "successful_runs": 8
+  }
+}

@@ -1,0 +1,119 @@
+{
+  "digest": "9b99989deca6125daedbed62bb3df438da4bda9670caa577af249c92774fd6af",
+  "generator_version": 2,
+  "global_store": {
+    "exists": false,
+    "path": "/home/dev/.prime/agent/harness/harness_state.json",
+    "raw": {}
+  },
+  "local_store": {
+    "exists": true,
+    "path": "/home/dev/.prime/agent/session-artifacts/01a01fbf-76db-724d-9a4d-1f51e4b5eecf/harness/harness_state.json",
+    "raw": {
+      "entries": {
+        "memory": {
+          "ipython-nested-quote-workaround": {
+            "arguments": {},
+            "content": "Blocker encountered: writing a Python file whose content itself contains a nested triple-quoted f-string template (generator -> generated policy) inside a single IPython cell broke \u2014 the outer r''' string terminated early at the inner triple quotes, so subsequent lines (e.g. `from metering.policies import ...`) executed in the kernel and raised ModuleNotFoundError (metering is not importable in the kernel; it only resolves under `uv run` in the repo). Fix: emit multi-line Python files with `%%bash` + quoted heredoc `cat > path <<'PYEOF'` (quoted delimiter = no shell interpolation) or a direct open(...).write(...) with carefully non-colliding quote delimiters (use ''' for the outer template and \"\"\" for the generated docstring; double {{ }} for literal braces in .format()). Also note: `metering` imports fail in the bare kernel \u2014 always run metering code via `uv run` from /mnt/Tforce/dev/metering.",
+            "created_at": "2026-08-20T15:34:59.116Z",
+            "id": "ipython-nested-quote-workaround",
+            "kind": "memory",
+            "metadata": {
+              "category": "tooling-blocker",
+              "scope": "local"
+            },
+            "path": "tooling/ipython",
+            "reference": {},
+            "scope": "local",
+            "source": "refine",
+            "title": "Use bash heredoc / direct file-write for complex Python templates in IPython cells",
+            "updated_at": "2026-08-20T15:34:59.116Z",
+            "version": 1
+          },
+          "qwen-evolve-artifact-location": {
+            "arguments": {},
+            "content": "Working directory for self-evolve artifacts is /home/dev/metering-self/ with subdirs: adapters/ (generated policy modules), runs/ (suite run artifacts, used instead of the original design's /tmp/metering-self because /tmp may be cleared and before/after evidence must persist), evidence/ (canonical harness-state JSON + digest per tag). Generator is /home/dev/metering-self/generate_adapter.py, run as `python generate_adapter.py --session <session-id> --tag <tag>`. The generated adapter is imported by run_suite.py via PYTHONPATH=/home/dev/metering-self from the repo root; do NOT commit adapter files into the metering repo.",
+            "created_at": "2026-08-20T15:34:59.116Z",
+            "id": "qwen-evolve-artifact-location",
+            "kind": "memory",
+            "metadata": {
+              "project": "metering",
+              "scope": "local",
+              "workdir": "/home/dev/metering-self"
+            },
+            "path": "metering/self-evolve",
+            "reference": {},
+            "scope": "local",
+            "source": "refine",
+            "title": "Self-evolve artifacts live in /home/dev/metering-self (not the repo, not /tmp)",
+            "updated_at": "2026-08-20T15:34:59.116Z",
+            "version": 1
+          },
+          "qwen-evolve-failclosed-design": {
+            "arguments": {},
+            "content": "The adapter generator is a deterministic function of harness state (state is the only input; same code for every state). It reads local store at ~/.prime/agent/session-artifacts/<session>/harness/harness_state.json and global at ~/.prime/agent/harness/harness_state.json (both currently absent). MAPPING v1 covers only the EMPTY state -> balanced default decision rule. Any harness entry whose kind has no defined mapping MUST make the generator REFUSE to generate (fail closed), never silently measure a state the mapping does not cover. Bump GENERATOR_VERSION when extending MAPPED_KINDS. The generated descriptor must record harness_state_digest (sha256 of canonical local+global store documents) and entry counts so before/after readings stay comparable.",
+            "created_at": "2026-08-20T15:34:59.116Z",
+            "id": "qwen-evolve-failclosed-design",
+            "kind": "memory",
+            "metadata": {
+              "design_constraint": "fail-closed",
+              "project": "metering",
+              "scope": "local"
+            },
+            "path": "metering/self-evolve",
+            "reference": {},
+            "scope": "local",
+            "source": "refine",
+            "title": "Adapter generator must be fail-closed on unmapped harness entries",
+            "updated_at": "2026-08-20T15:34:59.116Z",
+            "version": 1
+          },
+          "qwen-evolve-self-refine-state": {
+            "arguments": {},
+            "content": "Continuing the 'qwen-evolve' thread: implementing the 5-step self-refinement feedback loop that uses the metering repo (/mnt/Tforce/dev/metering) as a feedback tool to measure this agent's own harness. Agreed loop: (1) mechanically generate a HarnessPolicy adapter from harness state, (2) measure via `uv run python examples/run_suite.py <module>:GeneratedPolicy --json --run-parent <dir>` from repo root, (3) refine harness, (4) regenerate + re-measure, (5) diff readings and keep/rollback with evidence. Current state: both local and global harness stores are EMPTY (default baseline); the baseline adapter (default = balanced split, public-catalogue-order tie-break) is being built but NOT yet measured \u2014 the 'before' number is still pending. All work is read-only against the repo (only `uv run` of the suite driver).",
+            "created_at": "2026-08-20T15:34:59.116Z",
+            "id": "qwen-evolve-self-refine-state",
+            "kind": "memory",
+            "metadata": {
+              "project": "metering",
+              "scope": "local",
+              "thread": "qwen-evolve"
+            },
+            "path": "metering/self-evolve",
+            "reference": {},
+            "scope": "local",
+            "source": "refine",
+            "title": "Active task: metering self-refinement loop (qwen-evolve continuation)",
+            "updated_at": "2026-08-20T15:34:59.116Z",
+            "version": 1
+          }
+        },
+        "prompt": {},
+        "skill": {},
+        "subagent": {}
+      },
+      "refinements": [
+        {
+          "changes": [
+            "create memory:qwen-evolve-self-refine-state",
+            "create memory:qwen-evolve-artifact-location",
+            "create memory:qwen-evolve-failclosed-design",
+            "create memory:ipython-nested-quote-workaround"
+          ],
+          "created_at": "2026-08-20T15:34:59.116Z",
+          "evidence": "The session is mid-implementation of an agreed design that spans multiple prior sessions. The artifact working directory (/home/dev/metering-self), the fail-closed generator requirement, and the resolved nested-quote blocker are non-obvious, session-specific context needed to continue correctly without re-deriving from history.",
+          "id": "refine_20260820152918899",
+          "outcome": "Future turns can resume the loop with correct paths and constraints without re-reading the transcript; validate by checking the adapter generator writes to /home/dev/metering-self and refuses unmapped entries, and that complex templates are emitted via heredoc/file-write rather than inline nested f-strings.",
+          "trigger": "Create a local memory capturing the active qwen-evolve self-refinement task, artifact location, fail-closed design constraint, and the IPython nested-quoting workaround."
+        }
+      ],
+      "schema": 1
+    }
+  },
+  "memory_ids": [
+    "ipython-nested-quote-workaround",
+    "qwen-evolve-artifact-location",
+    "qwen-evolve-failclosed-design",
+    "qwen-evolve-self-refine-state"
+  ]
+}
