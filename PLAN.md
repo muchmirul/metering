@@ -2,365 +2,288 @@
 
 ## Status
 
-This document defines the first implementable slice of Metering. It is intentionally narrower than the full harness-measurement vision.
+This document defines Metering's complete accepted scope. It replaces the
+earlier hidden-fault harness design with a deliberately breaking reset.
 
-The purpose of Metering is not to rank agent systems. It is to prove that a controlled interaction can produce a raw trace and that independently implemented meters can turn that trace into correct, reproducible measurements.
+Metering has one purpose:
 
-## The first question
+> Measure named information-theoretic quantities from probability
+> distributions supplied by the caller.
 
-Metering answers one narrow question:
+It is a tool, not an agent. It contains no policy, planner, optimizer, model,
+world, controller, belief updater, or recommendation logic.
 
-> Can the instrument distinguish a careful diagnostic policy from a wasteful one using exact, replayable measurements?
+## Foundation
 
-If it cannot answer this correctly, adding language models, real repositories, fault injection, dashboards, or leaderboards will not help.
-
-## Claims and non-claims
-
-Metering may measure:
-
-- whether a task was completed correctly;
-- how many observations and actions were used;
-- how much uncertainty the supplied observations removed;
-- how much diagnostic information was delivered per observation;
-- how many diagnostic observations a successful complete suite spent above the binary-tree minimum.
-
-Metering does not measure:
-
-- whether a model understood an observation;
-- private reasoning inside a model;
-- universal harness quality;
-- performance on real software work;
-- safety under production failures;
-- an overall agent score.
-
-Every result is conditional on the declared world, policy, costs, budget, and configuration.
-
-## Minimal experiment
-
-The first controlled world is a hidden-fault diagnosis task.
-
-1. The controller selects one of eight faults.
-2. The harness receives the public test catalogue, but not the selected fault.
-3. The harness can request diagnostic tests.
-4. The harness chooses a repair.
-5. The harness requests verification.
-6. The harness finishes.
-
-The eight public fault identifiers are `fault-0` through `fault-7`, with a uniform prior. Every diagnostic result is Boolean and deterministic. The catalogue contains three public bit-membership tests, which can identify any state in three balanced observations, followed by one singleton-membership test for each fault. Catalogue order is the tie-break order.
-
-Balanced search uses the three even splits. Sequential search checks the singleton tests for `fault-0` through `fault-6` and infers `fault-7` after seven negative results rather than testing it redundantly. Its diagnostic-count vector across the ordered hidden states is therefore `[1, 2, 3, 4, 5, 6, 7, 7]`: 35 observations in total, compared with 24 for balanced search.
-
-The complete set of eight hidden states is run during calibration, so the main reference results do not depend on sampling luck.
-
-## Core primitives
-
-### World
-
-Owns the hidden state and applies actions. It exposes only observations that the harness is allowed to receive.
-
-Required operations:
-
-- create an instance from a versioned specification;
-- return its public description;
-- validate an action;
-- apply a valid action;
-- return an observation and raw action cost;
-- expose the final reference state to the verifier, never to the harness.
-
-### Action
-
-A typed command produced by a harness.
-
-Metering actions are:
-
-- `diagnose(test_id)`
-- `repair(fault_id)`
-- `verify`
-- `finish`
-
-The public world description contains a fixed diagnostic-test catalogue. The harness cannot invent arbitrary tests.
-
-A repair records the harness's current proposed fault. A later repair replaces it and makes any earlier verification stale. Verification returns only a content-free acknowledgement to the harness; whether the repair matched the hidden fault remains controller-private until the offline report is built. This prevents verification from becoming a second, unmetered diagnostic oracle.
-
-Every returned action attempt, including an invalid one, consumes one unit of the action budget. `finish` also consumes one unit. A valid `finish` as the final budgeted action terminates normally; a non-finish action at that boundary terminates through budget exhaustion without requesting another action.
-
-### Observation
-
-A typed result returned after an action. Diagnostic observations contain only the result of the requested public test. Errors are protocol events, not free-form strings that meters must interpret.
-
-### Harness
-
-Chooses the next action from the public instance description and the observations it has received. Every canonical Metering harness must also provide a finite JSON descriptor containing its name, version, configuration, and declared seed policy; undeclared policy provenance is rejected. Reference harnesses run in process during calibration.
-
-The harness is cooperative. It is not treated as hostile code, and Metering must not claim sandbox enforcement.
-
-### Controller
-
-Owns the run state machine. It:
-
-- provides the public instance to the harness;
-- requests one action at a time;
-- validates each action;
-- applies actions through the world;
-- enforces the action budget;
-- records canonical events;
-- handles finish, invalid actions, ordinary exceptions from a returned callback, and budget exhaustion explicitly.
-
-The controller must never silently repair malformed harness behavior.
-
-### Trace
-
-An append-only record of facts from a run. Interpretation does not belong in the event stream.
-
-Canonical events use monotonic step numbers. Wall-clock timestamps may be recorded as optional metadata, but they are not part of deterministic comparisons.
-
-Each event contains at least:
-
-- schema version;
-- run identifier;
-- world and instance version;
-- monotonic step number;
-- event type;
-- action, observation, or termination payload;
-- raw resource counts relevant to that event.
-
-Hidden reference state is stored separately from the stream available to the harness.
-
-### Verifier
-
-Checks exact final conditions from controller-owned state. It does not call an LLM.
-
-The verifier reports these facts separately:
-
-- the final selected repair matches the hidden fault;
-- at least one verification occurred strictly after the final repair;
-- the harness terminated by a valid `finish` action;
-- the action budget was respected.
-
-Overall task success requires all four conditions. A verification before a later repair is stale. The individual facts remain visible so a failure is not reduced to an unexplained Boolean.
-
-### Meter
-
-A pure offline calculation over a completed trace, the versioned world definition, and the controller-private reference record.
-
-Changing meter code must not change the raw trace. Reports must be reproducible without rerunning the harness.
-
-## Initial measurements
-
-### 1. Exact correctness
-
-Reports each verifier condition and overall task success. Correctness is never traded against low cost.
-
-### 2. Raw resource cost
-
-Reports separate counts for:
-
-- diagnostic observations;
-- repair actions;
-- verification actions;
-- total actions;
-- budget exhaustion.
-
-Metering does not combine these into invented points.
-
-### 3. Diagnostic information exposure
-
-Uses the known uniform prior and the materialized diagnostic outcome table to calculate:
-
-- initial uncertainty;
-- uncertainty remaining after each delivered catalogue-diagnostic result;
-- realized uncertainty removed by those results;
-- realized uncertainty removed per diagnostic observation.
-
-The chosen test is treated as an intervention, not as evidence. Repair, verification, and finish events do not update the diagnostic candidate set. A repeated or non-splitting diagnostic result removes zero bits. An impossible result makes the trace invalid. A run with no diagnostic observations reports a null per-observation value rather than zero.
-
-The natural unit is bits. This is realized posterior-entropy reduction in the declared deterministic world, not expected mutual information. The name deliberately says information was exposed or delivered. It does not claim that a future language model understood or internally used it.
-
-Suite-level efficiency is the sum of exposed bits divided by the sum of diagnostic observations. It is not the average of the individual run ratios.
-
-### 4. Suite-level excess observations
-
-For the complete eight-state calibration suite, the minimum total external path length of a binary decision tree is 24. This follows from Kraft's equality: the eight leaf depths $d$ satisfy $\sum 2^{-d}=1$, and the balanced depth vector `[3, 3, 3, 3, 3, 3, 3, 3]` has the minimum total.
-
-The suite meter reports `excess_observations = total_diagnostic_observations - 24`. Balanced search therefore reports 0, seeded random search with the default calibration seed reports 4, and sequential search reports 11.
-
-This value is never reported for an individual run. The bound `ceil(log2 N)` is a worst-case depth, not a lower bound for every leaf. A valid one-observation path must not be assigned a negative excess. General resource and information aggregation remains available for any report collection, but `excess_observations` is null unless every run succeeded, every report names the same world and instance, and the collection holds exactly one run per hidden state of that world — eight for the declared world — which the aggregate function checks against each report's declared initial uncertainty. The decision-tree lower bound applies only when the policy identifies every state. Calibration establishes that those eight reports cover every hidden state under one reference policy; the aggregate function cannot infer distinct-state coverage from report files alone.
-
-## Calibration policies
-
-### Balanced search
-
-Chooses diagnostic tests that divide the remaining candidates as evenly as the catalogue permits. In the eight-fault deterministic world, it should identify every fault in three diagnostic observations.
-
-### Sequential search
-
-Checks candidate faults in a fixed order. It is correct but usually uses more observations than balanced search.
-
-### Seeded random search
-
-Chooses valid diagnostic tests using a declared seed. It tests deterministic replay and provides a baseline. A single random run is not required to be worse than every careful run; comparisons use the complete declared calibration set.
-
-The first two policies provide the main exact calibration contrast. If the information and resource meters cannot distinguish them in the expected direction, those meters are not ready.
-
-## Run artifacts
-
-Each run directory contains:
+The fundamental quantity is the logarithmic measure introduced by Claude
+Shannon in *A Mathematical Theory of Communication*:
 
 ```text
-runs/<run-id>/
-    manifest.json
-    events.jsonl
-    reference.json
-    report.json
+self-information:  I(x) = -log_b p(x)
+entropy:            H(P) = -sum_x p(x) log_b p(x)
 ```
 
-- `manifest.json` records the controller-generated artifact-set identifier, an opaque salted commitment to private generated truth, implementation versions, materialized public instance, budget, policy, configuration, and seed policy.
-- `events.jsonl` contains the append-only interaction and controller events.
-- `reference.json` contains controller-private ground truth, the private commitment nonce, and bindings to the exact manifest and event stream. It is written only after policy execution has ended and is never provided to the harness.
-- `report.json` contains verifier and meter output plus source hashes for all three raw inputs. It does not expose the private nonce.
+The choice of base fixes the unit. Base 2 is the default and produces bits.
+Base `e` produces nats. Metering accepts a real base whose conversion to a
+finite Python float remains greater than 1.
 
-A caller-supplied run label is not a trust boundary. Every execution receives a separate controller-generated artifact-set identifier so raw files from two executions cannot be mixed accidentally, even if their run labels are equal. Before the first policy callback, the controller commits to the complete generated-instance identity with SHA-256 and a fresh private UUID nonce. Replay checks the revealed private reference against that commitment, preventing a plausible hidden-truth substitution without making the eight-state truth guessable from the public manifest.
+The initial implementation supports finite discrete probability models only.
+That boundary is intentional. Continuous entropy, sample-based estimation, and
+channel optimization require additional assumptions that this package must not
+silently invent.
 
-The SHA-256 bindings and commitment detect stale, corrupt, or accidentally mixed artifacts. They are not signatures and do not protect against a hostile party coherently rewriting an entire artifact set.
+## Public measures
 
-Raw schemas use exact key sets and strict JSON types. A Boolean or floating-point value is not accepted where an integer is required, and duplicate JSON object keys are invalid.
+### Self-information
 
-The generated instance itself is saved. A seed alone is not considered a complete reproducibility record.
+```text
+self_information(p, base=2) = -log_b(p)
+```
 
-The GitHub release version is recorded as provenance, but a release-number change alone does not invalidate an artifact. Replay requires the recorded controller, verifier, and meter versions to match the installed implementations, and every schema must be accepted by its strict decoder. World, instance, and policy declarations are recorded and checked for consistency inside the artifact set; they are not compared with a global current-version constant. A behavioral or interpretive change must bump the component version that replay uses as its compatibility gate.
+`p` is one probability in `[0, 1]`. A probability of zero returns positive
+infinity. A probability of one returns zero.
+
+### Shannon entropy
+
+```text
+entropy(P, base=2) = -sum_i p_i log_b(p_i)
+```
+
+`P` is a finite discrete probability mass function. Terms with `p_i = 0`
+contribute zero.
+
+### Kullback-Leibler divergence
+
+```text
+kl_divergence(P, Q, base=2) = sum_i p_i log_b(p_i / q_i)
+```
+
+`P` and `Q` are aligned finite distributions of equal length. An index with
+`p_i > 0` and `q_i = 0` returns positive infinity. An index with `p_i = 0`
+contributes zero. The order matters: `D_KL(P || Q)` is not generally equal to
+`D_KL(Q || P)`.
+
+### Mutual information
+
+```text
+mutual_information(P_XY, base=2)
+    = sum_x sum_y p(x,y) log_b(p(x,y) / (p(x) p(y)))
+```
+
+The input is a non-empty rectangular matrix containing a finite joint
+distribution. Rows represent outcomes of one variable and columns represent
+outcomes of the other. Metering derives only the two marginals required by the
+formula; it does not interpret the variables.
+
+## Mathematical naming boundary
+
+Metering does not expose a generic `information_gain` function.
+
+In a uniform deterministic partition, these three values happen to be equal:
+
+```text
+H(prior) - H(posterior)
+-log_b P(observation)
+D_KL(posterior || prior)
+```
+
+They differ for general non-uniform or noisy models. Callers must use the name
+that matches what they mean:
+
+- entropy before minus entropy after is an entropy change;
+- self-information is the surprisal of one declared outcome;
+- `D_KL(posterior || prior)` measures a particular distribution update;
+- mutual information measures expected dependence between two declared
+  variables.
+
+The package must not collapse these into one flattering number.
+
+## Input contract
+
+All validation is strict and visible:
+
+- A probability is a real, non-Boolean number in `[0, 1]` whose conversion to
+  a finite Python float does not collapse a nonzero value to zero or a value
+  distinct from one to one.
+- A distribution is a non-empty ordered iterable of probabilities.
+- A distribution's sum must be within an absolute tolerance of `1e-12` from
+  one. Relative tolerance is zero.
+- A joint distribution is non-empty, rectangular, and normalized as one
+  distribution across all cells.
+- KL inputs must have equal lengths and use the same positional ordering.
+- The logarithm base is a real, non-Boolean number whose conversion to a
+  finite Python float remains greater than one.
+- Invalid inputs raise `ProbabilityError`.
+
+Metering never normalizes, smooths, clips, bins, samples, or estimates on the
+caller's behalf. Acceptance within the fixed sum tolerance accommodates normal
+floating-point roundoff. Entropy and self-information use the converted values
+as supplied. KL and mutual information use the explicitly declared
+non-negative relative-entropy extension below. Nothing is rescaled.
+
+Calculations use Python's double-precision floating-point arithmetic and
+`math.fsum` where sums are involved. Results should be compared with a suitable
+numerical tolerance rather than by serialized decimal spelling. Metering does
+not promise byte-identical last-place decimals across different Python/libm
+platforms.
+
+KL is evaluated with the non-negative form
+`sum_i (p_i ln(p_i/q_i) - p_i + q_i) / ln(base)`. For normalized distributions,
+the added terms sum to zero, so this is algebraically the declared KL formula.
+For inputs accepted only because their sums are within tolerance, this formula
+is the defined extension and remains non-negative. Close coordinates use the
+convergent series for `(1+d) ln(1+d) - d` to avoid cancellation. Mutual
+information uses the same form and separates the two marginal logarithms when
+their product would underflow. If an accepted joint has total mass `S` that
+differs from one only within tolerance, its derived comparison mass is
+`row_x * column_y / S`, not the mass-`S^2` raw marginal product. This preserves
+zero dependence for factorized tables without rescaling the supplied cells.
+These evaluation rules do not normalize or modify either input.
+
+## Python boundary
+
+The complete supported public API is:
+
+```python
+from metering import (
+    ProbabilityError,
+    self_information,
+    entropy,
+    kl_divergence,
+    mutual_information,
+)
+```
+
+For fixed numeric inputs, the functions are deterministic. They do not read or
+write files, access the network, or modify caller-owned containers. A one-shot
+iterator is necessarily consumed once when its values are materialized.
+
+## Agent and shell boundary
+
+Other agents use the same measures through one Unix-style command. The command
+reads exactly one JSON object from standard input and writes exactly one JSON
+object to standard output.
+
+Valid request shapes are:
+
+```json
+{"measure":"self_information","probability":0.125}
+{"measure":"entropy","probabilities":[0.5,0.5]}
+{"measure":"kl_divergence","p":[0.5,0.5],"q":[0.75,0.25]}
+{"measure":"mutual_information","joint":[[0.5,0.0],[0.0,0.5]]}
+```
+
+Each request may add an optional numeric `base` key. No other keys are
+accepted. Duplicate keys and non-finite numbers are rejected. A numeric token
+is also rejected if double-precision conversion would produce infinity or
+would change whether its value is zero or one.
+
+A finite result has this exact shape:
+
+```json
+{"base":2.0,"infinite":false,"measure":"entropy","value":1.0}
+```
+
+Positive infinity is represented without emitting invalid JSON:
+
+```json
+{"base":2.0,"infinite":true,"measure":"self_information","value":null}
+```
+
+The command emits exactly `error.code` and `error.message` as one JSON object
+on standard error:
+
+```json
+{"error":{"code":"invalid_probability","message":"..."}}
+```
+
+The only error codes are `invalid_request` for JSON, command-line, or request
+envelope failures, and `invalid_probability` for a rejected probability model
+or logarithm base. Exit status is zero for a successful measurement and two
+for either error. `-h`/`--help` and `--version` are the only command-line
+options; long options are not abbreviated. The command does not read or write
+application files and does not make network requests.
+
+This JSON boundary is intentionally not agent-specific. Any agent, shell,
+programming language, or process runner that can exchange JSON over standard
+streams can use it. An MCP server, plugin system, HTTP service, or model adapter
+would add machinery without improving the measurement and does not belong here.
+
+## Permanent non-goals
+
+The Metering package does not contain:
+
+- agents, models, prompts, memories, tools that choose other tools, or model
+  adapters;
+- policies, planners, search strategies, optimizers, rankings, or scores;
+- worlds, tasks, repairs, verification, correctness, budgets, or resource
+  accounting;
+- posterior construction, Bayesian inference, probability estimation, sample
+  binning, smoothing, or normalization;
+- trace formats, experiment runners, manifests, commitments, artifact stores,
+  replay engines, databases, or dashboards;
+- continuous or differential entropy, entropy-rate estimators, channel
+  capacity optimization, or learned estimators;
+- claims about meaning, relevance, understanding, reasoning, knowledge, or
+  intelligence.
+
+Applications may use Metering's outputs when making decisions, but those
+applications live outside this repository.
 
 ## Repository layout
 
-Start with a direct layout and split a file only when real code requires it. Each module below has one responsibility, and each depends only on the modules listed after it:
-
 ```text
-metering/
-    PLAN.md
-    pyproject.toml
-    src/
-        metering/
-            __init__.py
-            __main__.py       entry points
-            calibration.py    the full self check
-            runner.py         controller loop and run orchestration
-            policies.py       harness boundary and reference policies
-            hidden_fault.py   world, public instance, and catalogue
-            report.py         verifier and meters
-            replay.py         strict offline replay
-            binding.py        salted commitment to private truth
-            trace.py          canonical encoding and append-only JSONL
-            events.py         typed actions, observations, and events
-            provenance.py     recorded implementation versions
-            schema.py         schema versions and strict field checks
-    tests/
-        test_hidden_fault.py
-        test_runner.py
-        test_trace_replay.py
-        test_calibration.py
+src/metering/
+    __init__.py       exact public Python surface
+    information.py    validation and four pure measures
+    __main__.py       strict JSON standard-stream adapter
+tests/
+    test_information.py
+    test_cli.py
+    test_public_api.py
+docs/
+    theory.md
 ```
 
-Two splits earn their place. `schema.py` exists because the writer, the reader, and the meters must agree on one definition of strict decoding, and three similar copies would drift apart. `replay.py` exists because rebuilding a saved run and measuring it are separate jobs with separate failure modes, and keeping them apart makes it obvious that a meter cannot change what it measures.
+Add a module only when a concrete responsibility no longer fits one of these
+three. Do not introduce a generic abstraction in anticipation of future work.
 
-Theory should guide definitions and tests. It should not force one software module per academic field.
+## Compatibility
 
-## Required command
+This scope reset intentionally removes the previous hidden-fault world,
+actions, policies, controller, calibration, reports, trace/replay system,
+artifact schemas, and their CLI commands. Existing run artifacts remain usable
+only with a checkout of the historical implementation that created them.
 
-From a development checkout, one command must run the complete deterministic calibration suite:
-
-```text
-uv run python -m metering calibrate
-```
-
-After the package is installed, the equivalent command is `python -m metering calibrate` or `metering calibrate`.
-
-It runs every hidden state against the declared reference policies, writes run artifacts, rebuilds reports from saved traces, and exits unsuccessfully if calibration checks fail.
+There is no compatibility shim. Keeping one would retain the unrelated product
+inside the new one and violate the one-purpose boundary.
 
 ## Acceptance criteria
 
-The instrument is complete only when all of the following are true:
+The rewrite is complete only when:
 
-- The documented public callback inputs do not contain the hidden fault. This is API non-disclosure, not sandbox security.
-- All eight hidden states are covered by calibration.
-- Balanced search succeeds with exactly 24 diagnostic observations across the suite.
-- Sequential search succeeds with the exact vector `[1, 2, 3, 4, 5, 6, 7, 7]`, or 35 observations in total.
-- Suite information efficiency uses the ratio of sums.
-- The reference depth vectors each satisfy Kraft's equality exactly.
-- Suite excess observations are exactly 0 for balanced search, 4 for seeded random search with the default calibration seed, and 11 for sequential search.
-- No per-run report contains an excess-observation value.
-- Suite aggregation reports null excess unless the collection is exactly one successful report per hidden state of one declared world — eight for the canonical world.
-- Seeded policies replay deterministically after controller-owned artifact identifiers are normalized.
-- Invalid actions produce explicit protocol failures.
-- A harness that keeps returning non-finish actions is stopped by the fixed action budget without a later callback.
-- An ordinary exception raised by `next_action` produces an explicit harness-crash termination record.
-- The in-process instrument does not claim to stop a callback that never returns or survive hard process exits, segmentation faults, out-of-memory termination, or interpreter failure.
-- Every event has a strict schema version and a contiguous monotonic step number.
-- Equal Boolean or floating-point substitutes are rejected for integer schema and count fields.
-- The materialized public instance and controller-private selected state are stored separately.
-- An artifact from another execution is rejected even when the caller reused the same run label.
-- Reports can be deleted and regenerated from bound saved raw artifacts without invoking a policy.
-- Regenerated reports match the original when the recorded implementation versions are available.
-- A failed or corrupt replay does not replace an existing good report.
-- Meter calculations do not affect world execution or tracing.
-- The full suite runs without a model server or network access.
+- the four formulas match known exact values and independent identities;
+- uniform distributions of 2 and 8 outcomes report 1 and 3 bits;
+- independent variables report zero mutual information and a perfectly
+  correlated fair binary pair reports one bit;
+- KL identity, asymmetry, and infinite support mismatch are tested;
+- every malformed input category in this plan is rejected;
+- the Python public exports contain only the four measures and
+  `ProbabilityError`;
+- the CLI accepts every documented request, emits valid canonical JSON,
+  represents infinity explicitly, and returns documented exit statuses;
+- direct calls and CLI calls agree for the same inputs;
+- the core performs no filesystem or network access, does not modify input
+  containers, and documents consumption of one-shot iterators;
+- the package has no runtime dependency;
+- no legacy world, policy, controller, agent, optimizer, benchmark, replay, or
+  artifact implementation remains in the shipped tree;
+- the full test suite and package build pass.
 
-## Explicitly deferred
+## Source
 
-The current instrument does not include:
+Claude E. Shannon, “A Mathematical Theory of Communication,” *The Bell System
+Technical Journal*, volume 27, pages 379-423 and 623-656, 1948.
 
-- Qwen or any other language model;
-- an inference-provider abstraction;
-- an external harness JSONL protocol;
-- process isolation or a hostile-code sandbox;
-- injected timeouts, dropped responses, duplicates, or stale state;
-- browser, shell, Git, or repository tasks;
-- multi-agent orchestration;
-- uncertainty intervals for sampled model behavior;
-- a database or dashboard;
-- plugins;
-- a public benchmark or leaderboard;
-- an overall harness score.
-
-These are later features, not missing work.
-
-## Future development sequence
-
-### External harness boundary
-
-After at least two different in-process harnesses work, extract a focused external protocol. Define its legal state transitions, request identifiers, invalid-message behavior, termination, timeout handling, and resource limits before promising compatibility.
-
-### Replaceable inference engine
-
-Add a brokered inference interface and a deterministic synthetic brain. Then add one pinned local Qwen configuration.
-
-A model is the brain, not the harness. The harness includes context construction, prompts, memory selection, tools, retries, verification, and stopping logic.
-
-For model-backed runs, record model and tokenizer hashes, quantization, runtime build, chat template, tool definitions, sampling settings, token limits, and complete requests and responses. A fixed seed alone does not guarantee GPU determinism.
-
-### Controlled failure experiments
-
-Add one failure mechanism at a time, beginning with ambiguous completion or lost responses. Add safe and unsafe scripted references and validate the expected behavior before testing a real model-backed harness.
-
-### Additional worlds and real adapters
-
-Add another world only when it measures something that the hidden-fault world cannot. Results remain conditional on their declared worlds and configurations.
-
-### Standardized benchmark
-
-A benchmark may be assembled only after individual measurements have stable definitions, calibration behavior, reproducible procedures, and clearly stated limitations.
-
-## Design rules
-
-1. Prefer one correct vertical slice over a general framework.
-2. Record facts before interpreting them.
-3. Keep hidden truth outside the harness boundary.
-4. Keep raw resource units separate.
-5. Give every measurement a precise name and a stated limitation.
-6. Do not infer internal model behavior from an external trace.
-7. Do not claim enforcement that the implementation does not provide.
-8. Do not freeze an external protocol before multiple implementations exercise it.
-9. Do not describe a world-specific result as universal harness quality.
-10. Do not add a feature merely because it appears in the long-term architecture.
-
-## Definition of the first successful brick
-
-The first brick is successful when a reviewer can inspect a saved run, replay its report without running the policy again, and confirm that balanced diagnosis is measured as correct and less wasteful than sequential diagnosis for reasons defined by the controlled world.
+- https://doi.org/10.1002/j.1538-7305.1948.tb01338.x
+- https://doi.org/10.1002/j.1538-7305.1948.tb00917.x

@@ -1,262 +1,170 @@
 # Metering
 
-Metering is a deterministic instrument for measuring the externally visible behavior of an agent harness. A harness is everything around a language model that decides what to do next, including the prompts, the tools, the retries, and the stopping rule. Measuring one honestly is hard, because most of what happens is invisible from the outside and easy to describe in flattering language. Metering starts from the opposite end by building one task whose correct answer is known in advance, then checking that the measurements come out right before any language model is involved.
+Metering is a small, deterministic tool for measuring information in finite
+discrete probability distributions.
 
-The task is the hidden-fault world. The controller selects one of eight faults and keeps it private. A policy receives the fault identifiers and a catalogue of diagnostic tests, spends actions to narrow the possibilities, proposes a repair, asks for verification, and finishes. Because the world is deterministic and its rules are published, anyone reading a saved run can recompute exactly what the policy could have known at every step. This is what makes a result checkable rather than merely reported.
+It implements four named measures:
 
-Metering does not rank agents and does not produce an overall score. It answers one narrow question, which is whether the instrument can tell a careful diagnostic policy apart from a wasteful one using exact and replayable numbers.
+- self-information;
+- Shannon entropy;
+- Kullback-Leibler divergence;
+- mutual information.
 
-Full documentation is published at the [documentation site](https://muchmirul.github.io/metering/). For a copyable walkthrough in the repository, read the [Markdown usage guide](docs/usage.md). [`PLAN.md`](https://github.com/muchmirul/metering/blob/main/PLAN.md) is the normative source for scope, definitions, limitations, and acceptance criteria. An agent measuring its own harness can start from [`HARNESS.md`](HARNESS.md) and the committed suite driver [`examples/run_suite.py`](examples/run_suite.py).
+That is the entire product. Metering does not run agents, choose actions,
+estimate probabilities, update beliefs, rank systems, or interpret meaning.
+The caller supplies the probability model; Metering validates it and returns a
+number.
 
-## Quick start
+[`PLAN.md`](PLAN.md) is the normative contract. [`docs/theory.md`](docs/theory.md)
+explains why the measures stay separate.
 
-Metering needs Python 3.11 or newer and [`uv`](https://docs.astral.sh/uv/). The runtime package has no third-party dependencies.
+## Install
 
-```bash
-git clone https://github.com/muchmirul/metering.git
-cd metering
-uv run python -m metering calibrate
-```
-
-That command runs the full calibration suite and finishes with the headline contrast between the two search strategies:
-
-```text
-calibration passed: runs/calibration
-balanced diagnostics: 24; sequential diagnostics: 35
-```
-
-Read the suite-level excess values from the calibration summary:
+Metering requires Python 3.11 or newer and has no runtime dependencies. From a
+checkout with [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
-uv run python - <<'PY'
-import json
-from pathlib import Path
-
-summary = json.loads(Path("runs/calibration/calibration.json").read_text())
-for policy in ("balanced", "seeded_random", "sequential"):
-    print(policy, summary["aggregates"][policy]["excess_observations"])
-PY
+uv sync --extra test
 ```
 
-## The calibrated contrast
-
-With the default calibration seed, the three reference policies all solve the task correctly, so correctness alone cannot separate them. What separates them is what they spent. Balanced search asks questions that halve the candidate set, so every observation is worth a full bit. Sequential search checks one candidate at a time, so an early negative result removes very little.
-
-| Policy | Correct | Diagnostics per state | Total | Bits removed | Bits per observation | Excess observations |
-|---|---|---|---|---|---|---|
-| Balanced search | 8 / 8 | `[3, 3, 3, 3, 3, 3, 3, 3]` | 24 | 24.0 | 1.0000 | 0 |
-| Sequential search | 8 / 8 | `[1, 2, 3, 4, 5, 6, 7, 7]` | 35 | 24.0 | 0.6857 | 11 |
-| Seeded random search | 8 / 8 | `[4, 4, 4, 1, 4, 4, 4, 3]` | 28 | 24.0 | 0.8571 | 4 |
-
-Each policy removes the same 24 bits in total, because each one ends up knowing the answer in all eight states. The efficiency column is total bits divided by total observations, which is the ratio of the sums rather than the average of the per-run ratios. Averaging the ratios would give a lucky one-observation run the same weight as a seven-observation run and would overstate how efficient the suite really was.
-
-The excess column has a natural zero. A binary decision tree with eight leaves needs a minimum total leaf depth of 24, so the suite meter subtracts 24 from the total observations. This calculation applies only to the complete eight-state suite. It is not reported per run, because a valid short path can use fewer than three observations without violating the tree bound.
-
-`aggregate_reports()` still aggregates resources and information for any report collection. It returns a non-null `excess_observations` only when every report succeeded, all reports name the same world and instance, and the collection holds exactly one report per hidden state of that world — eight for the canonical world — which it checks against each report's declared initial uncertainty. To interpret that value, supply one report for each hidden state, produced by the same policy under the same declared world and configuration. Calibration establishes state coverage and common policy provenance; individual report files deliberately do not reveal enough private state to prove distinct-state coverage on their own.
-
-## Why this controlled experiment matters
-
-Metering starts with measurement rather than a leaderboard. A complicated agent run mixes the model, prompts, tools, retries, verification, stopping logic, and luck. If the quantities being reported have not first been tested in a world with known answers, a precise-looking harness score proves very little. The hidden-fault world is a calibration standard: it is compact enough for the correct readings to follow from mathematics, but rich enough to expose redundant diagnosis, invalid actions, stale verification, budget exhaustion, and lucky guesses.
-
-The initial uncertainty is exactly
-
-```text
-H₀ = log₂(8) = 3 bits.
-```
-
-With a uniform prior and deterministic tests, a result that narrows the candidates from `n` to `k` removes
-
-```text
-ΔH = log₂(n) - log₂(k) = log₂(n / k) bits.
-```
-
-A balanced decision tree follows `8 → 4 → 2 → 1`, so every result removes one bit. No binary decision tree can identify eight states in fewer than three results, since a depth-`d` tree has at most `2ᵈ` leaves. Sequential search remains correct, but spends more observations to remove the same uncertainty.
-
-Every theoretical claim has a direct implementation:
-
-| Idea | Meaning | Implementation |
-|---|---|---|
-| Finite hypothesis space | Eight public candidates and one controller-private selected fault | [`hidden_fault.py`](src/metering/hidden_fault.py) |
-| Deterministic Bayesian filtering | Keep exactly the candidates consistent with delivered results | [`remaining_candidates` in `policies.py`](src/metering/policies.py) |
-| Realized entropy reduction | Calculate `log₂` candidate counts before and after each result | [`_information_report` in `report.py`](src/metering/report.py) |
-| Binary decision trees | Compare balanced splits with singleton search | [`BalancedSearchPolicy` and `SequentialSearchPolicy`](src/metering/policies.py) |
-| Operational state machine | Request, validate, apply, charge, record, and terminate | [`Controller` in `runner.py`](src/metering/runner.py) |
-| Information-flow boundary | Verification acknowledges the action without revealing pass or fail | [`HiddenFaultWorld.apply` in `hidden_fault.py`](src/metering/hidden_fault.py) |
-| Measurement without interference | Replay and reporting operate only on completed artifacts | [`replay.py`](src/metering/replay.py) and [`report.py`](src/metering/report.py) |
-| Calibration | Exhaust all eight states and compare with exact expected totals | [`calibration.py`](src/metering/calibration.py) |
-
-The [theory and scope guide](https://muchmirul.github.io/metering/theory.html) derives these readings and places each explanation beside the code that computes it.
-
-## What a run reports
-
-Every report carries three readings that stay in separate columns, because they answer different questions and combining them would let a cheap failure look better than an expensive success.
-
-- **Exact correctness.** Four conditions are reported one by one. The final repair must match the hidden fault, a verification must come after that repair, the policy must finish normally, and the budget must hold. Overall success needs all four, and keeping them visible turns a failure into a diagnosis instead of an unexplained false.
-- **Raw resource cost.** Diagnostic observations, repairs, verifications, and total actions are counted separately, together with whether the run ran out of budget. Metering never adds them into invented points.
-- **Diagnostic information.** Eight equally likely faults carry three bits of uncertainty. The meter reports how many of those bits the delivered test results actually removed, and how many bits each observation was worth.
-
-Verification feedback is content-free while a run is in progress. Whether a repair matched the hidden fault stays private until the offline report is built, so a policy cannot use verification as a second diagnostic oracle that no meter counts.
-
-A successful, complete eight-state suite also reports `excess_observations`, measured against the 24-observation binary-tree minimum. An unsuccessful suite reports null, and individual run reports do not contain this field.
-
-## The system, from high level to low level
-
-Metering is assembled from focused modules rather than one framework with plug-in points. Each layer depends only on the layers below it, so the code reads top down and a change in how a run is measured cannot reach back and change how the run was executed.
-
-```text
-HIGH LEVEL
-  __main__.py       entry points        metering calibrate, metering report, run_hidden_fault
-  calibration.py    the self check      eight states x three policies, every report rebuilt
-  runner.py         controller loop     ask, charge the budget, apply, record, decide to stop
-  policies.py       harness boundary    next_action(public instance, observations so far)
-  hidden_fault.py   world               owns the selected fault, validates, applies, returns cost
-  events / trace    protocol and bytes  four actions, four observations, append-only JSONL
-  binding.py        commitment          salted hash of the private truth
-  on disk           run artifacts       manifest.json, events.jsonl, reference.json
-  replay.py         strict replay       rebuild state, check identity, transitions, costs, hashes
-  report.py         verifier and meters correctness, raw counts, information in bits
-  schema.py         strict decoding     exact keys, exact types, finite numbers, no duplicates
-LOW LEVEL
-```
-
-The boundary in the middle is the design rule everything else follows. The controller hands the policy an immutable public instance and the observations delivered so far, and it never hands over the world object or the selected fault. Because of this, a policy cannot read the answer even by accident, and the only way it can learn anything is through actions that the trace records and the meters count.
-
-The separation at the bottom matters just as much. Replay and the meters read files that are already written and hashed, so changing how a measurement is calculated cannot change a raw trace recorded earlier. This is what lets an old run be re-measured by newer code and still describe the same execution.
-
-## Two paths through one run
-
-During execution the controller and the world exchange typed values while the trace collects facts without judging them:
-
-```text
-HiddenFaultSpec.default() -> HiddenFaultWorld holding one private fault
-                                      ^
-                   validate and apply  |  observation and raw cost
-                                      v
-Controller -- public instance + history --> policy.next_action(...)
-Controller <------------ one typed action -- policy.next_action(...)
-    |
-    +--> Event --> events.jsonl
-```
-
-Interpretation happens only after execution has ended and the files are closed:
-
-```text
-manifest.json + events.jsonl + private reference.json
-                         |
-                         v
-               strict offline replay
-                         |
-                         v
-       exact verifier + resource meter + information meter
-                         |
-                         v
-                    report.json
-```
-
-Because the second path never calls the policy or the world, a report can be rebuilt on a different machine, months later, from nothing but the saved files.
-
-## Run one hidden fault
+## Python API
 
 ```python
-from metering import BalancedSearchPolicy, run_hidden_fault
+from metering import entropy, kl_divergence, mutual_information, self_information
 
-result = run_hidden_fault(
-    BalancedSearchPolicy(),
-    hidden_fault_id="fault-3",
-    run_dir="runs/example",
-    run_id="example",
-    action_budget=16,
-)
-
-print(result.succeeded)
-print(result.report["resources"])
+print(self_information(0.125))
+print(entropy([0.5, 0.5]))
+print(kl_divergence([0.5, 0.5], [0.75, 0.25]))
+print(mutual_information([[0.5, 0.0], [0.0, 0.5]]))
 ```
 
 ```text
-True
-{'diagnostic_observations': 3, 'repair_actions': 1, 'verification_actions': 1,
- 'total_actions': 6, 'action_budget': 16, 'budget_exhaustion': False}
+3.0
+1.0
+0.2075187496394219
+1.0
 ```
 
-The run directory must be new or empty, because a run owns the files it writes. The `hidden_fault_id` argument sets controller-private truth and is never passed to the policy callback.
+Base 2 is the default, so these values are bits. Pass `base=math.e` for nats or
+another real value that converts to a finite float greater than one.
 
-## The four artifacts
+Inputs must already be normalized probability distributions. Metering rejects
+bad input instead of guessing what the caller intended:
 
-```text
-runs/example/
-    manifest.json     written before the run: public instance, budget, policy, commitment
-    events.jsonl      written during the run: append-only canonical facts
-    reference.json    written after the policy ends: hidden fault, nonce, byte bindings
-    report.json       written last: correctness, resources, information, input hashes
+```python
+from metering import ProbabilityError, entropy
+
+try:
+    entropy([1, 1, 2])
+except ProbabilityError as error:
+    print(error)
 ```
 
-The order is deliberate. The manifest commits to the hidden fault before the policy gets its first callback, and the reference reveals that fault only after the policy can no longer act on it. Replay recomputes the commitment from the revealed values, so a plausible hidden fault cannot be substituted after the fact. The nonce is what makes this work, because a bare hash of one of eight faults could be reversed by hashing all eight.
+It does not silently turn counts into probabilities.
 
-## Rebuild a report offline
+## Agent and shell tool
+
+The `metering` command is a strict JSON filter. This is the integration point
+for other agents: JSON goes in through standard input and JSON comes out through
+standard output.
 
 ```bash
-uv run python -m metering report runs/example
+printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
+  | uv run metering
 ```
 
-Replay does not call the policy or the world. It reads the three raw files, rebuilds the controller state that must have produced them, and checks the schemas, the artifact identity, the private commitment, every transition, every recorded cost, and the exact bytes of each input. Only when all of that passes does the new report atomically replace the old one. A corrupt run therefore keeps whatever report it already had:
+```json
+{"base":2.0,"infinite":false,"measure":"entropy","value":1.0}
+```
+
+The four request forms are:
+
+```json
+{"measure":"self_information","probability":0.125}
+{"measure":"entropy","probabilities":[0.5,0.5]}
+{"measure":"kl_divergence","p":[0.5,0.5],"q":[0.75,0.25]}
+{"measure":"mutual_information","joint":[[0.5,0.0],[0.0,0.5]]}
+```
+
+Add `"base":2` to any request to set the logarithm base explicitly.
+
+Successful responses always contain exactly `base`, `infinite`, `measure`, and
+`value`. Since JSON has no legal infinity number, an infinite mathematical
+result uses `"infinite":true` and `"value":null`:
+
+```bash
+printf '%s\n' '{"measure":"self_information","probability":0}' \
+  | uv run metering
+```
+
+```json
+{"base":2.0,"infinite":true,"measure":"self_information","value":null}
+```
+
+Bad JSON, command-line arguments, unknown or extra keys, duplicate keys,
+invalid bases, and invalid probability models exit with status 2 and emit one
+JSON error on standard error:
+
+```json
+{"error":{"code":"invalid_probability","message":"probabilities must sum to 1 within 1e-12; got 2"}}
+```
+
+The object has exactly `error.code` and `error.message`. The code is
+`invalid_request` for JSON, command-line, or envelope errors and
+`invalid_probability` for a rejected probability model or base. The only
+options are `-h`/`--help` and `--version`; abbreviations are rejected.
+
+The command handles one request per process. It does not access application
+files, call a network service, load a model, or choose which measure to run.
+
+## Definitions and edge cases
+
+For logarithm base `b > 1`:
 
 ```text
-report regeneration failed: diagnostic outcome contradicts the generated instance
+self-information:      -log_b(p)
+entropy:                -sum p_i log_b(p_i)
+KL divergence:           sum p_i log_b(p_i / q_i)
+mutual information:      sum p(x,y) log_b(p(x,y) / (p(x)p(y)))
 ```
 
-## Run the tests
+- `0 log 0` contributes zero.
+- Self-information at probability zero is positive infinity.
+- KL divergence is positive infinity when `p_i > 0` and `q_i = 0`.
+- Distributions must sum to one within an absolute tolerance of `1e-12`.
+- Booleans, negative values, values above one, NaN, and infinity are rejected.
+- Inputs are converted to double precision; conversion may not collapse a
+  nonzero probability to zero or a value distinct from one to one.
+- Joint distributions must be rectangular.
+- If a joint's total mass is accepted within tolerance as `S`, its independent
+  comparison uses `row * column / S`; the supplied cells are not rescaled.
+- KL inputs must have equal lengths and matching positional meaning.
+
+Metering does not renormalize accepted values. It uses double-precision
+floating-point arithmetic; compare nontrivial results with an appropriate
+numerical tolerance.
+
+## What is deliberately absent
+
+There is no world, policy, controller, optimizer, benchmark, model adapter,
+MCP server, HTTP service, trace, report, artifact store, replay engine, overall
+score, or information-gain guess. Those belong in applications that use this
+tool, not in the measuring tool itself.
+
+The initial scope is finite discrete distributions. Continuous entropy and
+estimators from samples need modeling decisions and are not silently bundled
+into this package.
+
+## Development
 
 ```bash
 uv run --extra test pytest -q
+uv build
 ```
 
-The suite runs without a network connection or a model server.
+## Compatibility
 
-## Calibration options
-
-The default output directory is `runs/calibration`, and a non-empty directory is never overwritten. Passing `--force` replaces a directory only when it carries Metering's own marker file, so a mistyped path cannot turn calibration into a recursive delete.
-
-```bash
-uv run python -m metering calibrate --output /tmp/metering
-```
-
-Every check, whether it passed or failed, is written to `calibration.json` in that directory. A failing suite still writes the file before it exits, so the reason stays available after the terminal has scrolled away.
-
-Show the version derived from the current Git tag:
-
-```bash
-uv run python -m metering --version
-```
-
-## Versions and compatibility
-
-Meter version 2 adds the suite-level excess-observation interpretation. Controller version 1, verifier version 1, and all artifact schema versions remain unchanged. Per-run report content and raw execution artifacts therefore keep the same shape, but strict replay still requires the recorded meter version to match the installed implementation. A meter-v1 artifact needs a v1-compatible checkout; it is not silently reinterpreted by meter v2.
-
-Release versions come from Git tags and [GitHub Releases](https://github.com/muchmirul/metering/releases) rather than from names embedded in the product, and [`RELEASING.md`](https://github.com/muchmirul/metering/blob/main/RELEASING.md) describes the process. The release version is recorded as provenance only. Replay compatibility is decided by the recorded controller, verifier, and meter versions plus the accepted strict schemas, because those are the parts whose behavior a replay actually depends on. World, instance, and policy declarations are recorded and checked for consistency inside each artifact set.
-
-## Which harnesses can Metering test today?
-
-The directly supported harness is a cooperative Python object implementing `HarnessPolicy`. It runs inside the Metering process, declares a finite JSON descriptor, receives only `PublicInstance` and its observation history through the documented callback, and returns one typed `Diagnose`, `Repair`, `Verify`, or `Finish` action at a time. It must solve the built-in hidden-fault task and return from each callback normally.
-
-A custom decision rule, planner, or deterministic controller that fits this contract can be measured now. A model-backed or external harness can be tested only after the user writes an in-process adapter that translates the callback into that system's requests and translates its response back into a typed Metering action. Metering does not provide that adapter, an external JSONL protocol, subprocess management, timeouts, or model provenance capture yet. [`HARNESS.md`](HARNESS.md) is the step-by-step path for writing such a policy and running it across the full suite with [`examples/run_suite.py`](examples/run_suite.py).
-
-| Harness | Supported now? | Reason |
-|---|---|---|
-| Built-in balanced, sequential, or seeded policy | Yes | Implements the exact in-process contract |
-| Custom Python diagnostic policy | Yes | Works when it declares provenance and returns typed actions |
-| Python wrapper that calls a model or service | Only manually | The user must write the adapter; Metering still sees only a cooperative callback |
-| Agent CLI, HTTP service, or another process directly | No | No external harness protocol or process controller exists |
-| General coding, browser, shell, or repository agent | No | The only implemented world is the eight-state hidden-fault task |
-| Untrusted or potentially nonreturning code | No | The boundary is not a sandbox and has no enforced timeout |
-
-## What Metering deliberately leaves out
-
-An instrument is only useful if its limits are stated as plainly as its results. These boundaries are chosen rather than pending, and they are recorded inside every artifact so a number cannot be quoted later without them.
-
-- The current result calibrates one eight-state deterministic world. It is not evidence of performance on real software work and not a universal harness-quality measurement.
-- The harness boundary is cooperative and in process. Metering cannot stop a callback that never returns, and it cannot survive a hard process exit, a segmentation fault, an out-of-memory kill, or an interpreter failure. It provides API non-disclosure and claims nothing about hostile code.
-- No external harness protocol, model adapter, process isolation, timeout enforcement, tool runner, or repository task is implemented.
-- The information meter measures uncertainty removed by delivered results. It says nothing about whether a model understood, trusted, remembered, or internally used that evidence.
-- The entropy calculation assumes the declared uniform prior and deterministic public observation model. A different world needs its own prior, observation semantics, calibration cases, and validated meter.
-- Correctness, raw resources, and diagnostic information remain separate. Metering does not produce an overall score, ranking, or leaderboard.
-- Hashes and commitments detect corruption and accidentally mixed artifacts. They are not signatures, and they do not defend against someone who rewrites an entire artifact set coherently.
+The current design is a deliberate breaking replacement of the earlier
+hidden-fault harness. Old policies, commands, manifests, traces, reports, and
+run directories require the historical checkout that produced them. The new
+package does not carry a compatibility layer.

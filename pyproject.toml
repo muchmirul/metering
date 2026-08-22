@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "metering"
 dynamic = ["version"]
-description = "Replayable measurement for a controlled hidden-fault diagnosis world"
+description = "Pure tools for measuring information in finite discrete distributions"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/muchmirul/metering"
-Documentation = "https://muchmirul.github.io/metering/"
+Documentation = "https://github.com/muchmirul/metering/blob/main/docs/theory.md"
 Repository = "https://github.com/muchmirul/metering.git"
 Releases = "https://github.com/muchmirul/metering/releases"
 
