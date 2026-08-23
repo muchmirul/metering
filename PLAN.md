@@ -5,13 +5,15 @@
 This document defines Metering's complete accepted scope. It replaces the
 earlier hidden-fault harness design with a deliberately breaking reset.
 
-Metering has one purpose:
+The installed Metering package has one measurement purpose:
 
 > Measure named information-theoretic quantities from probability
 > distributions supplied by the caller.
 
-It is a tool, not an agent. It contains no policy, planner, optimizer, model,
-world, controller, belief updater, or recommendation logic.
+It is a tool, not an agent. The package contains no policy, planner, optimizer,
+model, world, controller, belief updater, or recommendation logic. A separate,
+explicit history command may retain accepted measurement requests and responses;
+it does not change or interpret them.
 
 ## Foundation
 
@@ -209,9 +211,76 @@ programming language, or process runner that can exchange JSON over standard
 streams can use it. An MCP server, plugin system, HTTP service, or model adapter
 would add machinery without improving the measurement and does not belong here.
 
-## Permanent non-goals
+## Measurement history boundary
 
-The Metering package does not contain:
+`metering-history` is an explicit, filesystem-writing wrapper around the public
+`metering` command. The ordinary Python functions and `metering` command never
+enable it implicitly. Recording one request is deliberate:
+
+```bash
+printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
+  | metering-history record PATH
+```
+
+The wrapper first asks `metering` to validate and measure the request. A rejected
+request leaves the history untouched. An accepted request and its exact response
+form a pair with these two identities:
+
+```text
+pair_id   = SHA-256(canonical JSON of request and response)
+record_id = SHA-256(canonical JSON of pair, Metering version, and parent record)
+```
+
+`pair_id` is content identity: the same normalized request and response have the
+same pair ID. `record_id` is history identity: appending the same pair at a new
+place in the lineage produces a new record ID. Each immutable object contains
+exactly `schema_version`, `metering_version`, `pair_id`, `parent_record_id`,
+`request`, and `response`. `HEAD` points to the latest record. Objects and `HEAD`
+are canonical UTF-8 JSON or lowercase SHA-256 text, respectively.
+
+The complete command surface is:
+
+```text
+metering-history record PATH   read one Metering request and append its pair
+metering-history log PATH      emit HEAD and reachable records, newest first
+metering-history verify PATH   verify hashes, links, canonical form, and reachability
+```
+
+Successful commands emit one canonical JSON object. Storage or integrity failures
+emit `invalid_history` through the same `error.code` and `error.message` envelope
+and exit with status two. Measurement request failures preserve the error produced
+by `metering` and do not create storage.
+
+This is a linear local ledger, not a general version-control system. It has no
+branches, merges, remotes, tags, checkout, signing, wall-clock metadata, or
+automatic replay. Hash verification detects accidental modification and broken
+lineage; it does not authenticate who created a record or prove that a stored
+response was produced by trusted software. A stale `LOCK` directory after an
+interrupted writer must be inspected and removed by the caller.
+
+## Application boundary
+
+Small, non-packaged applications may live under `apps/` to demonstrate how a
+caller constructs a probability model and invokes Metering through its public
+boundary. Application code may observe a world, update caller-owned state, and
+use a measurement when choosing an action. Those responsibilities remain in
+the application and are not re-exported from `metering`.
+
+Every application must state:
+
+- what the outcomes in each supplied distribution mean;
+- how the probabilities were constructed;
+- which named Metering result is being reported; and
+- what the result does not establish.
+
+Applications must not add a generic score or describe a measured quantity as
+meaning, usefulness, correctness, understanding, or universal harness quality.
+They use the same public Python or JSON interface as any external caller. A
+demonstration must not rely on private package modules.
+
+## Permanent package non-goals
+
+The installed Metering package does not contain:
 
 - agents, models, prompts, memories, tools that choose other tools, or model
   adapters;
@@ -220,15 +289,16 @@ The Metering package does not contain:
   accounting;
 - posterior construction, Bayesian inference, probability estimation, sample
   binning, smoothing, or normalization;
-- trace formats, experiment runners, manifests, commitments, artifact stores,
-  replay engines, databases, or dashboards;
+- generic traces, experiment runners, manifests, commitments, replay engines,
+  databases, dashboards, or artifact stores beyond the fixed measurement-pair
+  ledger;
 - continuous or differential entropy, entropy-rate estimators, channel
   capacity optimization, or learned estimators;
 - claims about meaning, relevance, understanding, reasoning, knowledge, or
   intelligence.
 
-Applications may use Metering's outputs when making decisions, but those
-applications live outside this repository.
+Repository-local applications are examples, not additional Metering features.
+They are excluded from the public API and wheel package.
 
 ## Repository layout
 
@@ -237,12 +307,17 @@ src/metering/
     __init__.py       exact public Python surface
     information.py    validation and four pure measures
     __main__.py       strict JSON standard-stream adapter
+    history.py        explicit content-addressed measurement ledger
 tests/
     test_information.py
     test_cli.py
+    test_history.py
     test_public_api.py
 docs/
     theory.md
+apps/
+    folder_observer/  non-packaged versioned-sandbox demonstration
+    mutagenesis/      non-packaged agent candidate-measurement adapter
 ```
 
 Add a module only when a concrete responsibility no longer fits one of these
@@ -251,9 +326,9 @@ three. Do not introduce a generic abstraction in anticipation of future work.
 ## Compatibility
 
 This scope reset intentionally removes the previous hidden-fault world,
-actions, policies, controller, calibration, reports, trace/replay system,
-artifact schemas, and their CLI commands. Existing run artifacts remain usable
-only with a checkout of the historical implementation that created them.
+actions, policies, controller, calibration, reports, general trace/replay
+system, artifact schemas, and their CLI commands. Existing run artifacts remain
+usable only with a checkout of the historical implementation that created them.
 
 There is no compatibility shim. Keeping one would retain the unrelated product
 inside the new one and violate the one-purpose boundary.
@@ -272,12 +347,16 @@ The rewrite is complete only when:
   `ProbabilityError`;
 - the CLI accepts every documented request, emits valid canonical JSON,
   represents infinity explicitly, and returns documented exit statuses;
+- the history CLI records only accepted pairs, distinguishes pair identity from
+  lineage identity, and detects corrupt or unreachable objects;
 - direct calls and CLI calls agree for the same inputs;
 - the core performs no filesystem or network access, does not modify input
   containers, and documents consumption of one-shot iterators;
 - the package has no runtime dependency;
 - no legacy world, policy, controller, agent, optimizer, benchmark, replay, or
-  artifact implementation remains in the shipped tree;
+  artifact implementation remains in the installed `metering` package;
+- repository-local applications use only public Metering boundaries and make
+  their caller-owned probability model explicit;
 - the full test suite and package build pass.
 
 ## Source

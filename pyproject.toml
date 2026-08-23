@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "metering"
 dynamic = ["version"]
-description = "Pure tools for measuring information in finite discrete distributions"
+description = "Named information measures with an explicit history tool"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
@@ -21,6 +21,7 @@ test = ["pytest>=8,<9"]
 
 [project.scripts]
 metering = "metering.__main__:main"
+metering-history = "metering.history:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

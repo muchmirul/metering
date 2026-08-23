@@ -10,10 +10,11 @@ It implements four named measures:
 - Kullback-Leibler divergence;
 - mutual information.
 
-That is the entire product. Metering does not run agents, choose actions,
-estimate probabilities, update beliefs, rank systems, or interpret meaning.
-The caller supplies the probability model; Metering validates it and returns a
-number.
+That is the entire measurement surface. Metering does not run agents, choose
+actions, estimate probabilities, update beliefs, rank systems, or interpret
+meaning. The caller supplies the probability model; Metering validates it and
+returns a number. A separate opt-in command can retain accepted measurement
+request/response pairs without changing that surface.
 
 [`PLAN.md`](PLAN.md) is the normative contract. [`docs/theory.md`](docs/theory.md)
 explains why the measures stay separate.
@@ -117,6 +118,92 @@ options are `-h`/`--help` and `--version`; abbreviations are rejected.
 The command handles one request per process. It does not access application
 files, call a network service, load a model, or choose which measure to run.
 
+## Versioned measurement history
+
+`metering-history` is the explicit filesystem-writing boundary. It wraps the
+ordinary `metering` command and appends only successful request/response pairs:
+
+```bash
+history_dir="$(mktemp -d)"
+printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
+  | uv run metering-history record "$history_dir"
+```
+
+The result contains the normalized request, exact Metering response, package
+version, `pair_id`, `parent_record_id`, and `record_id`. The pair ID identifies
+the request/response content. The record ID also binds that pair to its parent,
+so repeated pairs at different positions remain distinct history records.
+
+Inspect newest-first history or check its structural integrity with:
+
+```bash
+uv run metering-history log "$history_dir"
+uv run metering-history verify "$history_dir"
+```
+
+The directory contains an immutable object per record and a `HEAD` pointer.
+Writes are serialized with a `LOCK` directory and update `HEAD` atomically. An
+invalid Metering request does not create or advance the history. A process killed
+during a write may leave a stale `LOCK`; inspect the directory before removing
+that lock.
+
+This is deliberately smaller than Git. It is one local linear lineage, with no
+branches, merges, remotes, tags, checkout, signatures, timestamps, or automatic
+replay. `verify` checks canonical encoding, hashes, parent links, and
+reachability. Hashes detect modification; they do not authenticate the author or
+prove that trusted software created an object.
+
+## Example application: folder observer
+
+[`apps/folder_observer`](apps/folder_observer) is a small application that
+demonstrates Metering as a subprocess tool. Four immutable fixture directories
+represent versions of one sandbox. The observer starts with a uniform
+distribution over those versions, predicts the possible results of listing or
+reading the sandbox, and asks Metering to measure each result distribution.
+
+Run the deterministic demonstration with:
+
+```bash
+uv run python apps/folder_observer/observer.py --active v3
+```
+
+Add `--history PATH` to append every Metering call made by the observer to one
+measurement history. Without the flag, the observer creates no persistent
+state.
+
+The application chooses the observation with the greatest result entropy,
+observes the materialized sandbox, filters the candidate versions itself, and
+repeats until one version remains. It prints canonical JSON Lines containing
+the explicit probability requests and Metering responses.
+
+The version fixtures, inference rule, snapshot hashes, action choice, and loop
+belong to the application. None of them is part of the `metering` package. The
+reported bits describe the application's declared finite model; they do not
+measure the meaning or usefulness of the files.
+
+## Example application: mutagenesis
+
+[`apps/mutagenesis`](apps/mutagenesis) is a small agent-facing adapter, not an
+autonomous evolution system. An agent supplies an opaque candidate identifier
+and the candidate model's probability for each caller-declared target outcome.
+The adapter uses Metering's public `self_information` function to measure those
+outcomes.
+
+Run the deterministic example with:
+
+```bash
+printf '%s\n' \
+  '{"candidate":"mutation-17","target_probabilities":[0.5,0.25,1.0]}' \
+  | uv run python apps/mutagenesis/mutagenesis.py
+```
+
+The adapter reports every target surprisal and their explicitly named
+arithmetic mean. It does not contain observations, a neural architecture,
+mutation logic, selection, a loop, memory, or a stopping rule. Those remain
+agent responsibilities. Lower surprisal for caller-declared outcomes does not
+establish general adaptation, correctness, meaning, understanding, or
+intelligence.
+
 ## Definitions and edge cases
 
 For logarithm base `b > 1`:
@@ -144,12 +231,12 @@ Metering does not renormalize accepted values. It uses double-precision
 floating-point arithmetic; compare nontrivial results with an appropriate
 numerical tolerance.
 
-## What is deliberately absent
+## What is deliberately absent from the package
 
 There is no world, policy, controller, optimizer, benchmark, model adapter,
-MCP server, HTTP service, trace, report, artifact store, replay engine, overall
-score, or information-gain guess. Those belong in applications that use this
-tool, not in the measuring tool itself.
+MCP server, HTTP service, general trace/report system, replay engine, overall
+score, or information-gain guess. The fixed measurement ledger stores only the
+accepted JSON pair, package version, and parent-bound identifiers.
 
 The initial scope is finite discrete distributions. Continuous entropy and
 estimators from samples need modeling decisions and are not silently bundled

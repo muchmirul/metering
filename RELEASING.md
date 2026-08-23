@@ -26,14 +26,20 @@ Start from a clean branch synchronized with its remote, then run:
 uv run --extra test pytest -q
 printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
   | uv run metering
+history_dir="$(mktemp -d)"
+printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
+  | uv run metering-history record "$history_dir"
+uv run metering-history verify "$history_dir"
 uv build
 ```
 
-The CLI smoke check must emit a finite entropy value of `1.0` at base `2.0`.
-The wheel should contain only the three public package modules and packaging
-metadata. The source archive normally also contains tests, Markdown sources,
-and build configuration. Inspect both archives for legacy harness modules,
-generated runs, caches, or other build output; none belongs in a release.
+The measurement smoke check must emit a finite entropy value of `1.0` at base
+`2.0`; the history smoke check must record and verify one pair. The wheel should
+contain only the four package modules and packaging metadata. The source
+archive also contains tests, Markdown sources, build
+configuration, and the non-packaged applications under `apps/`. Inspect both
+archives for legacy harness modules, generated application runs or sandboxes,
+caches, and other build output; none belongs in a release.
 
 Create and push an annotated numeric tag only after those checks pass:
 

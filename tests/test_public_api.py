@@ -59,14 +59,14 @@ def test_legacy_product_modules_are_gone():
     )
 
 
-def test_shipped_source_has_only_the_core_and_json_adapter():
+def test_shipped_source_has_only_the_core_and_two_json_tools():
     files = {
         path.name
         for path in (ROOT / "src" / "metering").iterdir()
         if path.is_file() and path.suffix == ".py"
     }
 
-    assert files == {"__init__.py", "__main__.py", "information.py"}
+    assert files == {"__init__.py", "__main__.py", "history.py", "information.py"}
 
 
 def test_package_has_no_runtime_dependencies():
