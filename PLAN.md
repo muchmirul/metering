@@ -273,6 +273,14 @@ Every application must state:
 - which named Metering result is being reported; and
 - what the result does not establish.
 
+The `apps/mutagenesis` example is a one-shot screening adapter. Its request
+identifies one candidate, one fixed evaluation, and unique observed cases. The
+caller supplies the probability that a normalized candidate forecast assigned
+to each named target before that target was revealed. The adapter reports the
+target self-information and an explicitly application-owned, equally weighted
+arithmetic mean. It does not generate mutations, compare or retain candidates,
+implement an environment, or run an evolution loop.
+
 Applications must not add a generic score or describe a measured quantity as
 meaning, usefulness, correctness, understanding, or universal harness quality.
 They use the same public Python or JSON interface as any external caller. A

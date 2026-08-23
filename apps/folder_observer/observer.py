@@ -108,14 +108,26 @@ def load_versions() -> tuple[Version, ...]:
             raise ObserverError("each version must contain exactly name and parent")
         name = item["name"]
         parent = item["parent"]
-        if type(name) is not str or Path(name).name != name or not name:
+        if (
+            type(name) is not str
+            or not name
+            or name in {".", ".."}
+            or "\x00" in name
+            or Path(name).name != name
+        ):
             raise ObserverError("version name must be one path component")
         if name in by_name:
             raise ObserverError(f"duplicate version: {name}")
+        if parent is not None and type(parent) is not str:
+            raise ObserverError(
+                "version parent must be null or a preceding version name"
+            )
         if parent is not None and parent not in by_name:
             raise ObserverError(f"parent must precede its child: {parent}")
 
         root = FIXTURES_ROOT / name
+        if root.is_symlink():
+            raise ObserverError(f"fixture directory may not be a symlink: {root}")
         if not root.is_dir():
             raise ObserverError(f"missing fixture directory: {root}")
         manifest = fixture_manifest(root)
@@ -141,22 +153,61 @@ def load_versions() -> tuple[Version, ...]:
     return tuple(versions)
 
 
+def sandbox_root(root: Path) -> Path:
+    if root.is_symlink() or not root.is_dir():
+        raise ObserverError(f"sandbox root must be a real directory: {root}")
+    try:
+        return root.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ObserverError(f"cannot resolve sandbox root: {root}") from exc
+
+
+def read_probe_path(root: Path, value: str) -> Path:
+    if type(value) is not str or not value or "\x00" in value:
+        raise ObserverError("probe path must be a non-empty relative path")
+    relative = Path(value)
+    if (
+        relative.is_absolute()
+        or relative.as_posix() != value
+        or any(part in {".", ".."} for part in relative.parts)
+    ):
+        raise ObserverError(f"probe path must be normalized and relative: {value}")
+
+    path = root
+    for part in relative.parts:
+        path /= part
+        if path.is_symlink():
+            raise ObserverError(f"probe path may not traverse a symlink: {value}")
+    try:
+        resolved = path.resolve(strict=False)
+        resolved.relative_to(root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ObserverError(f"probe path escapes the sandbox: {value}") from exc
+    return resolved
+
+
 def observe(root: Path, probe: Probe) -> dict[str, object]:
+    root = sandbox_root(root)
     if probe.operation == "list":
-        paths = [
-            path.relative_to(root).as_posix()
-            for path in sorted(root.rglob("*"))
-            if path.is_file()
-        ]
+        if probe.path is not None:
+            raise ObserverError("list probe may not contain a path")
+        paths: list[str] = []
+        for path in sorted(root.rglob("*")):
+            if path.is_symlink():
+                relative = path.relative_to(root).as_posix()
+                raise ObserverError(f"sandbox may not contain a symlink: {relative}")
+            if path.is_file():
+                paths.append(path.relative_to(root).as_posix())
         return {"kind": "listing", "paths": paths}
 
     if probe.operation != "read" or probe.path is None:
         raise ObserverError(f"unsupported probe: {probe}")
-    path = root / probe.path
+    path = read_probe_path(root, probe.path)
     if not path.is_file():
         return {"kind": "missing"}
     try:
-        return {"kind": "text", "text": path.read_text(encoding="utf-8")}
+        content = path.read_bytes()
+        return {"kind": "text", "text": content.decode("utf-8")}
     except UnicodeDecodeError as exc:
         raise ObserverError(f"sandbox file is not UTF-8 text: {probe.path}") from exc
 
@@ -279,6 +330,7 @@ def run(
     *,
     history: Path | None = None,
 ) -> Version:
+    sandbox = sandbox_root(sandbox)
     emit(
         {
             "event": "start",
@@ -339,6 +391,9 @@ def run(
         candidates = matching
 
     identified = candidates[0]
+    sandbox_tree_id = digest(fixture_manifest(sandbox))
+    if sandbox_tree_id != identified.tree_id:
+        raise ObserverError("sandbox tree does not match identified snapshot")
     emit({"event": "identified", "snapshot": identified.identity(), "steps": step})
     return identified
 

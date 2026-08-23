@@ -62,10 +62,37 @@ It asks Metering for the entropy of predicted results and the self-information
 of the result that occurs. Candidate filtering belongs to this application, not
 to Metering.
 
+## Mathematical foundation and hypothesis
+
+The current demo is **finite, noiseless Bayesian hypothesis identification
+with greedy Shannon-entropy query selection**. A deterministic probe partitions
+the candidate versions by result. Because its result is fixed by the active
+version, result entropy equals mutual information and the expected one-step
+reduction in candidate entropy under the declared model. The loop therefore
+selects the probe with maximum result entropy.
+
+The implemented-system hypothesis is:
+
+> Given an active sandbox exactly equal to one of `v1` through `v4`, a uniform
+> prior, deterministic noiseless reads, and the current fixed fixtures, the
+> reference policy identifies the correct snapshot in exactly two delivered
+> read observations, and every selected probe maximizes current result entropy.
+
+For these fixtures, candidate entropy must follow `2 -> 1 -> 0` bits and each
+delivered result must have probability `0.5` and surprisal `1` bit. This is a
+falsifiable claim about the reference fixture, not a claim about realistic
+folders, agent intelligence, or global query optimality. See [Mathematical
+foundation and hypothesis](docs/theory-and-hypothesis.md) for the derivation,
+assumptions, falsifiers, and primary research sources.
+
 ## Mini-docs
 
 - [Architecture](docs/architecture.md) defines the irreducible roles, state,
   probability model, and version boundary.
+- [Mathematical foundation and hypothesis](docs/theory-and-hypothesis.md)
+  identifies the current demo as finite noiseless Bayesian hypothesis
+  identification, derives its entropy rule, states its falsifiable hypothesis,
+  and records the assumptions that limit the result.
 - [Agent protocol](docs/agent-protocol.md) defines the minimal proposed JSONL
   interface and clearly separates it from current behavior.
 
@@ -76,13 +103,20 @@ folder_observer/
     observer.py       current deterministic reference demo
     versions.json     ordered fixture lineage
     fixtures/         immutable sandbox versions
-    docs/              architecture and agent protocol
+    docs/              architecture, theory, hypothesis, and agent protocol
 ```
 
 ## Boundaries
 
 - This is not an agent, planner, filesystem watcher, or general version-control
   system.
+- Version names cannot escape `fixtures/`, fixture roots cannot be symlinks,
+  and malformed parent values fail explicitly.
+- Read probes accept only normalized relative paths and reject symbolic-link
+  traversal. UTF-8 decoding preserves the file's original line endings.
+- Identification is emitted only when the canonical sandbox file manifest
+  matches the selected snapshot's `tree_id`, so extra or changed files fail
+  instead of being ignored.
 - The temporary directory is cooperative isolation, not a security sandbox.
 - `--active` is reproducible controller configuration, not a protected secret
   from the person starting the process.

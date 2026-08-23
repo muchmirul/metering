@@ -174,7 +174,9 @@ state.
 The application chooses the observation with the greatest result entropy,
 observes the materialized sandbox, filters the candidate versions itself, and
 repeats until one version remains. It prints canonical JSON Lines containing
-the explicit probability requests and Metering responses.
+the explicit probability requests and Metering responses. Before emitting an
+identified snapshot, it verifies that the canonical sandbox file manifest
+matches that snapshot's `tree_id`; out-of-model content fails explicitly.
 
 The version fixtures, inference rule, snapshot hashes, action choice, and loop
 belong to the application. None of them is part of the `metering` package. The
@@ -183,26 +185,28 @@ measure the meaning or usefulness of the files.
 
 ## Example application: mutagenesis
 
-[`apps/mutagenesis`](apps/mutagenesis) is a small agent-facing adapter, not an
-autonomous evolution system. An agent supplies an opaque candidate identifier
-and the candidate model's probability for each caller-declared target outcome.
-The adapter uses Metering's public `self_information` function to measure those
-outcomes.
+[`apps/mutagenesis`](apps/mutagenesis) is a small agent-facing screening assay,
+not an autonomous evolution system. An agent supplies opaque candidate,
+evaluation, observation, and target identifiers plus the probability that the
+candidate assigned to each target before reveal. The adapter uses Metering's
+public `self_information` function to measure those outcomes.
 
 Run the deterministic example with:
 
 ```bash
 printf '%s\n' \
-  '{"candidate":"mutation-17","target_probabilities":[0.5,0.25,1.0]}' \
+  '{"candidate":"mutation-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
   | uv run python apps/mutagenesis/mutagenesis.py
 ```
 
 The adapter reports every target surprisal and their explicitly named
-arithmetic mean. It does not contain observations, a neural architecture,
-mutation logic, selection, a loop, memory, or a stopping rule. Those remain
-agent responsibilities. Lower surprisal for caller-declared outcomes does not
-establish general adaptation, correctness, meaning, understanding, or
-intelligence.
+arithmetic mean while echoing the identities needed to compare candidates on
+the same declared cases. The app itself is the assay in a
+directed-evolution-inspired external loop; despite its name, it does not create
+mutations, reproduce candidates, or select them. It contains no neural
+architecture, mutation logic, loop, memory, or stopping rule. See the
+[biological and mathematical foundations](apps/mutagenesis/docs/foundations.md)
+for the exact analogy, logarithmic-loss theory, and falsifiable held-out claim.
 
 ## Definitions and edge cases
 

@@ -1,4 +1,4 @@
-"""Measure one agent-supplied mutation candidate through Metering."""
+"""Measure one agent-supplied candidate through Metering."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import json
 import math
 import sys
 from collections.abc import Sequence
+from decimal import Decimal, InvalidOperation
 
 from metering import ProbabilityError, self_information
 
@@ -18,7 +19,6 @@ def canonical_json(value: object) -> str:
     return json.dumps(
         value,
         allow_nan=False,
-        ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
     )
@@ -37,63 +37,142 @@ def _reject_non_finite(token: str) -> object:
     raise RequestError(f"non-finite number is not valid JSON: {token}")
 
 
-def decode_request(source: str) -> tuple[str, list[object]]:
+def _parse_json_number(token: str) -> float:
+    try:
+        exact_value = Decimal(token)
+        value = float(token)
+    except (InvalidOperation, OverflowError, ValueError) as exc:
+        raise RequestError("JSON number exceeds supported numeric limits") from exc
+    if not math.isfinite(value):
+        raise RequestError(
+            "JSON number is outside the finite double-precision range"
+        )
+    if (value == 0.0 and exact_value != 0) or (
+        value == 1.0 and exact_value != 1
+    ):
+        raise RequestError(
+            "JSON number would change whether its value is zero or one "
+            "in double precision"
+        )
+    return value
+
+
+def _require_exact_keys(
+    value: dict[str, object], expected: set[str], location: str
+) -> None:
+    missing = sorted(expected - set(value))
+    extra = sorted(set(value) - expected)
+    details: list[str] = []
+    if missing:
+        details.append(f"missing keys: {', '.join(missing)}")
+    if extra:
+        details.append(f"extra keys: {', '.join(extra)}")
+    if details:
+        raise RequestError(f"{location}: {'; '.join(details)}")
+
+
+def _require_nonempty_string(value: object, location: str) -> str:
+    if type(value) is not str or not value:
+        raise RequestError(f"{location} must be a non-empty string")
+    return value
+
+
+def decode_request(source: str) -> tuple[str, str, list[dict[str, object]]]:
     """Decode one strict candidate-measurement request."""
 
+    if not source.strip():
+        raise RequestError("stdin must contain one JSON object")
     try:
         request = json.loads(
             source,
             object_pairs_hook=_unique_object,
             parse_constant=_reject_non_finite,
+            parse_float=_parse_json_number,
+            parse_int=_parse_json_number,
         )
     except RequestError:
         raise
     except json.JSONDecodeError as exc:
         raise RequestError(f"invalid JSON: {exc.msg}") from exc
+    except (RecursionError, ValueError) as exc:
+        raise RequestError(f"invalid JSON: {exc}") from exc
 
     if type(request) is not dict:
         raise RequestError("request must be one JSON object")
-    expected_keys = {"candidate", "target_probabilities"}
-    if set(request) != expected_keys:
-        missing = sorted(expected_keys - set(request))
-        extra = sorted(set(request) - expected_keys)
-        details: list[str] = []
-        if missing:
-            details.append(f"missing keys: {', '.join(missing)}")
-        if extra:
-            details.append(f"extra keys: {', '.join(extra)}")
-        raise RequestError("; ".join(details))
+    _require_exact_keys(
+        request, {"candidate", "evaluation", "observations"}, "request"
+    )
 
-    candidate = request["candidate"]
-    if type(candidate) is not str or not candidate:
-        raise RequestError("candidate must be a non-empty string")
-    probabilities = request["target_probabilities"]
-    if type(probabilities) is not list or not probabilities:
-        raise RequestError("target_probabilities must be a non-empty JSON array")
-    return candidate, probabilities
+    candidate = _require_nonempty_string(request["candidate"], "candidate")
+    evaluation = _require_nonempty_string(request["evaluation"], "evaluation")
+    observations = request["observations"]
+    if type(observations) is not list or not observations:
+        raise RequestError("observations must be a non-empty JSON array")
+
+    decoded_observations: list[dict[str, object]] = []
+    seen_observations: set[str] = set()
+    expected_observation_keys = {
+        "observation",
+        "target",
+        "target_probability",
+    }
+    for index, observation in enumerate(observations):
+        location = f"observations[{index}]"
+        if type(observation) is not dict:
+            raise RequestError(f"{location} must be a JSON object")
+        _require_exact_keys(observation, expected_observation_keys, location)
+        observation_id = _require_nonempty_string(
+            observation["observation"], f"{location}.observation"
+        )
+        target = _require_nonempty_string(
+            observation["target"], f"{location}.target"
+        )
+        if observation_id in seen_observations:
+            raise RequestError(
+                f"duplicate observation identifier: {observation_id}"
+            )
+        seen_observations.add(observation_id)
+        decoded_observations.append(
+            {
+                "observation": observation_id,
+                "target": target,
+                "target_probability": observation["target_probability"],
+            }
+        )
+    return candidate, evaluation, decoded_observations
 
 
 def measure_candidate(
-    candidate: str, probabilities: Sequence[object]
+    candidate: str,
+    evaluation: str,
+    observations: Sequence[dict[str, object]],
 ) -> dict[str, object]:
     """Return named measurements without selecting or changing the candidate."""
 
     outcomes: list[dict[str, object]] = []
     finite_values: list[float] = []
     infinite = False
-    for index, probability in enumerate(probabilities):
+    for index, observation in enumerate(observations):
+        probability = observation["target_probability"]
         try:
             value = self_information(probability, base=2)
         except ProbabilityError as exc:
-            raise ProbabilityError(f"target_probabilities[{index}]: {exc}") from exc
+            raise ProbabilityError(
+                f"observations[{index}].target_probability: {exc}"
+            ) from exc
         outcome_is_infinite = math.isinf(value)
         infinite = infinite or outcome_is_infinite
         if not outcome_is_infinite:
             finite_values.append(value)
+        probability_value = float(probability)
         outcomes.append(
             {
                 "infinite": outcome_is_infinite,
-                "target_probability": float(probability),
+                "observation": observation["observation"],
+                "target": observation["target"],
+                "target_probability": (
+                    0.0 if probability_value == 0.0 else probability_value
+                ),
                 "value_bits": None if outcome_is_infinite else value,
             }
         )
@@ -101,10 +180,12 @@ def measure_candidate(
     mean = None if infinite else math.fsum(finite_values) / len(outcomes)
     return {
         "candidate": candidate,
+        "evaluation": evaluation,
         "measurement": {
             "aggregate": {
                 "infinite": infinite,
                 "mean_target_surprisal_bits": mean,
+                "sample_count": len(outcomes),
             },
             "base": 2.0,
             "metering_measure": "self_information",
@@ -118,14 +199,24 @@ def _write_error(code: str, message: str) -> None:
     sys.stderr.write(canonical_json(error) + "\n")
 
 
+def _read_stdin() -> str:
+    stream = getattr(sys.stdin, "buffer", None)
+    if stream is None:
+        return sys.stdin.read()
+    try:
+        return stream.read().decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RequestError("standard input must be valid UTF-8 JSON") from exc
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     if arguments:
         _write_error("invalid_request", "command-line arguments are not supported")
         return 2
     try:
-        candidate, probabilities = decode_request(sys.stdin.read())
-        response = measure_candidate(candidate, probabilities)
+        candidate, evaluation, observations = decode_request(_read_stdin())
+        response = measure_candidate(candidate, evaluation, observations)
     except RequestError as exc:
         _write_error("invalid_request", str(exc))
         return 2

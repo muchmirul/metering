@@ -58,12 +58,19 @@ The active version never appears in an agent response before completion. The
 belief, allowed probes, measurement inputs, measurement outputs, and delivered
 observation are public.
 
-The initial example uses a uniform belief, but uniformity is configuration, not
-an architectural assumption:
+The current executable uses a uniform belief represented by its remaining
+candidate set. Uniformity is therefore a real mathematical assumption of the
+reference demo:
 
 ```json
 {"v1":0.25,"v2":0.25,"v3":0.25,"v4":0.25}
 ```
+
+The proposed agent-facing protocol represents an explicit probability map so a
+later implementation could accept a nonuniform prior. That behavior is not
+implemented yet. See [Mathematical foundation and
+hypothesis](theory-and-hypothesis.md) for the current model, derivation, and
+falsifiable predictions.
 
 ## Probability construction
 

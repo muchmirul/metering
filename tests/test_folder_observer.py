@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import math
+import runpy
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +21,31 @@ def run_observer(active: str, history: Path | None = None):
         arguments.extend(["--history", str(history)])
     return subprocess.run(
         arguments,
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def isolated_observer_app(
+    tmp_path: Path, metadata: list[object]
+) -> Path:
+    app = tmp_path / "folder_observer"
+    (app / "fixtures").mkdir(parents=True)
+    shutil.copy2(OBSERVER, app / "observer.py")
+    (app / "versions.json").write_text(
+        json.dumps(metadata),
+        encoding="utf-8",
+    )
+    return app
+
+
+def run_isolated_observer(
+    app: Path, *arguments: str
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(app / "observer.py"), *arguments],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -50,6 +78,47 @@ def test_observer_identifies_every_fixture_version(active):
     ]
     assert events[-1]["snapshot"]["name"] == active
     assert events[-1]["steps"] == 2
+
+    observations = events[1:-1]
+    assert [
+        event["candidate_entropy_before"]["response"]["value"]
+        for event in observations
+    ] == [2.0, 1.0]
+    assert [
+        event["candidate_entropy_after"]["response"]["value"]
+        for event in observations
+    ] == [1.0, 0.0]
+
+    total_surprisal = 0.0
+    for event in observations:
+        entropy_before = event["candidate_entropy_before"]["response"]["value"]
+        entropy_after = event["candidate_entropy_after"]["response"]["value"]
+        surprisal = event["observed_surprisal"]["response"]["value"]
+        scores = event["probe_scores"]
+        selected_score = next(
+            score for score in scores if score["probe"] == event["selected_probe"]
+        )
+
+        assert event["selected_probe"]["operation"] == "read"
+        assert selected_score["measurement"]["response"]["value"] == max(
+            score["measurement"]["response"]["value"] for score in scores
+        )
+        assert event["observed_probability"] == pytest.approx(0.5)
+        assert entropy_before - entropy_after == pytest.approx(surprisal)
+        assert surprisal == pytest.approx(1.0)
+        total_surprisal += surprisal
+
+        for score in scores:
+            expected_posterior_entropy = sum(
+                outcome["probability"] * math.log2(len(outcome["versions"]))
+                for outcome in score["outcomes"]
+            )
+            assert (
+                entropy_before - expected_posterior_entropy
+                == pytest.approx(score["measurement"]["response"]["value"])
+            )
+
+    assert total_surprisal == pytest.approx(2.0)
 
 
 def test_observer_exposes_version_lineage_and_exact_probability_models():
@@ -174,6 +243,170 @@ def test_observer_rejects_an_unknown_fixture_version():
     assert result.returncode == 2
     assert result.stdout == ""
     assert "invalid choice" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("metadata", "error"),
+    [
+        ([{"name": "..", "parent": None}], "version name"),
+        ([{"name": "bad\x00name", "parent": None}], "version name"),
+        ([{"name": "v1", "parent": []}], "version parent"),
+    ],
+)
+def test_observer_rejects_malformed_version_metadata(
+    tmp_path, metadata, error
+):
+    app = isolated_observer_app(tmp_path, metadata)
+
+    result = run_isolated_observer(app)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert error in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_observer_rejects_a_symlink_fixture_root(tmp_path):
+    app = isolated_observer_app(
+        tmp_path,
+        [{"name": "v1", "parent": None}],
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "state.txt").write_text("outside\n", encoding="utf-8")
+    (app / "fixtures" / "v1").symlink_to(
+        outside,
+        target_is_directory=True,
+    )
+
+    result = run_isolated_observer(app, "--active", "v1")
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "symlink" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_observer_preserves_utf8_line_endings_when_distinguishing_versions(
+    tmp_path,
+):
+    app = isolated_observer_app(
+        tmp_path,
+        [
+            {"name": "v1", "parent": None},
+            {"name": "v2", "parent": "v1"},
+        ],
+    )
+    v1 = app / "fixtures" / "v1"
+    v2 = app / "fixtures" / "v2"
+    v1.mkdir()
+    v2.mkdir()
+    (v1 / "state.txt").write_bytes(b"value\n")
+    (v2 / "state.txt").write_bytes(b"value\r\n")
+
+    result = run_isolated_observer(app, "--active", "v2")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    events = parse_events(result.stdout)
+    assert events[1]["observed_result"] == {
+        "kind": "text",
+        "text": "value\r\n",
+    }
+    assert events[-1]["snapshot"]["name"] == "v2"
+
+
+def test_observe_rejects_escaping_and_symlink_paths(tmp_path):
+    api = runpy.run_path(str(OBSERVER))
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside\n", encoding="utf-8")
+    (sandbox / "outside-link.txt").symlink_to(outside)
+
+    for unsafe_path in (
+        "../outside.txt",
+        str(outside),
+        "outside-link.txt",
+        "\x00",
+    ):
+        with pytest.raises(api["ObserverError"], match="path|symlink"):
+            api["observe"](
+                sandbox,
+                api["Probe"]("read", unsafe_path),
+            )
+
+    with pytest.raises(api["ObserverError"], match="symlink"):
+        api["observe"](sandbox, api["Probe"]("list"))
+
+    with pytest.raises(api["ObserverError"], match="list probe"):
+        api["observe"](sandbox, api["Probe"]("list", "state.txt"))
+
+    sandbox_link = tmp_path / "sandbox-link"
+    sandbox_link.symlink_to(sandbox, target_is_directory=True)
+    with pytest.raises(api["ObserverError"], match="sandbox root"):
+        api["observe"](sandbox_link, api["Probe"]("list"))
+
+
+def test_run_rejects_unmodelled_sandbox_content(tmp_path, capsys):
+    api = runpy.run_path(str(OBSERVER))
+    fixture = tmp_path / "fixture"
+    fixture.mkdir()
+    (fixture / "state.txt").write_text("known\n", encoding="utf-8")
+    manifest = api["fixture_manifest"](fixture)
+    tree_id = api["digest"](manifest)
+    snapshot_id = api["digest"](
+        {"parent_snapshot_id": None, "tree_id": tree_id}
+    )
+    version = api["Version"](
+        name="v1",
+        parent=None,
+        parent_snapshot_id=None,
+        root=fixture,
+        paths=("state.txt",),
+        tree_id=tree_id,
+        snapshot_id=snapshot_id,
+    )
+    sandbox = tmp_path / "sandbox"
+    shutil.copytree(fixture, sandbox)
+    (sandbox / "unmodelled.txt").write_text("extra\n", encoding="utf-8")
+
+    with pytest.raises(
+        api["ObserverError"],
+        match="sandbox tree does not match identified snapshot",
+    ):
+        api["run"]((version,), sandbox)
+
+    output = capsys.readouterr().out
+    assert '"event":"start"' in output
+    assert '"event":"identified"' not in output
+
+
+def test_run_rejects_a_symlink_sandbox_root(tmp_path, capsys):
+    api = runpy.run_path(str(OBSERVER))
+    fixture = tmp_path / "fixture"
+    fixture.mkdir()
+    (fixture / "state.txt").write_text("known\n", encoding="utf-8")
+    manifest = api["fixture_manifest"](fixture)
+    tree_id = api["digest"](manifest)
+    version = api["Version"](
+        name="v1",
+        parent=None,
+        parent_snapshot_id=None,
+        root=fixture,
+        paths=("state.txt",),
+        tree_id=tree_id,
+        snapshot_id=api["digest"](
+            {"parent_snapshot_id": None, "tree_id": tree_id}
+        ),
+    )
+    sandbox = tmp_path / "sandbox-link"
+    sandbox.symlink_to(fixture, target_is_directory=True)
+
+    with pytest.raises(api["ObserverError"], match="sandbox root"):
+        api["run"]((version,), sandbox)
+
+    assert capsys.readouterr().out == ""
 
 
 def test_observer_can_append_every_measurement_to_history(tmp_path):
