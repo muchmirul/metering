@@ -36,6 +36,20 @@ jobs:
             'import json,sys; assert json.load(open(sys.argv[1]))["value"] == 1.0' \
             "$valid_output"
           "$wheel_env/bin/metering" --version
+          "$wheel_env/bin/python" - <<'PY'
+          from evo import Candidate, Verdict, step
+
+          parent = Candidate("parent", 1)
+          transition = step(
+              parent,
+              lambda _: Candidate("child", 2),
+              lambda incumbent, challenger: Verdict(
+                  challenger.id,
+                  {"passed": True},
+              ),
+          )
+          assert transition.next_parent.value == 2
+          PY
           set +e
           printf '%s\n' '{"measure":"entropy","probabilities":[2]}' \
             | "$wheel_env/bin/metering" >"$invalid_output" 2>"$invalid_error"

@@ -1,7 +1,8 @@
 # Releasing Metering
 
 Git tags published as GitHub Releases are the source of package versions. Do
-not hard-code a package version in `pyproject.toml` or `src/metering/`.
+not hard-code a package version in `pyproject.toml`, `src/metering/`, or
+`src/evo/`.
 
 ## Version format
 
@@ -30,16 +31,29 @@ history_dir="$(mktemp -d)"
 printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
   | uv run metering-history record "$history_dir"
 uv run metering-history verify "$history_dir"
+uv run python - <<'PY'
+from evo import Candidate, Verdict, step
+
+parent = Candidate("parent", 1)
+transition = step(
+    parent,
+    lambda _: Candidate("child", 2),
+    lambda incumbent, challenger: Verdict(challenger.id, {"passed": True}),
+)
+assert transition.next_parent.value == 2
+PY
 uv build
 ```
 
 The measurement smoke check must emit a finite entropy value of `1.0` at base
-`2.0`; the history smoke check must record and verify one pair. The wheel should
-contain only the four package modules and packaging metadata. The source
-archive also contains tests, Markdown sources, build
-configuration, and the non-packaged applications under `apps/`. Inspect both
-archives for legacy harness modules, generated application runs or sandboxes,
-caches, and other build output; none belongs in a release.
+`2.0`; the history smoke check must record and verify one pair; the Evo smoke
+check must select the challenger.
+
+The wheel should contain the four-module `metering` package, the one-file `evo`
+package, and packaging metadata. The source archive also contains tests,
+Markdown sources, build configuration, and the non-packaged applications under
+`apps/`. Inspect both archives for legacy harness modules, generated application
+runs or sandboxes, caches, and other build output; none belongs in a release.
 
 Create and push an annotated numeric tag only after those checks pass:
 
