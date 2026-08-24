@@ -2,9 +2,10 @@
 
 ## Short answer
 
-The executable is a **one-shot probabilistic screening assay**. It is not
-mutagenesis and it is not an evolutionary system. A complete external agent
-could place this assay inside a **directed-evolution-inspired
+Each request is a **one-shot probabilistic screening assay**. The executable
+can handle one request and exit or stream independent requests with `--jsonl`.
+It is not mutagenesis and it is not an evolutionary system. A complete
+external agent could place this assay inside a **directed-evolution-inspired
 variation-screen-retain loop**, but mutation, inheritance, selection, and
 repetition would all belong to that agent.
 
@@ -16,9 +17,9 @@ measurement.
 
 ## Biological paradigm
 
-Literal mutagenesis means producing genetic mutations. This application does
-not produce or alter anything, so its directory name is metaphorical. In the
-software analogy, the responsibilities are:
+Literal mutagenesis means producing genetic mutations. Forecast assay does not
+produce or alter anything; its name describes only the screening operation. In
+an optional directed-evolution software analogy, responsibilities remain:
 
 | Biological idea | Owner in this design |
 |---|---|
@@ -48,7 +49,7 @@ The accurate boundary is:
 external agent: vary -> obtain pre-reveal forecasts -> observe -> call assay
                                                               |
                                                               v
-mutagenesis app: validate -> measure target log loss -> report -> exit
+forecast assay: validate -> measure target log loss -> report -> next line or exit
                                                               |
                                                               v
 external agent: compare -> retain or reject -> repeat or stop
@@ -162,8 +163,8 @@ The useful refinement is evidence identity, not more intelligence:
 - every request now names one fixed evaluation and unique observations;
 - every target and identifier is echoed, so an agent can audit whether two
   candidate reports concern the same cases;
-- callers use one invocation per environment, with observations weighted
-  equally inside that invocation;
+- callers use one request per environment, with observations weighted equally
+  inside that request;
 - strict number parsing rejects decimal-to-double conversion that changes
   exact zero or exact one; and
 - canonical JSON remains valid even for escaped Unicode edge cases and parser

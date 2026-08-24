@@ -1,4 +1,4 @@
-"""Measure one agent-supplied candidate through Metering."""
+"""Measure agent-supplied candidates through one-shot or JSONL transport."""
 
 from __future__ import annotations
 
@@ -194,9 +194,17 @@ def measure_candidate(
     }
 
 
+def _error_document(code: str, message: str) -> dict[str, object]:
+    return {"error": {"code": code, "message": message}}
+
+
+def _write_document(stream: object, document: dict[str, object]) -> None:
+    stream.write(canonical_json(document) + "\n")
+    stream.flush()
+
+
 def _write_error(code: str, message: str) -> None:
-    error = {"error": {"code": code, "message": message}}
-    sys.stderr.write(canonical_json(error) + "\n")
+    _write_document(sys.stderr, _error_document(code, message))
 
 
 def _read_stdin() -> str:
@@ -209,21 +217,63 @@ def _read_stdin() -> str:
         raise RequestError("standard input must be valid UTF-8 JSON") from exc
 
 
+def _measure_source(source: str) -> dict[str, object]:
+    candidate, evaluation, observations = decode_request(source)
+    return measure_candidate(candidate, evaluation, observations)
+
+
+def _run_jsonl() -> int:
+    """Process independent candidate requests until standard-input EOF."""
+
+    binary_input = getattr(sys.stdin, "buffer", None)
+    while True:
+        invalid_utf8 = False
+        try:
+            if binary_input is None:
+                source = sys.stdin.readline()
+                if source == "":
+                    break
+            else:
+                raw = binary_input.readline()
+                if raw == b"":
+                    break
+                try:
+                    source = raw.decode("utf-8")
+                except UnicodeDecodeError:
+                    source = ""
+                    invalid_utf8 = True
+        except OSError as exc:
+            _write_error("invalid_request", f"cannot read standard input: {exc}")
+            return 2
+
+        try:
+            if invalid_utf8:
+                raise RequestError("request line must be valid UTF-8 JSON")
+            response = _measure_source(source)
+        except RequestError as exc:
+            response = _error_document("invalid_request", str(exc))
+        except ProbabilityError as exc:
+            response = _error_document("invalid_probability", str(exc))
+        _write_document(sys.stdout, response)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
+    if arguments == ["--jsonl"]:
+        return _run_jsonl()
     if arguments:
         _write_error("invalid_request", "command-line arguments are not supported")
         return 2
     try:
-        candidate, evaluation, observations = decode_request(_read_stdin())
-        response = measure_candidate(candidate, evaluation, observations)
+        response = _measure_source(_read_stdin())
     except RequestError as exc:
         _write_error("invalid_request", str(exc))
         return 2
     except ProbabilityError as exc:
         _write_error("invalid_probability", str(exc))
         return 2
-    sys.stdout.write(canonical_json(response) + "\n")
+    _write_document(sys.stdout, response)
     return 0
 
 

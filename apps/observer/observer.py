@@ -18,8 +18,20 @@ FIXTURES_ROOT = APP_ROOT / "fixtures"
 VERSIONS_PATH = APP_ROOT / "versions.json"
 
 
+PROTOCOL_VERSION = 1
+
+
 class ObserverError(RuntimeError):
     """Raised when the example cannot produce a valid observation."""
+
+
+class AgentRequestError(ValueError):
+    """Raised when one JSONL agent request is malformed or out of order."""
+
+
+class _ArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        raise ObserverError(f"invalid command line: {message}")
 
 
 @dataclass(frozen=True)
@@ -324,6 +336,285 @@ def emit(document: dict[str, object]) -> None:
     print(canonical_json(document), flush=True)
 
 
+def _write_agent_json(stream: object, document: dict[str, object]) -> None:
+    stream.write(
+        json.dumps(
+            document,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    stream.flush()
+
+
+def _agent_error(catalogue_id: str, step: int, message: str) -> dict[str, object]:
+    return {
+        "catalogue_id": catalogue_id,
+        "error": {"code": "invalid_request", "message": message},
+        "ok": False,
+        "protocol_version": PROTOCOL_VERSION,
+        "step": step,
+    }
+
+
+def _agent_unique_object(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise AgentRequestError(f"duplicate JSON key {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_agent_nonfinite(token: str) -> None:
+    raise AgentRequestError(f"non-finite JSON number {token!r} is not allowed")
+
+
+def _require_agent_keys(
+    value: dict[str, object], expected: set[str], location: str
+) -> None:
+    missing = sorted(expected - set(value))
+    extra = sorted(set(value) - expected)
+    details: list[str] = []
+    if missing:
+        details.append(f"missing keys: {', '.join(missing)}")
+    if extra:
+        details.append(f"extra keys: {', '.join(extra)}")
+    if details:
+        raise AgentRequestError(f"{location}: {'; '.join(details)}")
+
+
+def decode_agent_request(source: str) -> dict[str, object]:
+    """Decode one strict Observer JSONL action."""
+
+    if not source.strip():
+        raise AgentRequestError("request line must contain one JSON object")
+    try:
+        request = json.loads(
+            source,
+            object_pairs_hook=_agent_unique_object,
+            parse_constant=_reject_agent_nonfinite,
+        )
+    except AgentRequestError:
+        raise
+    except json.JSONDecodeError as exc:
+        raise AgentRequestError(
+            f"invalid JSON at column {exc.colno}: {exc.msg}"
+        ) from exc
+    except (RecursionError, ValueError) as exc:
+        raise AgentRequestError(f"invalid JSON: {exc}") from exc
+    if type(request) is not dict:
+        raise AgentRequestError("request must be one JSON object")
+
+    action = request.get("action")
+    if type(action) is not str or action not in {"finish", "observe", "state"}:
+        raise AgentRequestError("action must be one of: finish, observe, state")
+    if action == "state":
+        _require_agent_keys(request, {"action"}, "request")
+    elif action == "finish":
+        _require_agent_keys(request, {"action", "snapshot_id"}, "request")
+        snapshot_id = request["snapshot_id"]
+        if (
+            type(snapshot_id) is not str
+            or len(snapshot_id) != 64
+            or any(character not in "0123456789abcdef" for character in snapshot_id)
+        ):
+            raise AgentRequestError(
+                "snapshot_id must be a lowercase SHA-256 identifier"
+            )
+    else:
+        _require_agent_keys(request, {"action", "probe"}, "request")
+        probe = request["probe"]
+        if type(probe) is not dict:
+            raise AgentRequestError("probe must be one JSON object")
+        operation = probe.get("operation")
+        if operation == "list":
+            _require_agent_keys(probe, {"operation"}, "probe")
+        elif operation == "read":
+            _require_agent_keys(probe, {"operation", "path"}, "probe")
+            if type(probe["path"]) is not str or not probe["path"]:
+                raise AgentRequestError("probe.path must be a non-empty string")
+        else:
+            raise AgentRequestError("probe.operation must be one of: list, read")
+    return request
+
+
+def _measurement_response(measurement: dict[str, object]) -> dict[str, object]:
+    response = measurement.get("response")
+    if type(response) is not dict:
+        raise ObserverError("Metering response has the wrong shape")
+    return response
+
+
+def _belief(
+    versions: tuple[Version, ...], candidates: tuple[Version, ...]
+) -> dict[str, float]:
+    candidate_names = {version.name for version in candidates}
+    probability = 1.0 / len(candidates)
+    return {
+        version.name: probability if version.name in candidate_names else 0.0
+        for version in versions
+    }
+
+
+def _agent_snapshot(version: Version) -> dict[str, str]:
+    return {
+        "name": version.name,
+        "snapshot_id": version.snapshot_id,
+        "tree_id": version.tree_id,
+    }
+
+
+def run_agent_session(
+    versions: tuple[Version, ...],
+    sandbox: Path,
+    *,
+    history: Path | None = None,
+) -> None:
+    """Process one stateful external-agent session as JSON Lines."""
+
+    sandbox = sandbox_root(sandbox)
+    catalogue = available_probes(versions)
+    catalogue_documents = [probe.document() for probe in catalogue]
+    catalogue_keys = {canonical_json(document) for document in catalogue_documents}
+    catalogue_id = digest({"probes": catalogue_documents})
+    candidates = versions
+    step = 0
+    finished = False
+    binary_input = getattr(sys.stdin, "buffer", None)
+
+    while True:
+        invalid_utf8 = False
+        try:
+            if binary_input is None:
+                source = sys.stdin.readline()
+                if source == "":
+                    break
+            else:
+                raw = binary_input.readline()
+                if raw == b"":
+                    break
+                try:
+                    source = raw.decode("utf-8")
+                except UnicodeDecodeError:
+                    source = ""
+                    invalid_utf8 = True
+        except OSError as exc:
+            raise ObserverError(f"cannot read agent input: {exc}") from exc
+
+        try:
+            if invalid_utf8:
+                raise AgentRequestError("request line must be valid UTF-8 JSON")
+            request = decode_agent_request(source)
+            if finished:
+                raise AgentRequestError("session is already finished")
+            action = request["action"]
+
+            if action == "state":
+                available = []
+                for probe in catalogue:
+                    score = probe_score(candidates, probe, history=history)
+                    available.append(
+                        {
+                            "probe": probe.document(),
+                            "result_entropy": _measurement_response(
+                                score["measurement"]
+                            ),
+                        }
+                    )
+                response = {
+                    "available_probes": available,
+                    "belief": _belief(versions, candidates),
+                    "catalogue_id": catalogue_id,
+                    "ok": True,
+                    "protocol_version": PROTOCOL_VERSION,
+                    "snapshots": [_agent_snapshot(version) for version in versions],
+                    "step": step,
+                }
+            elif action == "observe":
+                if len(candidates) == 1:
+                    raise AgentRequestError(
+                        "belief is complete; finish the session instead"
+                    )
+                probe_document = request["probe"]
+                if canonical_json(probe_document) not in catalogue_keys:
+                    raise AgentRequestError(
+                        "probe is not in the immutable observation catalogue"
+                    )
+                probe = Probe(
+                    probe_document["operation"], probe_document.get("path")
+                )
+                entropy_before = _measurement_response(
+                    uniform_entropy(len(candidates), history=history)
+                )
+                result = observe(sandbox, probe)
+                result_key = canonical_json(result)
+                matching = tuple(
+                    version
+                    for version in candidates
+                    if canonical_json(observe(version.root, probe)) == result_key
+                )
+                if not matching:
+                    raise ObserverError(
+                        "sandbox result matches no candidate version"
+                    )
+                probability = len(matching) / len(candidates)
+                entropy_after = _measurement_response(
+                    uniform_entropy(len(matching), history=history)
+                )
+                surprisal = _measurement_response(
+                    call_metering(
+                        "self_information",
+                        probability=probability,
+                        history=history,
+                    )
+                )
+                candidates = matching
+                step += 1
+                response = {
+                    "belief": _belief(versions, candidates),
+                    "belief_entropy_after": entropy_after,
+                    "belief_entropy_before": entropy_before,
+                    "catalogue_id": catalogue_id,
+                    "done": len(candidates) == 1,
+                    "observed_probability": probability,
+                    "observed_result": result,
+                    "observed_surprisal": surprisal,
+                    "ok": True,
+                    "protocol_version": PROTOCOL_VERSION,
+                    "step": step,
+                }
+            else:
+                if len(candidates) != 1:
+                    raise AgentRequestError(
+                        "finish requires exactly one remaining candidate"
+                    )
+                identified = candidates[0]
+                sandbox_tree_id = digest(fixture_manifest(sandbox))
+                if sandbox_tree_id != identified.tree_id:
+                    raise ObserverError(
+                        "sandbox tree does not match identified snapshot"
+                    )
+                response = {
+                    "catalogue_id": catalogue_id,
+                    "correct": request["snapshot_id"] == identified.snapshot_id,
+                    "ok": True,
+                    "protocol_version": PROTOCOL_VERSION,
+                    "snapshot": _agent_snapshot(identified),
+                    "step": step,
+                }
+                finished = True
+        except AgentRequestError as exc:
+            response = _agent_error(catalogue_id, step, str(exc))
+
+        _write_agent_json(sys.stdout, response)
+
+
 def run(
     versions: tuple[Version, ...],
     sandbox: Path,
@@ -399,10 +690,13 @@ def run(
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw_arguments = list(sys.argv[1:] if argv is None else argv)
+    jsonl_requested = "--jsonl" in raw_arguments
     try:
         versions = load_versions()
-        parser = argparse.ArgumentParser(
-            description="Identify a versioned text sandbox using Metering."
+        parser = _ArgumentParser(
+            description="Identify a versioned text sandbox using Metering.",
+            allow_abbrev=False,
         )
         parser.add_argument(
             "--active",
@@ -415,18 +709,36 @@ def main(argv: list[str] | None = None) -> int:
             type=Path,
             help="append every Metering request/response pair to this history",
         )
-        arguments = parser.parse_args(argv)
+        parser.add_argument(
+            "--jsonl",
+            action="store_true",
+            help="serve one external-agent action per JSON line",
+        )
+        arguments = parser.parse_args(raw_arguments)
         active_name = arguments.active
         active = next(version for version in versions if version.name == active_name)
 
-        with tempfile.TemporaryDirectory(prefix="metering-folder-observer-") as temp:
+        with tempfile.TemporaryDirectory(prefix="metering-observer-") as temp:
             sandbox = Path(temp) / "sandbox"
             shutil.copytree(active.root, sandbox)
+            if arguments.jsonl:
+                run_agent_session(
+                    versions,
+                    sandbox,
+                    history=arguments.history,
+                )
+                return 0
             identified = run(versions, sandbox, history=arguments.history)
         if identified.snapshot_id != active.snapshot_id:
             raise ObserverError("identified snapshot does not match active snapshot")
     except ObserverError as exc:
-        print(f"folder observer: {exc}", file=sys.stderr)
+        if jsonl_requested:
+            _write_agent_json(
+                sys.stderr,
+                {"error": {"code": "observer_error", "message": str(exc)}},
+            )
+        else:
+            print(f"observer: {exc}", file=sys.stderr)
         return 2
     return 0
 

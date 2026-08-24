@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import runpy
+import selectors
 import shutil
 import subprocess
 import sys
@@ -12,7 +13,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OBSERVER = ROOT / "apps" / "folder_observer" / "observer.py"
+OBSERVER = ROOT / "apps" / "observer" / "observer.py"
 
 
 def run_observer(active: str, history: Path | None = None):
@@ -28,10 +29,23 @@ def run_observer(active: str, history: Path | None = None):
     )
 
 
+def run_observer_jsonl(
+    active: str, payload: str
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, str(OBSERVER), "--jsonl", "--active", active],
+        cwd=ROOT,
+        input=payload,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
 def isolated_observer_app(
     tmp_path: Path, metadata: list[object]
 ) -> Path:
-    app = tmp_path / "folder_observer"
+    app = tmp_path / "observer"
     (app / "fixtures").mkdir(parents=True)
     shutil.copy2(OBSERVER, app / "observer.py")
     (app / "versions.json").write_text(
@@ -119,6 +133,265 @@ def test_observer_identifies_every_fixture_version(active):
             )
 
     assert total_surprisal == pytest.approx(2.0)
+
+
+def test_observer_jsonl_runs_an_external_agent_session():
+    snapshot_id = (
+        "244c1de679962b61c1e69e03bc1c9b32"
+        "84b088b2883a50f9f88a70eb6ae15fcc"
+    )
+    requests = [
+        {"action": "state"},
+        {
+            "action": "observe",
+            "probe": {"operation": "read", "path": "config/mode.txt"},
+        },
+        {"action": "state"},
+        {
+            "action": "observe",
+            "probe": {"operation": "read", "path": "service/port.txt"},
+        },
+        {"action": "finish", "snapshot_id": snapshot_id},
+        {"action": "state"},
+    ]
+    result = run_observer_jsonl(
+        "v3", "\n".join(json.dumps(request) for request in requests) + "\n"
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    responses = parse_events(result.stdout)
+    assert len(responses) == 6
+    catalogue_ids = {response["catalogue_id"] for response in responses}
+    assert len(catalogue_ids) == 1
+
+    initial, first, state, second, finish, after_finish = responses
+    assert initial == {
+        "available_probes": [
+            {
+                "probe": {"operation": "list"},
+                "result_entropy": {
+                    "base": 2.0,
+                    "infinite": False,
+                    "measure": "entropy",
+                    "value": 0.0,
+                },
+            },
+            {
+                "probe": {
+                    "operation": "read",
+                    "path": "config/mode.txt",
+                },
+                "result_entropy": {
+                    "base": 2.0,
+                    "infinite": False,
+                    "measure": "entropy",
+                    "value": 1.0,
+                },
+            },
+            {
+                "probe": {
+                    "operation": "read",
+                    "path": "service/port.txt",
+                },
+                "result_entropy": {
+                    "base": 2.0,
+                    "infinite": False,
+                    "measure": "entropy",
+                    "value": 1.0,
+                },
+            },
+        ],
+        "belief": {"v1": 0.25, "v2": 0.25, "v3": 0.25, "v4": 0.25},
+        "catalogue_id": initial["catalogue_id"],
+        "ok": True,
+        "protocol_version": 1,
+        "snapshots": [
+            {
+                "name": "v1",
+                "snapshot_id": (
+                    "6298657f9ed2c242c2aa39a38b098637"
+                    "1a23b7b5f1bd2f8140a704c21a3b725e"
+                ),
+                "tree_id": (
+                    "684c0aefd41e7f63afa3bceff628715f"
+                    "cf0988c84fdcca07f8616996c3d6ca02"
+                ),
+            },
+            {
+                "name": "v2",
+                "snapshot_id": (
+                    "7c2f20edfd1fdcecd636df32a5ccc3ea"
+                    "d815407853505e528f7c2b146805668c"
+                ),
+                "tree_id": (
+                    "9d49cb4ff3f320821f983c05643e5ce7"
+                    "0046e0e0ce9c7fbe4c86cb2509d90e94"
+                ),
+            },
+            {
+                "name": "v3",
+                "snapshot_id": snapshot_id,
+                "tree_id": (
+                    "26f0299f8954c040c179bf9f70a63e0"
+                    "1c30a98a71c49f7f3851300e248ee8604"
+                ),
+            },
+            {
+                "name": "v4",
+                "snapshot_id": (
+                    "c7f6da72aa99e45f3f6ba3a48af86e"
+                    "3d4a970ef61c76d590e01af65cf10aa8b7"
+                ),
+                "tree_id": (
+                    "37e494ec9dc3bc9e1ca0f5b76f720a0f"
+                    "eb8db092109ee414c909f4f2a85e8ef6"
+                ),
+            },
+        ],
+        "step": 0,
+    }
+    assert first["belief"] == {
+        "v1": 0.0,
+        "v2": 0.0,
+        "v3": 0.5,
+        "v4": 0.5,
+    }
+    assert first["observed_result"] == {"kind": "text", "text": "fast\n"}
+    assert first["observed_probability"] == 0.5
+    assert first["observed_surprisal"]["value"] == 1.0
+    assert first["done"] is False
+    assert first["step"] == 1
+    assert state["step"] == 1
+    assert [
+        item["result_entropy"]["value"] for item in state["available_probes"]
+    ] == [0.0, 0.0, 1.0]
+    assert second["belief"] == {
+        "v1": 0.0,
+        "v2": 0.0,
+        "v3": 1.0,
+        "v4": 0.0,
+    }
+    assert second["done"] is True
+    assert second["step"] == 2
+    assert finish["correct"] is True
+    assert finish["snapshot"] == {
+        "name": "v3",
+        "snapshot_id": snapshot_id,
+        "tree_id": (
+            "26f0299f8954c040c179bf9f70a63e0"
+            "1c30a98a71c49f7f3851300e248ee8604"
+        ),
+    }
+    assert after_finish["ok"] is False
+    assert after_finish["error"]["code"] == "invalid_request"
+    assert after_finish["step"] == 2
+
+
+def test_observer_jsonl_recovers_from_bad_agent_actions():
+    valid_finish_id = "0" * 64
+    payload = "\n".join(
+        [
+            "{",
+            '{"action":"state","action":"state"}',
+            '{"action":"observe","probe":{"operation":"read",'
+            '"path":"not-in-catalogue.txt"}}',
+            json.dumps({"action": "finish", "snapshot_id": valid_finish_id}),
+            json.dumps({"action": "state"}),
+        ]
+    ) + "\n"
+
+    result = run_observer_jsonl("v3", payload)
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    responses = parse_events(result.stdout)
+    assert len(responses) == 5
+    for response in responses[:4]:
+        assert response["ok"] is False
+        assert response["error"]["code"] == "invalid_request"
+        assert response["step"] == 0
+    assert "catalogue" in responses[2]["error"]["message"]
+    assert "one remaining candidate" in responses[3]["error"]["message"]
+    assert responses[4]["ok"] is True
+    assert responses[4]["step"] == 0
+
+
+def test_observer_jsonl_replies_before_agent_input_reaches_eof():
+    process = subprocess.Popen(
+        [sys.executable, str(OBSERVER), "--jsonl", "--active", "v3"],
+        cwd=ROOT,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+    selector = selectors.DefaultSelector()
+    try:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        process.stdin.write('{"action":"state"}\n')
+        process.stdin.flush()
+        assert selector.select(timeout=10), "Observer did not flush a JSONL response"
+        response = json.loads(process.stdout.readline())
+        assert response["ok"] is True
+        assert response["step"] == 0
+        assert process.poll() is None
+        process.stdin.close()
+        assert process.wait(timeout=10) == 0
+        assert process.stderr.read() == ""
+    finally:
+        selector.close()
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+
+
+def test_observer_jsonl_reports_startup_errors_as_json():
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(OBSERVER),
+            "--jsonl",
+            "--active",
+            "not-a-version",
+        ],
+        cwd=ROOT,
+        input="",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    error = json.loads(result.stderr)
+    assert error["error"]["code"] == "observer_error"
+    assert "invalid choice" in error["error"]["message"]
+    assert result.stderr == json.dumps(
+        error, allow_nan=False, separators=(",", ":"), sort_keys=True
+    ) + "\n"
+
+
+def test_observer_jsonl_rejects_invalid_utf8_and_continues():
+    result = subprocess.run(
+        [sys.executable, str(OBSERVER), "--jsonl", "--active", "v3"],
+        cwd=ROOT,
+        input=b'\xff\n{"action":"state"}\n',
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == b""
+    responses = [json.loads(line) for line in result.stdout.splitlines()]
+    assert responses[0]["ok"] is False
+    assert responses[0]["error"]["code"] == "invalid_request"
+    assert "UTF-8" in responses[0]["error"]["message"]
+    assert responses[1]["ok"] is True
+    assert responses[1]["step"] == 0
 
 
 def test_observer_exposes_version_lineage_and_exact_probability_models():

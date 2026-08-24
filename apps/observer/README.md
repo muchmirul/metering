@@ -1,36 +1,34 @@
-# Folder observer
+# Observer
 
-Folder observer is a minimal application showing how an external agent can use
+Observer is a minimal application showing how an external agent can use
 Metering around an observation loop. It is source-only example code, not part of
 the installed `metering` package.
 
 ## Status
 
-The current executable is a deterministic reference demo. It materializes one
-of four fixture versions, chooses observations by maximum result entropy, and
-runs until it identifies the active version.
+The executable has two modes over the same four immutable fixtures:
 
-The intended next boundary is smaller than a complete agent system: an external
-agent chooses one observation at a time through a strict JSON Lines protocol,
-while the application only observes, measures, and conditions its belief. That
-agent protocol is specified in the mini-docs but is **not implemented yet**.
+- the default deterministic reference demo chooses observations by maximum
+  result entropy and runs to identification; and
+- `--jsonl` runs one stateful session in which an external agent chooses each
+  observation through the implemented version 1 protocol.
 
-| Capability | Current demo | Agent-facing target |
+| Capability | Reference demo | External-agent JSONL |
 |---|---|---|
-| Versioned sandbox fixtures | Implemented | Retained |
-| Tree and parent-bound snapshot IDs | Implemented | Retained |
-| Metering through `python -m metering` | Implemented | Retained |
+| Versioned sandbox fixtures | Implemented | Same fixtures |
+| Tree and parent-bound snapshot IDs | Implemented | Verified by `finish` |
+| Metering through `python -m metering` | Implemented | Implemented |
 | Observation choice | Built-in maximum-entropy policy | External agent |
-| Belief | Implicit uniform candidate set | Explicit version-probability map |
-| Interaction | Complete automatic JSONL transcript | One JSON action and response at a time |
-| Measurement history | Optional parent-linked ledger | Retained as an explicit caller choice |
+| Belief | Uniform candidate set | Explicit version-probability response |
+| Interaction | Complete automatic JSONL transcript | One request and response per line |
+| Measurement history | Optional parent-linked ledger | Optional with `--history` |
 
 ## Run the current demo
 
 From the repository root:
 
 ```bash
-uv run python apps/folder_observer/observer.py --active v3
+uv run python apps/observer/observer.py --active v3
 ```
 
 The output is canonical JSON Lines. With `v3`, the demo reads
@@ -42,13 +40,35 @@ those observations:
 
 ```bash
 history_dir="$(mktemp -d)"
-uv run python apps/folder_observer/observer.py \
+uv run python apps/observer/observer.py \
   --active v3 --history "$history_dir"
 uv run metering-history log "$history_dir"
 uv run metering-history verify "$history_dir"
 ```
 
 The history is opt-in and caller-owned. The ordinary run remains ephemeral.
+
+## Run an external-agent session
+
+Start a persistent JSONL session with:
+
+```bash
+uv run python apps/observer/observer.py --jsonl --active v3
+```
+
+Write one `state`, `observe`, or `finish` action per input line. The process
+flushes one canonical response per line and keeps recoverable request errors in
+that response stream. For example:
+
+```json
+{"action":"state"}
+{"action":"observe","probe":{"operation":"read","path":"config/mode.txt"}}
+```
+
+The agent chooses probes; Observer owns the sandbox, result-distribution
+construction, Metering calls, belief conditioning, and final tree verification.
+See the [external-agent protocol](docs/agent-protocol.md) for exact schemas,
+ordering rules, errors, and completion behavior.
 
 The four fixture directories are immutable versions of one UTF-8 text sandbox.
 Each version has:
@@ -93,14 +113,14 @@ assumptions, falsifiers, and primary research sources.
   identifies the current demo as finite noiseless Bayesian hypothesis
   identification, derives its entropy rule, states its falsifiable hypothesis,
   and records the assumptions that limit the result.
-- [Agent protocol](docs/agent-protocol.md) defines the minimal proposed JSONL
-  interface and clearly separates it from current behavior.
+- [Agent protocol](docs/agent-protocol.md) defines the implemented version 1
+  JSONL interface and separates agent policy from controller behavior.
 
 ## Files
 
 ```text
-folder_observer/
-    observer.py       current deterministic reference demo
+observer/
+    observer.py       reference demo and external-agent JSONL session
     versions.json     ordered fixture lineage
     fixtures/         immutable sandbox versions
     docs/              architecture, theory, hypothesis, and agent protocol
@@ -113,7 +133,8 @@ folder_observer/
 - Version names cannot escape `fixtures/`, fixture roots cannot be symlinks,
   and malformed parent values fail explicitly.
 - Read probes accept only normalized relative paths and reject symbolic-link
-  traversal. UTF-8 decoding preserves the file's original line endings.
+  traversal. JSONL actions are further restricted to the immutable advertised
+  catalogue. UTF-8 decoding preserves the file's original line endings.
 - Identification is emitted only when the canonical sandbox file manifest
   matches the selected snapshot's `tree_id`, so extra or changed files fail
   instead of being ignored.

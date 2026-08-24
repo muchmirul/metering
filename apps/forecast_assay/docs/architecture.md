@@ -2,8 +2,9 @@
 
 ## Purpose
 
-Mutagenesis is a one-shot probabilistic screening adapter between an external
-agent and Metering. It is the assay step in a possible
+Forecast assay is a stateless probabilistic screening adapter between an external
+agent and Metering. Each request is one complete assay; the optional JSONL
+transport can carry multiple independent requests through one process. It is the assay step in a possible
 directed-evolution-inspired external loop. It is not an agent, does not mutate
 anything, and does not implement evolution. The exact analogy and theory are
 documented in [Biological and mathematical foundations](foundations.md).
@@ -17,7 +18,7 @@ external agent
         |
         | one candidate, one fixed evaluation, and identified target cases
         v
-mutagenesis
+forecast assay
   validates identities, measures each target probability, and computes one mean
         |
         v
@@ -25,14 +26,15 @@ public Metering Python API
   validates each probability and returns self-information
 ```
 
-Mutagenesis returns the measurements to the agent and exits. A later call has
-no access to an earlier call.
+Forecast assay returns each measurement to the agent. Default mode then exits;
+JSONL mode waits for another line. Neither mode gives a later request access to
+an earlier request.
 
 ## Irreducible responsibilities
 
 The adapter has six responsibilities:
 
-1. Read one strict JSON request from standard input.
+1. Read each request as one strict JSON object, either to EOF or one per line.
 2. Preserve the opaque candidate, evaluation, observation, and target
    identifiers in the response.
 3. Reject duplicate observation identifiers inside one evaluation.
@@ -73,8 +75,8 @@ agent can establish that candidate reports cover the same evidence.
 
 Separate responses are comparable only when their `evaluation` identifiers and
 exact sets of `(observation, target)` pairs match. This adapter reports rather
-than performs that comparison. Use one invocation per environment; otherwise a
-pooled average can hide an environment-specific regression.
+than performs that comparison. Use one request per environment; otherwise a pooled average can hide an
+environment-specific regression.
 
 ## Aggregation boundary
 
@@ -97,14 +99,15 @@ turns them into development data; the app cannot protect a held-out set.
 
 ## State and dependency direction
 
-The process has no state beyond one request:
+The application has no state beyond the request currently being processed:
 
 ```text
-external agent -> apps/mutagenesis -> public metering API
+external agent -> apps/forecast_assay -> public metering API
 ```
 
-There are no application files, checkpoints, sessions, caches, network calls,
-private Metering imports, or caller-container mutations.
+There are no application files, checkpoints, persistent sessions, caches,
+network calls, private Metering imports, or caller-container mutations. JSONL
+transport retains only the input/output stream between requests.
 
 ## Deliberately absent
 

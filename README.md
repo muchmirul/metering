@@ -153,9 +153,9 @@ replay. `verify` checks canonical encoding, hashes, parent links, and
 reachability. Hashes detect modification; they do not authenticate the author or
 prove that trusted software created an object.
 
-## Example application: folder observer
+## Example application: observer
 
-[`apps/folder_observer`](apps/folder_observer) is a small application that
+[`apps/observer`](apps/observer) is a small application that
 demonstrates Metering as a subprocess tool. Four immutable fixture directories
 represent versions of one sandbox. The observer starts with a uniform
 distribution over those versions, predicts the possible results of listing or
@@ -164,14 +164,25 @@ reading the sandbox, and asks Metering to measure each result distribution.
 Run the deterministic demonstration with:
 
 ```bash
-uv run python apps/folder_observer/observer.py --active v3
+uv run python apps/observer/observer.py --active v3
 ```
 
 Add `--history PATH` to append every Metering call made by the observer to one
 measurement history. Without the flag, the observer creates no persistent
 state.
 
-The application chooses the observation with the greatest result entropy,
+For an external agent, start a persistent version 1 JSONL session:
+
+```bash
+uv run python apps/observer/observer.py --jsonl --active v3
+```
+
+The process accepts one strict `state`, `observe`, or `finish` action per input
+line and flushes one response per line. The agent chooses observations while
+Observer owns the private sandbox, belief update, and final tree verification.
+Recoverable action errors leave the session alive.
+
+The default demonstration chooses the observation with the greatest result entropy,
 observes the materialized sandbox, filters the candidate versions itself, and
 repeats until one version remains. It prints canonical JSON Lines containing
 the explicit probability requests and Metering responses. Before emitting an
@@ -183,9 +194,9 @@ belong to the application. None of them is part of the `metering` package. The
 reported bits describe the application's declared finite model; they do not
 measure the meaning or usefulness of the files.
 
-## Example application: mutagenesis
+## Example application: forecast assay
 
-[`apps/mutagenesis`](apps/mutagenesis) is a small agent-facing screening assay,
+[`apps/forecast_assay`](apps/forecast_assay) is a small agent-facing screening assay,
 not an autonomous evolution system. An agent supplies opaque candidate,
 evaluation, observation, and target identifiers plus the probability that the
 candidate assigned to each target before reveal. The adapter uses Metering's
@@ -195,17 +206,21 @@ Run the deterministic example with:
 
 ```bash
 printf '%s\n' \
-  '{"candidate":"mutation-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
-  | uv run python apps/mutagenesis/mutagenesis.py
+  '{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
+  | uv run python apps/forecast_assay/forecast_assay.py
 ```
+
+Use `--jsonl` to send multiple independent candidate requests through one
+process, one request and response per line. Bad lines return aligned error
+responses and do not terminate the stream; no candidate state is retained.
 
 The adapter reports every target surprisal and their explicitly named
 arithmetic mean while echoing the identities needed to compare candidates on
 the same declared cases. The app itself is the assay in a
-directed-evolution-inspired external loop; despite its name, it does not create
-mutations, reproduce candidates, or select them. It contains no neural
+directed-evolution-inspired external loop. It does not create mutations,
+reproduce candidates, or select them. It contains no neural
 architecture, mutation logic, loop, memory, or stopping rule. See the
-[biological and mathematical foundations](apps/mutagenesis/docs/foundations.md)
+[biological and mathematical foundations](apps/forecast_assay/docs/foundations.md)
 for the exact analogy, logarithmic-loss theory, and falsifiable held-out claim.
 
 ## Definitions and edge cases

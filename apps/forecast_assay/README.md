@@ -1,8 +1,8 @@
-# Mutagenesis
+# Forecast assay
 
-`mutagenesis.py` is an agent-facing screening assay, not an autonomous
-evolution system. The directory name is a biological metaphor: this process
-does not create mutations.
+`forecast_assay.py` is an agent-facing probabilistic screening assay, not an
+autonomous evolution system. It measures caller-supplied pre-reveal forecasts;
+it does not create mutations.
 
 ```text
 agent mutates, models, and commits forecasts
@@ -11,7 +11,7 @@ agent mutates, models, and commits forecasts
 environment reveals targets
                     |
                     v
-          mutagenesis measures
+          forecast assay measures
                     |
                     v
 agent compares, selects, and repeats
@@ -27,15 +27,15 @@ of those decisions.
   and why the adapter stays this small.
 - [Biological and mathematical foundations](docs/foundations.md) names the
   paradigm, derives the measured quantity, and states a testable hypothesis.
-- [Agent protocol](docs/agent-protocol.md) specifies the implemented JSON
-  request, response, infinity representation, and errors.
+- [Agent protocol](docs/agent-protocol.md) specifies the implemented one-shot
+  and JSONL transports, request, response, infinity representation, and errors.
 
 ## Request
 
-The command reads one strict JSON object from standard input:
+Each assay request is one strict JSON object:
 
 ```json
-{"candidate":"mutation-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}
+{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}
 ```
 
 - `candidate` is an opaque non-empty identifier chosen by the agent.
@@ -61,9 +61,19 @@ Run it from the repository root:
 
 ```bash
 printf '%s\n' \
-  '{"candidate":"mutation-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
-  | uv run python apps/mutagenesis/mutagenesis.py
+  '{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
+  | uv run python apps/forecast_assay/forecast_assay.py
 ```
+
+To reuse one process for multiple independent candidate requests, start JSONL
+mode and write one compact request per line:
+
+```bash
+uv run python apps/forecast_assay/forecast_assay.py --jsonl
+```
+
+It flushes one report or error per input line and continues after malformed
+requests. JSONL mode retains no candidate state and does not compare reports.
 
 ## Response
 
@@ -71,7 +81,7 @@ The command returns the candidate identifier, the self-information of each
 target outcome in bits, and their arithmetic mean:
 
 ```json
-{"candidate":"mutation-17","evaluation":"weather-station-a/holdout-v1","measurement":{"aggregate":{"infinite":false,"mean_target_surprisal_bits":1.0,"sample_count":3},"base":2.0,"metering_measure":"self_information","outcomes":[{"infinite":false,"observation":"day-001","target":"rain","target_probability":0.5,"value_bits":1.0},{"infinite":false,"observation":"day-002","target":"rain","target_probability":0.25,"value_bits":2.0},{"infinite":false,"observation":"day-003","target":"dry","target_probability":1.0,"value_bits":0.0}]}}
+{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","measurement":{"aggregate":{"infinite":false,"mean_target_surprisal_bits":1.0,"sample_count":3},"base":2.0,"metering_measure":"self_information","outcomes":[{"infinite":false,"observation":"day-001","target":"rain","target_probability":0.5,"value_bits":1.0},{"infinite":false,"observation":"day-002","target":"rain","target_probability":0.25,"value_bits":2.0},{"infinite":false,"observation":"day-003","target":"dry","target_probability":1.0,"value_bits":0.0}]}}
 ```
 
 The arithmetic mean is application-owned aggregation, not a fifth Metering
@@ -81,13 +91,16 @@ a null value rather than invalid JSON. Accepted negative zero is emitted as
 `0.0`, the same canonical representation as zero.
 
 Invalid UTF-8, malformed JSON, duplicate or extra keys, unsupported arguments,
-and invalid probabilities fail with exit status 2 and one canonical JSON error
-on standard error. Number parsing rejects a JSON number if conversion to double
-precision would change whether it is exactly zero or exactly one.
+and invalid probabilities fail explicitly. In default one-shot mode they exit
+with status 2 and one canonical JSON error on standard error. In `--jsonl` mode
+a bad line returns that error on standard output and processing continues so
+request/response alignment is preserved. Number parsing rejects a JSON number
+if conversion to double precision would change whether it is exactly zero or
+exactly one.
 
 ## Agent responsibility
 
-An agent may call this once per candidate. Two reports are comparable only when
+An agent submits one request per candidate. Two reports are comparable only when
 their `evaluation` identifiers and exact sets of `(observation, target)` pairs
 match. Use a separate invocation for each environment so a pooled mean cannot
 hide an environment-specific regression. Every observation is weighted equally.
@@ -107,8 +120,6 @@ usefulness.
 
 ## Compatibility
 
-This repository-local protocol is unversioned. The identified observation
-schema replaces the earlier positional `target_probabilities` array. Existing
-callers must add `evaluation`, `observation`, and `target` identifiers and read
-the echoed identifiers plus `sample_count` from the response. Metering's
-installed Python and JSON interfaces are unchanged.
+This repository-local protocol is unversioned. `--jsonl` is additive: the
+existing no-argument one-shot command, schemas, measurements, and errors are
+unchanged. Metering's installed Python and JSON interfaces are unchanged.

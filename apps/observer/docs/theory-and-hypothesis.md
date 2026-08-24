@@ -2,9 +2,9 @@
 
 ## Scope
 
-This document describes the current deterministic reference demo. It does not
-describe an implemented external-agent protocol: that protocol remains a
-proposal.
+This document describes the deterministic maximum-entropy reference policy.
+The external-agent JSONL protocol is implemented separately, but its agent owns
+probe selection and is not covered by the policy hypothesis below.
 
 The shortest accurate name for the inference architecture is **finite,
 noiseless Bayesian hypothesis identification with greedy Shannon-entropy query

@@ -273,13 +273,29 @@ Every application must state:
 - which named Metering result is being reported; and
 - what the result does not establish.
 
-The `apps/mutagenesis` example is a one-shot screening adapter. Its request
+The `apps/forecast_assay` example is a stateless screening adapter. Each request
 identifies one candidate, one fixed evaluation, and unique observed cases. The
 caller supplies the probability that a normalized candidate forecast assigned
 to each named target before that target was revealed. The adapter reports the
 target self-information and an explicitly application-owned, equally weighted
-arithmetic mean. It does not generate mutations, compare or retain candidates,
-implement an environment, or run an evolution loop.
+arithmetic mean. Default transport handles one request and exits; `--jsonl`
+processes independent requests one per line without retaining candidate state.
+It does not generate mutations, compare or retain candidates, implement an
+environment, or run an evolution loop.
+
+The `apps/observer` example owns a finite versioned sandbox, a uniform candidate
+belief, and an immutable probe catalogue. Its default deterministic demo chooses
+the maximum-result-entropy probe. Its `--jsonl` transport instead accepts
+external-agent `state`, `observe`, and `finish` actions sequentially, returning
+one flushed response per input line while keeping the active sandbox private.
+The application constructs and conditions the probability model; Metering only
+measures its declared distributions. The protocol does not add agent policy,
+nonuniform priors, persistence, or application behavior to the installed
+package.
+
+Application JSONL transports use standard input and output only. Recoverable
+line errors produce an aligned JSON response and leave later requests usable.
+They do not change Metering's installed one-request JSON command.
 
 Applications must not add a generic score or describe a measured quantity as
 meaning, usefulness, correctness, understanding, or universal harness quality.
@@ -324,8 +340,8 @@ tests/
 docs/
     theory.md
 apps/
-    folder_observer/  non-packaged versioned-sandbox demonstration
-    mutagenesis/      non-packaged agent candidate-measurement adapter
+    observer/         non-packaged versioned-sandbox demonstration
+    forecast_assay/   non-packaged agent candidate-measurement adapter
 ```
 
 Add a module only when a concrete responsibility no longer fits one of these
@@ -363,8 +379,9 @@ The rewrite is complete only when:
 - the package has no runtime dependency;
 - no legacy world, policy, controller, agent, optimizer, benchmark, replay, or
   artifact implementation remains in the installed `metering` package;
-- repository-local applications use only public Metering boundaries and make
-  their caller-owned probability model explicit;
+- repository-local applications use only public Metering boundaries, make
+  their caller-owned probability model explicit, and keep JSONL requests
+  sequential with one flushed response per input line;
 - the full test suite and package build pass.
 
 ## Source

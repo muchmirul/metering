@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Folder observer is a minimal controller between an external agent, a versioned
+Observer is a minimal controller between an external agent, a versioned
 sandbox, and Metering. Its job is not to implement an agent. Its job is to make
 one observation transition explicit and measurable.
 
-The complete intended loop is:
+The implemented external-agent loop is:
 
 ```text
 agent chooses one probe
@@ -45,7 +45,7 @@ returns to an application that chooses its own actions.
 
 ## Session state
 
-The minimal target state is:
+The minimal JSONL session state is:
 
 ```text
 active_version_id     controller-private truth
@@ -54,9 +54,9 @@ catalogue_id          immutable observation definitions
 step                  number of delivered observations
 ```
 
-The active version never appears in an agent response before completion. The
-belief, allowed probes, measurement inputs, measurement outputs, and delivered
-observation are public.
+The active version is never labeled in an agent response before completion.
+All possible snapshot identities, the belief, allowed probes, probability
+construction rule, measurement outputs, and delivered observation are public.
 
 The current executable uses a uniform belief represented by its remaining
 candidate set. Uniformity is therefore a real mathematical assumption of the
@@ -66,9 +66,8 @@ reference demo:
 {"v1":0.25,"v2":0.25,"v3":0.25,"v4":0.25}
 ```
 
-The proposed agent-facing protocol represents an explicit probability map so a
-later implementation could accept a nonuniform prior. That behavior is not
-implemented yet. See [Mathematical foundation and
+The agent-facing protocol emits that uniform belief as an explicit probability
+map. It does not accept a caller-supplied or nonuniform prior. See [Mathematical foundation and
 hypothesis](theory-and-hypothesis.md) for the current model, derivation, and
 falsifiable predictions.
 
@@ -111,7 +110,7 @@ snapshot_id = SHA-256(parent_snapshot_id, tree_id)
 those contents at one place in the version lineage. The hashes detect changes
 and accidental mixing; they are not authentication.
 
-The agent-facing target gives the observation catalogue its own immutable
+The agent-facing protocol gives the observation catalogue its own immutable
 `catalogue_id`. If an agent or maintainer changes the available observations,
 that creates a new catalogue version for a later session. A running session
 never rewrites the meaning of an earlier observation.
@@ -119,7 +118,7 @@ never rewrites the meaning of an earlier observation.
 ## Dependency direction
 
 ```text
-external agent -> folder observer -> public Metering JSON CLI
+external agent -> observer -> public Metering JSON CLI
                        |
                        +----------> fixture sandbox
 ```
@@ -127,13 +126,13 @@ external agent -> folder observer -> public Metering JSON CLI
 With `--history`, the measurement edge is explicit but one step longer:
 
 ```text
-folder observer -> metering-history -> public Metering JSON CLI
+observer -> metering-history -> public Metering JSON CLI
                          |
                          +----------> caller-owned pair ledger
 ```
 
 Metering knows nothing about folders, versions, probes, beliefs, agents, or
-session state. Folder observer does not import private Metering modules. The
+session state. Observer does not import private Metering modules. The
 agent does not receive direct access to the active fixture directory.
 
 The pair ledger is not the versioned environment. A folder `snapshot_id` binds
@@ -144,5 +143,5 @@ the other.
 ## Non-goals
 
 The fundamental version does not require MCP, HTTP, plugins, a database,
-persistent sessions, asynchronous execution, a generic tool framework, a model
-adapter, or self-modifying observations.
+persisted or resumable sessions, asynchronous execution, a generic tool
+framework, a model adapter, or self-modifying observations.
