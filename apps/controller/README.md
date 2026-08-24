@@ -151,5 +151,6 @@ protocol composition, not generalization or real-world improvement.
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Mathematical, biological, and technical foundations](docs/foundations.md)
 - [Agent protocol](docs/agent-protocol.md)
 - [Evolution-kernel composition](../../docs/evolution-kernel.md)

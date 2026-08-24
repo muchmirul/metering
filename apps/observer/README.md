@@ -18,7 +18,7 @@ The executable has two modes over the same four immutable fixtures:
 | Versioned sandbox fixtures | Implemented | Same fixtures |
 | Tree and parent-bound snapshot IDs | Implemented | Verified by `finish` |
 | Metering through `python -m metering` | Implemented | Implemented |
-| Observation choice | Built-in maximum-entropy policy | External agent |
+| Observation choice | Built-in greedy maximum predicted-result-entropy policy | External agent |
 | Belief | Uniform candidate set | Explicit version-probability response |
 | Interaction | Complete automatic JSONL transcript | One request and response per line |
 | Measurement history | Optional parent-linked ledger | Optional with `--history` |
@@ -100,9 +100,10 @@ selects the probe with maximum result entropy.
 
 The implemented-system hypothesis is:
 
-> Given an active sandbox exactly equal to one of `v1` through `v4`, a uniform
-> prior, deterministic noiseless reads, and the current fixed fixtures, the
-> reference policy identifies the correct snapshot in exactly two delivered
+> Given an active sandbox regular-file-manifest-equivalent to one of `v1`
+> through `v4`, a uniform prior, deterministic noiseless reads, and the current
+> fixed fixtures, the reference policy identifies the correct snapshot in
+> exactly two delivered
 > read observations, and every selected probe maximizes current result entropy.
 
 For these fixtures, candidate entropy must follow `2 -> 1 -> 0` bits and each
@@ -142,9 +143,10 @@ observer/
 - Read probes accept only normalized relative paths and reject symbolic-link
   traversal. JSONL actions are further restricted to the immutable advertised
   catalogue. UTF-8 decoding preserves the file's original line endings.
-- Identification is emitted only when the canonical sandbox file manifest
-  matches the selected snapshot's `tree_id`, so extra or changed files fail
-  instead of being ignored.
+- Identification is emitted only when the canonical sandbox regular-file
+  manifest matches the selected snapshot's `tree_id`, so an extra, missing,
+  renamed, or byte-changed regular file fails instead of being ignored. Empty
+  directories and filesystem metadata are outside this identity.
 - The temporary directory is cooperative isolation, not a security sandbox.
 - `--active` is reproducible controller configuration, not a protected secret
   from the person starting the process.

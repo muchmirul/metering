@@ -1,5 +1,10 @@
 # Minimal information-guided evolution kernel
 
+The [system foundations](foundations.md) derive the mathematical identities,
+biology analogy, integrity model, design rationale, and falsifiable hypotheses
+behind this composition. This document keeps the executable responsibility and
+data-flow boundary concise.
+
 Metering remains a pure information-measurement package. Repository applications
 compose explicit responsibilities around it:
 
@@ -56,7 +61,7 @@ c'_t ~ Q_theta_t(. | c_t)
 
 L_E(c) = -(1/n) sum_i log2 q_c(y_i | x_i, E)
 
-Delta_t = L_E(c_t) - L_E(c'_t)
+Delta_t = L_E(c_t) - L_E(c'_t)          when both losses are finite
 
 c_(t+1) = c'_t  when Delta_t > delta
 c_(t+1) = c_t   otherwise
@@ -67,6 +72,8 @@ does not own random-number generation. Candidate Runner supplies the concrete
 `q_c` for this fixture example. Forecast Assay reports `L_E`. Selection Gate
 verifies `Delta_t` and applies `delta`. The controller performs one transition,
 but any update to `theta_t` remains caller-owned.
+When either report is infinite, Selection Gate applies its explicit
+extended-real ordering instead of subtracting infinities.
 
 ## Candidate identity binding
 
@@ -106,3 +113,17 @@ reserve fresh final cases that are not repeatedly reused for selection.
 The six applications therefore form one auditable generation example, not an
 autonomous self-evolving agent. Repetition and every policy update remain an
 explicit caller decision.
+
+## Composition hypothesis
+
+The engineering hypothesis is that keeping variation, forecast expression,
+target reveal, assay, retention, and one-generation orchestration as strict
+separate processes makes causal ordering, identity swaps, and evidence mismatch
+observable without adding a general agent framework.
+
+It is falsified by any successful generation that captures a forecast after its
+target reveal, loses the Mutator parent/child content binding, compares different
+evidence, trusts a forged assay aggregate, or returns an unknown next parent.
+The controller integration tests exercise these conditions for version 1. They
+do not prove the external empirical hypothesis that repeated selection improves
+fresh-data performance; that experiment remains caller-owned.

@@ -275,7 +275,12 @@ Every application must state:
 - what the outcomes in each supplied distribution mean;
 - how the probabilities were constructed;
 - which named Metering result is being reported; and
-- what the result does not establish.
+- what the result does not establish;
+- the foundational equations and assumptions that justify its mechanism;
+- why its software boundary is no broader than necessary; and
+- which claims are mathematical identities, tested implementation hypotheses,
+  or external empirical hypotheses, including concrete falsifiers and primary
+  sources where applicable.
 
 The `apps/forecast_assay` example is a stateless screening adapter. Each
 request and successful report carries application schema version 1. A request
@@ -387,6 +392,7 @@ tests/
     test_evolution_kernel.py
 docs/
     README.md
+    foundations.md
     theory.md
     history.md
     evolution-kernel.md

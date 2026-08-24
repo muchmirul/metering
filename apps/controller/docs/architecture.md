@@ -56,9 +56,11 @@ gate selected candidate         in {parent candidate_id, child candidate_id}
 ```
 
 Candidate Runner additionally recomputes each candidate ID from the supplied
-genome. The controller verifies that every complete forecast is normalized and
-contains the revealed target. Selection Gate verifies report mathematics and
-evidence alignment.
+genome. Before reveal, the controller verifies a nonempty set of unique,
+normalized forecast outcomes; after reveal, it verifies that the observed
+target is present. Candidate Runner owns completeness for its fixed model. The
+controller cannot prove completeness for an arbitrary outcome domain.
+Selection Gate verifies report mathematics and evidence alignment.
 
 ## Observer completion
 

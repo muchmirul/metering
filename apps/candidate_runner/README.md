@@ -89,12 +89,14 @@ model. The runner never reads Observer's active sandbox. Tests compare this
 model with the public Observer behavior so drift fails visibly.
 
 The runner supports only this finite demonstration genome and probe catalogue.
-Each request uses the same genome distribution and does not condition on an
-earlier observation. It does not execute arbitrary code, load models, learn
+Each request derives its distribution from the supplied genome and does not
+condition on an earlier observation or request. It does not execute arbitrary
+code, load models, learn
 probabilities, mutate, observe, select, persist state, or prove that a caller
 obtained the forecast before target reveal.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Mathematical and technical foundations](docs/foundations.md)
 - [Agent protocol](docs/agent-protocol.md)

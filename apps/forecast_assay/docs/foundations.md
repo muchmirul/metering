@@ -5,9 +5,11 @@
 Each request is a **one-shot probabilistic screening assay**. The executable
 can handle one request and exit or stream independent requests with `--jsonl`.
 It is not mutagenesis and it is not an evolutionary system. A complete
-external agent could place this assay inside a **directed-evolution-inspired
+caller can place this assay inside a **directed-evolution-inspired
 variation-screen-retain loop**, but mutation, inheritance, selection, and
-repetition would all belong to that agent.
+repetition all remain outside Forecast Assay. The checked-in composition assigns
+those roles to other apps and still leaves repeated generations to its external
+caller.
 
 The mathematical foundation is **Shannon self-information** per revealed
 target and its application-owned arithmetic mean, which is the **empirical mean
@@ -23,12 +25,12 @@ an optional directed-evolution software analogy, responsibilities remain:
 
 | Biological idea | Owner in this design |
 |---|---|
-| variation or mutation | external agent |
-| heritable candidate representation | external agent |
-| environment and observations | external agent |
+| variation or mutation | Mutator or a standalone external caller |
+| heritable candidate representation | Mutator plus the composing caller |
+| environment and observations | Observer and Evolution Controller, or a standalone caller |
 | assay of a candidate phenotype | this application measures declared forecasts |
-| retention, reproduction, or selection | external agent |
-| repeated generations | external agent |
+| retention or selection | Selection Gate, composed by Evolution Controller, or a standalone caller |
+| repeated generations | external caller |
 
 Lewontin's minimal conditions for evolution by natural selection are variation,
 differential survival or reproduction, and heritable correlation between
@@ -46,14 +48,18 @@ will improve predictive performance.
 The accurate boundary is:
 
 ```text
-external agent: vary -> obtain pre-reveal forecasts -> observe -> call assay
-                                                              |
-                                                              v
+caller or composing apps: vary -> obtain pre-reveal forecasts -> observe
+                                                                    |
+                                                                    v
 forecast assay: validate -> measure target log loss -> report -> next line or exit
-                                                              |
-                                                              v
-external agent: compare -> retain or reject -> repeat or stop
+                                                                    |
+                                                                    v
+caller or composing apps: compare -> retain or reject -> repeat or stop
 ```
+
+The checked-in Mutator, Candidate Runner, Observer, Selection Gate, and
+Controller can fill those composing roles; a standalone caller can supply the
+same responsibilities through the public boundary.
 
 ## Mathematical foundation
 
@@ -64,7 +70,18 @@ For candidate `c`, fixed evaluation `e`, observation `x_i`, revealed target
 p_i = q_c(y_i | x_i, e)
 ```
 
-the app calls Metering's public measure at base 2:
+the caller's complete pre-reveal forecast must satisfy
+
+```text
+sum_y q_c(y | x_i, e) = 1.
+```
+
+Only the realized coordinate `p_i` is needed to compute that outcome's
+logarithmic loss. This is why the request can stay small. The omitted
+coordinates still matter to the scoring theorem, so the app cannot verify that
+the original forecast was complete, normalized, or captured before reveal.
+
+The app calls Metering's public measure at base 2:
 
 ```text
 I_i = self_information(p_i, base=2) = -log2(p_i) bits
@@ -82,19 +99,47 @@ logarithmic score or mean target surprisal. It is equivalently the negative
 base-2 logarithm of the geometric mean target probability. The arithmetic mean
 is owned by this application; it is not a fifth Metering measure.
 
-For a true finite distribution `P` and a complete forecast distribution `Q`,
-expected logarithmic loss decomposes as:
+Explicitly,
 
 ```text
-E_P[-log2 Q(Y)] = H_2(P) + D_KL,2(P || Q)
+2^(-L_n(c)) = (product_i q_c(y_i | x_i, e))^(1/n).
 ```
 
-Because KL divergence is nonnegative, expected log loss is minimized by
-reporting `Q = P`. This is the strictly proper logarithmic-scoring result. It
-applies only when `Q` is a coherent normalized distribution and is committed
-before `Y` is revealed. The app receives only the realized target coordinate,
-so it cannot verify either condition. Without precommitment, a caller can submit
-probability `1` after every reveal and manufacture zero loss.
+If any delivered target was assigned probability zero, then
+
+```text
+L_n(c) = +infinity.
+```
+
+The app preserves that extended-real result rather than introducing a post-hoc
+epsilon or clipping rule.
+
+For heterogeneous cases, let `P_i` be the true target distribution for case
+`i` and `Q_c,i` the candidate's complete forecast. Conditional on the submitted
+cases, expected logarithmic loss decomposes as:
+
+```text
+E[L_n(c) | x_1, ..., x_n]
+  = (1/n) sum_i [
+      H_2(P_i) + D_KL,2(P_i || Q_c,i)
+    ].
+```
+
+`H_2(P_i)` is the Bayes-optimal expected log loss relative to the declared
+per-case distribution and conditioning information; additional predictors can
+change that distribution. The term
+`D_KL,2(P_i || Q_c,i)` is excess expected loss from forecast mismatch. Because
+KL divergence is nonnegative, expected log loss is uniquely minimized by
+reporting `Q_c,i = P_i`. This is the strictly proper logarithmic-scoring result.
+It applies only when each `Q_c,i` is coherent, normalized, and committed before
+`Y_i` is revealed. Without precommitment, a caller can submit probability `1`
+after every reveal and manufacture zero loss.
+
+`L_n` is always a deterministic equal-weight summary of the submitted rows.
+Interpreting it as an estimate of future risk additionally needs a declared
+sampling design. Independence is not needed to calculate the mean, but
+correlation, adaptive case choice, and reuse affect its uncertainty and what
+population it can represent.
 
 The quantity should not be renamed:
 
@@ -110,7 +155,42 @@ Changing the log base changes the unit, not candidate ordering. A zero target
 probability has infinite loss. The app deliberately does not clip, smooth,
 normalize, or silently repair it.
 
-## Falsifiable hypothesis
+## Why the software uses this narrow design
+
+- **Target-only input:** one realized probability is the smallest sufficient
+  input for the named self-information call. The tradeoff is explicit: full-
+  forecast normalization, support, and precommitment remain caller-owned and
+  unverifiable at this boundary.
+- **Equal weighting:** the app exposes the denominator and avoids silently
+  inventing environment or importance weights.
+- **No clipping or smoothing:** impossible-event forecasts remain visible and
+  the caller's declared probability model is not rewritten.
+- **Base 2:** results are auditable in bits; another base would only rescale all
+  finite values by a positive constant.
+- **Stateless one-shot and JSONL modes:** no earlier candidate can influence a
+  later report; JSONL amortizes startup only.
+- **Public Metering call:** one implementation owns the named
+  `self_information` semantics.
+- **Strict zero/one conversion checks:** numeric parsing cannot silently turn a
+  finite loss into infinity or a positive loss into zero.
+
+## Falsifiable hypotheses
+
+### Implementation hypothesis
+
+For every accepted request,
+
+```text
+value_bits_i = -log2(p_i)
+finite aggregate = (1/n) sum_i value_bits_i
+aggregate is infinite iff any p_i = 0.
+```
+
+The response must preserve the submitted identities and input order, reject
+duplicate observation IDs, and remain independent of previous JSONL requests.
+A counterexample falsifies this deterministic implementation claim.
+
+### External adaptation hypothesis
 
 The implementation alone has no “self-improvement” hypothesis because it does
 not change candidates. A defensible hypothesis for a complete external loop is:
@@ -134,6 +214,13 @@ A narrower parent-versus-mutant experiment can instead test the paired
 difference `L_test,mutant - L_test,parent` under the same held-out cases. A
 single lower development mean is not the hypothesis test.
 
+The expectation is over repeated paired runs under the declared environment
+and randomization procedure. The measurement-independent control retention
+rule must be specified before running. Because `infinity - infinity` is
+undefined, an experiment that can produce infinite final losses must also
+predeclare a catastrophic-failure indicator or an extended-real ordering; it
+must not invent epsilon clipping after seeing results.
+
 The experiment must declare, before running:
 
 1. the environments and their sampling distribution;
@@ -152,9 +239,11 @@ tolerance if improvement is required across all of them.
 
 Adaptive reuse of a finite evaluation set makes it part of training. That can
 overfit the retention criterion, so final evidence requires fresh held-out
-cases. The hypothesis is falsified when the paired test difference is not below
-zero, when environment-specific requirements fail, or when the advantage
-disappears on fresh cases.
+cases. The paired estimator and one-sided interval or test rule must be declared
+before data are seen. Failure to meet that rule is failure to support the
+directional hypothesis; an interval wholly at or above zero is evidence against
+it under the declared design. Predeclared environment-specific requirements
+must also be evaluated rather than replaced by a favorable pooled result.
 
 ## Refinement chosen for this app
 
@@ -174,6 +263,10 @@ The app still does not compare reports, run a statistical test, mutate a model,
 choose a winner, or keep state. Those are policies, not irreducible measurement
 operations.
 
+The echoed identifiers support alignment but are not authenticated content.
+The app cannot prove that a candidate label names the model that emitted the
+probabilities or that an evaluation label names immutable evidence.
+
 ## Research sources
 
 - U.S. National Library of Medicine, MeSH `Mutagenesis`, defines the literal
@@ -187,6 +280,9 @@ operations.
 - C. E. Shannon, “A Mathematical Theory of Communication,” 1948, defines the
   logarithmic information foundation and bit unit: [Bell System Technical
   Journal DOI](https://doi.org/10.1002/j.1538-7305.1948.tb01338.x).
+- S. Kullback and R. A. Leibler, “On Information and Sufficiency,” 1951,
+  supplies the divergence in the expected-log-loss decomposition:
+  [DOI](https://doi.org/10.1214/aoms/1177729694).
 - T. Gneiting and A. E. Raftery, “Strictly Proper Scoring Rules, Prediction,
   and Estimation,” 2007, gives the logarithmic score and its proper-scoring
   interpretation: [JASA DOI](https://doi.org/10.1198/016214506000001437).

@@ -1,5 +1,9 @@
 # Measurement history
 
+This document specifies the history mechanism. Its relation to the repository's
+information, identity, biology-analogy, and hypothesis boundaries is summarized
+in the [system foundations](foundations.md).
+
 `metering-history` is the installed, opt-in filesystem boundary for retaining
 accepted Metering request/response pairs. It wraps the public `metering` JSON
 command; it does not add a measure, interpret a result, choose a request, or run
@@ -67,6 +71,19 @@ The stored schema version 1 object has exactly these fields:
 Its record identity is the SHA-256 digest of the canonical JSON for that entire
 six-field stored object. `record_id` is not stored inside the object it hashes;
 it is the object filename and is added to `record` and `log` responses.
+
+Equivalently, for canonical JSON serialization `C`, record `R_t`, and digest
+function `d(m) = SHA-256(UTF-8(C(m)))`:
+
+```text
+R_t.parent_record_id = null            when t = 0
+R_t.parent_record_id = d(R_(t-1))      when t > 0
+record_id_t           = d(R_t)
+```
+
+Changing a stored ancestor changes its digest under the collision-resistance
+assumption of SHA-256. The next unchanged descendant still names the old digest,
+so the reachable chain no longer verifies.
 
 `pair_id` identifies request/response content. Repeating the same accepted pair
 therefore produces the same pair ID. `record_id` also binds the package version
@@ -145,3 +162,45 @@ checkout, wall-clock timestamps, signatures, automatic replay, candidate
 lineage, application state, sandbox snapshots, or retention decisions. Folder
 snapshot IDs and application candidate IDs have different schemas and meanings
 from measurement pair and record IDs.
+
+## Why this design is narrow
+
+- **Separate command:** recording is a visible filesystem mutation and never
+  changes the purity of the four Python functions or ordinary `metering` CLI.
+- **Pair ID versus record ID:** content identity remains stable when the same
+  request/response pair is repeated, while the record ID binds one occurrence
+  to its lineage position.
+- **Canonical objects:** one accepted logical record has one serialized byte
+  form, so identity and verification do not depend on key order or whitespace.
+- **Linear parent link:** one `HEAD` is enough for the actual append-only use
+  case; branches, merges, remotes, and checkout would add unrelated version-
+  control semantics.
+- **Validate before append:** rejected measurements never become history.
+- **Explicit verification:** append latency stays small, while callers decide
+  when a complete reachability audit is worth its cost.
+
+## Falsifiable integrity hypothesis
+
+> Altering a canonical stored record without finding a SHA-256 collision or
+> consistently rebuilding its descendants causes `metering-history verify` to
+> reject the old lineage.
+
+A modified object accepted under its old filename, a broken parent link, cycle,
+unreachable object, noncanonical record, or invalid `HEAD` accepted by `verify`
+falsifies this implementation claim.
+
+The hypothesis deliberately excludes authentication and rollback detection. A
+party that can rewrite all objects and `HEAD` can build another internally
+consistent lineage, and a party can restore an older valid directory without an
+external checkpoint being present. There are no signatures, trusted
+timestamps, or remote witnesses.
+
+## Primary sources
+
+- NIST, *Secure Hash Standard (SHS), FIPS 180-4*, specifies SHA-256 and the
+  message-digest integrity property used here:
+  [FIPS 180-4](https://csrc.nist.gov/pubs/fips/180-4/upd1/final).
+- S. Haber and W. S. Stornetta, “How to Time-Stamp a Digital Document,” 1991,
+  is historical primary work on hash-linked records. `metering-history` does
+  not implement its signatures or timestamping system:
+  [DOI](https://doi.org/10.1007/BF00196791).

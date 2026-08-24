@@ -4,6 +4,10 @@
 remaining documents explain the implemented boundaries without expanding that
 contract:
 
+- [System foundations, design rationale, and hypotheses](foundations.md)
+  connects the information theory, Bayesian observation model, proper scoring,
+  biology analogy, content identity, software boundaries, and falsifiable
+  claims used across the repository.
 - [Theory and measurement boundary](theory.md) derives the four public
   information measures and records their numerical conventions.
 - [Measurement history](history.md) specifies the opt-in `metering-history`

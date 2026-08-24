@@ -106,9 +106,11 @@ tree_id     = SHA-256(canonical paths, sizes, and content hashes)
 snapshot_id = SHA-256(parent_snapshot_id, tree_id)
 ```
 
-`tree_id` identifies the measured folder contents. `snapshot_id` identifies
-those contents at one place in the version lineage. The hashes detect changes
-and accidental mixing; they are not authentication.
+`tree_id` identifies the measured regular-file manifest: relative paths, byte
+lengths, and content hashes. It does not include permissions, timestamps, or
+empty directories. `snapshot_id` identifies that modeled content at one place
+in the version lineage. Under SHA-256's collision-resistance assumption, the
+hashes expose changes and accidental mixing; they are not authentication.
 
 The agent-facing protocol gives the observation catalogue its own immutable
 `catalogue_id`. If an agent or maintainer changes the available observations,

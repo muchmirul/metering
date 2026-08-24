@@ -1,5 +1,10 @@
 # Theory and measurement boundary
 
+This document derives the installed package's four named measurements. The
+[system foundations](foundations.md) connect them to the repository applications,
+software-design rationale, and falsifiable hypotheses without changing this
+measurement boundary.
+
 Metering starts with Shannon's logarithmic measure of information. For an
 outcome with declared probability `p`, its self-information is:
 
@@ -117,10 +122,32 @@ only after the caller has made those choices.
   matches the supplied table instead of turning the residual `S - 1` into
   spurious dependence.
 
-## Primary source
+## Design rationale and implementation hypothesis
 
-Claude E. Shannon, “A Mathematical Theory of Communication,” *The Bell System
-Technical Journal*, volume 27, pages 379-423 and 623-656, 1948.
+The public surface keeps self-information, entropy, KL divergence, and mutual
+information separate because they answer different questions outside special
+models. Requiring caller-supplied finite PMFs makes every mathematical input
+explicit and keeps estimation choices out of a deterministic measurement tool.
+Purity and a strict one-request JSON filter make direct and subprocess results
+independently reproducible from the same declared numbers.
 
-- https://doi.org/10.1002/j.1538-7305.1948.tb01338.x
-- https://doi.org/10.1002/j.1538-7305.1948.tb00917.x
+The falsifiable implementation hypothesis is:
+
+> Every accepted input is evaluated according to its named finite-discrete
+> equation and documented floating-point extension, while every malformed or
+> ambiguous model is rejected rather than repaired.
+
+A valid counterexample to an exact identity, support rule, normalization
+boundary, numerical convention, purity claim, or direct/CLI agreement falsifies
+that hypothesis. Passing the tests establishes only implementation conformance;
+it does not validate the caller's model or interpretation.
+
+## Primary sources
+
+- Claude E. Shannon, “A Mathematical Theory of Communication,” *The Bell System
+  Technical Journal*, volume 27, pages 379-423 and 623-656, 1948:
+  [part I](https://doi.org/10.1002/j.1538-7305.1948.tb01338.x) and
+  [part II](https://doi.org/10.1002/j.1538-7305.1948.tb00917.x).
+- Solomon Kullback and Richard A. Leibler, “On Information and Sufficiency,”
+  *The Annals of Mathematical Statistics*, volume 22, pages 79-86, 1951:
+  [DOI](https://doi.org/10.1214/aoms/1177729694).

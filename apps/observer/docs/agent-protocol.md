@@ -4,7 +4,7 @@
 
 Protocol version 1 is implemented by `apps/observer/observer.py --jsonl`.
 The ordinary command without `--jsonl` remains the deterministic built-in
-maximum-entropy demonstration.
+greedy maximum-predicted-result-entropy demonstration.
 
 Start one session from the repository root:
 
@@ -144,10 +144,11 @@ agent must call `finish` or close the stream.
 {"action":"finish","snapshot_id":"HEX_SHA256"}
 ```
 
-Before responding, the controller verifies that the complete canonical sandbox
-manifest matches the remaining candidate's `tree_id`. The response ends the
-session logically, although the process continues reading so later lines can
-receive explicit errors:
+Before responding, the controller verifies that the canonical sandbox
+regular-file manifest matches the remaining candidate's `tree_id`. This
+identity covers paths, byte lengths, and content hashes, not filesystem metadata
+or empty directories. The response ends the session logically, although the
+process continues reading so later lines can receive explicit errors:
 
 ```json
 {

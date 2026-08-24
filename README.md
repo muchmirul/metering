@@ -19,6 +19,9 @@ request/response pairs without changing that surface.
 [`PLAN.md`](PLAN.md) is the normative contract. The
 [documentation index](docs/README.md) links the measurement theory, history
 format, application composition boundary, and app-local protocols.
+The [system foundations](docs/foundations.md) state the equations, biological
+analogy, design reasoning, hypotheses, falsifiers, and primary research sources
+behind the complete composition.
 
 ## System at a glance
 
@@ -43,6 +46,9 @@ flowchart LR
     end
 
     Caller -->|generation request| Controller
+    Caller -->|direct Python measurement| API
+    Caller -->|one JSON measurement| CLI
+    Caller -. optional record, log, or verify .-> History
     Controller -->|mutation request| Mutator
     Mutator -->|child and content IDs| Controller
     Controller -->|candidate and unrevealed probe| Runner
@@ -243,8 +249,10 @@ The default demonstration chooses the observation with the greatest result entro
 observes the materialized sandbox, filters the candidate versions itself, and
 repeats until one version remains. It prints canonical JSON Lines containing
 the explicit probability requests and Metering responses. Before emitting an
-identified snapshot, it verifies that the canonical sandbox file manifest
-matches that snapshot's `tree_id`; out-of-model content fails explicitly.
+identified snapshot, it verifies that the canonical sandbox regular-file
+manifest matches that snapshot's `tree_id`. An extra, missing, renamed, or
+byte-changed regular file fails explicitly; empty directories and filesystem
+metadata are outside this identity.
 
 The version fixtures, inference rule, snapshot hashes, action choice, and loop
 belong to the application. None of them is part of the `metering` package. The
