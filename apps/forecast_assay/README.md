@@ -115,6 +115,10 @@ The agent must still define:
 - whether a mutation is retained; and
 - when to continue or stop.
 
+The repository [Evolution Controller](../controller/README.md) implements those
+bindings for one fixed Observer/Candidate Runner generation while leaving
+repetition and policy changes to its caller.
+
 Lower mean target surprisal for caller-declared outcomes does not establish
 general adaptation, correctness, meaning, understanding, intelligence, or
 usefulness.

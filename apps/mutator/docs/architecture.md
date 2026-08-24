@@ -105,9 +105,10 @@ mutation_id = SHA-256(
 parent-to-child transition. Neither is a signature, author identity, lineage
 record, or proof that trusted software produced the document.
 
-A later evolution controller may store parent links and promotion decisions in
-a separate candidate lineage. Metering history is not that lineage; it stores
-measurement request/response pairs.
+Evolution Controller returns one selected `next_parent` but does not store a
+lineage. A caller may store parent links and promotion decisions separately.
+Metering history is not that lineage; it stores measurement request/response
+pairs.
 
 ## Dependency direction
 

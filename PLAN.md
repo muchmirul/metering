@@ -29,7 +29,7 @@ The choice of base fixes the unit. Base 2 is the default and produces bits.
 Base `e` produces nats. Metering accepts a real base whose conversion to a
 finite Python float remains greater than 1.
 
-The initial implementation supports finite discrete probability models only.
+Metering supports finite discrete probability models only.
 That boundary is intentional. Continuous entropy, sample-based estimation, and
 channel optimization require additional assumptions that this package must not
 silently invent.
@@ -168,7 +168,7 @@ object to standard output.
 
 Valid request shapes are:
 
-```json
+```jsonl
 {"measure":"self_information","probability":0.125}
 {"measure":"entropy","probabilities":[0.5,0.5]}
 {"measure":"kl_divergence","p":[0.5,0.5],"q":[0.75,0.25]}
@@ -227,8 +227,12 @@ request leaves the history untouched. An accepted request and its exact response
 form a pair with these two identities:
 
 ```text
-pair_id   = SHA-256(canonical JSON of request and response)
-record_id = SHA-256(canonical JSON of pair, Metering version, and parent record)
+pair_id = SHA-256(canonical JSON of {
+    "request": normalized request,
+    "response": exact Metering response
+})
+
+record_id = SHA-256(canonical JSON of the complete six-field stored record)
 ```
 
 `pair_id` is content identity: the same normalized request and response have the
@@ -302,6 +306,16 @@ self-information, and returns content-derived catalogue, parent, child, and
 transition identifiers. It contains no hidden randomness, assay, selection,
 lineage, repetition, or mutation-policy update.
 
+The `apps/candidate_runner` example gives one concrete executable meaning to a
+Mutator genome. The genome declares one Observer fixture hypothesis and its
+integer probability in basis points; remaining probability is divided equally
+among the other fixtures. For one unrevealed public probe, the runner constructs
+the complete result distribution, validates and measures its entropy through
+Metering, and returns canonical target strings. It independently verifies that
+the Mutator candidate ID matches the genome. It does not receive the active
+fixture, inspect Observer state, execute arbitrary code, learn, mutate, observe,
+or select.
+
 The `apps/selection_gate` example verifies two complete Forecast Assay reports
 on the same identified evidence, recomputes their target self-information and
 means, and applies one caller-supplied strict improvement threshold. The
@@ -310,6 +324,15 @@ labels remain opaque assay identifiers: an external controller must bind them
 to the exact incumbent and challenger content identities that it executed.
 The gate does not prove model execution, forecast precommitment, inheritance,
 or future improvement.
+
+The `apps/controller` example executes exactly one generation. It sends one
+explicit request to Mutator, obtains both Candidate Runner forecasts before each
+Observer reveal, carries exact content IDs into Forecast Assay, submits aligned
+reports to Selection Gate, and returns the selected candidate as `next_parent`.
+It invokes every component through documented JSON standard streams. It owns no
+hidden draw, arbitrary candidate runtime, persistent lineage, policy update,
+repetition, deployment, or stopping rule. A caller must explicitly submit
+another request to advance another generation.
 
 Application JSONL transports use standard input and output only. Recoverable
 line errors produce an aligned JSON response and leave later requests usable.
@@ -359,22 +382,34 @@ tests/
     test_forecast_assay.py
     test_mutator.py
     test_selection_gate.py
+    test_candidate_runner.py
+    test_controller.py
     test_evolution_kernel.py
 docs/
+    README.md
     theory.md
+    history.md
     evolution-kernel.md
 apps/
     README.md         application index and composition boundary
     observer/         non-packaged versioned-sandbox demonstration
     forecast_assay/   non-packaged agent candidate-measurement adapter
     mutator/          non-packaged one-locus variation operator
+    candidate_runner/ non-packaged fixed fixture forecast model
     selection_gate/   non-packaged verified pairwise retention decision
+    controller/       non-packaged one-generation orchestrator
 ```
 
-Add a module only when a concrete responsibility no longer fits one of these
-three. Do not introduce a generic abstraction in anticipation of future work.
+Add a package module only when a concrete responsibility no longer fits one of
+these four. Do not introduce a generic abstraction in anticipation of future
+work.
 
 ## Compatibility
+
+Candidate Runner and Evolution Controller are additive repository-local source
+examples. They do not change the installed Python API, Metering JSON protocol,
+history schema, existing application schemas, or numerical definitions. Their
+version 1 reports are new and have no earlier artifact format to migrate.
 
 This scope reset intentionally removes the previous hidden-fault world,
 actions, policies, controller, calibration, reports, general trace/replay
@@ -414,9 +449,12 @@ The rewrite is complete only when:
 - Forecast Assay rejects unsupported schema versions and Selection Gate requires
   that same report version before recomputing both reports, rejecting mismatched
   evidence, and applying its documented strict threshold and infinity ordering;
-- the composed evolution-kernel example carries Mutator content IDs through
-  Forecast Assay and Selection Gate without treating an opaque label as proof
-  of candidate execution;
+- Candidate Runner verifies Mutator content identity, constructs a normalized
+  result forecast without receiving the active fixture, and exposes its exact
+  fixture probability model;
+- the one-generation controller obtains both forecasts before each Observer
+  reveal, carries Mutator content IDs through Forecast Assay and Selection Gate,
+  and returns the selected candidate without claiming an autonomous loop;
 - the full test suite and package build pass.
 
 ## Source

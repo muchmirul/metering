@@ -61,7 +61,8 @@ The response contains:
 Mutation entropy describes spread over possible changes. Mutation surprisal
 describes how unlikely the selected change was under the declared policy.
 Neither quantity establishes quality, usefulness, novelty, intelligence, or
-expected improvement.
+expected improvement. The repository [Evolution Controller](../controller/README.md)
+carries these content IDs into one fixed Candidate Runner evaluation.
 
 ## Documentation
 

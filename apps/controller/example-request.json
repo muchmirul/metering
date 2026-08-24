@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "active_version": "v3",
+  "evaluation": "observer-fixtures/config-port/holdout-v1",
+  "mutation_request": {
+    "schema_version": 1,
+    "catalogue": {
+      "loci": [
+        {
+          "locus": "hypothesis",
+          "alleles": ["v1", "v2", "v3", "v4"]
+        },
+        {
+          "locus": "hypothesis_probability_bps",
+          "alleles": [2500, 5000, 7500]
+        }
+      ]
+    },
+    "parent_genome": {
+      "hypothesis": "v3",
+      "hypothesis_probability_bps": 5000
+    },
+    "mutation_distribution": [
+      {
+        "locus": "hypothesis_probability_bps",
+        "allele": 7500,
+        "probability": 1
+      }
+    ],
+    "draw": 0
+  },
+  "probes": [
+    {
+      "operation": "read",
+      "path": "config/mode.txt"
+    },
+    {
+      "operation": "read",
+      "path": "service/port.txt"
+    }
+  ],
+  "required_improvement_bits": 0.05
+}

@@ -160,7 +160,7 @@ disappears on fresh cases.
 
 The useful refinement is evidence identity, not more intelligence:
 
-- every request now names one fixed evaluation and unique observations;
+- every request names one fixed evaluation and unique observations;
 - every target and identifier is echoed, so an agent can audit whether two
   candidate reports concern the same cases;
 - callers use one request per environment, with observations weighted equally

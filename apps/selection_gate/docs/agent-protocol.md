@@ -3,12 +3,20 @@
 ## Transport
 
 Default mode reads one strict UTF-8 JSON object from standard input and returns
-one canonical JSON object. Request or report errors are written to standard
-error with exit status 2.
+one canonical JSON object on standard output with exit status 0. Request or
+report errors are written to standard error with exit status 2 and leave
+standard output empty.
 
 `--jsonl` processes independent comparison requests one per line. It flushes one
 decision or error per line and continues after recoverable line errors. No
-incumbent is retained between requests.
+incumbent is retained between requests. Per-line errors use standard output to
+preserve alignment; end-of-file, including an empty stream, exits with status
+0. Blank lines, multi-line requests, multiple objects on one line, and invalid
+UTF-8 lines are recoverable errors. A fatal input stream failure writes one
+canonical error to standard error and exits with status 2.
+
+`--jsonl` is the only supported argument. Any other argument is an
+`invalid_request` error on standard error with exit status 2.
 
 ## Request
 
@@ -52,11 +60,14 @@ composing with Mutator, the external controller must use the exact Mutator
 `parent.candidate_id` and `child.candidate_id` values in the corresponding
 Forecast Assay requests and verify that it executed those genomes. Selection
 Gate verifies report mathematics and evidence alignment, not that external
-binding.
+binding. [`apps/controller/controller.py`](../../controller/controller.py)
+implements that binding for the fixed Candidate Runner demonstration.
 
-`required_improvement_bits` is a finite non-negative number. The finite decision
-uses exact floating-point `improvement > threshold`; report-verification
-tolerance is not added to the threshold.
+`required_improvement_bits` is a finite non-negative JSON number. Its conversion
+to double precision must remain finite and may not turn an exact positive value
+into zero. The finite decision uses exact floating-point
+`improvement > threshold`; report-verification tolerance is not added to the
+threshold.
 
 ## Verification
 
@@ -109,8 +120,18 @@ promote_challenger
 retain_incumbent
 ```
 
-Reason values identify strict-threshold or infinity behavior. When an infinite
-comparison makes subtraction undefined, `mean_improvement_bits` is null.
+Reason values are exactly:
+
+```text
+required_improvement_exceeded
+required_improvement_not_exceeded
+finite_challenger_beats_infinite_incumbent
+infinite_challenger_rejected
+both_reports_infinite
+```
+
+When an infinite comparison makes subtraction undefined,
+`mean_improvement_bits` is null.
 
 ## Errors
 
@@ -119,9 +140,12 @@ comparison makes subtraction undefined, `mean_improvement_bits` is null.
 ```
 
 `invalid_request` covers transport, schema, report integrity, evidence alignment,
-and threshold errors. `invalid_probability` covers a target probability rejected
-by Metering. No invalid report is converted into `retain_incumbent`; invalid
-evidence fails explicitly.
+threshold, and malformed numeric-field errors. `invalid_probability` is reserved
+for a probability rejection raised by Metering after request decoding. No
+invalid report is converted into `retain_incumbent`; invalid evidence fails
+explicitly. In one-shot mode errors use standard error and exit with status 2.
+In JSONL mode recoverable line errors use standard output and later lines remain
+usable.
 
 ## Compatibility
 

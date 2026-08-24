@@ -12,7 +12,7 @@ dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/muchmirul/metering"
-Documentation = "https://github.com/muchmirul/metering/blob/main/docs/theory.md"
+Documentation = "https://github.com/muchmirul/metering/blob/main/docs/README.md"
 Repository = "https://github.com/muchmirul/metering.git"
 Releases = "https://github.com/muchmirul/metering/releases"
 

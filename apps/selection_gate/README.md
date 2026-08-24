@@ -101,8 +101,9 @@ decision.
 Candidate fields remain opaque labels. In a Mutator composition, the external
 controller must carry the exact Mutator parent and child `candidate_id` values
 into the corresponding Forecast Assay requests and must ensure those genomes
-were actually executed. The gate cannot infer that binding from report
-mathematics.
+were actually executed. The gate cannot infer that binding from report mathematics.
+The repository [Evolution Controller](../controller/README.md) implements this
+check for its fixed Candidate Runner.
 
 ## Documentation
 

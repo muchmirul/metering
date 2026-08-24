@@ -31,6 +31,11 @@ From the repository root:
 uv run python apps/observer/observer.py --active v3
 ```
 
+`--active` accepts `v1` through `v4` and defaults to `v1`. `--history PATH`
+enables the explicit measurement ledger, `--jsonl` switches to the external
+agent protocol, and `-h`/`--help` prints command help. Option abbreviations are
+rejected.
+
 The output is canonical JSON Lines. With `v3`, the demo reads
 `config/mode.txt`, narrows the candidates to `v3` and `v4`, reads
 `service/port.txt`, and identifies `v3`.
@@ -60,15 +65,17 @@ Write one `state`, `observe`, or `finish` action per input line. The process
 flushes one canonical response per line and keeps recoverable request errors in
 that response stream. For example:
 
-```json
+```jsonl
 {"action":"state"}
 {"action":"observe","probe":{"operation":"read","path":"config/mode.txt"}}
 ```
 
 The agent chooses probes; Observer owns the sandbox, result-distribution
 construction, Metering calls, belief conditioning, and final tree verification.
-See the [external-agent protocol](docs/agent-protocol.md) for exact schemas,
-ordering rules, errors, and completion behavior.
+The repository [Evolution Controller](../controller/README.md) demonstrates
+capturing two Candidate Runner forecasts before each `observe` action. See the
+[external-agent protocol](docs/agent-protocol.md) for exact schemas, ordering
+rules, errors, and completion behavior.
 
 The four fixture directories are immutable versions of one UTF-8 text sandbox.
 Each version has:

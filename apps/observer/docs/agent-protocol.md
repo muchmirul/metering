@@ -69,6 +69,10 @@ Initial response shape:
     {
       "probe":{"operation":"read","path":"config/mode.txt"},
       "result_entropy":{"base":2.0,"infinite":false,"measure":"entropy","value":1.0}
+    },
+    {
+      "probe":{"operation":"read","path":"service/port.txt"},
+      "result_entropy":{"base":2.0,"infinite":false,"measure":"entropy","value":1.0}
     }
   ],
   "belief":{"v1":0.25,"v2":0.25,"v3":0.25,"v4":0.25},
@@ -121,7 +125,7 @@ Successful response shape:
 
 Version 1 supports only the exact catalogue forms:
 
-```json
+```jsonl
 {"operation":"list"}
 {"operation":"read","path":"RELATIVE_UTF8_PATH"}
 ```

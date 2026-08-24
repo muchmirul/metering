@@ -8,7 +8,15 @@ on standard error with exit status 2.
 
 `--jsonl` reads one independent request per line and flushes one response or
 error per line. Recoverable line errors do not terminate the stream. The process
-retains no candidate state between requests.
+retains no candidate state between requests. Per-line errors are returned on
+standard output to preserve alignment; end-of-file, including an empty stream,
+exits with status 0. Blank lines, multi-line requests, multiple objects on one
+line, and invalid UTF-8 lines are recoverable request errors. A fatal input
+stream failure writes one canonical error to standard error and exits with
+status 2.
+
+`--jsonl` is the only supported argument. Any other argument is an
+`invalid_request` error on standard error with exit status 2.
 
 ## Version 1 request
 
@@ -139,4 +147,7 @@ below one up to one.
 
 `invalid_request` covers JSON, schema, catalogue, genome, transition, draw, and
 transport errors. `invalid_probability` covers a probability model rejected by
-Metering. The Mutator does not repair an invalid request.
+Metering. The Mutator does not repair an invalid request. In one-shot mode an
+error is written to standard error and exits with status 2. In JSONL mode a
+recoverable line error is written to standard output and later lines remain
+usable.
