@@ -55,21 +55,39 @@ does not own random-number generation. Forecast Assay reports `L_E`. Selection
 Gate verifies `Delta_t` and applies `delta`. A future controller may update
 `theta_t`, but that policy update should remain outside all three applications.
 
+## Candidate identity binding
+
+Mutator returns content-derived `parent.candidate_id` and `child.candidate_id`.
+Forecast Assay deliberately accepts an opaque candidate string, and Selection
+Gate verifies report mathematics rather than model execution. The external
+controller must therefore preserve this binding explicitly:
+
+```text
+incumbent_report.candidate == mutator.parent.candidate_id
+challenger_report.candidate == mutator.child.candidate_id
+```
+
+Those equalities are necessary but not sufficient: the controller must also run
+the corresponding genomes when constructing each report. Neither the assay nor
+the gate can prove execution from an opaque label. A mismatched label is an
+invalid composition even if every individual application accepts its request.
+
 ## Trusted boundary
 
 Version 1 treats the Mutator implementation, Forecast Assay, Selection Gate,
-evaluation ordering, and candidate identity rules as infrastructure. Candidate
-genomes may evolve. Later, mutation-policy parameters may adapt. The source code
-that defines mutation legality should not initially rewrite itself because doing
-so would change inheritance, identity, replay, and security assumptions at once.
+evaluation ordering, and the controller's candidate-ID binding as
+infrastructure. Candidate genomes may evolve. Later, mutation-policy parameters
+may adapt. The source code that defines mutation legality should not initially
+rewrite itself because doing so would change inheritance, identity, replay, and
+security assumptions at once.
 
 ## Required evaluation discipline
 
 Selection pressure exploits any shortcut in the assay. A serious controller
-should commit complete normalized forecasts before target reveal, compare
-candidates on identical cases and budgets, keep environment-specific results
-separate, and reserve fresh final cases that are not repeatedly reused for
-selection.
+should bind reports to the exact Mutator candidate IDs it executed, commit
+complete normalized forecasts before target reveal, compare candidates on
+identical cases and budgets, keep environment-specific results separate, and
+reserve fresh final cases that are not repeatedly reused for selection.
 
 The four applications are therefore components of an auditable evolutionary
 kernel, not a claim that the repository already contains an autonomous

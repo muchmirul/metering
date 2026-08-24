@@ -34,6 +34,16 @@ The gate does not merely compare two caller-supplied aggregate numbers. Doing so
 would allow changed cases, forged means, or altered outcome values to control
 selection.
 
+## Candidate identity trust
+
+Forecast Assay candidate fields are opaque labels. The gate requires the two
+labels to differ and preserves the selected label, but it cannot prove which
+genome produced a report. In a Mutator composition, the external controller must
+set the incumbent and challenger report labels to the exact Mutator
+`parent.candidate_id` and `child.candidate_id` values and must execute those
+corresponding genomes. Label equality is a controller-checked binding, not a
+signature or a guarantee supplied by this gate.
+
 ## Evidence identity
 
 The gate constructs:

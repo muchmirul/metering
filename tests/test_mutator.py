@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -103,7 +104,28 @@ def test_mutator_generates_one_deterministic_child_and_named_measurements():
             "value": 1.0,
         },
     }
-    assert len(response["catalogue_id"]) == 64
+    expected_catalogue_id = hashlib.sha256(
+        encode(
+            {
+                "catalogue": {
+                    "loci": [
+                        {"alleles": [12, 4, 8], "locus": "max_steps"},
+                        {
+                            "alleles": [
+                                "plan-execute-v1",
+                                "react-v1",
+                                "reflect-v1",
+                            ],
+                            "locus": "planner",
+                        },
+                    ]
+                },
+                "genome_schema": "flat-json-atoms-v1",
+                "schema_version": 1,
+            }
+        ).encode("ascii")
+    ).hexdigest()
+    assert response["catalogue_id"] == expected_catalogue_id
     assert len(response["parent"]["candidate_id"]) == 64
     assert len(response["child"]["candidate_id"]) == 64
     assert len(response["mutation"]["mutation_id"]) == 64

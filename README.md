@@ -223,6 +223,37 @@ architecture, mutation logic, loop, memory, or stopping rule. See the
 [biological and mathematical foundations](apps/forecast_assay/docs/foundations.md)
 for the exact analogy, logarithmic-loss theory, and falsifiable held-out claim.
 
+## Example application: mutator
+
+[`apps/mutator`](apps/mutator) applies one caller-declared, legal one-locus
+change to an immutable parent genome. The request supplies the complete finite
+mutation distribution and the draw, so the process has no hidden randomness.
+It reports mutation-distribution entropy and selected-mutation surprisal without
+claiming that the child is better.
+
+```bash
+printf '%s\n' \
+  '{"schema_version":1,"catalogue":{"loci":[{"locus":"mode","alleles":["safe","fast"]}]},"parent_genome":{"mode":"safe"},"mutation_distribution":[{"locus":"mode","allele":"fast","probability":1}],"draw":0}' \
+  | uv run python apps/mutator/mutator.py
+```
+
+## Example application: selection gate
+
+[`apps/selection_gate`](apps/selection_gate) verifies two complete Forecast
+Assay reports on identical evidence, recomputes their measurements, and returns
+one deterministic pairwise retention decision. It promotes the challenger only
+when the finite mean-surprisal improvement strictly exceeds the declared
+threshold; conservative rules cover infinite reports.
+
+The gate treats report candidate fields as opaque labels. A controller composing
+it with Mutator must set those fields to the exact Mutator parent and child
+`candidate_id` values and preserve the mapping to the candidates it actually
+executed. See the [executable composition example](apps/selection_gate/README.md)
+and the [evolution-kernel boundary](docs/evolution-kernel.md).
+
+[`apps/README.md`](apps/README.md) indexes all four repository-local
+applications. None extends the installed Metering API.
+
 ## Definitions and edge cases
 
 For logarithm base `b > 1`:

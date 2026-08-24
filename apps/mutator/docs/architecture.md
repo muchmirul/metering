@@ -79,13 +79,17 @@ request fails explicitly.
 Content identity and evolutionary history remain separate:
 
 ```text
-catalogue_id = SHA-256(canonical normalized catalogue document)
+catalogue_id = SHA-256(canonical JSON of {
+    "catalogue": normalized catalogue document,
+    "genome_schema": "flat-json-atoms-v1",
+    "schema_version": 1
+})
 
-candidate_id = SHA-256(
-    schema version,
-    genome schema,
-    canonical genome
-)
+candidate_id = SHA-256(canonical JSON of {
+    "genome": canonical genome,
+    "genome_schema": "flat-json-atoms-v1",
+    "schema_version": 1
+})
 
 mutation_id = SHA-256(
     schema version,

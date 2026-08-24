@@ -46,6 +46,13 @@ Both reports must be complete canonical-shape Forecast Assay reports. Candidate
 identifiers must differ. Evaluation identifiers and exact sets of
 `(observation, target)` pairs must match. Outcome array order may differ.
 
+Candidate identifiers are opaque labels, not proof of model execution. When
+composing with Mutator, the external controller must use the exact Mutator
+`parent.candidate_id` and `child.candidate_id` values in the corresponding
+Forecast Assay requests and verify that it executed those genomes. Selection
+Gate verifies report mathematics and evidence alignment, not that external
+binding.
+
 `required_improvement_bits` is a finite non-negative number. The finite decision
 uses exact floating-point `improvement > threshold`; report-verification
 tolerance is not added to the threshold.

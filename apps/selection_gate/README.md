@@ -19,11 +19,35 @@ probabilities, persist a lineage, or repeat generations.
 ## Run
 
 Produce two complete reports with
-[`apps/forecast_assay`](../forecast_assay), then submit them:
+[`apps/forecast_assay`](../forecast_assay), then submit them. This executable
+example promotes `child-id` because its verified mean target surprisal improves
+by more than `0.05` bits:
 
 ```bash
-printf '%s\n' \
-  '{"schema_version":1,"incumbent_report":{...},"challenger_report":{...},"required_improvement_bits":0.05}' \
+incumbent="$(
+  printf '%s\n' \
+    '{"candidate":"parent-id","evaluation":"weather/holdout-v1","observations":[{"observation":"case-1","target":"rain","target_probability":0.5}]}' \
+    | uv run python apps/forecast_assay/forecast_assay.py
+)"
+challenger="$(
+  printf '%s\n' \
+    '{"candidate":"child-id","evaluation":"weather/holdout-v1","observations":[{"observation":"case-1","target":"rain","target_probability":0.75}]}' \
+    | uv run python apps/forecast_assay/forecast_assay.py
+)"
+request="$(
+  uv run python - "$incumbent" "$challenger" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "schema_version": 1,
+    "incumbent_report": json.loads(sys.argv[1]),
+    "challenger_report": json.loads(sys.argv[2]),
+    "required_improvement_bits": 0.05,
+}, separators=(",", ":"), sort_keys=True))
+PY
+)"
+printf '%s\n' "$request" \
   | uv run python apps/selection_gate/selection_gate.py
 ```
 
@@ -73,6 +97,12 @@ The gate does not trust aggregate report fields. It verifies:
 
 A content ID for the aligned evaluation and evidence set is returned with the
 decision.
+
+Candidate fields remain opaque labels. In a Mutator composition, the external
+controller must carry the exact Mutator parent and child `candidate_id` values
+into the corresponding Forecast Assay requests and must ensure those genomes
+were actually executed. The gate cannot infer that binding from report
+mathematics.
 
 ## Documentation
 
