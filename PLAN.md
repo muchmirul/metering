@@ -293,6 +293,23 @@ measures its declared distributions. The protocol does not add agent policy,
 nonuniform priors, persistence, or application behavior to the installed
 package.
 
+The `apps/mutator` example applies exactly one legal one-locus change. The
+caller supplies the immutable parent, finite legal catalogue, complete positive
+mutation distribution, and explicit draw. The app canonicalizes unordered
+support, asks Metering for distribution entropy and selected-outcome
+self-information, and returns content-derived catalogue, parent, child, and
+transition identifiers. It contains no hidden randomness, assay, selection,
+lineage, repetition, or mutation-policy update.
+
+The `apps/selection_gate` example verifies two complete Forecast Assay reports
+on the same identified evidence, recomputes their target self-information and
+means, and applies one caller-supplied strict improvement threshold. The
+retention decision belongs to that application, not to Metering. Candidate
+labels remain opaque assay identifiers: an external controller must bind them
+to the exact incumbent and challenger content identities that it executed.
+The gate does not prove model execution, forecast precommitment, inheritance,
+or future improvement.
+
 Application JSONL transports use standard input and output only. Recoverable
 line errors produce an aligned JSON response and leave later requests usable.
 They do not change Metering's installed one-request JSON command.
@@ -337,11 +354,20 @@ tests/
     test_cli.py
     test_history.py
     test_public_api.py
+    test_observer.py
+    test_forecast_assay.py
+    test_mutator.py
+    test_selection_gate.py
+    test_evolution_kernel.py
 docs/
     theory.md
+    evolution-kernel.md
 apps/
+    README.md         application index and composition boundary
     observer/         non-packaged versioned-sandbox demonstration
     forecast_assay/   non-packaged agent candidate-measurement adapter
+    mutator/          non-packaged one-locus variation operator
+    selection_gate/   non-packaged verified pairwise retention decision
 ```
 
 Add a module only when a concrete responsibility no longer fits one of these
@@ -382,6 +408,13 @@ The rewrite is complete only when:
 - repository-local applications use only public Metering boundaries, make
   their caller-owned probability model explicit, and keep JSONL requests
   sequential with one flushed response per input line;
+- the Mutator changes exactly one legal locus, uses an explicit caller-owned
+  draw, and reports Metering entropy and selected-mutation self-information;
+- the Selection Gate recomputes both assay reports, rejects mismatched evidence,
+  and applies its documented strict threshold and infinity ordering;
+- the composed evolution-kernel example carries Mutator content IDs through
+  Forecast Assay and Selection Gate without treating an opaque label as proof
+  of candidate execution;
 - the full test suite and package build pass.
 
 ## Source
