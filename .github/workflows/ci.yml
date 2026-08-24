@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - name: Run full test suite
+        run: uv run --extra test pytest -q
+      - name: Build distributions
+        run: uv build
+      - name: Smoke test installed wheel
+        shell: bash
+        run: |
+          wheel_env=/tmp/metering-wheel-check
+          valid_output=$(mktemp)
+          invalid_output=$(mktemp)
+          invalid_error=$(mktemp)
+          uv venv --python 3.11 "$wheel_env"
+          uv pip install --python "$wheel_env/bin/python" dist/*.whl
+          printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
+            | "$wheel_env/bin/metering" >"$valid_output"
+          "$wheel_env/bin/python" -c \
+            'import json,sys; assert json.load(open(sys.argv[1]))["value"] == 1.0' \
+            "$valid_output"
+          "$wheel_env/bin/metering" --version
+          set +e
+          printf '%s\n' '{"measure":"entropy","probabilities":[2]}' \
+            | "$wheel_env/bin/metering" >"$invalid_output" 2>"$invalid_error"
+          invalid_status=$?
+          set -e
+          test "$invalid_status" -eq 2
+          test ! -s "$invalid_output"
+          "$wheel_env/bin/python" -m json.tool "$invalid_error" >/dev/null

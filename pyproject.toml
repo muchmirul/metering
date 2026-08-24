@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metering"
+dynamic = ["version"]
+description = "Named information measures with an explicit history tool"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/muchmirul/metering"
+Documentation = "https://github.com/muchmirul/metering/blob/main/docs/theory.md"
+Repository = "https://github.com/muchmirul/metering.git"
+Releases = "https://github.com/muchmirul/metering/releases"
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+metering = "metering.__main__:main"
+metering-history = "metering.history:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+fallback_version = "0+untagged"
