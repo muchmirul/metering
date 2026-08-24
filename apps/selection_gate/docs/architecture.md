@@ -23,7 +23,8 @@ inheritance transition is intentionally outside this process.
 ## Irreducible responsibilities
 
 1. Decode one strict versioned comparison request.
-2. Validate and independently recompute both Forecast Assay reports.
+2. Require Forecast Assay report schema version 1, then validate and
+   independently recompute both reports.
 3. Align evidence by observation identifier and target label.
 4. Reject incomparable reports instead of silently pooling or truncating them.
 5. Apply one explicit strict improvement threshold.

@@ -27,6 +27,7 @@ def assay_report(candidate_id: str, probability: float) -> dict[str, object]:
     return run_application(
         "apps/forecast_assay/forecast_assay.py",
         {
+            "schema_version": 1,
             "candidate": candidate_id,
             "evaluation": "weather/holdout-v1",
             "observations": [

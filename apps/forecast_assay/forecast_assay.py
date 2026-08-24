@@ -11,6 +11,9 @@ from decimal import Decimal, InvalidOperation
 from metering import ProbabilityError, self_information
 
 
+SCHEMA_VERSION = 1
+
+
 class RequestError(ValueError):
     """Raised when the agent request does not match the application contract."""
 
@@ -57,6 +60,19 @@ def _parse_json_number(token: str) -> float:
     return value
 
 
+def _parse_json_integer(token: str) -> int:
+    try:
+        exact_value = int(token)
+        value = float(exact_value)
+    except (OverflowError, ValueError) as exc:
+        raise RequestError("JSON number exceeds supported numeric limits") from exc
+    if not math.isfinite(value):
+        raise RequestError(
+            "JSON number is outside the finite double-precision range"
+        )
+    return exact_value
+
+
 def _require_exact_keys(
     value: dict[str, object], expected: set[str], location: str
 ) -> None:
@@ -88,7 +104,7 @@ def decode_request(source: str) -> tuple[str, str, list[dict[str, object]]]:
             object_pairs_hook=_unique_object,
             parse_constant=_reject_non_finite,
             parse_float=_parse_json_number,
-            parse_int=_parse_json_number,
+            parse_int=_parse_json_integer,
         )
     except RequestError:
         raise
@@ -100,8 +116,15 @@ def decode_request(source: str) -> tuple[str, str, list[dict[str, object]]]:
     if type(request) is not dict:
         raise RequestError("request must be one JSON object")
     _require_exact_keys(
-        request, {"candidate", "evaluation", "observations"}, "request"
+        request,
+        {"schema_version", "candidate", "evaluation", "observations"},
+        "request",
     )
+    if (
+        type(request["schema_version"]) is not int
+        or request["schema_version"] != SCHEMA_VERSION
+    ):
+        raise RequestError(f"schema_version must be {SCHEMA_VERSION}")
 
     candidate = _require_nonempty_string(request["candidate"], "candidate")
     evaluation = _require_nonempty_string(request["evaluation"], "evaluation")
@@ -181,6 +204,7 @@ def measure_candidate(
     return {
         "candidate": candidate,
         "evaluation": evaluation,
+        "schema_version": SCHEMA_VERSION,
         "measurement": {
             "aggregate": {
                 "infinite": infinite,

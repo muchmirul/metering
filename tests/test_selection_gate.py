@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import selectors
 import subprocess
 import sys
 from pathlib import Path
@@ -72,6 +73,7 @@ def forecast_report(
     return {
         "candidate": candidate,
         "evaluation": evaluation,
+        "schema_version": 1,
         "measurement": {
             "aggregate": {
                 "infinite": infinite,
@@ -203,21 +205,36 @@ def test_selection_gate_rejects_mismatched_evaluations_cases_and_targets():
         assert_invalid(run_gate(encode(document)), "invalid_request")
 
 
+def test_selection_gate_rejects_missing_or_unsupported_forecast_report_schema():
+    missing = request_document([0.5], [0.75])
+    del missing["challenger_report"]["schema_version"]  # type: ignore[index]
+    unsupported = request_document([0.5], [0.75])
+    unsupported["challenger_report"]["schema_version"] = 2  # type: ignore[index]
+
+    missing_message = assert_invalid(run_gate(encode(missing)), "invalid_request")
+    unsupported_message = assert_invalid(
+        run_gate(encode(unsupported)), "invalid_request"
+    )
+
+    assert "schema_version" in missing_message
+    assert "challenger_report.schema_version" in unsupported_message
+
+
 def test_selection_gate_recomputes_outcomes_and_aggregate_instead_of_trusting_them():
     tampered_outcome = request_document([0.5], [0.75])
-    tampered_outcome["challenger_report"]["measurement"]["outcomes"][0][  # type: ignore[index]
-        "value_bits"
-    ] = 0.0
+    tampered_outcome["challenger_report"]["measurement"][  # type: ignore[index]
+        "outcomes"
+    ][0]["value_bits"] = 0.0
 
     tampered_mean = request_document([0.5], [0.75])
-    tampered_mean["challenger_report"]["measurement"]["aggregate"][  # type: ignore[index]
-        "mean_target_surprisal_bits"
-    ] = 0.0
+    tampered_mean["challenger_report"]["measurement"][  # type: ignore[index]
+        "aggregate"
+    ]["mean_target_surprisal_bits"] = 0.0
 
     bad_infinite = request_document([0.5], [0.75])
-    bad_infinite["challenger_report"]["measurement"]["outcomes"][0][  # type: ignore[index]
-        "infinite"
-    ] = True
+    bad_infinite["challenger_report"]["measurement"][  # type: ignore[index]
+        "outcomes"
+    ][0]["infinite"] = True
 
     for document in (tampered_outcome, tampered_mean, bad_infinite):
         assert_invalid(run_gate(encode(document)), "invalid_request")
@@ -256,6 +273,39 @@ def test_selection_gate_rejects_same_candidate_and_negative_threshold():
 
     negative = request_document([0.5], [0.75], threshold=-0.1)
     assert_invalid(run_gate(encode(negative)), "invalid_request")
+
+
+def test_selection_gate_jsonl_replies_before_input_reaches_eof():
+    process = subprocess.Popen(
+        [sys.executable, str(SCRIPT), "--jsonl"],
+        cwd=ROOT,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+    selector = selectors.DefaultSelector()
+    try:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        process.stdin.write(encode(request_document([0.5], [0.75])) + "\n")
+        process.stdin.flush()
+        assert selector.select(timeout=10), (
+            "Selection Gate did not flush a JSONL response"
+        )
+        response = json.loads(process.stdout.readline())
+        assert response["decision"] == "promote_challenger"
+        assert process.poll() is None
+        process.stdin.close()
+        assert process.wait(timeout=10) == 0
+        assert process.stderr.read() == ""
+    finally:
+        selector.close()
+        if process.poll() is None:
+            process.kill()
+            process.wait()
 
 
 def test_selection_gate_jsonl_returns_errors_and_continues():

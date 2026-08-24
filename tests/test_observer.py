@@ -375,6 +375,41 @@ def test_observer_jsonl_reports_startup_errors_as_json():
     ) + "\n"
 
 
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        (OSError("temporary storage unavailable"), "operating system failure"),
+        (RuntimeError("unexpected controller bug"), "internal controller failure"),
+    ],
+)
+def test_observer_jsonl_canonicalizes_internal_failures(
+    monkeypatch, capsys, failure, message
+):
+    api = runpy.run_path(str(OBSERVER))
+
+    def fail_to_load_versions():
+        raise failure
+
+    monkeypatch.setitem(
+        api["main"].__globals__,
+        "load_versions",
+        fail_to_load_versions,
+    )
+
+    status = api["main"](["--jsonl", "--active", "v3"])
+
+    captured = capsys.readouterr()
+    assert status == 2
+    assert captured.out == ""
+    error = json.loads(captured.err)
+    assert error["error"]["code"] == "observer_error"
+    assert message in error["error"]["message"]
+    assert captured.err == json.dumps(
+        error, allow_nan=False, separators=(",", ":"), sort_keys=True
+    ) + "\n"
+    assert "Traceback" not in captured.err
+
+
 def test_observer_jsonl_rejects_invalid_utf8_and_continues():
     result = subprocess.run(
         [sys.executable, str(OBSERVER), "--jsonl", "--active", "v3"],

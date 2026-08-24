@@ -35,9 +35,10 @@ of those decisions.
 Each assay request is one strict JSON object:
 
 ```json
-{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}
+{"schema_version":1,"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}
 ```
 
+- `schema_version` is the integer `1`.
 - `candidate` is an opaque non-empty identifier chosen by the agent.
 - `evaluation` is an opaque non-empty identifier for one fixed environment and
   evaluation set.
@@ -61,7 +62,7 @@ Run it from the repository root:
 
 ```bash
 printf '%s\n' \
-  '{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
+  '{"schema_version":1,"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
   | uv run python apps/forecast_assay/forecast_assay.py
 ```
 
@@ -77,11 +78,11 @@ requests. JSONL mode retains no candidate state and does not compare reports.
 
 ## Response
 
-The command returns the candidate identifier, the self-information of each
-target outcome in bits, and their arithmetic mean:
+The command returns schema version 1, the candidate identifier, the
+self-information of each target outcome in bits, and their arithmetic mean:
 
 ```json
-{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","measurement":{"aggregate":{"infinite":false,"mean_target_surprisal_bits":1.0,"sample_count":3},"base":2.0,"metering_measure":"self_information","outcomes":[{"infinite":false,"observation":"day-001","target":"rain","target_probability":0.5,"value_bits":1.0},{"infinite":false,"observation":"day-002","target":"rain","target_probability":0.25,"value_bits":2.0},{"infinite":false,"observation":"day-003","target":"dry","target_probability":1.0,"value_bits":0.0}]}}
+{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","measurement":{"aggregate":{"infinite":false,"mean_target_surprisal_bits":1.0,"sample_count":3},"base":2.0,"metering_measure":"self_information","outcomes":[{"infinite":false,"observation":"day-001","target":"rain","target_probability":0.5,"value_bits":1.0},{"infinite":false,"observation":"day-002","target":"rain","target_probability":0.25,"value_bits":2.0},{"infinite":false,"observation":"day-003","target":"dry","target_probability":1.0,"value_bits":0.0}]},"schema_version":1}
 ```
 
 The arithmetic mean is application-owned aggregation, not a fifth Metering
@@ -120,6 +121,7 @@ usefulness.
 
 ## Compatibility
 
-This repository-local protocol is unversioned. `--jsonl` is additive: the
-existing no-argument one-shot command, schemas, measurements, and errors are
-unchanged. Metering's installed Python and JSON interfaces are unchanged.
+The application protocol is now version 1. Callers of the earlier unversioned
+shape must add `"schema_version":1` to requests and accept the same field in
+successful reports. Measurement values, one-shot and JSONL transport behavior,
+and Metering's installed interfaces are unchanged.

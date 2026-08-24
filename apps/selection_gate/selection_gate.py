@@ -151,8 +151,17 @@ def _verify_report(raw_report: object, location: str) -> VerifiedReport:
     if type(raw_report) is not dict:
         raise RequestError(f"{location} must be a JSON object")
     _require_exact_keys(
-        raw_report, {"candidate", "evaluation", "measurement"}, location
+        raw_report,
+        {"schema_version", "candidate", "evaluation", "measurement"},
+        location,
     )
+    if (
+        type(raw_report["schema_version"]) is not int
+        or raw_report["schema_version"] != SCHEMA_VERSION
+    ):
+        raise RequestError(
+            f"{location}.schema_version must be {SCHEMA_VERSION}"
+        )
     candidate = _require_nonempty_string(
         raw_report["candidate"], f"{location}.candidate"
     )

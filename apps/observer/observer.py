@@ -145,7 +145,9 @@ def load_versions() -> tuple[Version, ...]:
         manifest = fixture_manifest(root)
         tree_id = digest(manifest)
         if tree_id in tree_ids:
-            raise ObserverError(f"fixture is indistinguishable from an earlier one: {name}")
+            raise ObserverError(
+                f"fixture is indistinguishable from an earlier one: {name}"
+            )
         tree_ids.add(tree_id)
         parent_snapshot_id = None if parent is None else by_name[parent].snapshot_id
         snapshot_id = digest(
@@ -289,7 +291,9 @@ def call_metering(
                 "response": response["response"],
             }
         except (KeyError, TypeError) as exc:
-            raise ObserverError("measurement history response has the wrong shape") from exc
+            raise ObserverError(
+                "measurement history response has the wrong shape"
+            ) from exc
     return {"request": request, "response": response}
 
 
@@ -689,6 +693,17 @@ def run(
     return identified
 
 
+def _report_main_error(message: str, *, jsonl: bool) -> int:
+    if jsonl:
+        _write_agent_json(
+            sys.stderr,
+            {"error": {"code": "observer_error", "message": message}},
+        )
+    else:
+        print(f"observer: {message}", file=sys.stderr)
+    return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     raw_arguments = list(sys.argv[1:] if argv is None else argv)
     jsonl_requested = "--jsonl" in raw_arguments
@@ -732,14 +747,20 @@ def main(argv: list[str] | None = None) -> int:
         if identified.snapshot_id != active.snapshot_id:
             raise ObserverError("identified snapshot does not match active snapshot")
     except ObserverError as exc:
-        if jsonl_requested:
-            _write_agent_json(
-                sys.stderr,
-                {"error": {"code": "observer_error", "message": str(exc)}},
-            )
-        else:
-            print(f"observer: {exc}", file=sys.stderr)
-        return 2
+        return _report_main_error(str(exc), jsonl=jsonl_requested)
+    except OSError as exc:
+        return _report_main_error(
+            f"operating system failure: {exc}",
+            jsonl=jsonl_requested,
+        )
+    except Exception as exc:
+        if not jsonl_requested:
+            raise
+        detail = str(exc) or type(exc).__name__
+        return _report_main_error(
+            f"internal controller failure: {detail}",
+            jsonl=True,
+        )
     return 0
 
 

@@ -4,8 +4,8 @@
 
 This repository-local protocol is implemented by
 `apps/forecast_assay/forecast_assay.py`. It is not part of Metering's installed
-Python API or `metering` JSON command. The request and report schema is
-unversioned, so an integration should pin the repository revision.
+Python API or `metering` JSON command. Requests and successful reports carry
+`"schema_version":1`; incompatible future shapes require a new version.
 
 Forecast assay supports two transports over the same strict schema:
 
@@ -29,7 +29,7 @@ Example:
 
 ```bash
 printf '%s\n' \
-  '{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5}]}' \
+  '{"schema_version":1,"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5}]}' \
   | uv run python apps/forecast_assay/forecast_assay.py
 ```
 
@@ -62,10 +62,11 @@ one-shot error behavior.
 
 ## Request
 
-Every request has exactly three keys:
+Every request has exactly four keys:
 
 ```json
 {
+  "schema_version":1,
   "candidate":"forecast-17",
   "evaluation":"weather-station-a/holdout-v1",
   "observations":[
@@ -78,6 +79,7 @@ Every request has exactly three keys:
 
 | Field | Contract |
 |---|---|
+| `schema_version` | JSON integer `1` |
 | `candidate` | Non-empty JSON string; opaque candidate identifier |
 | `evaluation` | Non-empty JSON string identifying one fixed environment and evaluation set |
 | `observations` | Non-empty JSON array of observation objects |
@@ -108,7 +110,7 @@ whether it is exactly zero or exactly one.
 For the three-observation example, the canonical response is:
 
 ```json
-{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","measurement":{"aggregate":{"infinite":false,"mean_target_surprisal_bits":1.0,"sample_count":3},"base":2.0,"metering_measure":"self_information","outcomes":[{"infinite":false,"observation":"day-001","target":"rain","target_probability":0.5,"value_bits":1.0},{"infinite":false,"observation":"day-002","target":"rain","target_probability":0.25,"value_bits":2.0},{"infinite":false,"observation":"day-003","target":"dry","target_probability":1.0,"value_bits":0.0}]}}
+{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","measurement":{"aggregate":{"infinite":false,"mean_target_surprisal_bits":1.0,"sample_count":3},"base":2.0,"metering_measure":"self_information","outcomes":[{"infinite":false,"observation":"day-001","target":"rain","target_probability":0.5,"value_bits":1.0},{"infinite":false,"observation":"day-002","target":"rain","target_probability":0.25,"value_bits":2.0},{"infinite":false,"observation":"day-003","target":"dry","target_probability":1.0,"value_bits":0.0}]},"schema_version":1}
 ```
 
 `measurement.outcomes` preserves request order. Each `value_bits` is the
@@ -126,7 +128,7 @@ A zero target probability is valid and has infinite self-information. JSON
 cannot encode infinity, so the outcome and aggregate use null values:
 
 ```json
-{"candidate":"impossible-target","evaluation":"eval","measurement":{"aggregate":{"infinite":true,"mean_target_surprisal_bits":null,"sample_count":1},"base":2.0,"metering_measure":"self_information","outcomes":[{"infinite":true,"observation":"case-1","target":"yes","target_probability":0.0,"value_bits":null}]}}
+{"candidate":"impossible-target","evaluation":"eval","measurement":{"aggregate":{"infinite":true,"mean_target_surprisal_bits":null,"sample_count":1},"base":2.0,"metering_measure":"self_information","outcomes":[{"infinite":true,"observation":"case-1","target":"yes","target_probability":0.0,"value_bits":null}]},"schema_version":1}
 ```
 
 Negative zero is emitted as `0.0`, giving mathematically identical zero inputs
@@ -152,7 +154,8 @@ continues. Message wording is diagnostic; agents should branch on `error.code`.
 
 ## Compatibility
 
-The default one-request command, request schema, success report, numerical
-behavior, and one-shot error behavior are unchanged. `--jsonl` is an additive
-transport. Existing callers do not need to migrate unless they want to reuse
-one process for multiple independent assays.
+Version 1 replaces the earlier unversioned application protocol. Existing
+callers must add `"schema_version":1` to every request and accept the echoed
+field in every successful report. Measurement formulas, identifiers, transport
+behavior, and errors are unchanged. Metering's installed interfaces are
+unchanged.

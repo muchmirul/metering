@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import selectors
 import subprocess
 import sys
 from pathlib import Path
@@ -246,7 +247,6 @@ def test_mutator_rejects_bad_probability_models_draws_and_float_genes():
     )
 
 
-
 def test_mutator_does_not_assign_probability_mass_missing_within_tolerance():
     document = request_document(draw=0.9999999999998)
     document["mutation_distribution"][0][  # type: ignore[index]
@@ -256,6 +256,40 @@ def test_mutator_does_not_assign_probability_mass_missing_within_tolerance():
     message = assert_invalid(run_mutator(encode(document)), "invalid_request")
 
     assert "does not normalize" in message
+
+
+def test_mutator_jsonl_replies_before_input_reaches_eof():
+    process = subprocess.Popen(
+        [sys.executable, str(SCRIPT), "--jsonl"],
+        cwd=ROOT,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdin is not None
+    assert process.stdout is not None
+    assert process.stderr is not None
+    selector = selectors.DefaultSelector()
+    try:
+        selector.register(process.stdout, selectors.EVENT_READ)
+        process.stdin.write(encode(request_document()) + "\n")
+        process.stdin.flush()
+        assert selector.select(timeout=10), (
+            "Mutator did not flush a JSONL response"
+        )
+        response = json.loads(process.stdout.readline())
+        assert response["schema_version"] == 1
+        assert process.poll() is None
+        process.stdin.close()
+        assert process.wait(timeout=10) == 0
+        assert process.stderr.read() == ""
+    finally:
+        selector.close()
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+
 
 def test_mutator_jsonl_returns_errors_and_continues():
     valid = encode(request_document())

@@ -16,13 +16,14 @@ incumbent is retained between requests.
 {
   "schema_version": 1,
   "incumbent_report": {
+    "schema_version": 1,
     "candidate": "parent-id",
     "evaluation": "weather/holdout-v1",
     "measurement": {
       "aggregate": {
         "infinite": false,
         "mean_target_surprisal_bits": 1.0,
-        "sample_count": 2
+        "sample_count": 1
       },
       "base": 2.0,
       "metering_measure": "self_information",
@@ -42,9 +43,9 @@ incumbent is retained between requests.
 }
 ```
 
-Both reports must be complete canonical-shape Forecast Assay reports. Candidate
-identifiers must differ. Evaluation identifiers and exact sets of
-`(observation, target)` pairs must match. Outcome array order may differ.
+Both reports must be complete Forecast Assay schema version 1 reports with
+exact envelopes. Candidate identifiers must differ. Evaluation identifiers and
+exact sets of `(observation, target)` pairs must match. Outcome array order may differ.
 
 Candidate identifiers are opaque labels, not proof of model execution. When
 composing with Mutator, the external controller must use the exact Mutator
@@ -70,8 +71,8 @@ weighted arithmetic mean. Finite serialized values must agree within fixed
 absolute and relative tolerance `1e-12`.
 
 The gate rejects missing, additional, duplicated, or differently targeted
-observations; altered sample counts; forged means; unsupported measure names;
-and bases other than two.
+observations; unsupported Forecast Assay report versions; altered sample counts;
+forged means; unsupported measure names; and bases other than two.
 
 ## Response
 
@@ -96,7 +97,7 @@ and bases other than two.
     },
     "mean_improvement_bits": 0.2,
     "required_improvement_bits": 0.05,
-    "sample_count": 2
+    "sample_count": 1
   }
 }
 ```
@@ -121,3 +122,10 @@ comparison makes subtraction undefined, `mean_improvement_bits` is null.
 and threshold errors. `invalid_probability` covers a target probability rejected
 by Metering. No invalid report is converted into `retain_incumbent`; invalid
 evidence fails explicitly.
+
+## Compatibility
+
+Selection Gate request schema version 1 now requires embedded Forecast Assay
+report schema version 1. Earlier unversioned reports must be regenerated or
+migrated by adding the version only after verifying that their remaining shape
+and measurements match Forecast Assay version 1.

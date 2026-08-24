@@ -26,12 +26,12 @@ by more than `0.05` bits:
 ```bash
 incumbent="$(
   printf '%s\n' \
-    '{"candidate":"parent-id","evaluation":"weather/holdout-v1","observations":[{"observation":"case-1","target":"rain","target_probability":0.5}]}' \
+    '{"schema_version":1,"candidate":"parent-id","evaluation":"weather/holdout-v1","observations":[{"observation":"case-1","target":"rain","target_probability":0.5}]}' \
     | uv run python apps/forecast_assay/forecast_assay.py
 )"
 challenger="$(
   printf '%s\n' \
-    '{"candidate":"child-id","evaluation":"weather/holdout-v1","observations":[{"observation":"case-1","target":"rain","target_probability":0.75}]}' \
+    '{"schema_version":1,"candidate":"child-id","evaluation":"weather/holdout-v1","observations":[{"observation":"case-1","target":"rain","target_probability":0.75}]}' \
     | uv run python apps/forecast_assay/forecast_assay.py
 )"
 request="$(
@@ -86,7 +86,7 @@ fitness, usefulness, or universal quality score.
 
 The gate does not trust aggregate report fields. It verifies:
 
-- exact Forecast Assay report envelopes;
+- Forecast Assay report schema version 1 and exact envelopes;
 - base 2 and `self_information` measure identity;
 - unique observation identifiers;
 - each target probability and its Metering self-information;

@@ -44,6 +44,7 @@ def candidate_request(
 ) -> str:
     return json.dumps(
         {
+            "schema_version": 1,
             "candidate": candidate,
             "evaluation": evaluation,
             "observations": observations,
@@ -90,6 +91,7 @@ def test_forecast_assay_measures_one_agent_supplied_candidate():
     expected = {
         "candidate": "forecast-17",
         "evaluation": "weather-station-a/holdout-v1",
+        "schema_version": 1,
         "measurement": {
             "aggregate": {
                 "infinite": False,
@@ -345,8 +347,9 @@ def test_forecast_assay_canonicalizes_negative_zero_in_the_response():
 
 def test_forecast_assay_rejects_duplicate_keys_and_bad_probabilities():
     duplicate = run_forecast_assay(
-        '{"candidate":"first","candidate":"second","evaluation":"eval",'
-        '"observations":[{"observation":"case","target":"yes",'
+        '{"schema_version":1,"candidate":"first","candidate":"second",'
+        '"evaluation":"eval","observations":['
+        '{"observation":"case","target":"yes",'
         '"target_probability":1}]}'
     )
     invalid_probability = run_forecast_assay(
@@ -379,9 +382,11 @@ def test_forecast_assay_rejects_duplicate_keys_and_bad_probabilities():
 
 def test_forecast_assay_rejects_numbers_that_change_zero_or_one_on_conversion():
     requests = [
-        '{"candidate":"underflow","evaluation":"eval","observations":['
-        '{"observation":"case","target":"yes","target_probability":1e-999}]}',
-        '{"candidate":"rounds-to-one","evaluation":"eval","observations":['
+        '{"schema_version":1,"candidate":"underflow","evaluation":"eval",'
+        '"observations":[{"observation":"case","target":"yes",'
+        '"target_probability":1e-999}]}',
+        '{"schema_version":1,"candidate":"rounds-to-one",'
+        '"evaluation":"eval","observations":['
         '{"observation":"case","target":"yes","target_probability":'
         "0.999999999999999999999999999999}]}",
     ]
@@ -439,14 +444,24 @@ def test_forecast_assay_rejects_bad_observation_envelopes():
 
 def test_forecast_assay_rejects_bad_request_envelopes_and_nonfinite_tokens():
     requests = [
-        '{"candidate":"bad","observations":[]}',
-        '{"candidate":"bad","evaluation":"eval","observations":[],"extra":1}',
-        '{"candidate":"bad","evaluation":"eval","observations":['
-        '{"observation":"case","target":"yes","target_probability":NaN}]}',
-        '{"candidate":"bad","evaluation":"eval","observations":['
-        '{"observation":"case","target":"yes","target_probability":Infinity}]}',
-        '{"candidate":"bad","evaluation":"eval","observations":['
-        '{"observation":"case","target":"yes","target_probability":-Infinity}]}',
+        '{"candidate":"bad","evaluation":"eval","observations":[]}',
+        '{"schema_version":2,"candidate":"bad","evaluation":"eval",'
+        '"observations":[]}',
+        '{"schema_version":true,"candidate":"bad","evaluation":"eval",'
+        '"observations":[]}',
+        '{"schema_version":1.0,"candidate":"bad","evaluation":"eval",'
+        '"observations":[]}',
+        '{"schema_version":1,"candidate":"bad","evaluation":"eval",'
+        '"observations":[],"extra":1}',
+        '{"schema_version":1,"candidate":"bad","evaluation":"eval",'
+        '"observations":[{"observation":"case","target":"yes",'
+        '"target_probability":NaN}]}',
+        '{"schema_version":1,"candidate":"bad","evaluation":"eval",'
+        '"observations":[{"observation":"case","target":"yes",'
+        '"target_probability":Infinity}]}',
+        '{"schema_version":1,"candidate":"bad","evaluation":"eval",'
+        '"observations":[{"observation":"case","target":"yes",'
+        '"target_probability":-Infinity}]}',
     ]
 
     for request in requests:
@@ -477,8 +492,9 @@ def test_forecast_assay_requires_nonempty_identities_and_observations():
 
 def test_forecast_assay_escapes_a_lone_surrogate_as_canonical_json():
     result = run_forecast_assay_bytes(
-        b'{"candidate":"\\ud800","evaluation":"eval","observations":['
-        b'{"observation":"case","target":"yes","target_probability":1}]}'
+        b'{"schema_version":1,"candidate":"\\ud800","evaluation":"eval",'
+        b'"observations":[{"observation":"case","target":"yes",'
+        b'"target_probability":1}]}'
     )
 
     assert result.returncode == 0, result.stderr
@@ -495,13 +511,15 @@ def test_forecast_assay_escapes_a_lone_surrogate_as_canonical_json():
 def test_forecast_assay_returns_an_error_envelope_for_json_parser_failures():
     malformed = run_forecast_assay("{")
     huge_number = run_forecast_assay(
-        '{"candidate":"huge","evaluation":"eval","observations":['
-        '{"observation":"case","target":"yes","target_probability":'
+        '{"schema_version":1,"candidate":"huge","evaluation":"eval",'
+        '"observations":[{"observation":"case","target":"yes",'
+        '"target_probability":'
         + "9" * 5000
         + "}]}"
     )
     deeply_nested = run_forecast_assay(
-        '{"candidate":"deep","evaluation":"eval","observations":'
+        '{"schema_version":1,"candidate":"deep","evaluation":"eval",'
+        '"observations":'
         + "[" * 2000
         + "0"
         + "]" * 2000

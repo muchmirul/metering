@@ -2,9 +2,10 @@
 
 ## Purpose
 
-Forecast assay is a stateless probabilistic screening adapter between an external
-agent and Metering. Each request is one complete assay; the optional JSONL
-transport can carry multiple independent requests through one process. It is the assay step in a possible
+Forecast assay is a stateless probabilistic screening adapter between an
+external agent and Metering. Each schema version 1 request is one complete
+assay; the optional JSONL transport can carry multiple independent requests
+through one process. It is the assay step in a possible
 directed-evolution-inspired external loop. It is not an agent, does not mutate
 anything, and does not implement evolution. The exact analogy and theory are
 documented in [Biological and mathematical foundations](foundations.md).
@@ -34,9 +35,10 @@ an earlier request.
 
 The adapter has six responsibilities:
 
-1. Read each request as one strict JSON object, either to EOF or one per line.
-2. Preserve the opaque candidate, evaluation, observation, and target
-   identifiers in the response.
+1. Require schema version 1 and read each request as one strict JSON object,
+   either to EOF or one per line.
+2. Preserve the schema version and opaque candidate, evaluation, observation,
+   and target identifiers in the response.
 3. Reject duplicate observation identifiers inside one evaluation.
 4. Pass each supplied target probability to Metering's public
    `self_information` function at base 2.
@@ -75,8 +77,8 @@ agent can establish that candidate reports cover the same evidence.
 
 Separate responses are comparable only when their `evaluation` identifiers and
 exact sets of `(observation, target)` pairs match. This adapter reports rather
-than performs that comparison. Use one request per environment; otherwise a pooled average can hide an
-environment-specific regression.
+than performs that comparison. Use one request per environment; otherwise a
+pooled average can hide an environment-specific regression.
 
 ## Aggregation boundary
 

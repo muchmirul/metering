@@ -206,7 +206,7 @@ Run the deterministic example with:
 
 ```bash
 printf '%s\n' \
-  '{"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
+  '{"schema_version":1,"candidate":"forecast-17","evaluation":"weather-station-a/holdout-v1","observations":[{"observation":"day-001","target":"rain","target_probability":0.5},{"observation":"day-002","target":"rain","target_probability":0.25},{"observation":"day-003","target":"dry","target_probability":1.0}]}' \
   | uv run python apps/forecast_assay/forecast_assay.py
 ```
 
@@ -214,8 +214,9 @@ Use `--jsonl` to send multiple independent candidate requests through one
 process, one request and response per line. Bad lines return aligned error
 responses and do not terminate the stream; no candidate state is retained.
 
-The adapter reports every target surprisal and their explicitly named
-arithmetic mean while echoing the identities needed to compare candidates on
+Version 1 requests and successful reports carry `"schema_version":1`. The
+adapter reports every target surprisal and their explicitly named arithmetic
+mean while echoing the identities needed to compare candidates on
 the same declared cases. The app itself is the assay in a
 directed-evolution-inspired external loop. It does not create mutations,
 reproduce candidates, or select them. It contains no neural

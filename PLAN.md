@@ -273,7 +273,8 @@ Every application must state:
 - which named Metering result is being reported; and
 - what the result does not establish.
 
-The `apps/forecast_assay` example is a stateless screening adapter. Each request
+The `apps/forecast_assay` example is a stateless screening adapter. Each
+request and successful report carries application schema version 1. A request
 identifies one candidate, one fixed evaluation, and unique observed cases. The
 caller supplies the probability that a normalized candidate forecast assigned
 to each named target before that target was revealed. The adapter reports the
@@ -410,8 +411,9 @@ The rewrite is complete only when:
   sequential with one flushed response per input line;
 - the Mutator changes exactly one legal locus, uses an explicit caller-owned
   draw, and reports Metering entropy and selected-mutation self-information;
-- the Selection Gate recomputes both assay reports, rejects mismatched evidence,
-  and applies its documented strict threshold and infinity ordering;
+- Forecast Assay rejects unsupported schema versions and Selection Gate requires
+  that same report version before recomputing both reports, rejecting mismatched
+  evidence, and applying its documented strict threshold and infinity ordering;
 - the composed evolution-kernel example carries Mutator content IDs through
   Forecast Assay and Selection Gate without treating an opaque label as proof
   of candidate execution;
