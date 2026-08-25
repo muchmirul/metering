@@ -1,472 +1,188 @@
-# Metering Plan
+# Metering and Evo contract
 
-## Status
+## Purpose
 
-This document defines Metering's complete accepted scope. It replaces the
-earlier hidden-fault harness design with a deliberately breaking reset.
+This repository contains two deliberately small public packages.
 
-The installed Metering package has one measurement purpose:
+`metering` measures named information-theoretic quantities from finite discrete
+probability models supplied by the caller.
 
-> Measure named information-theoretic quantities from probability
-> distributions supplied by the caller.
-
-It is a tool, not an agent. The package contains no policy, planner, optimizer,
-model, world, controller, belief updater, or recommendation logic. A separate,
-explicit history command may retain accepted measurement requests and responses;
-it does not change or interpret them.
-
-## Foundation
-
-The fundamental quantity is the logarithmic measure introduced by Claude
-Shannon in *A Mathematical Theory of Communication*:
+`evo` performs one pairwise inheritance transition:
 
 ```text
-self-information:  I(x) = -log_b p(x)
-entropy:            H(P) = -sum_x p(x) log_b p(x)
+parent -> proposer -> challenger -> judge -> selected successor
 ```
 
-The choice of base fixes the unit. Base 2 is the default and produces bits.
-Base `e` produces nats. Metering accepts a real base whose conversion to a
-finite Python float remains greater than 1.
+The packages are independent. A judge may use Metering, but Evo does not require
+probabilistic forecasts.
 
-Metering supports finite discrete probability models only.
-That boundary is intentional. Continuous entropy, sample-based estimation, and
-channel optimization require additional assumptions that this package must not
-silently invent.
-
-## Public measures
-
-### Self-information
-
-```text
-self_information(p, base=2) = -log_b(p)
-```
-
-`p` is one probability in `[0, 1]`. A probability of zero returns positive
-infinity. A probability of one returns zero.
-
-### Shannon entropy
-
-```text
-entropy(P, base=2) = -sum_i p_i log_b(p_i)
-```
-
-`P` is a finite discrete probability mass function. Terms with `p_i = 0`
-contribute zero.
-
-### Kullback-Leibler divergence
-
-```text
-kl_divergence(P, Q, base=2) = sum_i p_i log_b(p_i / q_i)
-```
-
-`P` and `Q` are aligned finite distributions of equal length. An index with
-`p_i > 0` and `q_i = 0` returns positive infinity. An index with `p_i = 0`
-contributes zero. The order matters: `D_KL(P || Q)` is not generally equal to
-`D_KL(Q || P)`.
-
-### Mutual information
-
-```text
-mutual_information(P_XY, base=2)
-    = sum_x sum_y p(x,y) log_b(p(x,y) / (p(x) p(y)))
-```
-
-The input is a non-empty rectangular matrix containing a finite joint
-distribution. Rows represent outcomes of one variable and columns represent
-outcomes of the other. Metering derives only the two marginals required by the
-formula; it does not interpret the variables.
-
-## Mathematical naming boundary
-
-Metering does not expose a generic `information_gain` function.
-
-In a uniform deterministic partition, these three values happen to be equal:
-
-```text
-H(prior) - H(posterior)
--log_b P(observation)
-D_KL(posterior || prior)
-```
-
-They differ for general non-uniform or noisy models. Callers must use the name
-that matches what they mean:
-
-- entropy before minus entropy after is an entropy change;
-- self-information is the surprisal of one declared outcome;
-- `D_KL(posterior || prior)` measures a particular distribution update;
-- mutual information measures expected dependence between two declared
-  variables.
-
-The package must not collapse these into one flattering number.
-
-## Input contract
-
-All validation is strict and visible:
-
-- A probability is a real, non-Boolean number in `[0, 1]` whose conversion to
-  a finite Python float does not collapse a nonzero value to zero or a value
-  distinct from one to one.
-- A distribution is a non-empty ordered iterable of probabilities.
-- A distribution's sum must be within an absolute tolerance of `1e-12` from
-  one. Relative tolerance is zero.
-- A joint distribution is non-empty, rectangular, and normalized as one
-  distribution across all cells.
-- KL inputs must have equal lengths and use the same positional ordering.
-- The logarithm base is a real, non-Boolean number whose conversion to a
-  finite Python float remains greater than one.
-- Invalid inputs raise `ProbabilityError`.
-
-Metering never normalizes, smooths, clips, bins, samples, or estimates on the
-caller's behalf. Acceptance within the fixed sum tolerance accommodates normal
-floating-point roundoff. Entropy and self-information use the converted values
-as supplied. KL and mutual information use the explicitly declared
-non-negative relative-entropy extension below. Nothing is rescaled.
-
-Calculations use Python's double-precision floating-point arithmetic and
-`math.fsum` where sums are involved. Results should be compared with a suitable
-numerical tolerance rather than by serialized decimal spelling. Metering does
-not promise byte-identical last-place decimals across different Python/libm
-platforms.
-
-KL is evaluated with the non-negative form
-`sum_i (p_i ln(p_i/q_i) - p_i + q_i) / ln(base)`. For normalized distributions,
-the added terms sum to zero, so this is algebraically the declared KL formula.
-For inputs accepted only because their sums are within tolerance, this formula
-is the defined extension and remains non-negative. Close coordinates use the
-convergent series for `(1+d) ln(1+d) - d` to avoid cancellation. Mutual
-information uses the same form and separates the two marginal logarithms when
-their product would underflow. If an accepted joint has total mass `S` that
-differs from one only within tolerance, its derived comparison mass is
-`row_x * column_y / S`, not the mass-`S^2` raw marginal product. This preserves
-zero dependence for factorized tables without rescaling the supplied cells.
-These evaluation rules do not normalize or modify either input.
-
-## Python boundary
-
-The complete supported public API is:
+## Public Metering API
 
 ```python
 from metering import (
     ProbabilityError,
-    self_information,
     entropy,
     kl_divergence,
     mutual_information,
+    self_information,
 )
 ```
 
-For fixed numeric inputs, the functions are deterministic. They do not read or
-write files, access the network, or modify caller-owned containers. A one-shot
-iterator is necessarily consumed once when its values are materialized.
+No other public Python names are supported.
 
-## Agent and shell boundary
-
-Other agents use the same measures through one Unix-style command. The command
-reads exactly one JSON object from standard input and writes exactly one JSON
-object to standard output.
-
-Valid request shapes are:
-
-```jsonl
-{"measure":"self_information","probability":0.125}
-{"measure":"entropy","probabilities":[0.5,0.5]}
-{"measure":"kl_divergence","p":[0.5,0.5],"q":[0.75,0.25]}
-{"measure":"mutual_information","joint":[[0.5,0.0],[0.0,0.5]]}
-```
-
-Each request may add an optional numeric `base` key. No other keys are
-accepted. Duplicate keys and non-finite numbers are rejected. A numeric token
-is also rejected if double-precision conversion would produce infinity or
-would change whether its value is zero or one.
-
-A finite result has this exact shape:
-
-```json
-{"base":2.0,"infinite":false,"measure":"entropy","value":1.0}
-```
-
-Positive infinity is represented without emitting invalid JSON:
-
-```json
-{"base":2.0,"infinite":true,"measure":"self_information","value":null}
-```
-
-The command emits exactly `error.code` and `error.message` as one JSON object
-on standard error:
-
-```json
-{"error":{"code":"invalid_probability","message":"..."}}
-```
-
-The only error codes are `invalid_request` for JSON, command-line, or request
-envelope failures, and `invalid_probability` for a rejected probability model
-or logarithm base. Exit status is zero for a successful measurement and two
-for either error. `-h`/`--help` and `--version` are the only command-line
-options; long options are not abbreviated. The command does not read or write
-application files and does not make network requests.
-
-This JSON boundary is intentionally not agent-specific. Any agent, shell,
-programming language, or process runner that can exchange JSON over standard
-streams can use it. An MCP server, plugin system, HTTP service, or model adapter
-would add machinery without improving the measurement and does not belong here.
-
-## Measurement history boundary
-
-`metering-history` is an explicit, filesystem-writing wrapper around the public
-`metering` command. The ordinary Python functions and `metering` command never
-enable it implicitly. Recording one request is deliberate:
-
-```bash
-printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
-  | metering-history record PATH
-```
-
-The wrapper first asks `metering` to validate and measure the request. A rejected
-request leaves the history untouched. An accepted request and its exact response
-form a pair with these two identities:
+For logarithm base `b > 1`:
 
 ```text
-pair_id = SHA-256(canonical JSON of {
-    "request": normalized request,
-    "response": exact Metering response
-})
-
-record_id = SHA-256(canonical JSON of the complete six-field stored record)
+self-information:      -log_b(p)
+entropy:                -sum p_i log_b(p_i)
+KL divergence:           sum p_i log_b(p_i / q_i)
+mutual information:      sum p(x,y) log_b(p(x,y) / (p(x)p(y)))
 ```
 
-`pair_id` is content identity: the same normalized request and response have the
-same pair ID. `record_id` is history identity: appending the same pair at a new
-place in the lineage produces a new record ID. Each immutable object contains
-exactly `schema_version`, `metering_version`, `pair_id`, `parent_record_id`,
-`request`, and `response`. `HEAD` points to the latest record. Objects and `HEAD`
-are canonical UTF-8 JSON or lowercase SHA-256 text, respectively.
+The caller supplies outcome meanings and normalized probability models.
+Metering never estimates, normalizes, bins, smooths, clips, samples, or chooses a
+policy.
 
-The complete command surface is:
+## Public Evo API
+
+```python
+from evo import Candidate, Transition, Verdict, step
+```
+
+No other public Evo names are supported.
+
+### Candidate
 
 ```text
-metering-history record PATH   read one Metering request and append its pair
-metering-history log PATH      emit HEAD and reachable records, newest first
-metering-history verify PATH   verify hashes, links, canonical form, and reachability
+Candidate(id, value)
 ```
 
-Successful commands emit one canonical JSON object. Storage or integrity failures
-emit `invalid_history` through the same `error.code` and `error.message` envelope
-and exit with status two. Measurement request failures preserve the error produced
-by `metering` and do not create storage.
+`id` is a non-empty string. Identity construction and the meaning of `value`
+are caller-owned.
 
-This is a linear local ledger, not a general version-control system. It has no
-branches, merges, remotes, tags, checkout, signing, wall-clock metadata, or
-automatic replay. Hash verification detects accidental modification and broken
-lineage; it does not authenticate who created a record or prove that a stored
-response was produced by trusted software. A stale `LOCK` directory after an
-interrupted writer must be inspected and removed by the caller.
+### Verdict
 
-## Application boundary
+```text
+Verdict(selected_id, evidence)
+```
 
-Small, non-packaged applications may live under `apps/` to demonstrate how a
-caller constructs a probability model and invokes Metering through its public
-boundary. Application code may observe a world, update caller-owned state, and
-use a measurement when choosing an action. Those responsibilities remain in
-the application and are not re-exported from `metering`.
+`selected_id` is a non-empty string. The judge owns the evidence and selection
+policy.
 
-Every application must state:
+### Transition
 
-- what the outcomes in each supplied distribution mean;
-- how the probabilities were constructed;
-- which named Metering result is being reported; and
-- what the result does not establish;
-- the foundational equations and assumptions that justify its mechanism;
-- why its software boundary is no broader than necessary; and
-- which claims are mathematical identities, tested implementation hypotheses,
-  or external empirical hypotheses, including concrete falsifiers and primary
-  sources where applicable.
+```text
+Transition(parent, challenger, verdict)
+```
 
-The `apps/forecast_assay` example is a stateless screening adapter. Each
-request and successful report carries application schema version 1. A request
-identifies one candidate, one fixed evaluation, and unique observed cases. The
-caller supplies the probability that a normalized candidate forecast assigned
-to each named target before that target was revealed. The adapter reports the
-target self-information and an explicitly application-owned, equally weighted
-arithmetic mean. Default transport handles one request and exits; `--jsonl`
-processes independent requests one per line without retaining candidate state.
-It does not generate mutations, compare or retain candidates, implement an
-environment, or run an evolution loop.
+The parent and challenger IDs must differ. The verdict must select exactly one
+of those IDs. `next_parent` is derived from the selected ID and is not stored as
+an independent source of truth.
 
-The `apps/observer` example owns a finite versioned sandbox, a uniform candidate
-belief, and an immutable probe catalogue. Its default deterministic demo chooses
-the maximum-result-entropy probe. Its `--jsonl` transport instead accepts
-external-agent `state`, `observe`, and `finish` actions sequentially, returning
-one flushed response per input line while keeping the active sandbox private.
-The application constructs and conditions the probability model; Metering only
-measures its declared distributions. The protocol does not add agent policy,
-nonuniform priors, persistence, or application behavior to the installed
-package.
+### Step
 
-The `apps/mutator` example applies exactly one legal one-locus change. The
-caller supplies the immutable parent, finite legal catalogue, complete positive
-mutation distribution, and explicit draw. The app canonicalizes unordered
-support, asks Metering for distribution entropy and selected-outcome
-self-information, and returns content-derived catalogue, parent, child, and
-transition identifiers. It contains no hidden randomness, assay, selection,
-lineage, repetition, or mutation-policy update.
+```text
+challenger = await propose(parent)
+verdict = await judge(parent, challenger)
+transition = await step(parent, propose, judge)
+```
 
-The `apps/candidate_runner` example gives one concrete executable meaning to a
-Mutator genome. The genome declares one Observer fixture hypothesis and its
-integer probability in basis points; remaining probability is divided equally
-among the other fixtures. For one unrevealed public probe, the runner constructs
-the complete result distribution, validates and measures its entropy through
-Metering, and returns canonical target strings. It independently verifies that
-the Mutator candidate ID matches the genome. It does not receive the active
-fixture, inspect Observer state, execute arbitrary code, learn, mutate, observe,
-or select.
+The proposer and judge are asynchronous caller-supplied callables. Evo does not
+retry, parallelize, persist, deploy, or repeat the transition.
 
-The `apps/selection_gate` example verifies two complete Forecast Assay reports
-on the same identified evidence, recomputes their target self-information and
-means, and applies one caller-supplied strict improvement threshold. The
-retention decision belongs to that application, not to Metering. Candidate
-labels remain opaque assay identifiers: an external controller must bind them
-to the exact incumbent and challenger content identities that it executed.
-The gate does not prove model execution, forecast precommitment, inheritance,
-or future improvement.
+## JSON command boundary
 
-The `apps/controller` example executes exactly one generation. It sends one
-explicit request to Mutator, obtains both Candidate Runner forecasts before each
-Observer reveal, carries exact content IDs into Forecast Assay, submits aligned
-reports to Selection Gate, and returns the selected candidate as `next_parent`.
-It invokes every component through documented JSON standard streams. It owns no
-hidden draw, arbitrary candidate runtime, persistent lineage, policy update,
-repetition, deployment, or stopping rule. A caller must explicitly submit
-another request to advance another generation.
+The existing `metering` command remains a strict one-request JSON adapter for the
+four measurements. It is not an Evo protocol.
 
-Application JSONL transports use standard input and output only. Recoverable
-line errors produce an aligned JSON response and leave later requests usable.
-They do not change Metering's installed one-request JSON command.
+Bad JSON, duplicate keys, extra keys, unsupported arguments, invalid numbers,
+and invalid probability models fail explicitly with exit status 2.
 
-Applications must not add a generic score or describe a measured quantity as
-meaning, usefulness, correctness, understanding, or universal harness quality.
-They use the same public Python or JSON interface as any external caller. A
-demonstration must not rely on private package modules.
+Evo intentionally has no installed JSON command. Transport belongs to adapters.
+The Pi skill example demonstrates one external command boundary without moving
+that mechanism into the core.
 
-## Permanent package non-goals
+## Measurement history
 
-The installed Metering package does not contain:
+`metering-history` stores only accepted Metering request/response pairs in one
+local parent-linked ledger. It does not store candidates, verdicts, transitions,
+deployments, or rollback state.
 
-- agents, models, prompts, memories, tools that choose other tools, or model
-  adapters;
-- policies, planners, search strategies, optimizers, rankings, or scores;
-- worlds, tasks, repairs, verification, correctness, budgets, or resource
-  accounting;
-- posterior construction, Bayesian inference, probability estimation, sample
-  binning, smoothing, or normalization;
-- generic traces, experiment runners, manifests, commitments, replay engines,
-  databases, dashboards, or artifact stores beyond the fixed measurement-pair
-  ledger;
-- continuous or differential entropy, entropy-rate estimators, channel
-  capacity optimization, or learned estimators;
-- claims about meaning, relevance, understanding, reasoning, knowledge, or
-  intelligence.
+Evolution persistence remains caller-owned:
 
-Repository-local applications are examples, not additional Metering features.
-They are excluded from the public API and wheel package.
+```python
+transition = await step(parent, propose, judge)
+store.append(transition)
+```
+
+## Examples
+
+Examples are source-only and excluded from the wheel.
+
+`examples/fixture_evolution` is one deterministic proposer and one judge. Its
+judge folds candidate expression, active observation, log-loss measurement, and
+strict pairwise selection into one example-local function.
+
+`examples/pi_skill_evolution` evolves text skills through an external adapter.
+The adapter may be backed by Pi, Prime Agent, another agent, deterministic tests,
+or human review. The checked-in adapter is only a reproducible test double.
+
+Example-specific fields and equations are not public core abstractions.
+
+## Permanent non-goals
+
+Neither core contains:
+
+```text
+an LLM or provider SDK
+an agent loop
+prompt or skill semantics
+a mutation language
+an evaluator framework
+a workflow graph
+subprocess orchestration
+persistence or a database
+lineage or rollback policy
+deployment
+budgets or stopping rules
+a generic fitness score
+a multi-generation loop
+```
 
 ## Repository layout
 
 ```text
 src/metering/
-    __init__.py       exact public Python surface
-    information.py    validation and four pure measures
-    __main__.py       strict JSON standard-stream adapter
-    history.py        explicit content-addressed measurement ledger
+    __init__.py
+    information.py
+    __main__.py
+    history.py
+src/evo/
+    __init__.py
+    core.py
+examples/
+    fixture_evolution/
+    pi_skill_evolution/
 tests/
-    test_information.py
-    test_cli.py
-    test_history.py
-    test_public_api.py
-    test_observer.py
-    test_forecast_assay.py
-    test_mutator.py
-    test_selection_gate.py
-    test_candidate_runner.py
-    test_controller.py
-    test_evolution_kernel.py
 docs/
-    README.md
-    foundations.md
-    theory.md
-    history.md
-    evolution-kernel.md
-apps/
-    README.md         application index and composition boundary
-    observer/         non-packaged versioned-sandbox demonstration
-    forecast_assay/   non-packaged agent candidate-measurement adapter
-    mutator/          non-packaged one-locus variation operator
-    candidate_runner/ non-packaged fixed fixture forecast model
-    selection_gate/   non-packaged verified pairwise retention decision
-    controller/       non-packaged one-generation orchestrator
 ```
-
-Add a package module only when a concrete responsibility no longer fits one of
-these four. Do not introduce a generic abstraction in anticipation of future
-work.
-
-## Compatibility
-
-Candidate Runner and Evolution Controller are additive repository-local source
-examples. They do not change the installed Python API, Metering JSON protocol,
-history schema, existing application schemas, or numerical definitions. Their
-version 1 reports are new and have no earlier artifact format to migrate.
-
-This scope reset intentionally removes the previous hidden-fault world,
-actions, policies, controller, calibration, reports, general trace/replay
-system, artifact schemas, and their CLI commands. Existing run artifacts remain
-usable only with a checkout of the historical implementation that created them.
-
-There is no compatibility shim. Keeping one would retain the unrelated product
-inside the new one and violate the one-purpose boundary.
 
 ## Acceptance criteria
 
-The rewrite is complete only when:
+The repository is conformant when:
 
-- the four formulas match known exact values and independent identities;
-- uniform distributions of 2 and 8 outcomes report 1 and 3 bits;
-- independent variables report zero mutual information and a perfectly
-  correlated fair binary pair reports one bit;
-- KL identity, asymmetry, and infinite support mismatch are tested;
-- every malformed input category in this plan is rejected;
-- the Python public exports contain only the four measures and
-  `ProbabilityError`;
-- the CLI accepts every documented request, emits valid canonical JSON,
-  represents infinity explicitly, and returns documented exit statuses;
-- the history CLI records only accepted pairs, distinguishes pair identity from
-  lineage identity, and detects corrupt or unreachable objects;
-- direct calls and CLI calls agree for the same inputs;
-- the core performs no filesystem or network access, does not modify input
-  containers, and documents consumption of one-shot iterators;
-- the package has no runtime dependency;
-- no legacy world, policy, controller, agent, optimizer, benchmark, replay, or
-  artifact implementation remains in the installed `metering` package;
-- repository-local applications use only public Metering boundaries, make
-  their caller-owned probability model explicit, and keep JSONL requests
-  sequential with one flushed response per input line;
-- the Mutator changes exactly one legal locus, uses an explicit caller-owned
-  draw, and reports Metering entropy and selected-mutation self-information;
-- Forecast Assay rejects unsupported schema versions and Selection Gate requires
-  that same report version before recomputing both reports, rejecting mismatched
-  evidence, and applying its documented strict threshold and infinity ordering;
-- Candidate Runner verifies Mutator content identity, constructs a normalized
-  result forecast without receiving the active fixture, and exposes its exact
-  fixture probability model;
-- the one-generation controller obtains both forecasts before each Observer
-  reveal, carries Mutator content IDs through Forecast Assay and Selection Gate,
-  and returns the selected candidate without claiming an autonomous loop;
+- all four Metering functions match their documented finite-discrete formulas;
+- invalid or ambiguous probability models are rejected rather than repaired;
+- Metering direct and JSON calls agree;
+- measurement history records only accepted pairs and detects corruption;
+- Evo exports exactly `Candidate`, `Transition`, `Verdict`, and `step`;
+- Evo has no runtime dependency on Metering or any example;
+- Evo rejects empty IDs, no-op candidate identity, and unknown selections;
+- `next_parent` is derived from the verdict;
+- both examples use the same `evo.step()` without candidate-type branches in
+  the core;
+- the fixture example promotes its better `v3` challenger and rejects the same
+  change when it regresses on `v4`;
+- the Pi skill example can replace its adapter command without changing Evo;
+- the wheel contains only `metering`, `evo`, and packaging metadata;
 - the full test suite and package build pass.
-
-## Source
-
-Claude E. Shannon, “A Mathematical Theory of Communication,” *The Bell System
-Technical Journal*, volume 27, pages 379-423 and 623-656, 1948.
-
-- https://doi.org/10.1002/j.1538-7305.1948.tb01338.x
-- https://doi.org/10.1002/j.1538-7305.1948.tb00917.x

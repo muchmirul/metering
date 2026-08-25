@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "metering"
 dynamic = ["version"]
-description = "Named information measures with an explicit history tool"
+description = "Named information measures and a minimal evolution transition"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []

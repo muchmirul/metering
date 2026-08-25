@@ -44,6 +44,19 @@ jobs:
             'import json,sys; assert json.load(open(sys.argv[1]))["value"] == 1.0' \
             "$valid_output"
           "$wheel_env/bin/metering" --version
+          "$wheel_env/bin/python" - <<'PY'
+          import asyncio
+          from evo import Candidate, Verdict, step
+
+          async def propose(_):
+              return Candidate("child", 2)
+
+          async def judge(incumbent, challenger):
+              return Verdict(challenger.id, {})
+
+          transition = asyncio.run(step(Candidate("parent", 1), propose, judge))
+          assert transition.next_parent.value == 2
+          PY
           set +e
           printf '%s\n' '{"measure":"entropy","probabilities":[2]}' \
             | "$wheel_env/bin/metering" >"$invalid_output" 2>"$invalid_error"
@@ -68,7 +81,11 @@ jobs:
                   name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
               )
               metadata = email.message_from_bytes(archive.read(metadata_name))
+              names = archive.namelist()
           assert metadata["Version"] == os.environ["RELEASE_TAG"]
+          assert any(name.startswith("metering/") for name in names)
+          assert any(name.startswith("evo/") for name in names)
+          assert not any(name.startswith("examples/") for name in names)
           PY
       - name: Create GitHub release
         env:

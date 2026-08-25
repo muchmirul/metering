@@ -19,6 +19,14 @@ jobs:
           python-version: "3.11"
       - name: Run full test suite
         run: uv run --extra test pytest -q
+      - name: Run both evolution examples
+        shell: bash
+        run: |
+          uv run python examples/fixture_evolution/main.py --active v3 >/dev/null
+          uv run python examples/pi_skill_evolution/main.py \
+            --skill examples/pi_skill_evolution/SKILL.md \
+            --adapter "uv run python examples/pi_skill_evolution/demo_adapter.py" \
+            >/dev/null
       - name: Build distributions
         run: uv build
       - name: Smoke test installed wheel
@@ -36,6 +44,19 @@ jobs:
             'import json,sys; assert json.load(open(sys.argv[1]))["value"] == 1.0' \
             "$valid_output"
           "$wheel_env/bin/metering" --version
+          "$wheel_env/bin/python" - <<'PY'
+          import asyncio
+          from evo import Candidate, Verdict, step
+
+          async def propose(_):
+              return Candidate("child", 2)
+
+          async def judge(incumbent, challenger):
+              return Verdict(challenger.id, {"passed": True})
+
+          transition = asyncio.run(step(Candidate("parent", 1), propose, judge))
+          assert transition.next_parent.value == 2
+          PY
           set +e
           printf '%s\n' '{"measure":"entropy","probabilities":[2]}' \
             | "$wheel_env/bin/metering" >"$invalid_output" 2>"$invalid_error"

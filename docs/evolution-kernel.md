@@ -1,129 +1,92 @@
-# Minimal information-guided evolution kernel
+# Minimal evolution kernel
 
-The [system foundations](foundations.md) derive the mathematical identities,
-biology analogy, integrity model, design rationale, and falsifiable hypotheses
-behind this composition. This document keeps the executable responsibility and
-data-flow boundary concise.
-
-Metering remains a pure information-measurement package. Repository applications
-compose explicit responsibilities around it:
+The reusable self-evolution brick is one transition:
 
 ```text
-Observer         applies observations under a declared belief model
-Mutator          generates one legal child from an explicit mutation model
-Candidate Runner turns one fixed genome into pre-reveal Observer forecasts
-Forecast Assay   measures revealed-target probabilistic behavior
-Selection Gate   verifies two reports and chooses differential retention
-Controller       executes one generation and returns the selected next parent
-Caller           owns repetition, budgets, policy adaptation, and stopping
+parent -> propose challenger -> judge pair -> inherit selected candidate
 ```
 
-## Two loops
+```python
+transition = await step(parent, propose, judge)
+next_parent = transition.next_parent
+```
 
-The epistemic loop changes what an agent knows:
+## Objects
 
 ```text
-environment -> observation -> belief update -> next observation
+Candidate(id, value)
+Verdict(selected_id, evidence)
+Transition(parent, challenger, verdict)
 ```
 
-The evolutionary loop changes which candidate is inherited:
+Only one selection invariant is universal:
 
 ```text
-parent
-  -> Mutator
-  -> child
-  -> Candidate Runner forecasts for parent and child
-  -> Observer reveals each shared case
-  -> Forecast Assay reports
-  -> Selection Gate
-  -> controller returns the selected next parent
-  -> caller may submit another generation
+selected_id in {parent.id, challenger.id}
 ```
 
-These loops may interact, but their state transitions must remain named. An
-observation result is not a mutation. A mutation is not improvement. An assay
-measurement is not selection. A selection response is not inheritance until a
-controller explicitly returns it as the next parent.
+`accepted`, `promoted`, `winner`, and stored `next_parent` fields would duplicate
+that fact, so the core does not contain them.
 
-[`apps/controller/controller.py`](../apps/controller/controller.py) now executes
-that one-generation boundary through the applications' documented
-standard-stream protocols. Its Candidate Runner is intentionally concrete: one
-declared probability model over the four Observer fixtures, not an arbitrary
-model adapter. [`tests/test_controller.py`](../tests/test_controller.py) verifies the
-complete process. The older
-[`tests/test_evolution_kernel.py`](../tests/test_evolution_kernel.py) retains the
-smaller content-ID composition check.
+## Generality
 
-## Minimal generation equations
+The core does not inspect candidate values or evidence. A candidate can be a
+prompt, skill directory, source patch, policy, checkpoint, population, or
+mutation strategy. Evidence can contain tests, safety gates, log loss, formal
+verification, simulator results, cost, or human approval.
+
+A population does not require population machinery in the core. The population
+can be the candidate value. A mutation policy can also be a candidate value,
+which allows a caller to compose meta-evolution from the same transition.
+
+## Relationship to Metering
+
+Metering is optional instrumentation:
 
 ```text
-c'_t ~ Q_theta_t(. | c_t)
-
-L_E(c) = -(1/n) sum_i log2 q_c(y_i | x_i, E)
-
-Delta_t = L_E(c_t) - L_E(c'_t)          when both losses are finite
-
-c_(t+1) = c'_t  when Delta_t > delta
-c_(t+1) = c_t   otherwise
+active experiment judge -> entropy or mutual information
+forecast judge          -> self-information
+policy-change monitor   -> KL divergence
+coding-agent judge      -> tests and safety gates, no Metering required
 ```
 
-The current Mutator receives the finite support of `Q` and an explicit draw; it
-does not own random-number generation. Candidate Runner supplies the concrete
-`q_c` for this fixture example. Forecast Assay reports `L_E`. Selection Gate
-verifies `Delta_t` and applies `delta`. The controller performs one transition,
-but any update to `theta_t` remains caller-owned.
-When either report is infinite, Selection Gate applies its explicit
-extended-real ordering instead of subtracting infinities.
+Information measurement does not imply selection. Selection does not imply
+inheritance until a transition identifies the successor.
 
-## Candidate identity binding
+## Examples
 
-Mutator returns content-derived `parent.candidate_id` and `child.candidate_id`.
-Forecast Assay deliberately accepts an opaque candidate string, and Selection
-Gate verifies report mathematics rather than model execution. Evolution
-Controller therefore preserves this binding explicitly:
+The fixture example implements:
 
 ```text
-incumbent_report.candidate == mutator.parent.candidate_id
-challenger_report.candidate == mutator.child.candidate_id
+proposer = one explicit confidence mutation
+judge    = forecasts + active observations + log loss + threshold
 ```
 
-Those equalities are necessary but not sufficient: the controller must also run
-the corresponding genomes when constructing each report. Candidate Runner
-verifies the ID-to-genome formula; neither the assay nor the gate can prove
-execution from an opaque label. A mismatched label is an
-invalid composition even if every individual application accepts its request.
+The Pi skill example implements:
 
-## Trusted boundary
+```text
+proposer = external adapter proposes modified skill text
+judge    = external adapter returns evidence and selected identity
+```
 
-Version 1 treats the Mutator, fixed Candidate Runner, Observer, Forecast Assay,
-Selection Gate, evaluation ordering, and the controller's candidate-ID binding
-as infrastructure. Candidate genomes may evolve. Later, mutation-policy
-parameters may adapt. The source code that defines mutation legality should not initially
-rewrite itself because doing so would change inheritance, identity, replay, and
-security assumptions at once.
+Both call the same `evo.step()` with no domain branch in Evo.
 
-## Required evaluation discipline
+## Caller-owned work
 
-Selection pressure exploits any shortcut in the assay. A serious controller
-should bind reports to the exact Mutator candidate IDs it executed, commit
-complete normalized forecasts before target reveal, compare candidates on
-identical cases and budgets, keep environment-specific results separate, and
-reserve fresh final cases that are not repeatedly reused for selection.
+The caller owns:
 
-The six applications therefore form one auditable generation example, not an
-autonomous self-evolving agent. Repetition and every policy update remain an
-explicit caller decision.
+```text
+candidate identity construction
+mutation generation
+evaluation validity
+hidden data and leakage prevention
+persistence
+repetition
+budgets
+rollback
+deployment
+stopping
+```
 
-## Composition hypothesis
-
-The engineering hypothesis is that keeping variation, forecast expression,
-target reveal, assay, retention, and one-generation orchestration as strict
-separate processes makes causal ordering, identity swaps, and evidence mismatch
-observable without adding a general agent framework.
-
-It is falsified by any successful generation that captures a forecast after its
-target reveal, loses the Mutator parent/child content binding, compares different
-evidence, trusts a forged assay aggregate, or returns an unknown next parent.
-The controller integration tests exercise these conditions for version 1. They
-do not prove the external empirical hypothesis that repeated selection improves
-fresh-data performance; that experiment remains caller-owned.
+The kernel cannot prove that a judge is unbiased or that a selected candidate
+generalizes. It only makes one inheritance transition explicit and valid.
