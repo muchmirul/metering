@@ -2,15 +2,33 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 import sys
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+from pathlib import Path
 
 from metering import ProbabilityError, self_information
 
+APPS_ROOT = Path(__file__).resolve().parents[1]
+if str(APPS_ROOT) not in sys.path:
+    sys.path.insert(0, str(APPS_ROOT))
+
+from agent_protocol import (  # noqa: E402
+    AGENT_SCHEMA_VERSION,
+    ProtocolError,
+    normalize_json_value,
+    require_bool,
+    require_exact_keys,
+    require_nonempty_string,
+    require_schema_version,
+    require_sha256,
+)
+from stdio_connector import (  # noqa: E402
+    canonical_digest,
+    decode_json_object,
+    run_stdio_application,
+)
 
 SCHEMA_VERSION = 1
 REPORT_TOLERANCE = 1e-12
@@ -29,51 +47,38 @@ class VerifiedReport:
     outcomes: dict[str, tuple[str, float]]
 
 
-def canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        allow_nan=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+@dataclass(frozen=True)
+class VerifiedTaskCase:
+    case_id: str
+    evidence: object
+    outcome: str
+    passed: bool
+    safety_passed: bool
+    target_probability: float
+    target_surprisal_bits: float
+
+    def selection_evidence(self) -> dict[str, object]:
+        return {
+            "evidence": self.evidence,
+            "outcome": self.outcome,
+            "passed": self.passed,
+            "safety_passed": self.safety_passed,
+            "target_probability": self.target_probability,
+        }
 
 
-def digest(value: object) -> str:
-    return hashlib.sha256(canonical_json(value).encode("ascii")).hexdigest()
-
-
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise RequestError(f"duplicate key: {key}")
-        result[key] = value
-    return result
-
-
-def _reject_non_finite(token: str) -> object:
-    raise RequestError(f"non-finite number is not valid JSON: {token}")
+@dataclass(frozen=True)
+class VerifiedTaskReport:
+    candidate: str
+    evaluation: str
+    cases: dict[str, dict[str, object]]
+    passed_count: int
+    safety_failures: int
+    mean_target_surprisal_bits: float | None
 
 
 def _decode_json(source: str) -> dict[str, object]:
-    if not source.strip():
-        raise RequestError("stdin must contain one JSON object")
-    try:
-        request = json.loads(
-            source,
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_non_finite,
-            parse_float=Decimal,
-        )
-    except RequestError:
-        raise
-    except json.JSONDecodeError as exc:
-        raise RequestError(f"invalid JSON: {exc.msg}") from exc
-    except (InvalidOperation, RecursionError, ValueError) as exc:
-        raise RequestError(f"invalid JSON: {exc}") from exc
-    if type(request) is not dict:
-        raise RequestError("request must be one JSON object")
-    return request
+    return decode_json_object(source, RequestError, parse_float=Decimal)
 
 
 def _require_exact_keys(
@@ -385,7 +390,7 @@ def select(
         {"observation": observation, "target": incumbent.outcomes[observation][0]}
         for observation in sorted(incumbent.outcomes)
     ]
-    evidence_id = digest(
+    evidence_id = canonical_digest(
         {
             "cases": cases,
             "evaluation": incumbent.evaluation,
@@ -417,85 +422,311 @@ def select(
     }
 
 
-def _error_document(code: str, message: str) -> dict[str, object]:
-    return {"error": {"code": code, "message": message}}
+def _verify_task_case(
+    raw_case: object,
+    location: str,
+) -> VerifiedTaskCase:
+    if type(raw_case) is not dict:
+        raise ProtocolError(f"{location} must be a JSON object")
+    require_exact_keys(
+        raw_case,
+        {
+            "case_id",
+            "evidence",
+            "outcome",
+            "passed",
+            "safety_passed",
+            "target_probability",
+            "target_surprisal",
+        },
+        location,
+    )
+    case_id = require_nonempty_string(raw_case["case_id"], f"{location}.case_id")
+    outcome = require_nonempty_string(raw_case["outcome"], f"{location}.outcome")
+    passed = require_bool(raw_case["passed"], f"{location}.passed")
+    safety_passed = require_bool(raw_case["safety_passed"], f"{location}.safety_passed")
+    probability = _probability(
+        raw_case["target_probability"], f"{location}.target_probability"
+    )
+    measured = self_information(probability, base=2)
+    infinite = math.isinf(measured)
+
+    raw_surprisal = raw_case["target_surprisal"]
+    surprisal_location = f"{location}.target_surprisal"
+    if type(raw_surprisal) is not dict:
+        raise ProtocolError(f"{surprisal_location} must be a JSON object")
+    require_exact_keys(raw_surprisal, {"infinite", "value_bits"}, surprisal_location)
+    if (
+        require_bool(raw_surprisal["infinite"], f"{surprisal_location}.infinite")
+        != infinite
+    ):
+        raise ProtocolError(f"{surprisal_location}.infinite does not match Metering")
+    if infinite:
+        if raw_surprisal["value_bits"] is not None:
+            raise ProtocolError(f"{surprisal_location}.value_bits must be null")
+    else:
+        reported = _nonnegative_number(
+            raw_surprisal["value_bits"], f"{surprisal_location}.value_bits"
+        )
+        if not _same_number(reported, measured):
+            raise ProtocolError(
+                f"{surprisal_location}.value_bits does not match Metering"
+            )
+
+    return VerifiedTaskCase(
+        case_id=case_id,
+        evidence=normalize_json_value(raw_case["evidence"], f"{location}.evidence"),
+        outcome=outcome,
+        passed=passed,
+        safety_passed=safety_passed,
+        target_probability=probability,
+        target_surprisal_bits=measured,
+    )
 
 
-def _write_document(stream: object, document: dict[str, object]) -> None:
-    stream.write(canonical_json(document) + "\n")
-    stream.flush()
+def _verify_task_summary(
+    value: object,
+    location: str,
+    *,
+    case_count: int,
+    passed_count: int,
+    safety_failures: int,
+) -> None:
+    if type(value) is not dict:
+        raise ProtocolError(f"{location} must be a JSON object")
+    require_exact_keys(
+        value,
+        {"case_count", "passed_count", "safety_failures"},
+        location,
+    )
+    expected = {
+        "case_count": case_count,
+        "passed_count": passed_count,
+        "safety_failures": safety_failures,
+    }
+    if value != expected:
+        raise ProtocolError(f"{location} does not match cases")
 
 
-def _write_error(code: str, message: str) -> None:
-    _write_document(sys.stderr, _error_document(code, message))
+def _verify_forecast_measurement(
+    value: object,
+    location: str,
+    *,
+    case_count: int,
+    surprisal_values: list[float],
+) -> float | None:
+    if type(value) is not dict:
+        raise ProtocolError(f"{location} must be a JSON object")
+    require_exact_keys(value, {"aggregate", "base", "metering_measure"}, location)
+    base_exact, _ = _number_as_float(value["base"], f"{location}.base")
+    if base_exact != 2 or value["metering_measure"] != "self_information":
+        raise ProtocolError(f"{location} must report base-2 self_information")
+
+    aggregate = value["aggregate"]
+    aggregate_location = f"{location}.aggregate"
+    if type(aggregate) is not dict:
+        raise ProtocolError(f"{aggregate_location} must be a JSON object")
+    require_exact_keys(
+        aggregate,
+        {"infinite", "mean_target_surprisal_bits", "sample_count"},
+        aggregate_location,
+    )
+    if aggregate["sample_count"] != case_count:
+        raise ProtocolError(f"{aggregate_location}.sample_count does not match cases")
+    any_infinite = any(math.isinf(value) for value in surprisal_values)
+    if (
+        require_bool(aggregate["infinite"], f"{aggregate_location}.infinite")
+        != any_infinite
+    ):
+        raise ProtocolError(f"{aggregate_location}.infinite does not match cases")
+    if any_infinite:
+        if aggregate["mean_target_surprisal_bits"] is not None:
+            raise ProtocolError(f"{location} aggregate mean must be null")
+        return None
+
+    expected_mean = math.fsum(surprisal_values) / case_count
+    mean = _nonnegative_number(
+        aggregate["mean_target_surprisal_bits"],
+        f"{aggregate_location}.mean_target_surprisal_bits",
+    )
+    if not _same_number(mean, expected_mean):
+        raise ProtocolError(f"{location} aggregate mean does not match cases")
+    return mean
 
 
-def _read_stdin() -> str:
-    stream = getattr(sys.stdin, "buffer", None)
-    if stream is None:
-        return sys.stdin.read()
+def _verify_task_report(raw_report: object, location: str) -> VerifiedTaskReport:
+    if type(raw_report) is not dict:
+        raise RequestError(f"{location} must be a JSON object")
     try:
-        return stream.read().decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise RequestError("standard input must be valid UTF-8 JSON") from exc
+        require_exact_keys(
+            raw_report,
+            {
+                "candidate",
+                "cases",
+                "evaluation",
+                "forecast_measurement",
+                "schema_version",
+                "task_summary",
+            },
+            location,
+        )
+        require_schema_version(
+            raw_report["schema_version"], f"{location}.schema_version"
+        )
+        candidate = require_sha256(raw_report["candidate"], f"{location}.candidate")
+        evaluation = require_nonempty_string(
+            raw_report["evaluation"], f"{location}.evaluation"
+        )
+        raw_cases = raw_report["cases"]
+        if type(raw_cases) is not list or not raw_cases:
+            raise ProtocolError(f"{location}.cases must be a non-empty JSON array")
+        cases: dict[str, dict[str, object]] = {}
+        surprisal_values: list[float] = []
+        passed_count = 0
+        safety_failures = 0
+        for index, raw_case in enumerate(raw_cases):
+            task_case = _verify_task_case(
+                raw_case,
+                f"{location}.cases[{index}]",
+            )
+            if task_case.case_id in cases:
+                raise ProtocolError(
+                    f"{location} contains duplicate case: {task_case.case_id}"
+                )
+            cases[task_case.case_id] = task_case.selection_evidence()
+            surprisal_values.append(task_case.target_surprisal_bits)
+            passed_count += int(task_case.passed)
+            safety_failures += int(not task_case.safety_passed)
+
+        _verify_task_summary(
+            raw_report["task_summary"],
+            f"{location}.task_summary",
+            case_count=len(cases),
+            passed_count=passed_count,
+            safety_failures=safety_failures,
+        )
+        mean = _verify_forecast_measurement(
+            raw_report["forecast_measurement"],
+            f"{location}.forecast_measurement",
+            case_count=len(cases),
+            surprisal_values=surprisal_values,
+        )
+    except ProtocolError as exc:
+        raise RequestError(str(exc)) from exc
+
+    return VerifiedTaskReport(
+        candidate=candidate,
+        evaluation=evaluation,
+        cases=cases,
+        passed_count=passed_count,
+        safety_failures=safety_failures,
+        mean_target_surprisal_bits=mean,
+    )
+
+
+def _select_task_reports(request: dict[str, object]) -> dict[str, object]:
+    try:
+        require_exact_keys(
+            request,
+            {"schema_version", "incumbent_report", "challenger_report", "policy"},
+            "request",
+        )
+        require_schema_version(request["schema_version"])
+        policy = request["policy"]
+        if type(policy) is not dict:
+            raise ProtocolError("policy must be a JSON object")
+        require_exact_keys(
+            policy,
+            {"type", "minimum_pass_improvement", "reject_safety_regression"},
+            "policy",
+        )
+        if policy["type"] != "task-pass-count-v1":
+            raise ProtocolError("policy.type must be task-pass-count-v1")
+        minimum = policy["minimum_pass_improvement"]
+        if type(minimum) is not int or minimum < 1:
+            raise ProtocolError(
+                "policy.minimum_pass_improvement must be a positive integer"
+            )
+        reject_safety = require_bool(
+            policy["reject_safety_regression"], "policy.reject_safety_regression"
+        )
+    except ProtocolError as exc:
+        raise RequestError(str(exc)) from exc
+
+    incumbent = _verify_task_report(request["incumbent_report"], "incumbent_report")
+    challenger = _verify_task_report(request["challenger_report"], "challenger_report")
+    if incumbent.candidate == challenger.candidate:
+        raise RequestError("incumbent and challenger candidates must differ")
+    if incumbent.evaluation != challenger.evaluation:
+        raise RequestError("incumbent and challenger evaluations must match")
+    if set(incumbent.cases) != set(challenger.cases):
+        raise RequestError("incumbent and challenger case identifier sets must match")
+
+    pass_improvement = challenger.passed_count - incumbent.passed_count
+    safety_regression = challenger.safety_failures > incumbent.safety_failures
+    if reject_safety and safety_regression:
+        promote = False
+        reason = "safety_regression"
+    elif pass_improvement >= minimum:
+        promote = True
+        reason = "required_pass_improvement_met"
+    else:
+        promote = False
+        reason = "required_pass_improvement_not_met"
+    selected = challenger.candidate if promote else incumbent.candidate
+    evidence_id = canonical_digest(
+        {
+            "challenger_cases": challenger.cases,
+            "evaluation": incumbent.evaluation,
+            "incumbent_cases": incumbent.cases,
+            "policy": policy,
+            "schema_version": AGENT_SCHEMA_VERSION,
+        }
+    )
+    return {
+        "challenger": challenger.candidate,
+        "comparison": {
+            "challenger": {
+                "mean_target_surprisal_bits": challenger.mean_target_surprisal_bits,
+                "passed_count": challenger.passed_count,
+                "safety_failures": challenger.safety_failures,
+            },
+            "incumbent": {
+                "mean_target_surprisal_bits": incumbent.mean_target_surprisal_bits,
+                "passed_count": incumbent.passed_count,
+                "safety_failures": incumbent.safety_failures,
+            },
+            "pass_improvement": pass_improvement,
+        },
+        "decision": "promote_challenger" if promote else "retain_incumbent",
+        "evaluation": incumbent.evaluation,
+        "evidence_id": evidence_id,
+        "incumbent": incumbent.candidate,
+        "policy": policy,
+        "reason": reason,
+        "schema_version": AGENT_SCHEMA_VERSION,
+        "selected": selected,
+    }
 
 
 def _process(source: str) -> dict[str, object]:
+    request = _decode_json(source)
+    if request.get("schema_version") == AGENT_SCHEMA_VERSION:
+        return _select_task_reports(request)
     incumbent, challenger, threshold = decode_request(source)
     return select(incumbent, challenger, threshold)
 
 
-def _run_jsonl() -> int:
-    binary_input = getattr(sys.stdin, "buffer", None)
-    while True:
-        invalid_utf8 = False
-        try:
-            if binary_input is None:
-                source = sys.stdin.readline()
-                if source == "":
-                    break
-            else:
-                raw = binary_input.readline()
-                if raw == b"":
-                    break
-                try:
-                    source = raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    source = ""
-                    invalid_utf8 = True
-        except OSError as exc:
-            _write_error("invalid_request", f"cannot read standard input: {exc}")
-            return 2
-
-        try:
-            if invalid_utf8:
-                raise RequestError("request line must be valid UTF-8 JSON")
-            response = _process(source)
-        except RequestError as exc:
-            response = _error_document("invalid_request", str(exc))
-        except ProbabilityError as exc:
-            response = _error_document("invalid_probability", str(exc))
-        _write_document(sys.stdout, response)
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
-    if arguments == ["--jsonl"]:
-        return _run_jsonl()
-    if arguments:
-        _write_error("invalid_request", "command-line arguments are not supported")
-        return 2
-    try:
-        response = _process(_read_stdin())
-    except RequestError as exc:
-        _write_error("invalid_request", str(exc))
-        return 2
-    except ProbabilityError as exc:
-        _write_error("invalid_probability", str(exc))
-        return 2
-    _write_document(sys.stdout, response)
-    return 0
+    return run_stdio_application(
+        _process,
+        arguments,
+        error_rules=(
+            (RequestError, "invalid_request"),
+            (ProbabilityError, "invalid_probability"),
+        ),
+    )
 
 
 if __name__ == "__main__":

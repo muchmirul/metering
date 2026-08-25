@@ -1,5 +1,10 @@
 # Mutator agent protocol
 
+This page specifies flat-genome schema version 1. Agent artifact schema version
+2 is specified in the repository-wide
+[agent-skill evolution protocol](../../../docs/agent-evolution.md) and uses the
+same one-shot and JSONL transports.
+
 ## Transport
 
 Default mode reads exactly one UTF-8 JSON object from standard input, writes one

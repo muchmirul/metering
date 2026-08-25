@@ -2,42 +2,37 @@
 
 from __future__ import annotations
 
-import json
 import math
 import sys
 from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
+from typing import cast
 
-from metering import ProbabilityError, self_information
+from metering import ProbabilityError, entropy, self_information
 
+APPS_ROOT = Path(__file__).resolve().parents[1]
+if str(APPS_ROOT) not in sys.path:
+    sys.path.insert(0, str(APPS_ROOT))
+
+from agent_protocol import (  # noqa: E402
+    AGENT_SCHEMA_VERSION,
+    ProtocolError,
+    decode_evaluator_result,
+    decode_forecast,
+    require_exact_keys,
+    require_nonempty_string,
+    require_schema_version,
+    require_sha256,
+)
+from stdio_connector import decode_json_object, run_stdio_application  # noqa: E402
 
 SCHEMA_VERSION = 1
+MEASUREMENT_TOLERANCE = 1e-12
 
 
 class RequestError(ValueError):
     """Raised when the agent request does not match the application contract."""
-
-
-def canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        allow_nan=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-
-
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise RequestError(f"duplicate key: {key}")
-        result[key] = value
-    return result
-
-
-def _reject_non_finite(token: str) -> object:
-    raise RequestError(f"non-finite number is not valid JSON: {token}")
 
 
 def _parse_json_number(token: str) -> float:
@@ -93,28 +88,19 @@ def _require_nonempty_string(value: object, location: str) -> str:
     return value
 
 
+def _decode_request_object(source: str) -> dict[str, object]:
+    return decode_json_object(
+        source,
+        RequestError,
+        parse_float=_parse_json_number,
+        parse_int=_parse_json_integer,
+    )
+
+
 def decode_request(source: str) -> tuple[str, str, list[dict[str, object]]]:
     """Decode one strict candidate-measurement request."""
 
-    if not source.strip():
-        raise RequestError("stdin must contain one JSON object")
-    try:
-        request = json.loads(
-            source,
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_non_finite,
-            parse_float=_parse_json_number,
-            parse_int=_parse_json_integer,
-        )
-    except RequestError:
-        raise
-    except json.JSONDecodeError as exc:
-        raise RequestError(f"invalid JSON: {exc.msg}") from exc
-    except (RecursionError, ValueError) as exc:
-        raise RequestError(f"invalid JSON: {exc}") from exc
-
-    if type(request) is not dict:
-        raise RequestError("request must be one JSON object")
+    request = _decode_request_object(source)
     _require_exact_keys(
         request,
         {"schema_version", "candidate", "evaluation", "observations"},
@@ -218,87 +204,134 @@ def measure_candidate(
     }
 
 
-def _error_document(code: str, message: str) -> dict[str, object]:
-    return {"error": {"code": code, "message": message}}
-
-
-def _write_document(stream: object, document: dict[str, object]) -> None:
-    stream.write(canonical_json(document) + "\n")
-    stream.flush()
-
-
-def _write_error(code: str, message: str) -> None:
-    _write_document(sys.stderr, _error_document(code, message))
-
-
-def _read_stdin() -> str:
-    stream = getattr(sys.stdin, "buffer", None)
-    if stream is None:
-        return sys.stdin.read()
+def _measure_agent_task_candidate(request: dict[str, object]) -> dict[str, object]:
     try:
-        return stream.read().decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise RequestError("standard input must be valid UTF-8 JSON") from exc
+        require_exact_keys(
+            request,
+            {"schema_version", "candidate", "evaluation", "cases"},
+            "request",
+        )
+        require_schema_version(request["schema_version"])
+        candidate = require_sha256(request["candidate"], "candidate")
+        evaluation = require_nonempty_string(request["evaluation"], "evaluation")
+        raw_cases = request["cases"]
+        if type(raw_cases) is not list or not raw_cases:
+            raise ProtocolError("cases must be a non-empty JSON array")
+
+        cases: list[dict[str, object]] = []
+        seen: set[str] = set()
+        finite_values: list[float] = []
+        any_infinite = False
+        passed_count = 0
+        safety_failures = 0
+        for index, raw_case in enumerate(raw_cases):
+            location = f"cases[{index}]"
+            if type(raw_case) is not dict:
+                raise ProtocolError(f"{location} must be a JSON object")
+            require_exact_keys(raw_case, {"case_id", "forecast", "result"}, location)
+            case_id = require_nonempty_string(
+                raw_case["case_id"], f"{location}.case_id"
+            )
+            if case_id in seen:
+                raise ProtocolError(f"duplicate case identifier: {case_id}")
+            seen.add(case_id)
+
+            forecast = decode_forecast(raw_case["forecast"], f"{location}.forecast")
+            forecast_outcomes = cast(list[dict[str, object]], forecast["outcomes"])
+            probabilities = {
+                str(item["outcome"]): float(item["probability"])
+                for item in forecast_outcomes
+            }
+            measured_entropy = entropy(list(probabilities.values()), base=2)
+            entropy_document = cast(dict[str, object], forecast["entropy"])
+            reported_entropy = float(entropy_document["value"])
+            if not math.isclose(
+                reported_entropy,
+                measured_entropy,
+                rel_tol=MEASUREMENT_TOLERANCE,
+                abs_tol=MEASUREMENT_TOLERANCE,
+            ):
+                raise ProtocolError(
+                    f"{location}.forecast.entropy.value does not match Metering"
+                )
+
+            result = decode_evaluator_result(raw_case["result"], f"{location}.result")
+            if result["candidate_id"] != candidate:
+                raise ProtocolError(f"{location}.result changed the candidate ID")
+            outcome = str(result["outcome"])
+            if outcome not in probabilities:
+                raise ProtocolError(
+                    f"{location}.forecast did not contain observed outcome {outcome!r}"
+                )
+            passed = bool(result["passed"])
+            safety_passed = bool(result["safety_passed"])
+            evidence = result["evidence"]
+            target_probability = probabilities[outcome]
+            value = self_information(target_probability, base=2)
+            infinite = math.isinf(value)
+            any_infinite = any_infinite or infinite
+            if not infinite:
+                finite_values.append(value)
+            passed_count += int(passed)
+            safety_failures += int(not safety_passed)
+            cases.append(
+                {
+                    "case_id": case_id,
+                    "evidence": evidence,
+                    "outcome": outcome,
+                    "passed": passed,
+                    "safety_passed": safety_passed,
+                    "target_probability": target_probability,
+                    "target_surprisal": {
+                        "infinite": infinite,
+                        "value_bits": None if infinite else value,
+                    },
+                }
+            )
+    except ProtocolError as exc:
+        raise RequestError(str(exc)) from exc
+
+    mean = None if any_infinite else math.fsum(finite_values) / len(cases)
+    return {
+        "candidate": candidate,
+        "cases": cases,
+        "evaluation": evaluation,
+        "forecast_measurement": {
+            "aggregate": {
+                "infinite": any_infinite,
+                "mean_target_surprisal_bits": mean,
+                "sample_count": len(cases),
+            },
+            "base": 2.0,
+            "metering_measure": "self_information",
+        },
+        "schema_version": AGENT_SCHEMA_VERSION,
+        "task_summary": {
+            "case_count": len(cases),
+            "passed_count": passed_count,
+            "safety_failures": safety_failures,
+        },
+    }
 
 
 def _measure_source(source: str) -> dict[str, object]:
+    request = _decode_request_object(source)
+    if request.get("schema_version") == AGENT_SCHEMA_VERSION:
+        return _measure_agent_task_candidate(request)
     candidate, evaluation, observations = decode_request(source)
     return measure_candidate(candidate, evaluation, observations)
 
 
-def _run_jsonl() -> int:
-    """Process independent candidate requests until standard-input EOF."""
-
-    binary_input = getattr(sys.stdin, "buffer", None)
-    while True:
-        invalid_utf8 = False
-        try:
-            if binary_input is None:
-                source = sys.stdin.readline()
-                if source == "":
-                    break
-            else:
-                raw = binary_input.readline()
-                if raw == b"":
-                    break
-                try:
-                    source = raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    source = ""
-                    invalid_utf8 = True
-        except OSError as exc:
-            _write_error("invalid_request", f"cannot read standard input: {exc}")
-            return 2
-
-        try:
-            if invalid_utf8:
-                raise RequestError("request line must be valid UTF-8 JSON")
-            response = _measure_source(source)
-        except RequestError as exc:
-            response = _error_document("invalid_request", str(exc))
-        except ProbabilityError as exc:
-            response = _error_document("invalid_probability", str(exc))
-        _write_document(sys.stdout, response)
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
-    if arguments == ["--jsonl"]:
-        return _run_jsonl()
-    if arguments:
-        _write_error("invalid_request", "command-line arguments are not supported")
-        return 2
-    try:
-        response = _measure_source(_read_stdin())
-    except RequestError as exc:
-        _write_error("invalid_request", str(exc))
-        return 2
-    except ProbabilityError as exc:
-        _write_error("invalid_probability", str(exc))
-        return 2
-    _write_document(sys.stdout, response)
-    return 0
+    return run_stdio_application(
+        _measure_source,
+        arguments,
+        error_rules=(
+            (RequestError, "invalid_request"),
+            (ProbabilityError, "invalid_probability"),
+        ),
+    )
 
 
 if __name__ == "__main__":

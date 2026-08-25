@@ -330,14 +330,40 @@ to the exact incumbent and challenger content identities that it executed.
 The gate does not prove model execution, forecast precommitment, inheritance,
 or future improvement.
 
-The `apps/controller` example executes exactly one generation. It sends one
-explicit request to Mutator, obtains both Candidate Runner forecasts before each
-Observer reveal, carries exact content IDs into Forecast Assay, submits aligned
-reports to Selection Gate, and returns the selected candidate as `next_parent`.
-It invokes every component through documented JSON standard streams. It owns no
-hidden draw, arbitrary candidate runtime, persistent lineage, policy update,
-repetition, deployment, or stopping rule. A caller must explicitly submit
-another request to advance another generation.
+The `apps/controller` schema version 1 example executes exactly one fixture
+generation. It sends one explicit request to Mutator, obtains both Candidate
+Runner forecasts before each Observer reveal, carries exact content IDs into
+Forecast Assay, submits aligned reports to Selection Gate, and returns the
+selected candidate as `next_parent`.
+
+Application schema version 2 adds one bounded agent-skill generation without
+changing Metering's installed interfaces. Mutator binds either an explicit
+default-agent artifact or a normalized UTF-8 Agent Skills directory and one
+caller-proposed challenger. Candidate Runner invokes a caller-selected agent
+adapter for both candidates on identical finite task documents and validates a
+complete pre-evaluation outcome forecast. Observer invokes a separate trusted
+evaluator adapter only after both submissions exist. Forecast Assay reports
+named task pass, safety, and forecast-surprisal evidence. Selection Gate applies
+an explicit safety-regression and minimum-pass-improvement policy; it does not
+use lower surprisal as a substitute for task capability. Controller preserves
+candidate IDs and returns one selected artifact.
+
+Version 2 adapters are ordinary caller-selected subprocesses. The controller
+enforces command argument separation, equal task documents, ordering, candidate
+binding, finite timeouts, and report alignment. Adapter implementations own
+agent invocation, hidden verifiers, workspace isolation, model and tool
+settings, token or monetary budgets, and the meanings of `passed` and
+`safety_passed`. The checked-in demo adapters are deterministic protocol test
+doubles. The concrete text-only Pi adapter disables tools and discovered
+resources, then injects only the verified candidate `SKILL.md`; it is not a
+coding sandbox or empirical evidence of improvement. Prime Agent and other
+agents use the same external protocol.
+
+Both controller versions invoke every component through documented JSON
+standard streams. Neither owns a persistent lineage, automatic policy update,
+repetition, installation, deployment, rollback, or stopping rule. A caller must
+explicitly submit another request to advance another generation and must approve
+any installation of `next_parent`.
 
 Application JSONL transports use standard input and output only. Recoverable
 line errors produce an aligned JSON response and leave later requests usable.
@@ -390,20 +416,24 @@ tests/
     test_candidate_runner.py
     test_controller.py
     test_evolution_kernel.py
+    test_agent_evolution.py
 docs/
     README.md
     foundations.md
     theory.md
     history.md
     evolution-kernel.md
+    agent-evolution.md
 apps/
     README.md         application index and composition boundary
-    observer/         non-packaged versioned-sandbox demonstration
-    forecast_assay/   non-packaged agent candidate-measurement adapter
-    mutator/          non-packaged one-locus variation operator
-    candidate_runner/ non-packaged fixed fixture forecast model
-    selection_gate/   non-packaged verified pairwise retention decision
-    controller/       non-packaged one-generation orchestrator
+    agent_protocol.py shared source-only agent artifact and adapter validation
+    stdio_connector.py shared strict JSON decoding, stdio, and subprocess mechanics
+    observer/         fixture observer and trusted task-evaluator boundary
+    forecast_assay/   forecast and task-evidence assay
+    mutator/          finite-genome mutator and skill-artifact binder
+    candidate_runner/ fixture model and external-agent adapter boundary
+    selection_gate/   forecast and task-capability retention policies
+    controller/       fixture and agent-skill one-generation orchestrator
 ```
 
 Add a package module only when a concrete responsibility no longer fits one of
@@ -412,10 +442,12 @@ work.
 
 ## Compatibility
 
-Candidate Runner and Evolution Controller are additive repository-local source
-examples. They do not change the installed Python API, Metering JSON protocol,
-history schema, existing application schemas, or numerical definitions. Their
-version 1 reports are new and have no earlier artifact format to migrate.
+Candidate Runner and Evolution Controller are repository-local source examples.
+Application schema version 2 is additive: every schema version 1 request and
+response remains supported. Version 2 artifacts, reports, and adapter protocols
+are new and have no earlier format to migrate. These application changes do not
+change the installed Python API, Metering JSON protocol, history schema, or
+numerical definitions.
 
 This scope reset intentionally removes the previous hidden-fault world,
 actions, policies, controller, calibration, reports, general trace/replay
@@ -450,6 +482,10 @@ The rewrite is complete only when:
 - repository-local applications use only public Metering boundaries, make
   their caller-owned probability model explicit, and keep JSONL requests
   sequential with one flushed response per input line;
+- identical canonical-JSON decoding, standard-stream serving, and one-shot
+  subprocess mechanics in the composable stdin apps have one shared source
+  owner, while app-specific schemas, independently copyable examples,
+  mathematics, and error policy remain local;
 - the Mutator changes exactly one legal locus, uses an explicit caller-owned
   draw, and reports Metering entropy and selected-mutation self-information;
 - Forecast Assay rejects unsupported schema versions and Selection Gate requires
@@ -458,9 +494,22 @@ The rewrite is complete only when:
 - Candidate Runner verifies Mutator content identity, constructs a normalized
   result forecast without receiving the active fixture, and exposes its exact
   fixture probability model;
-- the one-generation controller obtains both forecasts before each Observer
+- the schema version 1 controller obtains both forecasts before each Observer
   reveal, carries Mutator content IDs through Forecast Assay and Selection Gate,
   and returns the selected candidate without claiming an autonomous loop;
+- schema version 2 binds normalized default-agent or UTF-8 skill artifacts to
+  content IDs and rejects escaping, duplicate, or ambiguous paths;
+- schema version 2 runs parent and challenger adapters on identical case
+  documents before a separate evaluator command receives either submission,
+  rejects malformed adapter output, and terminates timed-out POSIX process
+  groups rather than leaking ordinary descendants;
+- schema version 2 Forecast Assay verifies reported forecast entropy, recomputes
+  target self-information, and keeps pass and safety evidence separately named;
+- schema version 2 Selection Gate rejects a configured safety regression and
+  requires the declared integer pass-count improvement rather than selecting on
+  forecast calibration;
+- the agent-skill controller returns only the parent or challenger artifact and
+  performs no installation, repetition, or unsupported improvement claim;
 - the full test suite and package build pass.
 
 ## Source

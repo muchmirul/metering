@@ -1,5 +1,10 @@
 # Evolution Controller agent protocol
 
+This page specifies fixture generation schema version 1. General agent-skill
+generation schema version 2 is specified in the
+[agent-skill evolution protocol](../../../docs/agent-evolution.md) and uses the
+same one-shot and JSONL transports.
+
 ## Transport
 
 Default mode reads one strict UTF-8 JSON object, executes one generation, writes

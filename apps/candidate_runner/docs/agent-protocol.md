@@ -1,5 +1,10 @@
 # Candidate Runner agent protocol
 
+This page specifies fixture-model schema version 1. External agent-adapter
+schema version 2 is specified in the
+[agent-skill evolution protocol](../../../docs/agent-evolution.md) and uses the
+same one-shot and JSONL transports.
+
 ## Transport
 
 Default mode reads one strict UTF-8 JSON object from standard input, writes one

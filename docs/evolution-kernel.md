@@ -45,12 +45,18 @@ observation result is not a mutation. A mutation is not improvement. An assay
 measurement is not selection. A selection response is not inheritance until a
 controller explicitly returns it as the next parent.
 
-[`apps/controller/controller.py`](../apps/controller/controller.py) now executes
-that one-generation boundary through the applications' documented
-standard-stream protocols. Its Candidate Runner is intentionally concrete: one
-declared probability model over the four Observer fixtures, not an arbitrary
-model adapter. [`tests/test_controller.py`](../tests/test_controller.py) verifies the
-complete process. The older
+[`apps/controller/controller.py`](../apps/controller/controller.py) executes
+that one-generation boundary through documented standard-stream protocols.
+Schema version 1 remains intentionally concrete: one declared probability model
+over the four Observer fixtures. Schema version 2 adds content-identified skill
+artifacts and caller-selected agent and evaluator commands while preserving the
+same ordering and identity boundaries. Its task gate selects on explicit pass
+and safety evidence; forecast surprisal remains separately named calibration
+evidence. See the [agent-skill evolution protocol](agent-evolution.md).
+
+[`tests/test_controller.py`](../tests/test_controller.py) verifies the fixture
+process, [`tests/test_agent_evolution.py`](../tests/test_agent_evolution.py)
+verifies the agent-skill process, and
 [`tests/test_evolution_kernel.py`](../tests/test_evolution_kernel.py) retains the
 smaller content-ID composition check.
 
@@ -110,16 +116,18 @@ complete normalized forecasts before target reveal, compare candidates on
 identical cases and budgets, keep environment-specific results separate, and
 reserve fresh final cases that are not repeatedly reused for selection.
 
-The six applications therefore form one auditable generation example, not an
-autonomous self-evolving agent. Repetition and every policy update remain an
-explicit caller decision.
+The six applications therefore form auditable one-generation boundaries, not
+an autonomous self-evolving agent. Repetition, installation, and every policy
+update remain explicit caller decisions. In schema version 2, external adapters
+also own sandboxing, hidden-test isolation, model and tool settings, and budgets
+beyond the enforced wall-clock timeout.
 
 ## Composition hypothesis
 
 The engineering hypothesis is that keeping variation, forecast expression,
 target reveal, assay, retention, and one-generation orchestration as strict
 separate processes makes causal ordering, identity swaps, and evidence mismatch
-observable without adding a general agent framework.
+observable without adding an agent framework to the installed Metering package.
 
 It is falsified by any successful generation that captures a forecast after its
 target reveal, loses the Mutator parent/child content binding, compares different

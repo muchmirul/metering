@@ -1,12 +1,11 @@
 # Candidate Runner
 
-`candidate_runner.py` gives one concrete executable meaning to a narrow Mutator
-genome. It produces a complete probability distribution over the results of one
-public Observer probe without receiving the active version or the revealed
-result.
+`candidate_runner.py` supports two source-only execution boundaries. Schema
+version 1 gives one concrete meaning to the fixture Mutator genome. Schema
+version 2 materializes a content-identified Agent Skills artifact and invokes a
+caller-selected external agent adapter before trusted evaluation.
 
-It is source-only example code, not a generic model runtime and not part of the
-installed `metering` package.
+It is not part of the installed `metering` package.
 
 ## Model
 
@@ -88,12 +87,31 @@ The fixture mapping is deliberately duplicated as the candidate's declared
 model. The runner never reads Observer's active sandbox. Tests compare this
 model with the public Observer behavior so drift fails visibly.
 
-The runner supports only this finite demonstration genome and probe catalogue.
-Each request derives its distribution from the supplied genome and does not
-condition on an earlier observation or request. It does not execute arbitrary
-code, load models, learn
-probabilities, mutate, observe, select, persist state, or prove that a caller
-obtained the forecast before target reveal.
+Schema version 1 supports only this finite demonstration genome and probe
+catalogue. Each request derives its distribution from the supplied genome and
+does not condition on an earlier request.
+
+Schema version 2 calls an explicit adapter command without a shell. The adapter
+receives a temporary skill path (or `null` for the default agent), candidate ID,
+and public task document. It returns one JSON submission and a complete
+normalized forecast over evaluator-owned outcomes. Candidate Runner validates
+that forecast through Metering before Observer invokes the evaluator. This is
+the Pi/Prime integration seam; agent SDKs do not enter Metering.
+
+The checked-in `pi_text_adapter.py` is a concrete read-only Pi integration for
+text-response tasks. It disables discovered skills, context, extensions, tools,
+and session persistence. Because Pi normally discloses full skill text through
+the disabled `read` tool, the adapter explicitly injects the verified
+materialized `SKILL.md` into Pi's system prompt while registering that skill.
+Referenced scripts and assets are not exposed. Pin the Pi model and provider in
+the runner environment or a reviewed wrapper command. The adapter requires Pi
+to return a strict JSON submission and forecast. It is not suitable for coding
+tasks that need tools or a mutable workspace. Prime Agent and tool-enabled Pi
+runners implement the same adapter JSON boundary externally.
+
+Adapter commands execute with caller permissions. They own agent configuration,
+workspace isolation, tools, model budgets, and submission semantics. See the
+[agent-skill protocol](../../docs/agent-evolution.md).
 
 ## Documentation
 

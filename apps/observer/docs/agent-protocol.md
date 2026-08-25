@@ -1,5 +1,9 @@
 # External-agent JSONL protocol
 
+This page specifies the fixture-session protocol. Observer's separate one-shot
+`--evaluate` boundary for schema version 2 agent tasks is specified in the
+[agent-skill evolution protocol](../../../docs/agent-evolution.md).
+
 ## Status
 
 Protocol version 1 is implemented by `apps/observer/observer.py --jsonl`.

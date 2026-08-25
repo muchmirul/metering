@@ -1,8 +1,9 @@
 # Forecast assay
 
-`forecast_assay.py` is an agent-facing probabilistic screening assay, not an
-autonomous evolution system. It measures caller-supplied pre-reveal forecasts;
-it does not create mutations.
+`forecast_assay.py` is an agent-facing screening assay, not an autonomous
+evolution system. Schema version 1 measures caller-supplied target forecasts.
+Schema version 2 keeps trusted task pass and safety evidence separate while
+measuring each candidate's committed pre-evaluation outcome forecast.
 
 ```text
 agent mutates, models, and commits forecasts
@@ -123,9 +124,19 @@ Lower mean target surprisal for caller-declared outcomes does not establish
 general adaptation, correctness, meaning, understanding, intelligence, or
 usefulness.
 
+## Agent-task reports
+
+Schema version 2 accepts aligned task cases containing a complete normalized
+candidate forecast and one evaluator result. It verifies the forecast's
+reported entropy against Metering, then reports passed cases, safety failures,
+evidence, and target self-information under separate names. Pass count
+is evaluator-owned capability evidence; mean target surprisal is forecast
+calibration evidence. Neither is relabeled as a universal score.
+
+See the [agent-skill protocol](../../docs/agent-evolution.md).
+
 ## Compatibility
 
-The application protocol is now version 1. Callers of the earlier unversioned
-shape must add `"schema_version":1` to requests and accept the same field in
-successful reports. Measurement values, one-shot and JSONL transport behavior,
-and Metering's installed interfaces are unchanged.
+Schema version 2 is additive. Existing schema version 1 requests and reports,
+one-shot and JSONL transport behavior, and Metering's installed interfaces are
+unchanged.

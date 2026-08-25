@@ -7,9 +7,10 @@ import math
 import selectors
 import subprocess
 import sys
+from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-
+from typing import cast
 
 SCHEMA_VERSION = 1
 COMPONENT_TIMEOUT_SECONDS = 10
@@ -20,6 +21,32 @@ MUTATOR = "apps/mutator/mutator.py"
 OBSERVER = "apps/observer/observer.py"
 SELECTION_GATE = "apps/selection_gate/selection_gate.py"
 
+APPS_ROOT = ROOT / "apps"
+if str(APPS_ROOT) not in sys.path:
+    sys.path.insert(0, str(APPS_ROOT))
+
+from agent_protocol import (  # noqa: E402
+    AGENT_SCHEMA_VERSION,
+    ProtocolError,
+    decode_candidate,
+    decode_candidate_run,
+    decode_command,
+    decode_observer_evaluation,
+    decode_task,
+    normalize_json_value,
+    require_exact_keys,
+    require_nonempty_string,
+    require_schema_version,
+    require_timeout,
+)
+from stdio_connector import (  # noqa: E402
+    JsonProcessError,
+    canonical_json,
+    decode_json_object,
+    run_json_process,
+    run_stdio_application,
+)
+
 
 class RequestError(ValueError):
     """Raised when a controller request violates its protocol."""
@@ -29,26 +56,20 @@ class ControllerError(RuntimeError):
     """Raised when a component or composition invariant fails."""
 
 
-def canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        allow_nan=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+@dataclass(frozen=True)
+class AgentComponent:
+    command: list[str]
+    timeout_seconds: int
 
 
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise RequestError(f"duplicate key: {key}")
-        result[key] = value
-    return result
-
-
-def _reject_non_finite(token: str) -> object:
-    raise RequestError(f"non-finite number is not valid JSON: {token}")
+@dataclass(frozen=True)
+class AgentGenerationRequest:
+    evaluation: str
+    mutation_request: dict[str, object]
+    tasks: list[dict[str, object]]
+    runner: AgentComponent
+    evaluator: AgentComponent
+    selection_policy: dict[str, object]
 
 
 def _parse_json_number(token: str) -> float:
@@ -70,24 +91,11 @@ def _parse_json_number(token: str) -> float:
 
 
 def _decode_json(source: str) -> dict[str, object]:
-    if not source.strip():
-        raise RequestError("stdin must contain one JSON object")
-    try:
-        request = json.loads(
-            source,
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_non_finite,
-            parse_float=_parse_json_number,
-        )
-    except RequestError:
-        raise
-    except json.JSONDecodeError as exc:
-        raise RequestError(f"invalid JSON: {exc.msg}") from exc
-    except (RecursionError, ValueError) as exc:
-        raise RequestError(f"invalid JSON: {exc}") from exc
-    if type(request) is not dict:
-        raise RequestError("request must be one JSON object")
-    return request
+    return decode_json_object(
+        source,
+        RequestError,
+        parse_float=_parse_json_number,
+    )
 
 
 def _require_exact_keys(
@@ -240,28 +248,34 @@ def _component_non_finite(name: str, token: str) -> object:
 
 
 def _run_component(
-    name: str, relative_path: str, request: dict[str, object]
+    name: str,
+    relative_path: str,
+    request: dict[str, object],
+    *,
+    arguments: tuple[str, ...] = (),
+    timeout_seconds: int = COMPONENT_TIMEOUT_SECONDS,
 ) -> dict[str, object]:
+    command = [sys.executable, str(ROOT / relative_path), *arguments]
     try:
-        completed = subprocess.run(
-            [sys.executable, str(ROOT / relative_path)],
+        source = run_json_process(
+            command,
+            request,
             cwd=ROOT,
-            input=canonical_json(request) + "\n",
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=COMPONENT_TIMEOUT_SECONDS,
+            timeout_seconds=timeout_seconds,
         )
-    except subprocess.TimeoutExpired as exc:
-        raise ControllerError(f"{name} exceeded the component timeout") from exc
-    except OSError as exc:
-        raise ControllerError(f"cannot start {name}: {exc}") from exc
-    if completed.returncode != 0:
-        detail = _component_error_detail(completed.stderr, completed.returncode)
-        raise ControllerError(f"{name} failed: {detail}")
-    if completed.stderr:
-        raise ControllerError(f"{name} wrote unexpected standard error")
-    return _decode_component_output(name, completed.stdout)
+    except JsonProcessError as error:
+        if error.kind == "timeout":
+            message = f"{name} exceeded the component timeout"
+        elif error.kind == "start":
+            message = f"cannot start {name}: {error.detail}"
+        elif error.kind == "exit":
+            returncode = error.returncode if error.returncode is not None else 1
+            detail = _component_error_detail(error.stderr, returncode)
+            message = f"{name} failed: {detail}"
+        else:
+            message = f"{name} wrote unexpected standard error"
+        raise ControllerError(message) from error
+    return _decode_component_output(name, source)
 
 
 def _require_component_object(
@@ -698,96 +712,303 @@ def run_generation(
     }
 
 
-def _error_document(code: str, message: str) -> dict[str, object]:
-    return {"error": {"code": code, "message": message}}
-
-
-def _write_document(stream: object, document: dict[str, object]) -> None:
-    stream.write(canonical_json(document) + "\n")
-    stream.flush()
-
-
-def _write_error(code: str, message: str) -> None:
-    _write_document(sys.stderr, _error_document(code, message))
-
-
-def _read_stdin() -> str:
-    stream = getattr(sys.stdin, "buffer", None)
-    if stream is None:
-        return sys.stdin.read()
+def _decode_agent_component(value: object, location: str) -> AgentComponent:
+    if type(value) is not dict:
+        raise RequestError(f"{location} must be a JSON object")
     try:
-        return stream.read().decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise RequestError("standard input must be valid UTF-8 JSON") from exc
+        require_exact_keys(value, {"command", "timeout_seconds"}, location)
+        command = decode_command(value["command"], f"{location}.command")
+        timeout = require_timeout(
+            value["timeout_seconds"], f"{location}.timeout_seconds"
+        )
+    except ProtocolError as exc:
+        raise RequestError(str(exc)) from exc
+    return AgentComponent(command=command, timeout_seconds=timeout)
+
+
+def _decode_agent_generation_request(
+    request: dict[str, object],
+) -> AgentGenerationRequest:
+    try:
+        require_exact_keys(
+            request,
+            {
+                "schema_version",
+                "evaluation",
+                "mutation_request",
+                "tasks",
+                "runner",
+                "evaluator",
+                "selection_policy",
+            },
+            "schema_version 2 request",
+        )
+        require_schema_version(request["schema_version"])
+        evaluation = require_nonempty_string(request["evaluation"], "evaluation")
+        mutation_request = request["mutation_request"]
+        if type(mutation_request) is not dict:
+            raise ProtocolError("mutation_request must be a JSON object")
+        require_schema_version(
+            mutation_request.get("schema_version"),
+            "mutation_request.schema_version",
+        )
+        raw_tasks = request["tasks"]
+        if type(raw_tasks) is not list or not raw_tasks:
+            raise ProtocolError("tasks must be a non-empty JSON array")
+        tasks: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for index, raw_task in enumerate(raw_tasks):
+            location = f"tasks[{index}]"
+            task = decode_task(raw_task, location)
+            case_id = str(task["case_id"])
+            if case_id in seen:
+                raise ProtocolError(f"duplicate task case identifier: {case_id}")
+            seen.add(case_id)
+            tasks.append(task)
+        selection_policy = request["selection_policy"]
+        if type(selection_policy) is not dict:
+            raise ProtocolError("selection_policy must be a JSON object")
+        selection_policy = normalize_json_value(selection_policy, "selection_policy")
+    except ProtocolError as exc:
+        raise RequestError(str(exc)) from exc
+
+    return AgentGenerationRequest(
+        evaluation=evaluation,
+        mutation_request=mutation_request,
+        tasks=tasks,
+        runner=_decode_agent_component(request["runner"], "runner"),
+        evaluator=_decode_agent_component(request["evaluator"], "evaluator"),
+        selection_policy=selection_policy,
+    )
+
+
+def _agent_candidate_record(
+    mutation: dict[str, object], role: str
+) -> dict[str, object]:
+    try:
+        return decode_candidate(mutation.get(role), f"Mutator {role}")
+    except ProtocolError as exc:
+        raise ControllerError(str(exc)) from exc
+
+
+def _validated_agent_run(
+    value: object,
+    candidate_id: str,
+    task: dict[str, object],
+    role: str,
+) -> dict[str, object]:
+    location = f"Candidate Runner {role} response"
+    try:
+        run = decode_candidate_run(value, location)
+    except ProtocolError as exc:
+        raise ControllerError(str(exc)) from exc
+    if run["candidate_id"] != candidate_id:
+        raise ControllerError(f"Candidate Runner changed the {role} candidate ID")
+    if run["task"] != task:
+        raise ControllerError(f"Candidate Runner changed the {role} task")
+    return run
+
+
+def _validated_observer_evaluation(
+    value: object,
+    expected_ids: set[str],
+    task: dict[str, object],
+    evaluation: str,
+) -> tuple[dict[str, object], dict[str, dict[str, object]]]:
+    try:
+        observation = decode_observer_evaluation(value, "Observer response")
+    except ProtocolError as exc:
+        raise ControllerError(str(exc)) from exc
+    if observation["case_id"] != task["case_id"]:
+        raise ControllerError("Observer changed the task case ID")
+    if observation["evaluation"] != evaluation:
+        raise ControllerError("Observer changed the evaluation identifier")
+
+    result_documents = cast(list[dict[str, object]], observation["results"])
+    results = {str(result["candidate_id"]): result for result in result_documents}
+    if set(results) != expected_ids:
+        raise ControllerError("Observer returned an unknown candidate ID")
+    return observation, results
+
+
+def _run_agent_candidate(
+    candidate: dict[str, object],
+    task: dict[str, object],
+    runner: AgentComponent,
+    role: str,
+) -> dict[str, object]:
+    candidate_id = str(candidate["candidate_id"])
+    response = _run_component(
+        "Candidate Runner",
+        CANDIDATE_RUNNER,
+        {
+            "adapter_command": runner.command,
+            "candidate": candidate,
+            "schema_version": AGENT_SCHEMA_VERSION,
+            "task": task,
+            "timeout_seconds": runner.timeout_seconds,
+        },
+        timeout_seconds=runner.timeout_seconds + COMPONENT_TIMEOUT_SECONDS,
+    )
+    return _validated_agent_run(response, candidate_id, task, role)
+
+
+def _run_agent_case(
+    request: AgentGenerationRequest,
+    task: dict[str, object],
+    incumbent: dict[str, object],
+    challenger: dict[str, object],
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    incumbent_id = str(incumbent["candidate_id"])
+    challenger_id = str(challenger["candidate_id"])
+    incumbent_run = _run_agent_candidate(incumbent, task, request.runner, "incumbent")
+    challenger_run = _run_agent_candidate(
+        challenger, task, request.runner, "challenger"
+    )
+
+    observation = _run_component(
+        "Observer",
+        OBSERVER,
+        {
+            "case": task,
+            "challenger_run": challenger_run,
+            "evaluation": request.evaluation,
+            "evaluator_command": request.evaluator.command,
+            "incumbent_run": incumbent_run,
+            "schema_version": AGENT_SCHEMA_VERSION,
+            "timeout_seconds": request.evaluator.timeout_seconds,
+        },
+        arguments=("--evaluate",),
+        timeout_seconds=(request.evaluator.timeout_seconds + COMPONENT_TIMEOUT_SECONDS),
+    )
+    observation, results = _validated_observer_evaluation(
+        observation,
+        {incumbent_id, challenger_id},
+        task,
+        request.evaluation,
+    )
+    trace = {
+        "challenger_run": challenger_run,
+        "incumbent_run": incumbent_run,
+        "observer_evaluation": observation,
+        "task": task,
+    }
+    incumbent_case = {
+        "case_id": task["case_id"],
+        "forecast": incumbent_run["forecast"],
+        "result": results[incumbent_id],
+    }
+    challenger_case = {
+        "case_id": task["case_id"],
+        "forecast": challenger_run["forecast"],
+        "result": results[challenger_id],
+    }
+    return trace, incumbent_case, challenger_case
+
+
+def _assay_agent_candidate(
+    candidate_id: str,
+    cases: list[dict[str, object]],
+    evaluation: str,
+) -> dict[str, object]:
+    return _run_component(
+        "Forecast Assay",
+        FORECAST_ASSAY,
+        {
+            "candidate": candidate_id,
+            "cases": cases,
+            "evaluation": evaluation,
+            "schema_version": AGENT_SCHEMA_VERSION,
+        },
+    )
+
+
+def run_agent_generation(request: AgentGenerationRequest) -> dict[str, object]:
+    mutation = _run_component("Mutator", MUTATOR, request.mutation_request)
+    if mutation.get("schema_version") != AGENT_SCHEMA_VERSION:
+        raise ControllerError(
+            f"Mutator did not return schema version {AGENT_SCHEMA_VERSION}"
+        )
+    incumbent = _agent_candidate_record(mutation, "parent")
+    challenger = _agent_candidate_record(mutation, "child")
+    incumbent_id = str(incumbent["candidate_id"])
+    challenger_id = str(challenger["candidate_id"])
+    if incumbent_id == challenger_id:
+        raise ControllerError("Mutator returned identical parent and child IDs")
+
+    traces: list[dict[str, object]] = []
+    incumbent_cases: list[dict[str, object]] = []
+    challenger_cases: list[dict[str, object]] = []
+    for task in request.tasks:
+        trace, incumbent_case, challenger_case = _run_agent_case(
+            request, task, incumbent, challenger
+        )
+        traces.append(trace)
+        incumbent_cases.append(incumbent_case)
+        challenger_cases.append(challenger_case)
+
+    incumbent_report = _assay_agent_candidate(
+        incumbent_id, incumbent_cases, request.evaluation
+    )
+    challenger_report = _assay_agent_candidate(
+        challenger_id, challenger_cases, request.evaluation
+    )
+    selection = _run_component(
+        "Selection Gate",
+        SELECTION_GATE,
+        {
+            "challenger_report": challenger_report,
+            "incumbent_report": incumbent_report,
+            "policy": request.selection_policy,
+            "schema_version": AGENT_SCHEMA_VERSION,
+        },
+    )
+    selected = selection.get("selected")
+    if selected == incumbent_id:
+        next_parent = incumbent
+    elif selected == challenger_id:
+        next_parent = challenger
+    else:
+        raise ControllerError("Selection Gate returned an unknown candidate ID")
+
+    return {
+        "cases": traces,
+        "challenger_report": challenger_report,
+        "evaluation": request.evaluation,
+        "incumbent_report": incumbent_report,
+        "mutation": mutation,
+        "next_parent": next_parent,
+        "schema_version": AGENT_SCHEMA_VERSION,
+        "selection": selection,
+    }
 
 
 def _process(source: str) -> dict[str, object]:
+    request = _decode_json(source)
+    if request.get("schema_version") == AGENT_SCHEMA_VERSION:
+        generation = _decode_agent_generation_request(request)
+        return run_agent_generation(generation)
     active, evaluation, mutation, probes, threshold = decode_request(source)
     return run_generation(active, evaluation, mutation, probes, threshold)
 
 
-def _run_jsonl() -> int:
-    binary_input = getattr(sys.stdin, "buffer", None)
-    while True:
-        invalid_utf8 = False
-        try:
-            if binary_input is None:
-                source = sys.stdin.readline()
-                if source == "":
-                    break
-            else:
-                raw = binary_input.readline()
-                if raw == b"":
-                    break
-                try:
-                    source = raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    source = ""
-                    invalid_utf8 = True
-        except OSError as exc:
-            _write_error("controller_error", f"cannot read standard input: {exc}")
-            return 2
-
-        try:
-            if invalid_utf8:
-                raise RequestError("request line must be valid UTF-8 JSON")
-            response = _process(source)
-        except RequestError as exc:
-            response = _error_document("invalid_request", str(exc))
-        except ControllerError as exc:
-            response = _error_document("controller_error", str(exc))
-        except Exception as exc:
-            detail = str(exc) or type(exc).__name__
-            response = _error_document(
-                "controller_error", f"internal controller failure: {detail}"
-            )
-        _write_document(sys.stdout, response)
-    return 0
+def _unexpected_controller_error(error: Exception) -> tuple[str, str]:
+    detail = str(error) or type(error).__name__
+    return "controller_error", f"internal controller failure: {detail}"
 
 
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
-    if arguments == ["--jsonl"]:
-        return _run_jsonl()
-    if arguments:
-        _write_error("invalid_request", "command-line arguments are not supported")
-        return 2
-    try:
-        response = _process(_read_stdin())
-    except RequestError as exc:
-        _write_error("invalid_request", str(exc))
-        return 2
-    except ControllerError as exc:
-        _write_error("controller_error", str(exc))
-        return 2
-    except Exception as exc:
-        detail = str(exc) or type(exc).__name__
-        _write_error(
-            "controller_error", f"internal controller failure: {detail}"
-        )
-        return 2
-    _write_document(sys.stdout, response)
-    return 0
+    return run_stdio_application(
+        _process,
+        arguments,
+        error_rules=(
+            (RequestError, "invalid_request"),
+            (ControllerError, "controller_error"),
+        ),
+        unexpected=_unexpected_controller_error,
+        stream_error_code="controller_error",
+    )
 
 
 if __name__ == "__main__":

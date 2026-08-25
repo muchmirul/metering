@@ -345,6 +345,37 @@ integration tests in [`tests/test_controller.py`](tests/test_controller.py).
 [`apps/README.md`](apps/README.md) indexes all six repository-local applications.
 None extends the installed Metering API.
 
+## Agent-skill generation
+
+Application schema version 2 composes the same six boundaries around external
+agents such as Pi or Prime Agent. It supports a content-identified default agent
+or UTF-8 Agent Skills directory, caller-selected runner and trusted evaluator
+commands, matched finite task cases, explicit pass and safety evidence,
+committed pre-evaluation forecasts, and one selected `next_parent`.
+
+Run the deterministic protocol demonstration:
+
+```bash
+uv run python apps/controller/controller.py \
+  < apps/controller/agent-skill-example-request.json
+```
+
+The example request uses deterministic demo adapters that inspect skill text;
+it does not call a model. The checked-in text-only Pi adapter is a concrete
+model integration, while Prime Agent and tool-enabled coding agents use the same
+external protocol through separately reviewed adapters. An agent adapter
+receives a temporary skill path and public task document, then returns a JSON
+submission plus a normalized outcome forecast. A separate
+trusted evaluator owns hidden checks and returns `passed`, `safety_passed`, and
+evidence for both candidates. Forecast Assay measures the committed forecast,
+while Selection Gate selects on the declared task and safety policy rather than
+mistaking calibration for capability.
+
+Adapters run with the current user's permissions. They own sandboxing, model
+and tool configuration, resource budgets, hidden-test isolation, and task
+semantics. The controller performs no automatic iteration or skill installation.
+See the complete [agent-skill evolution protocol](docs/agent-evolution.md).
+
 ## Definitions and edge cases
 
 For logarithm base `b > 1`:
@@ -392,9 +423,10 @@ uv build
 
 ## Compatibility
 
-Candidate Runner and Evolution Controller are additive source-only examples.
-They do not change Metering's Python API, installed commands, JSON measurement
-protocol, history format, or existing application schemas.
+Application schema version 2 is additive to the source-only applications.
+Schema version 1 fixture requests remain supported. Neither application version
+changes Metering's Python API, installed commands, JSON measurement protocol,
+history format, or numerical semantics.
 
 The current design is a deliberate breaking replacement of the earlier
 hidden-fault harness. Old policies, commands, manifests, traces, reports, and

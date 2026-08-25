@@ -2,14 +2,31 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 import sys
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+from pathlib import Path
 
 from metering import ProbabilityError, entropy, self_information
 
+APPS_ROOT = Path(__file__).resolve().parents[1]
+if str(APPS_ROOT) not in sys.path:
+    sys.path.insert(0, str(APPS_ROOT))
+
+from agent_protocol import (  # noqa: E402
+    AGENT_SCHEMA_VERSION,
+    CANDIDATE_SCHEMA,
+    ProtocolError,
+    candidate_record,
+    changed_artifact_paths,
+    require_schema_version,
+)
+from stdio_connector import (  # noqa: E402
+    canonical_digest,
+    canonical_json,
+    decode_json_object,
+    run_stdio_application,
+)
 
 SCHEMA_VERSION = 1
 MAX_SAFE_INTEGER = 2**53 - 1
@@ -19,51 +36,8 @@ class RequestError(ValueError):
     """Raised when a mutator request does not match the application contract."""
 
 
-def canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        allow_nan=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-
-
-def digest(value: object) -> str:
-    return hashlib.sha256(canonical_json(value).encode("ascii")).hexdigest()
-
-
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise RequestError(f"duplicate key: {key}")
-        result[key] = value
-    return result
-
-
-def _reject_non_finite(token: str) -> object:
-    raise RequestError(f"non-finite number is not valid JSON: {token}")
-
-
 def _decode_json(source: str) -> dict[str, object]:
-    if not source.strip():
-        raise RequestError("stdin must contain one JSON object")
-    try:
-        request = json.loads(
-            source,
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_non_finite,
-            parse_float=Decimal,
-        )
-    except RequestError:
-        raise
-    except json.JSONDecodeError as exc:
-        raise RequestError(f"invalid JSON: {exc.msg}") from exc
-    except (InvalidOperation, RecursionError, ValueError) as exc:
-        raise RequestError(f"invalid JSON: {exc}") from exc
-    if type(request) is not dict:
-        raise RequestError("request must be one JSON object")
-    return request
+    return decode_json_object(source, RequestError, parse_float=Decimal)
 
 
 def _require_exact_keys(
@@ -329,28 +303,28 @@ def mutate(
     child = dict(parent)
     child[locus] = after
 
-    catalogue_id = digest(
+    catalogue_id = canonical_digest(
         {
             "catalogue": normalized_catalogue,
             "genome_schema": "flat-json-atoms-v1",
             "schema_version": SCHEMA_VERSION,
         }
     )
-    parent_id = digest(
+    parent_id = canonical_digest(
         {
             "genome": parent,
             "genome_schema": "flat-json-atoms-v1",
             "schema_version": SCHEMA_VERSION,
         }
     )
-    child_id = digest(
+    child_id = canonical_digest(
         {
             "genome": child,
             "genome_schema": "flat-json-atoms-v1",
             "schema_version": SCHEMA_VERSION,
         }
     )
-    mutation_id = digest(
+    mutation_id = canonical_digest(
         {
             "after": after,
             "before": before,
@@ -385,85 +359,79 @@ def mutate(
     }
 
 
-def _error_document(code: str, message: str) -> dict[str, object]:
-    return {"error": {"code": code, "message": message}}
-
-
-def _write_document(stream: object, document: dict[str, object]) -> None:
-    stream.write(canonical_json(document) + "\n")
-    stream.flush()
-
-
-def _write_error(code: str, message: str) -> None:
-    _write_document(sys.stderr, _error_document(code, message))
-
-
-def _read_stdin() -> str:
-    stream = getattr(sys.stdin, "buffer", None)
-    if stream is None:
-        return sys.stdin.read()
+def _mutate_skill_artifact(request: dict[str, object]) -> dict[str, object]:
+    _require_exact_keys(
+        request,
+        {
+            "schema_version",
+            "parent_artifact",
+            "challenger_artifact",
+            "proposal",
+        },
+        "request",
+    )
     try:
-        return stream.read().decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise RequestError("standard input must be valid UTF-8 JSON") from exc
+        require_schema_version(request["schema_version"])
+    except ProtocolError as exc:
+        raise RequestError(str(exc)) from exc
+    proposal = request["proposal"]
+    if type(proposal) is not dict:
+        raise RequestError("proposal must be a JSON object")
+    _require_exact_keys(proposal, {"producer", "reason"}, "proposal")
+    producer = _require_nonempty_string(proposal["producer"], "proposal.producer")
+    reason = _require_nonempty_string(proposal["reason"], "proposal.reason")
+    try:
+        parent = candidate_record(request["parent_artifact"], "parent_artifact")
+        challenger = candidate_record(
+            request["challenger_artifact"], "challenger_artifact"
+        )
+        changed_paths = changed_artifact_paths(parent, challenger)
+    except ProtocolError as exc:
+        raise RequestError(str(exc)) from exc
+    if not changed_paths:
+        raise RequestError("challenger_artifact must differ from parent_artifact")
+
+    proposal_id = canonical_digest(
+        {
+            "challenger_candidate_id": challenger["candidate_id"],
+            "parent_candidate_id": parent["candidate_id"],
+            "producer": producer,
+            "reason": reason,
+            "schema_version": AGENT_SCHEMA_VERSION,
+        }
+    )
+    return {
+        "candidate_schema": CANDIDATE_SCHEMA,
+        "child": challenger,
+        "mutation": {
+            "changed_paths": changed_paths,
+            "producer": producer,
+            "proposal_id": proposal_id,
+            "reason": reason,
+        },
+        "parent": parent,
+        "schema_version": AGENT_SCHEMA_VERSION,
+    }
 
 
 def _process(source: str) -> dict[str, object]:
+    request = _decode_json(source)
+    if request.get("schema_version") == AGENT_SCHEMA_VERSION:
+        return _mutate_skill_artifact(request)
     normalized_catalogue, _, parent, distribution, draw = decode_request(source)
     return mutate(normalized_catalogue, parent, distribution, draw)
 
 
-def _run_jsonl() -> int:
-    binary_input = getattr(sys.stdin, "buffer", None)
-    while True:
-        invalid_utf8 = False
-        try:
-            if binary_input is None:
-                source = sys.stdin.readline()
-                if source == "":
-                    break
-            else:
-                raw = binary_input.readline()
-                if raw == b"":
-                    break
-                try:
-                    source = raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    source = ""
-                    invalid_utf8 = True
-        except OSError as exc:
-            _write_error("invalid_request", f"cannot read standard input: {exc}")
-            return 2
-
-        try:
-            if invalid_utf8:
-                raise RequestError("request line must be valid UTF-8 JSON")
-            response = _process(source)
-        except RequestError as exc:
-            response = _error_document("invalid_request", str(exc))
-        except ProbabilityError as exc:
-            response = _error_document("invalid_probability", str(exc))
-        _write_document(sys.stdout, response)
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
-    if arguments == ["--jsonl"]:
-        return _run_jsonl()
-    if arguments:
-        _write_error("invalid_request", "command-line arguments are not supported")
-        return 2
-    try:
-        response = _process(_read_stdin())
-    except RequestError as exc:
-        _write_error("invalid_request", str(exc))
-        return 2
-    except ProbabilityError as exc:
-        _write_error("invalid_probability", str(exc))
-        return 2
-    _write_document(sys.stdout, response)
-    return 0
+    return run_stdio_application(
+        _process,
+        arguments,
+        error_rules=(
+            (RequestError, "invalid_request"),
+            (ProbabilityError, "invalid_probability"),
+        ),
+    )
 
 
 if __name__ == "__main__":

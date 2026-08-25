@@ -2,15 +2,42 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 import re
 import sys
-from decimal import Decimal, InvalidOperation
+import tempfile
+from decimal import Decimal
+from pathlib import Path
+from typing import cast
 
 from metering import ProbabilityError, entropy
 
+ROOT = Path(__file__).resolve().parents[2]
+APPS_ROOT = Path(__file__).resolve().parents[1]
+if str(APPS_ROOT) not in sys.path:
+    sys.path.insert(0, str(APPS_ROOT))
+
+from agent_protocol import (  # noqa: E402
+    ADAPTER_PROTOCOL_VERSION,
+    AGENT_SCHEMA_VERSION,
+    DEFAULT_ARTIFACT_SCHEMA,
+    ProtocolError,
+    decode_candidate,
+    decode_command,
+    decode_forecast_outcomes,
+    decode_task,
+    materialize_skill,
+    require_exact_keys,
+    require_schema_version,
+    require_timeout,
+    run_adapter,
+)
+from stdio_connector import (  # noqa: E402
+    canonical_digest,
+    canonical_json,
+    decode_json_object,
+    run_stdio_application,
+)
 
 SCHEMA_VERSION = 1
 RUNNER_MODEL = "observer-fixture-hypothesis-v1"
@@ -31,51 +58,8 @@ class RequestError(ValueError):
     """Raised when a runner request violates the application contract."""
 
 
-def canonical_json(value: object) -> str:
-    return json.dumps(
-        value,
-        allow_nan=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-
-
-def digest(value: object) -> str:
-    return hashlib.sha256(canonical_json(value).encode("ascii")).hexdigest()
-
-
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise RequestError(f"duplicate key: {key}")
-        result[key] = value
-    return result
-
-
-def _reject_non_finite(token: str) -> object:
-    raise RequestError(f"non-finite number is not valid JSON: {token}")
-
-
 def _decode_json(source: str) -> dict[str, object]:
-    if not source.strip():
-        raise RequestError("stdin must contain one JSON object")
-    try:
-        request = json.loads(
-            source,
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_non_finite,
-            parse_float=Decimal,
-        )
-    except RequestError:
-        raise
-    except json.JSONDecodeError as exc:
-        raise RequestError(f"invalid JSON: {exc.msg}") from exc
-    except (InvalidOperation, RecursionError, ValueError) as exc:
-        raise RequestError(f"invalid JSON: {exc}") from exc
-    if type(request) is not dict:
-        raise RequestError("request must be one JSON object")
-    return request
+    return decode_json_object(source, RequestError, parse_float=Decimal)
 
 
 def _require_exact_keys(
@@ -163,7 +147,7 @@ def decode_request(
     if CANDIDATE_ID_PATTERN.fullmatch(candidate_id) is None:
         raise RequestError("candidate_id must be a lowercase SHA-256 identifier")
     genome = _decode_genome(request["genome"])
-    expected_id = digest(
+    expected_id = canonical_digest(
         {
             "genome": genome,
             "genome_schema": "flat-json-atoms-v1",
@@ -234,85 +218,108 @@ def run_candidate(
     }
 
 
-def _error_document(code: str, message: str) -> dict[str, object]:
-    return {"error": {"code": code, "message": message}}
-
-
-def _write_document(stream: object, document: dict[str, object]) -> None:
-    stream.write(canonical_json(document) + "\n")
-    stream.flush()
-
-
-def _write_error(code: str, message: str) -> None:
-    _write_document(sys.stderr, _error_document(code, message))
-
-
-def _read_stdin() -> str:
-    stream = getattr(sys.stdin, "buffer", None)
-    if stream is None:
-        return sys.stdin.read()
+def _run_agent_skill(request: dict[str, object]) -> dict[str, object]:
     try:
-        return stream.read().decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise RequestError("standard input must be valid UTF-8 JSON") from exc
+        require_exact_keys(
+            request,
+            {
+                "schema_version",
+                "candidate",
+                "task",
+                "adapter_command",
+                "timeout_seconds",
+            },
+            "schema_version 2 request",
+        )
+        require_schema_version(request["schema_version"])
+        candidate = decode_candidate(request["candidate"])
+        command = decode_command(request["adapter_command"], "adapter_command")
+        timeout = require_timeout(request["timeout_seconds"], "timeout_seconds")
+        task = decode_task(request["task"])
+        canonical_json(task)
+    except (ProtocolError, TypeError, ValueError) as exc:
+        raise RequestError(str(exc)) from exc
+
+    with tempfile.TemporaryDirectory(prefix="metering-agent-skill-") as temp:
+        artifact = cast(dict[str, object], candidate["artifact"])
+        if artifact["artifact_schema"] == DEFAULT_ARTIFACT_SCHEMA:
+            skill_path: str | None = None
+        else:
+            skill_root = Path(temp) / "skill"
+            materialize_skill(artifact, skill_root)
+            skill_path = str(skill_root)
+        adapter_request = {
+            "candidate": {
+                "candidate_id": candidate["candidate_id"],
+                "skill_path": skill_path,
+            },
+            "protocol_version": ADAPTER_PROTOCOL_VERSION,
+            "task": task,
+        }
+        try:
+            adapter_response = run_adapter(
+                "candidate adapter",
+                command,
+                adapter_request,
+                timeout_seconds=timeout,
+                cwd=ROOT,
+            )
+        except ProtocolError as exc:
+            raise RequestError(str(exc)) from exc
+
+    try:
+        require_exact_keys(
+            adapter_response, {"forecast", "submission"}, "adapter response"
+        )
+        forecast = adapter_response["forecast"]
+        if type(forecast) is not dict:
+            raise ProtocolError("adapter response.forecast must be a JSON object")
+        require_exact_keys(forecast, {"outcomes"}, "adapter response.forecast")
+        outcomes = decode_forecast_outcomes(
+            forecast["outcomes"], "adapter response.forecast.outcomes"
+        )
+        probabilities = [float(item["probability"]) for item in outcomes]
+        forecast_entropy = entropy(probabilities, base=2)
+        submission = adapter_response["submission"]
+        canonical_json(submission)
+    except (ProtocolError, ProbabilityError, TypeError, ValueError) as exc:
+        if isinstance(exc, ProbabilityError):
+            raise
+        raise RequestError(str(exc)) from exc
+
+    return {
+        "candidate_id": candidate["candidate_id"],
+        "forecast": {
+            "entropy": _measurement(forecast_entropy),
+            "outcomes": outcomes,
+        },
+        "runner": {
+            "adapter_id": canonical_digest({"command": command}),
+            "submission": submission,
+        },
+        "schema_version": AGENT_SCHEMA_VERSION,
+        "task": task,
+    }
 
 
 def _process(source: str) -> dict[str, object]:
+    request = _decode_json(source)
+    if request.get("schema_version") == AGENT_SCHEMA_VERSION:
+        return _run_agent_skill(request)
     candidate_id, genome, probe = decode_request(source)
     return run_candidate(candidate_id, genome, probe)
 
 
-def _run_jsonl() -> int:
-    binary_input = getattr(sys.stdin, "buffer", None)
-    while True:
-        invalid_utf8 = False
-        try:
-            if binary_input is None:
-                source = sys.stdin.readline()
-                if source == "":
-                    break
-            else:
-                raw = binary_input.readline()
-                if raw == b"":
-                    break
-                try:
-                    source = raw.decode("utf-8")
-                except UnicodeDecodeError:
-                    source = ""
-                    invalid_utf8 = True
-        except OSError as exc:
-            _write_error("invalid_request", f"cannot read standard input: {exc}")
-            return 2
-
-        try:
-            if invalid_utf8:
-                raise RequestError("request line must be valid UTF-8 JSON")
-            response = _process(source)
-        except RequestError as exc:
-            response = _error_document("invalid_request", str(exc))
-        except ProbabilityError as exc:
-            response = _error_document("invalid_probability", str(exc))
-        _write_document(sys.stdout, response)
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
-    if arguments == ["--jsonl"]:
-        return _run_jsonl()
-    if arguments:
-        _write_error("invalid_request", "command-line arguments are not supported")
-        return 2
-    try:
-        response = _process(_read_stdin())
-    except RequestError as exc:
-        _write_error("invalid_request", str(exc))
-        return 2
-    except ProbabilityError as exc:
-        _write_error("invalid_probability", str(exc))
-        return 2
-    _write_document(sys.stdout, response)
-    return 0
+    return run_stdio_application(
+        _process,
+        arguments,
+        error_rules=(
+            (RequestError, "invalid_request"),
+            (ProbabilityError, "invalid_probability"),
+        ),
+    )
 
 
 if __name__ == "__main__":

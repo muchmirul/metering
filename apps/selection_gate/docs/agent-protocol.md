@@ -1,5 +1,10 @@
 # Selection gate agent protocol
 
+This page specifies forecast-loss schema version 1. Task-pass and safety policy
+schema version 2 is specified in the
+[agent-skill evolution protocol](../../../docs/agent-evolution.md) and uses the
+same one-shot and JSONL transports.
+
 ## Transport
 
 Default mode reads one strict UTF-8 JSON object from standard input and returns

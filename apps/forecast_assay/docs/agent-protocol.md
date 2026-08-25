@@ -4,10 +4,11 @@
 
 This repository-local protocol is implemented by
 `apps/forecast_assay/forecast_assay.py`. It is not part of Metering's installed
-Python API or `metering` JSON command. Requests and successful reports carry
-`"schema_version":1`; incompatible future shapes require a new version.
+Python API or `metering` JSON command. Fixture forecast requests and reports carry `"schema_version":1`. Agent task
+requests and reports use the additive schema version 2 specified in the
+[agent-skill evolution protocol](../../../docs/agent-evolution.md).
 
-Forecast assay supports two transports over the same strict schema:
+Forecast assay supports two transports over both strict schemas:
 
 - the default mode handles one request and exits; and
 - `--jsonl` handles any number of independent requests in one process.

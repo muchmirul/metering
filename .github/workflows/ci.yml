@@ -19,6 +19,13 @@ jobs:
           python-version: "3.11"
       - name: Run full test suite
         run: uv run --extra test pytest -q
+      - name: Run agent-skill generation example
+        run: |
+          uv run python apps/controller/controller.py \
+            < apps/controller/agent-skill-example-request.json \
+            > /tmp/metering-agent-generation.json
+          uv run python -c \
+            'import json; r=json.load(open("/tmp/metering-agent-generation.json")); assert r["selection"]["decision"] == "promote_challenger"'
       - name: Build distributions
         run: uv build
       - name: Smoke test installed wheel

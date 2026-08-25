@@ -12,7 +12,6 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-
 APP_ROOT = Path(__file__).resolve().parent
 FIXTURES_ROOT = APP_ROOT / "fixtures"
 VERSIONS_PATH = APP_ROOT / "versions.json"
@@ -693,6 +692,141 @@ def run(
     return identified
 
 
+def _load_agent_protocol():
+    apps_root = Path(__file__).resolve().parents[1]
+    if str(apps_root) not in sys.path:
+        sys.path.insert(0, str(apps_root))
+    import agent_protocol
+
+    return agent_protocol
+
+
+def _decode_agent_run(
+    value: object,
+    location: str,
+    case: dict[str, object],
+    protocol: object,
+) -> tuple[str, object]:
+    try:
+        run = protocol.decode_candidate_run(value, location)
+    except protocol.ProtocolError as exc:
+        raise AgentRequestError(str(exc)) from exc
+    if run["task"] != case:
+        raise AgentRequestError(f"{location}.task does not match case")
+    return str(run["candidate_id"]), run["runner"]["submission"]
+
+
+def _evaluate_agent_pair(source: str) -> dict[str, object]:
+    protocol = _load_agent_protocol()
+    if not source.strip():
+        raise AgentRequestError("stdin must contain one JSON object")
+    try:
+        request = json.loads(
+            source,
+            object_pairs_hook=_agent_unique_object,
+            parse_constant=_reject_agent_nonfinite,
+        )
+    except AgentRequestError:
+        raise
+    except (json.JSONDecodeError, RecursionError, ValueError) as exc:
+        raise AgentRequestError(f"invalid JSON: {exc}") from exc
+    if type(request) is not dict:
+        raise AgentRequestError("request must be one JSON object")
+    _require_agent_keys(
+        request,
+        {
+            "schema_version",
+            "evaluation",
+            "case",
+            "incumbent_run",
+            "challenger_run",
+            "evaluator_command",
+            "timeout_seconds",
+        },
+        "request",
+    )
+    try:
+        protocol.require_schema_version(request["schema_version"])
+        evaluation = protocol.require_nonempty_string(
+            request["evaluation"], "evaluation"
+        )
+        case = protocol.decode_task(request["case"], "case")
+        command = protocol.decode_command(
+            request["evaluator_command"], "evaluator_command"
+        )
+        timeout = protocol.require_timeout(
+            request["timeout_seconds"], "timeout_seconds"
+        )
+    except protocol.ProtocolError as exc:
+        raise AgentRequestError(str(exc)) from exc
+
+    incumbent_id, incumbent_submission = _decode_agent_run(
+        request["incumbent_run"], "incumbent_run", case, protocol
+    )
+    challenger_id, challenger_submission = _decode_agent_run(
+        request["challenger_run"], "challenger_run", case, protocol
+    )
+    if incumbent_id == challenger_id:
+        raise AgentRequestError("incumbent and challenger IDs must differ")
+
+    adapter_request = {
+        "case": case,
+        "evaluation": evaluation,
+        "protocol_version": protocol.ADAPTER_PROTOCOL_VERSION,
+        "submissions": [
+            {"candidate_id": incumbent_id, "submission": incumbent_submission},
+            {"candidate_id": challenger_id, "submission": challenger_submission},
+        ],
+    }
+    try:
+        adapter_response = protocol.run_adapter(
+            "evaluator adapter",
+            command,
+            adapter_request,
+            timeout_seconds=timeout,
+            cwd=Path(__file__).resolve().parents[2],
+        )
+        protocol.require_exact_keys(adapter_response, {"results"}, "evaluator response")
+        raw_results = adapter_response["results"]
+        if type(raw_results) is not list or len(raw_results) != 2:
+            raise protocol.ProtocolError(
+                "evaluator response.results must contain exactly two results"
+            )
+        expected_ids = {incumbent_id, challenger_id}
+        results: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for index, raw_result in enumerate(raw_results):
+            location = f"evaluator response.results[{index}]"
+            result = protocol.decode_evaluator_result(raw_result, location)
+            candidate_id = str(result["candidate_id"])
+            if candidate_id not in expected_ids or candidate_id in seen:
+                raise protocol.ProtocolError(
+                    f"{location}.candidate_id must identify one unreported candidate"
+                )
+            seen.add(candidate_id)
+            results.append(result)
+    except protocol.ProtocolError as exc:
+        raise ObserverError(str(exc)) from exc
+    results.sort(key=lambda item: str(item["candidate_id"]))
+    return {
+        "case_id": case["case_id"],
+        "evaluation": evaluation,
+        "evaluator_id": protocol.digest({"command": command}),
+        "results": results,
+        "schema_version": protocol.AGENT_SCHEMA_VERSION,
+    }
+
+
+def _read_agent_evaluation_stdin() -> str:
+    stream = getattr(sys.stdin, "buffer", None)
+    if stream is None:
+        return sys.stdin.read()
+    try:
+        return stream.read().decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise AgentRequestError("standard input must be valid UTF-8 JSON") from exc
+
+
 def _report_main_error(message: str, *, jsonl: bool) -> int:
     if jsonl:
         _write_agent_json(
@@ -706,6 +840,24 @@ def _report_main_error(message: str, *, jsonl: bool) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     raw_arguments = list(sys.argv[1:] if argv is None else argv)
+    if raw_arguments == ["--evaluate"]:
+        try:
+            response = _evaluate_agent_pair(_read_agent_evaluation_stdin())
+        except AgentRequestError as exc:
+            _write_agent_json(
+                sys.stderr,
+                {"error": {"code": "invalid_request", "message": str(exc)}},
+            )
+            return 2
+        except ObserverError as exc:
+            _write_agent_json(
+                sys.stderr,
+                {"error": {"code": "observer_error", "message": str(exc)}},
+            )
+            return 2
+        _write_agent_json(sys.stdout, response)
+        return 0
+
     jsonl_requested = "--jsonl" in raw_arguments
     try:
         versions = load_versions()

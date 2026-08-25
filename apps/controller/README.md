@@ -58,6 +58,29 @@ challenger mean:  0.2630344058337938 bits
 decision:         promote_challenger
 ```
 
+## Run an agent-skill generation
+
+Schema version 2 compares a content-identified default agent or parent skill
+with one caller-proposed challenger over identical finite task documents:
+
+```bash
+uv run python apps/controller/controller.py \
+  < apps/controller/agent-skill-example-request.json
+```
+
+The example request's runner and evaluator are deterministic protocol test
+doubles. A real request can use the checked-in text-only Pi adapter or reviewed
+Pi, Prime Agent, task-runner, and hidden-verifier adapters. The controller uses Mutator artifact IDs,
+Candidate Runner submissions and committed forecasts, Observer's post-run
+trusted evaluation, Forecast Assay reports, and Selection Gate's explicit task
+policy before returning `next_parent`.
+
+Pi users can copy
+[`skills/metered-self-evolve`](skills/metered-self-evolve/SKILL.md) into
+`~/.pi/agent/skills/` and invoke it explicitly as
+`/skill:metered-self-evolve`. See the complete
+[agent-skill evolution protocol](../../docs/agent-evolution.md).
+
 ## Input
 
 The strict version 1 request contains:
@@ -138,15 +161,17 @@ recoverable errors are aligned response lines on standard output.
 
 The controller runs exactly one generation per request. It has no hidden
 randomness, mutation-policy adaptation, multi-generation lineage, persistent
-state, deployment, parallel evaluation, network access, arbitrary candidate
-execution, or security sandbox. The caller still chooses the active fixture,
-mutation distribution, draw, probes, threshold, and whether to submit another
-generation using `next_parent`.
+state, installation, rollback, deployment, parallel evaluation, or security
+sandbox. Schema version 1 callers choose the fixture, mutation distribution,
+draw, probes, and forecast threshold. Schema version 2 callers choose the skill
+artifacts, external commands, finite tasks, timeouts, and task policy.
 
-Process ordering demonstrates pre-reveal capture inside this trusted controller;
-it is not a cryptographic timestamp or proof about another executable. The four
-checked-in fixtures are tiny and public, so the resulting promotion demonstrates
-protocol composition, not generalization or real-world improvement.
+Version 2 adapter commands execute arbitrary caller-approved programs with the
+current user's permissions. Those adapters—not Controller—must isolate
+workspaces, hidden tests, credentials, networks, tools, models, and non-time
+budgets. Process ordering proves only what this trusted controller invoked. The
+checked-in fixture and skill demonstrations prove protocol composition, not
+generalization or real-world improvement.
 
 ## Documentation
 

@@ -296,18 +296,21 @@ would add state and failure modes without improving the four equations.
 ### Separate source-only applications
 
 Each app owns one transition and can reject inconsistent composition at its
-boundary. Candidate Runner cannot read the active fixture; the controller gets
-both complete forecasts before reveal; Forecast Assay does not select; Selection
-Gate recomputes rather than trusts reported aggregates. These separations make
-identity swapping, evidence mismatch, and target leakage testable.
+boundary. In fixture schema version 1, Candidate Runner cannot read the active
+fixture and Controller gets both complete forecasts before reveal. In agent
+schema version 2, Candidate Runner invokes only the public agent adapter before
+Observer invokes the separate trusted evaluator. Forecast Assay does not select,
+and Selection Gate recomputes rather than trusting reported aggregates. These
+separations make identity swapping, evidence mismatch, target leakage, and
+calibration-versus-capability confusion testable.
 
 ### One generation, not an autonomous loop
 
 The controller returns after one generation. This keeps mutation-policy updates,
-budgets, repetition, deployment, and stopping visible to the caller. Hidden
-iteration would combine mechanism with policy and make an apparently simple
-measurement repository responsible for an optimizer it could not generally
-validate.
+adapter isolation, non-time budgets, repetition, installation, deployment, and
+stopping visible to the caller. Hidden iteration would combine mechanism with
+policy and make an apparently simple measurement repository responsible for an
+optimizer it could not generally validate.
 
 ### Explicit draws and content IDs
 
@@ -335,7 +338,8 @@ conformance; it does not validate a caller's probability model.
 
 **Claim.** Splitting observation, variation, expression, assay, retention, and
 one-generation orchestration into strict processes makes ordering, identity,
-and evidence errors observable without adding a general framework.
+and evidence errors observable without adding an agent framework to the
+installed Metering package.
 
 **Falsifier.** An accepted composition that swaps parent and child identity,
 forecasts after reveal, compares different evidence, trusts a forged aggregate,

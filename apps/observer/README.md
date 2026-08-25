@@ -89,6 +89,20 @@ It asks Metering for the entropy of predicted results and the self-information
 of the result that occurs. Candidate filtering belongs to this application, not
 to Metering.
 
+## Trusted agent-task evaluation
+
+`--evaluate` implements the additive schema version 2 boundary used by the
+agent-skill controller. It receives completed parent and challenger runs for one
+identical public task, then invokes a caller-selected trusted evaluator command.
+Only the evaluator defines hidden targets, `passed`, `safety_passed`, and task
+evidence. Candidate submissions do not receive the evaluator command or its
+private state through the protocol.
+
+This one-shot mode is separate from the version 1 fixture JSONL session. It is
+an ordering and identity boundary, not a sandbox or proof that an external
+adapter kept its verifier secret. See the
+[agent-skill protocol](../../docs/agent-evolution.md).
+
 ## Mathematical foundation and hypothesis
 
 The current demo is **finite, noiseless Bayesian hypothesis identification

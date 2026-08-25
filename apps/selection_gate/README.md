@@ -1,8 +1,10 @@
 # Selection gate
 
 `selection_gate.py` verifies one incumbent and one challenger Forecast Assay
-report on identical evidence, recomputes every measurement through Metering, and
-returns one deterministic retention decision.
+report and returns one deterministic retention decision. Schema version 1
+selects on verified forecast loss. Schema version 2 selects on explicitly named
+task pass and safety evidence while retaining forecast loss only as calibration
+evidence.
 
 ```text
 incumbent report + challenger report + required improvement
@@ -104,6 +106,16 @@ into the corresponding Forecast Assay requests and must ensure those genomes
 were actually executed. The gate cannot infer that binding from report mathematics.
 The repository [Evolution Controller](../controller/README.md) implements this
 check for its fixed Candidate Runner.
+
+## Agent-task policy
+
+Schema version 2 implements `task-pass-count-v1`. It can reject any increase in
+challenger safety failures, then requires a caller-declared positive integer
+pass-count improvement. The gate recomputes target self-information and all
+report aggregates before selecting. It does not infer correctness, compare
+unmatched cases, or install the selected artifact.
+
+See the [agent-skill protocol](../../docs/agent-evolution.md).
 
 ## Documentation
 

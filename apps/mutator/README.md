@@ -1,8 +1,9 @@
 # Mutator
 
-`mutator.py` generates exactly one legal one-locus child from one immutable
-parent genome, one finite mutation catalogue, one caller-declared probability
-distribution, and one explicit draw.
+`mutator.py` supports two explicit variation boundaries. Schema version 1
+generates exactly one legal one-locus child from an immutable flat genome and a
+finite mutation model. Schema version 2 binds one caller-proposed Agent Skills
+artifact to immutable parent and challenger content identities.
 
 It is a variation operator, not an evolutionary system:
 
@@ -64,6 +65,23 @@ Neither quantity establishes quality, usefulness, novelty, intelligence, or
 expected improvement. The repository [Evolution Controller](../controller/README.md)
 carries these content IDs into one fixed Candidate Runner evaluation.
 
+## Agent-skill artifacts
+
+Schema version 2 accepts either `agent-default-v1` or a normalized UTF-8
+`agent-skill-v1` artifact. It reports changed paths and proposal provenance but
+does not generate the challenger or claim that it is better. This lets Pi,
+Prime Agent, or another proposer create an open-ended staged edit while Mutator
+retains the narrow identity and transmission boundary.
+
+Encode an existing local skill directory with:
+
+```bash
+uv run python apps/mutator/skill_artifact.py PATH
+```
+
+See the [agent-skill evolution protocol](../../docs/agent-evolution.md) for the
+artifact schema and complete six-application composition.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
@@ -75,6 +93,7 @@ carries these content IDs into one fixed Candidate Runner evaluation.
 ```text
 mutator/
     mutator.py
+    skill_artifact.py
     README.md
     docs/
         architecture.md

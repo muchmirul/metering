@@ -30,11 +30,15 @@ history_dir="$(mktemp -d)"
 printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
   | uv run metering-history record "$history_dir"
 uv run metering-history verify "$history_dir"
+uv run python apps/controller/controller.py \
+  < apps/controller/agent-skill-example-request.json \
+  > /tmp/metering-agent-generation.json
 uv build
 ```
 
 The measurement smoke check must emit a finite entropy value of `1.0` at base
-`2.0`; the history smoke check must record and verify one pair. The wheel should
+`2.0`; the history smoke check must record and verify one pair; the agent-skill
+example must select its deterministic challenger. The wheel should
 contain only the four package modules and packaging metadata. The source
 archive also contains tests, Markdown sources, build
 configuration, and the non-packaged applications under `apps/`. Inspect both

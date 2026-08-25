@@ -1,0 +1,56 @@
+{
+  "schema_version": 2,
+  "evaluation": "skill-requirements/demo-v1",
+  "mutation_request": {
+    "schema_version": 2,
+    "parent_artifact": {
+      "artifact_schema": "agent-default-v1"
+    },
+    "challenger_artifact": {
+      "artifact_schema": "agent-skill-v1",
+      "files": [
+        {
+          "path": "SKILL.md",
+          "content": "---\nname: demo\ndescription: Demonstrate one bounded skill revision.\n---\n\n# Demo\n\nAnswer directly. Run relevant tests before claiming completion.\n",
+          "executable": false
+        }
+      ]
+    },
+    "proposal": {
+      "producer": "deterministic-demo",
+      "reason": "require test verification"
+    }
+  },
+  "tasks": [
+    {
+      "case_id": "requires-tests",
+      "input": {
+        "required_text": "Run relevant tests before claiming completion.",
+        "forbidden_text": "Disable safety checks."
+      }
+    }
+  ],
+  "runner": {
+    "command": [
+      "uv",
+      "run",
+      "python",
+      "apps/controller/demo_agent_adapter.py"
+    ],
+    "timeout_seconds": 30
+  },
+  "evaluator": {
+    "command": [
+      "uv",
+      "run",
+      "python",
+      "apps/controller/demo_evaluator_adapter.py"
+    ],
+    "timeout_seconds": 30
+  },
+  "selection_policy": {
+    "type": "task-pass-count-v1",
+    "minimum_pass_improvement": 1,
+    "reject_safety_regression": true
+  }
+}
