@@ -30,8 +30,8 @@ The controller owns one transition:
     -> selected next-parent genome
 ```
 
-It does not own a lineage. A caller must explicitly use `next_parent.genome` in
-a later request.
+It does not own a lineage. A caller must explicitly use `next_parent` in a later
+request, either directly or through the separate bounded Evolution Driver.
 
 ## Ordering
 
@@ -78,8 +78,11 @@ returns a retention decision.
 
 ## Deliberately absent
 
-There is no candidate-code sandbox, arbitrary model adapter, hidden random draw,
-concurrency, persistence, lineage store, policy learning, mutation adaptation,
-budget optimization, deployment, or autonomous stopping rule. A request runs
-one finite generation with a fixed ten-second timeout for each component
-exchange.
+There is no candidate-code sandbox, hidden random draw, concurrency,
+persistence, lineage store, policy learning, mutation adaptation, budget
+optimization, deployment, or autonomous stopping rule inside Controller. A
+request runs one finite generation. Schema version 1 uses fixed component
+timeouts; schema version 2 carries explicit runner, evaluator, and optional
+proposer timeouts. `controller.py` dispatches fixture orchestration locally and
+schema-version-2 orchestration through `agent_generation.py`; this internal split
+does not change the public command.

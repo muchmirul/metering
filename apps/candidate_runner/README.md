@@ -96,7 +96,7 @@ receives a temporary skill path (or `null` for the default agent), candidate ID,
 and public task document. It returns one JSON submission and a complete
 normalized forecast over evaluator-owned outcomes. Candidate Runner validates
 that forecast through Metering before Observer invokes the evaluator. This is
-the Pi/Prime integration seam; agent SDKs do not enter Metering.
+the Pi and external-command integration seam; agent SDKs do not enter Metering.
 
 The checked-in `pi_text_adapter.py` is a concrete read-only Pi integration for
 text-response tasks. It disables discovered skills, context, extensions, tools,
@@ -106,8 +106,8 @@ materialized `SKILL.md` into Pi's system prompt while registering that skill.
 Referenced scripts and assets are not exposed. Pin the Pi model and provider in
 the runner environment or a reviewed wrapper command. The adapter requires Pi
 to return a strict JSON submission and forecast. It is not suitable for coding
-tasks that need tools or a mutable workspace. Prime Agent and tool-enabled Pi
-runners implement the same adapter JSON boundary externally.
+tasks that need tools or a mutable workspace. Tool-enabled Pi and other runners
+implement the same adapter JSON boundary externally.
 
 Adapter commands execute with caller permissions. They own agent configuration,
 workspace isolation, tools, model budgets, and submission semantics. See the

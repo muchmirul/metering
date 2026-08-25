@@ -2,8 +2,9 @@
 
 `mutator.py` supports two explicit variation boundaries. Schema version 1
 generates exactly one legal one-locus child from an immutable flat genome and a
-finite mutation model. Schema version 2 binds one caller-proposed Agent Skills
-artifact to immutable parent and challenger content identities.
+finite mutation model. Schema version 2 either binds one caller-proposed Agent
+Skills artifact or invokes one strict proposer command, then binds immutable
+parent and challenger content identities.
 
 It is a variation operator, not an evolutionary system:
 
@@ -17,8 +18,10 @@ parent genome + catalogue + mutation distribution + draw
               one child and named measurements
 ```
 
-The application does not run an agent, evaluate behavior, select a winner,
-advance a lineage, learn a mutation policy, or repeat generations.
+The application does not evaluate behavior, select a winner, advance a lineage,
+learn a mutation policy, or repeat generations. Its schema-v2 proposal form may
+invoke exactly one caller-selected agent command, but receives no evaluator
+results and makes no retention decision.
 
 ## Run
 
@@ -68,10 +71,17 @@ carries these content IDs into one fixed Candidate Runner evaluation.
 ## Agent-skill artifacts
 
 Schema version 2 accepts either `agent-default-v1` or a normalized UTF-8
-`agent-skill-v1` artifact. It reports changed paths and proposal provenance but
-does not generate the challenger or claim that it is better. This lets Pi,
-Prime Agent, or another proposer create an open-ended staged edit while Mutator
-retains the narrow identity and transmission boundary.
+`agent-skill-v1` artifact. The original form binds a challenger already supplied
+by the caller. The proposal form instead sends only the current parent and
+caller-approved context to one command, requires exactly one complete,
+non-executable replacement `SKILL.md`, and records the command identity as
+proposal provenance. In both forms Mutator reports changed paths and never
+claims that the challenger is better.
+
+For a live tool-free Pi proposal, use
+`apps/mutator/pi_skill_proposer.py` as the proposer command. The bounded
+Evolution Driver provides the complete request and persistence example in
+[`../evolution_driver/README.md`](../evolution_driver/README.md).
 
 Encode an existing local skill directory with:
 
@@ -93,6 +103,7 @@ artifact schema and complete six-application composition.
 ```text
 mutator/
     mutator.py
+    pi_skill_proposer.py
     skill_artifact.py
     README.md
     docs/

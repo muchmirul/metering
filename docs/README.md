@@ -13,12 +13,12 @@ contract:
 - [Measurement history](history.md) specifies the opt-in `metering-history`
   command, on-disk schema, integrity checks, and limitations.
 - [Minimal information-guided evolution kernel](evolution-kernel.md) explains
-  how the six repository-local applications execute one fixture generation
-  while an external caller retains iteration and stopping.
+  how the six repository-local applications execute one generation and how the
+  optional source-only driver performs explicit bounded recurrence.
 - [Agent-skill evolution protocol](agent-evolution.md) specifies the additive
-  schema version 2 candidate, runner, evaluator, assay, selection, and
-  one-generation boundaries for external agents such as Pi and Prime Agent,
-  including the concrete text-only Pi adapter and its isolation limits.
+  schema version 2 candidate, proposer, runner, evaluator, assay, selection, and
+  one-generation boundaries, plus the source-only bounded Pi recurrence driver
+  and its persistence and isolation limits.
 - [Example applications](../apps/README.md) indexes each non-packaged
   application and its local architecture, foundations, and protocol documents.
 

@@ -26,6 +26,16 @@ jobs:
             > /tmp/metering-agent-generation.json
           uv run python -c \
             'import json; r=json.load(open("/tmp/metering-agent-generation.json")); assert r["selection"]["decision"] == "promote_challenger"'
+      - name: Run bounded evolution-driver example
+        run: |
+          state=/tmp/metering-self-evolve.jsonl
+          rm -f "$state" "$state.lock"
+          uv run python apps/evolution_driver/evolver.py \
+            --state "$state" \
+            < apps/evolution_driver/example-request.json \
+            > /tmp/metering-self-evolve-result.json
+          uv run python -c \
+            'import json; r=json.load(open("/tmp/metering-self-evolve-result.json")); assert r["status"] == "rejection_limit" and r["completed_generations"] == 2'
       - name: Build distributions
         run: uv build
       - name: Smoke test installed wheel

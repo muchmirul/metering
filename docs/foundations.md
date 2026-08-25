@@ -307,10 +307,12 @@ calibration-versus-capability confusion testable.
 ### One generation, not an autonomous loop
 
 The controller returns after one generation. This keeps mutation-policy updates,
-adapter isolation, non-time budgets, repetition, installation, deployment, and
-stopping visible to the caller. Hidden iteration would combine mechanism with
-policy and make an apparently simple measurement repository responsible for an
-optimizer it could not generally validate.
+adapter isolation, non-time budgets, installation, and deployment outside the
+generation mechanism. The optional source-only Evolution Driver makes bounded
+repetition, persistent state, and stopping explicit in its request and ledger;
+it does not hide them inside Controller or the installed package. Unbounded or
+implicit iteration would combine mechanism with policy and create an optimizer
+this repository could not generally validate.
 
 ### Explicit draws and content IDs
 

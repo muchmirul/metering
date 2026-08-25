@@ -1,121 +1,45 @@
-"""Run one complete Observer-backed candidate generation."""
+"""Dispatch one fixture or agent generation through the six applications."""
 
 from __future__ import annotations
 
-import json
 import math
 import selectors
 import subprocess
 import sys
-from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import cast
 
 SCHEMA_VERSION = 1
-COMPONENT_TIMEOUT_SECONDS = 10
+
 ROOT = Path(__file__).resolve().parents[2]
-CANDIDATE_RUNNER = "apps/candidate_runner/candidate_runner.py"
-FORECAST_ASSAY = "apps/forecast_assay/forecast_assay.py"
-MUTATOR = "apps/mutator/mutator.py"
-OBSERVER = "apps/observer/observer.py"
-SELECTION_GATE = "apps/selection_gate/selection_gate.py"
-
 APPS_ROOT = ROOT / "apps"
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
+CONTROLLER_ROOT = Path(__file__).resolve().parent
+for import_root in (APPS_ROOT, CONTROLLER_ROOT):
+    if str(import_root) not in sys.path:
+        sys.path.insert(0, str(import_root))
 
-from agent_protocol import (  # noqa: E402
-    AGENT_SCHEMA_VERSION,
-    ProtocolError,
-    decode_candidate,
-    decode_candidate_run,
-    decode_command,
-    decode_observer_evaluation,
-    decode_task,
-    normalize_json_value,
-    require_exact_keys,
-    require_nonempty_string,
-    require_schema_version,
-    require_timeout,
+from agent_generation import (  # noqa: E402
+    decode_agent_generation_request as _decode_agent_generation_request,
+    run_agent_generation,
 )
-from stdio_connector import (  # noqa: E402
-    JsonProcessError,
-    canonical_json,
-    decode_json_object,
-    run_json_process,
-    run_stdio_application,
+from agent_protocol import AGENT_SCHEMA_VERSION  # noqa: E402
+from component_runtime import (  # noqa: E402
+    CANDIDATE_RUNNER,
+    COMPONENT_TIMEOUT_SECONDS,
+    FORECAST_ASSAY,
+    MUTATOR,
+    OBSERVER,
+    SELECTION_GATE,
+    ControllerError,
+    RequestError,
+    _component_error_detail,
+    _decode_component_output,
+    _decode_json,
+    _require_component_object,
+    _require_exact_keys,
+    _require_nonempty_string,
+    _run_component,
 )
-
-
-class RequestError(ValueError):
-    """Raised when a controller request violates its protocol."""
-
-
-class ControllerError(RuntimeError):
-    """Raised when a component or composition invariant fails."""
-
-
-@dataclass(frozen=True)
-class AgentComponent:
-    command: list[str]
-    timeout_seconds: int
-
-
-@dataclass(frozen=True)
-class AgentGenerationRequest:
-    evaluation: str
-    mutation_request: dict[str, object]
-    tasks: list[dict[str, object]]
-    runner: AgentComponent
-    evaluator: AgentComponent
-    selection_policy: dict[str, object]
-
-
-def _parse_json_number(token: str) -> float:
-    try:
-        exact = Decimal(token)
-        converted = float(exact)
-    except (InvalidOperation, OverflowError, ValueError) as exc:
-        raise RequestError("JSON number exceeds supported numeric limits") from exc
-    if not math.isfinite(converted):
-        raise RequestError("JSON number is outside the finite double range")
-    if (converted == 0.0 and exact != 0) or (
-        converted == 1.0 and exact != 1
-    ):
-        raise RequestError(
-            "JSON number would change whether its value is zero or one "
-            "in double precision"
-        )
-    return converted
-
-
-def _decode_json(source: str) -> dict[str, object]:
-    return decode_json_object(
-        source,
-        RequestError,
-        parse_float=_parse_json_number,
-    )
-
-
-def _require_exact_keys(
-    value: dict[str, object], expected: set[str], location: str
-) -> None:
-    missing = sorted(expected - set(value))
-    extra = sorted(set(value) - expected)
-    details: list[str] = []
-    if missing:
-        details.append(f"missing keys: {', '.join(missing)}")
-    if extra:
-        details.append(f"extra keys: {', '.join(extra)}")
-    if details:
-        raise RequestError(f"{location}: {'; '.join(details)}")
-
-
-def _require_nonempty_string(value: object, location: str) -> str:
-    if type(value) is not str or not value:
-        raise RequestError(f"{location} must be a non-empty string")
-    return value
+from stdio_connector import canonical_json, run_stdio_application  # noqa: E402
 
 
 def _decode_probe(raw_probe: object, location: str) -> dict[str, str]:
@@ -196,94 +120,6 @@ def decode_request(
         probes,
         0.0 if converted_threshold == 0.0 else converted_threshold,
     )
-
-
-def _component_error_detail(stderr: str, returncode: int) -> str:
-    detail = stderr.strip()
-    if detail:
-        try:
-            document = json.loads(detail)
-            error = document.get("error")
-            if type(error) is dict and type(error.get("message")) is str:
-                return str(error["message"])
-        except (AttributeError, json.JSONDecodeError):
-            pass
-        return detail
-    return f"exit status {returncode}"
-
-
-def _decode_component_output(
-    name: str, source: str, *, allow_error: bool = False
-) -> dict[str, object]:
-    try:
-        response = json.loads(
-            source,
-            object_pairs_hook=lambda pairs: _component_unique_object(name, pairs),
-            parse_constant=lambda token: _component_non_finite(name, token),
-        )
-    except (ControllerError, json.JSONDecodeError, RecursionError, ValueError) as exc:
-        if isinstance(exc, ControllerError):
-            raise
-        raise ControllerError(f"{name} returned invalid JSON: {exc}") from exc
-    if type(response) is not dict:
-        raise ControllerError(f"{name} response must be one JSON object")
-    if "error" in response and not allow_error:
-        raise ControllerError(f"{name} returned an error response")
-    return response
-
-
-def _component_unique_object(
-    name: str, pairs: list[tuple[str, object]]
-) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ControllerError(f"{name} returned duplicate key: {key}")
-        result[key] = value
-    return result
-
-
-def _component_non_finite(name: str, token: str) -> object:
-    raise ControllerError(f"{name} returned a non-finite number: {token}")
-
-
-def _run_component(
-    name: str,
-    relative_path: str,
-    request: dict[str, object],
-    *,
-    arguments: tuple[str, ...] = (),
-    timeout_seconds: int = COMPONENT_TIMEOUT_SECONDS,
-) -> dict[str, object]:
-    command = [sys.executable, str(ROOT / relative_path), *arguments]
-    try:
-        source = run_json_process(
-            command,
-            request,
-            cwd=ROOT,
-            timeout_seconds=timeout_seconds,
-        )
-    except JsonProcessError as error:
-        if error.kind == "timeout":
-            message = f"{name} exceeded the component timeout"
-        elif error.kind == "start":
-            message = f"cannot start {name}: {error.detail}"
-        elif error.kind == "exit":
-            returncode = error.returncode if error.returncode is not None else 1
-            detail = _component_error_detail(error.stderr, returncode)
-            message = f"{name} failed: {detail}"
-        else:
-            message = f"{name} wrote unexpected standard error"
-        raise ControllerError(message) from error
-    return _decode_component_output(name, source)
-
-
-def _require_component_object(
-    value: object, location: str
-) -> dict[str, object]:
-    if type(value) is not dict:
-        raise ControllerError(f"{location} must be a JSON object")
-    return value
 
 
 def _candidate_record(
@@ -708,277 +544,6 @@ def run_generation(
         },
         "runner_model": runner_model,
         "schema_version": SCHEMA_VERSION,
-        "selection": selection,
-    }
-
-
-def _decode_agent_component(value: object, location: str) -> AgentComponent:
-    if type(value) is not dict:
-        raise RequestError(f"{location} must be a JSON object")
-    try:
-        require_exact_keys(value, {"command", "timeout_seconds"}, location)
-        command = decode_command(value["command"], f"{location}.command")
-        timeout = require_timeout(
-            value["timeout_seconds"], f"{location}.timeout_seconds"
-        )
-    except ProtocolError as exc:
-        raise RequestError(str(exc)) from exc
-    return AgentComponent(command=command, timeout_seconds=timeout)
-
-
-def _decode_agent_generation_request(
-    request: dict[str, object],
-) -> AgentGenerationRequest:
-    try:
-        require_exact_keys(
-            request,
-            {
-                "schema_version",
-                "evaluation",
-                "mutation_request",
-                "tasks",
-                "runner",
-                "evaluator",
-                "selection_policy",
-            },
-            "schema_version 2 request",
-        )
-        require_schema_version(request["schema_version"])
-        evaluation = require_nonempty_string(request["evaluation"], "evaluation")
-        mutation_request = request["mutation_request"]
-        if type(mutation_request) is not dict:
-            raise ProtocolError("mutation_request must be a JSON object")
-        require_schema_version(
-            mutation_request.get("schema_version"),
-            "mutation_request.schema_version",
-        )
-        raw_tasks = request["tasks"]
-        if type(raw_tasks) is not list or not raw_tasks:
-            raise ProtocolError("tasks must be a non-empty JSON array")
-        tasks: list[dict[str, object]] = []
-        seen: set[str] = set()
-        for index, raw_task in enumerate(raw_tasks):
-            location = f"tasks[{index}]"
-            task = decode_task(raw_task, location)
-            case_id = str(task["case_id"])
-            if case_id in seen:
-                raise ProtocolError(f"duplicate task case identifier: {case_id}")
-            seen.add(case_id)
-            tasks.append(task)
-        selection_policy = request["selection_policy"]
-        if type(selection_policy) is not dict:
-            raise ProtocolError("selection_policy must be a JSON object")
-        selection_policy = normalize_json_value(selection_policy, "selection_policy")
-    except ProtocolError as exc:
-        raise RequestError(str(exc)) from exc
-
-    return AgentGenerationRequest(
-        evaluation=evaluation,
-        mutation_request=mutation_request,
-        tasks=tasks,
-        runner=_decode_agent_component(request["runner"], "runner"),
-        evaluator=_decode_agent_component(request["evaluator"], "evaluator"),
-        selection_policy=selection_policy,
-    )
-
-
-def _agent_candidate_record(
-    mutation: dict[str, object], role: str
-) -> dict[str, object]:
-    try:
-        return decode_candidate(mutation.get(role), f"Mutator {role}")
-    except ProtocolError as exc:
-        raise ControllerError(str(exc)) from exc
-
-
-def _validated_agent_run(
-    value: object,
-    candidate_id: str,
-    task: dict[str, object],
-    role: str,
-) -> dict[str, object]:
-    location = f"Candidate Runner {role} response"
-    try:
-        run = decode_candidate_run(value, location)
-    except ProtocolError as exc:
-        raise ControllerError(str(exc)) from exc
-    if run["candidate_id"] != candidate_id:
-        raise ControllerError(f"Candidate Runner changed the {role} candidate ID")
-    if run["task"] != task:
-        raise ControllerError(f"Candidate Runner changed the {role} task")
-    return run
-
-
-def _validated_observer_evaluation(
-    value: object,
-    expected_ids: set[str],
-    task: dict[str, object],
-    evaluation: str,
-) -> tuple[dict[str, object], dict[str, dict[str, object]]]:
-    try:
-        observation = decode_observer_evaluation(value, "Observer response")
-    except ProtocolError as exc:
-        raise ControllerError(str(exc)) from exc
-    if observation["case_id"] != task["case_id"]:
-        raise ControllerError("Observer changed the task case ID")
-    if observation["evaluation"] != evaluation:
-        raise ControllerError("Observer changed the evaluation identifier")
-
-    result_documents = cast(list[dict[str, object]], observation["results"])
-    results = {str(result["candidate_id"]): result for result in result_documents}
-    if set(results) != expected_ids:
-        raise ControllerError("Observer returned an unknown candidate ID")
-    return observation, results
-
-
-def _run_agent_candidate(
-    candidate: dict[str, object],
-    task: dict[str, object],
-    runner: AgentComponent,
-    role: str,
-) -> dict[str, object]:
-    candidate_id = str(candidate["candidate_id"])
-    response = _run_component(
-        "Candidate Runner",
-        CANDIDATE_RUNNER,
-        {
-            "adapter_command": runner.command,
-            "candidate": candidate,
-            "schema_version": AGENT_SCHEMA_VERSION,
-            "task": task,
-            "timeout_seconds": runner.timeout_seconds,
-        },
-        timeout_seconds=runner.timeout_seconds + COMPONENT_TIMEOUT_SECONDS,
-    )
-    return _validated_agent_run(response, candidate_id, task, role)
-
-
-def _run_agent_case(
-    request: AgentGenerationRequest,
-    task: dict[str, object],
-    incumbent: dict[str, object],
-    challenger: dict[str, object],
-) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
-    incumbent_id = str(incumbent["candidate_id"])
-    challenger_id = str(challenger["candidate_id"])
-    incumbent_run = _run_agent_candidate(incumbent, task, request.runner, "incumbent")
-    challenger_run = _run_agent_candidate(
-        challenger, task, request.runner, "challenger"
-    )
-
-    observation = _run_component(
-        "Observer",
-        OBSERVER,
-        {
-            "case": task,
-            "challenger_run": challenger_run,
-            "evaluation": request.evaluation,
-            "evaluator_command": request.evaluator.command,
-            "incumbent_run": incumbent_run,
-            "schema_version": AGENT_SCHEMA_VERSION,
-            "timeout_seconds": request.evaluator.timeout_seconds,
-        },
-        arguments=("--evaluate",),
-        timeout_seconds=(request.evaluator.timeout_seconds + COMPONENT_TIMEOUT_SECONDS),
-    )
-    observation, results = _validated_observer_evaluation(
-        observation,
-        {incumbent_id, challenger_id},
-        task,
-        request.evaluation,
-    )
-    trace = {
-        "challenger_run": challenger_run,
-        "incumbent_run": incumbent_run,
-        "observer_evaluation": observation,
-        "task": task,
-    }
-    incumbent_case = {
-        "case_id": task["case_id"],
-        "forecast": incumbent_run["forecast"],
-        "result": results[incumbent_id],
-    }
-    challenger_case = {
-        "case_id": task["case_id"],
-        "forecast": challenger_run["forecast"],
-        "result": results[challenger_id],
-    }
-    return trace, incumbent_case, challenger_case
-
-
-def _assay_agent_candidate(
-    candidate_id: str,
-    cases: list[dict[str, object]],
-    evaluation: str,
-) -> dict[str, object]:
-    return _run_component(
-        "Forecast Assay",
-        FORECAST_ASSAY,
-        {
-            "candidate": candidate_id,
-            "cases": cases,
-            "evaluation": evaluation,
-            "schema_version": AGENT_SCHEMA_VERSION,
-        },
-    )
-
-
-def run_agent_generation(request: AgentGenerationRequest) -> dict[str, object]:
-    mutation = _run_component("Mutator", MUTATOR, request.mutation_request)
-    if mutation.get("schema_version") != AGENT_SCHEMA_VERSION:
-        raise ControllerError(
-            f"Mutator did not return schema version {AGENT_SCHEMA_VERSION}"
-        )
-    incumbent = _agent_candidate_record(mutation, "parent")
-    challenger = _agent_candidate_record(mutation, "child")
-    incumbent_id = str(incumbent["candidate_id"])
-    challenger_id = str(challenger["candidate_id"])
-    if incumbent_id == challenger_id:
-        raise ControllerError("Mutator returned identical parent and child IDs")
-
-    traces: list[dict[str, object]] = []
-    incumbent_cases: list[dict[str, object]] = []
-    challenger_cases: list[dict[str, object]] = []
-    for task in request.tasks:
-        trace, incumbent_case, challenger_case = _run_agent_case(
-            request, task, incumbent, challenger
-        )
-        traces.append(trace)
-        incumbent_cases.append(incumbent_case)
-        challenger_cases.append(challenger_case)
-
-    incumbent_report = _assay_agent_candidate(
-        incumbent_id, incumbent_cases, request.evaluation
-    )
-    challenger_report = _assay_agent_candidate(
-        challenger_id, challenger_cases, request.evaluation
-    )
-    selection = _run_component(
-        "Selection Gate",
-        SELECTION_GATE,
-        {
-            "challenger_report": challenger_report,
-            "incumbent_report": incumbent_report,
-            "policy": request.selection_policy,
-            "schema_version": AGENT_SCHEMA_VERSION,
-        },
-    )
-    selected = selection.get("selected")
-    if selected == incumbent_id:
-        next_parent = incumbent
-    elif selected == challenger_id:
-        next_parent = challenger
-    else:
-        raise ControllerError("Selection Gate returned an unknown candidate ID")
-
-    return {
-        "cases": traces,
-        "challenger_report": challenger_report,
-        "evaluation": request.evaluation,
-        "incumbent_report": incumbent_report,
-        "mutation": mutation,
-        "next_parent": next_parent,
-        "schema_version": AGENT_SCHEMA_VERSION,
         "selection": selection,
     }
 

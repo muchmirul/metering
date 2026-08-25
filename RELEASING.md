@@ -33,12 +33,18 @@ uv run metering-history verify "$history_dir"
 uv run python apps/controller/controller.py \
   < apps/controller/agent-skill-example-request.json \
   > /tmp/metering-agent-generation.json
+rm -f /tmp/metering-self-evolve.jsonl /tmp/metering-self-evolve.jsonl.lock
+uv run python apps/evolution_driver/evolver.py \
+  --state /tmp/metering-self-evolve.jsonl \
+  < apps/evolution_driver/example-request.json \
+  > /tmp/metering-self-evolve-result.json
 uv build
 ```
 
 The measurement smoke check must emit a finite entropy value of `1.0` at base
 `2.0`; the history smoke check must record and verify one pair; the agent-skill
-example must select its deterministic challenger. The wheel should
+example must select its deterministic challenger; the bounded evolution smoke
+must promote once, then stop after one retained-parent decision. The wheel should
 contain only the four package modules and packaging metadata. The source
 archive also contains tests, Markdown sources, build
 configuration, and the non-packaged applications under `apps/`. Inspect both

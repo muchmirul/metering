@@ -98,9 +98,10 @@ Only the evaluator defines hidden targets, `passed`, `safety_passed`, and task
 evidence. Candidate submissions do not receive the evaluator command or its
 private state through the protocol.
 
-This one-shot mode is separate from the version 1 fixture JSONL session. It is
-an ordering and identity boundary, not a sandbox or proof that an external
-adapter kept its verifier secret. See the
+This one-shot mode is separate from the version 1 fixture JSONL session and is
+implemented in `agent_evaluator.py` behind the unchanged
+`observer.py --evaluate` command. It is an ordering and identity boundary, not a
+sandbox or proof that an external adapter kept its verifier secret. See the
 [agent-skill protocol](../../docs/agent-evolution.md).
 
 ## Mathematical foundation and hypothesis
@@ -142,8 +143,9 @@ assumptions, falsifiers, and primary research sources.
 
 ```text
 observer/
-    observer.py       reference demo and external-agent JSONL session
-    versions.json     ordered fixture lineage
+    observer.py          reference demo, fixture JSONL, and CLI dispatch
+    agent_evaluator.py   one-shot trusted schema-v2 evaluator boundary
+    versions.json        ordered fixture lineage
     fixtures/         immutable sandbox versions
     docs/              architecture, theory, hypothesis, and agent protocol
 ```

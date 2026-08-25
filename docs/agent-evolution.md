@@ -10,7 +10,7 @@ its JSON command are unchanged.
 The reusable transition is:
 
 ```text
-parent candidate + proposed challenger
+parent candidate + direct or proposer-produced challenger
     -> bind immutable skill artifacts
     -> run both through the same agent adapter on the same task cases
     -> reveal task results through a trusted evaluator adapter
@@ -21,6 +21,8 @@ parent candidate + proposed challenger
 
 The controller performs one generation. It does not repeat generations,
 install the selected skill, or claim improvement outside the declared cases.
+The optional Evolution Driver repeats this same transition under explicit
+persistent limits without changing Controller semantics.
 
 ## Candidate artifacts
 
@@ -66,9 +68,44 @@ SHA-256(canonical JSON of {
 })
 ```
 
-Mutator schema version 2 accepts one parent artifact, one already-proposed
-challenger artifact, and explicit proposal provenance. It validates and binds
-the change; proposal generation remains agent-owned.
+Mutator schema version 2 has two strict request forms. The original form accepts
+one parent artifact, one already-proposed challenger artifact, and explicit
+proposal provenance. The proposal form accepts `parent_artifact`,
+`proposal_context`, and exactly one proposer command with an integer timeout.
+It sends the proposer only:
+
+```json
+{
+  "context":{},
+  "parent":{"artifact":{},"candidate_id":"HEX_SHA256"},
+  "protocol_version":1
+}
+```
+
+The proposer must return exactly:
+
+```json
+{
+  "challenger_artifact":{
+    "artifact_schema":"agent-skill-v1",
+    "files":[
+      {"content":"COMPLETE SKILL.md","executable":false,"path":"SKILL.md"}
+    ]
+  },
+  "reason":"bounded reason"
+}
+```
+
+For proposer-generated changes, both parent and challenger are restricted to a
+default artifact or exactly one `SKILL.md`; the challenger must be a skill and
+must differ. Mutator records the proposer command digest as provenance. It does
+not pass tasks, evaluator commands, submissions, or protected evidence.
+
+The checked-in `apps/mutator/pi_skill_proposer.py` is a concrete tool-free Pi
+adapter. It disables tools, context files, discovered resources, and sessions,
+then registers and injects the verified current `SKILL.md`. Pin model and
+provider selection in its environment or a reviewed wrapper. It returns a full
+replacement, never a patch, and does not decide retention.
 
 ## Agent adapter
 
@@ -91,8 +128,8 @@ Adapter request:
 
 `skill_path` is `null` for the default-agent artifact. A Pi adapter can omit
 `--skill` for that candidate and use `--no-skills --skill PATH/SKILL.md` for a
-skill candidate. A Prime Agent adapter implements the same JSON boundary using
-its own public command. Neither SDK belongs in Metering.
+skill candidate. Any other runner may implement the same JSON boundary using
+its own public command. Agent SDKs do not belong in Metering.
 
 The adapter must emit exactly:
 
@@ -227,10 +264,44 @@ improvement. Replace its runner with the checked-in text-only Pi adapter, or a
 separately reviewed external adapter, and replace the evaluator for a real
 evaluation.
 
+## Bounded recurrence
+
+`apps/evolution_driver/evolver.py` wraps Controller without merging any of the
+six stages. Its strict schema-version-1 request supplies an initial parent,
+proposer command and approved context, the fixed generation configuration, and
+positive integer generation, consecutive-rejection, and wall-clock limits.
+Run the deterministic example with:
+
+```bash
+rm -f /tmp/metering-self-evolve.jsonl /tmp/metering-self-evolve.jsonl.lock
+uv run python apps/evolution_driver/evolver.py \
+  --state /tmp/metering-self-evolve.jsonl \
+  < apps/evolution_driver/example-request.json
+```
+
+The state file starts with one request-bound run header and appends one complete
+Controller request/result record only after successful validation. Records are
+canonical, SHA-256 identified, and parent-linked. Resume verifies the chain and
+reconstructs every expected recurrence request. A partial or conflicting ledger
+fails visibly. The wall-clock limit is checked before each generation and does
+not interrupt in-flight work; generation and rejection counts remain persistent
+across resume. Proposer, runner, evaluator, and a derived Controller timeout
+bound that in-flight work.
+
+After each completed generation, the next proposal sees only the caller's
+original context plus generation number and a fixed previous-selection summary:
+decision, reason, aggregate comparison, and selected candidate ID. It does not
+receive submissions, per-case evaluator evidence, or protected evaluator
+assets. The selected head remains in the ledger and is not installed.
+
+See [`apps/evolution_driver/README.md`](../apps/evolution_driver/README.md) for
+the exact boundary and stopping statuses.
+
 ## Trust and security boundary
 
-Adapter commands execute with the current user's permissions. Temporary skill
-materialization is not a sandbox. Shared connector code executes command arrays
+Runner, evaluator, and proposer commands execute with the current user's
+permissions. Temporary skill materialization is not a sandbox. Shared connector
+code executes command arrays
 without a shell, rejects malformed JSON process output, and on POSIX kills the
 ordinary process group when a timeout expires. This cleanup is not an isolation
 boundary: an adversarial process may deliberately escape its group. The
@@ -248,6 +319,10 @@ For serious evaluations:
 - reserve untouched final cases rather than repeatedly selecting on one suite;
 - retain the complete generation report outside the candidate workspace; and
 - require explicit approval before installing `next_parent`.
+
+The Evolution Driver's hashes detect accidental state modification but do not
+authenticate its writer. Repeated selection adapts to the generation suite, so
+that suite is no longer an untouched test after the first retained decision.
 
 A selected challenger is better only under the declared evaluator, cases,
 policy, and execution controls. The protocol cannot prove broader

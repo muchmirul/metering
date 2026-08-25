@@ -1,14 +1,16 @@
 ---
 name: metered-self-evolve
-description: Runs one evidence-gated comparison between a default agent or existing Agent Skills directory and one staged challenger on explicit matched tasks. Use only when the user asks to improve a Pi or Prime Agent skill and provides or approves a trusted evaluator.
+description: Runs one or a caller-bounded sequence of evidence-gated comparisons between a default Pi agent or existing Agent Skills directory and complete SKILL.md challengers. Use only when the user asks to evolve a skill and approves a trusted evaluator and explicit limits.
 compatibility: Requires Python 3.11+, uv, and a checkout of the Metering repository containing application schema version 2.
 disable-model-invocation: true
 ---
 
 # Metered Self-Evolve
 
-Run exactly one bounded candidate generation. Never silently modify the loaded
-skill, install a challenger, repeat generations, or claim broad improvement.
+Run exactly one candidate generation unless the user explicitly requests the
+bounded Evolution Driver and approves its limits. Never silently modify the
+loaded skill, install a challenger, exceed those limits, or claim broad
+improvement.
 
 ## Required inputs
 
@@ -55,7 +57,25 @@ checks. Self-judgment is not evidence.
 10. Report task pass counts, safety failures, forecast surprisal separately, and
     all limitations. Lower surprisal is calibration evidence, not task quality.
 11. Show the candidate diff and ask for explicit approval before copying the
-    selected artifact into any Pi or Prime Agent skill location.
+    selected artifact into any Pi skill location.
+
+## Bounded recurrence
+
+When the user explicitly requests multiple generations, use
+`apps/evolution_driver/example-request.json` as the request shape and put the
+state outside the repository:
+
+```bash
+uv run python apps/evolution_driver/evolver.py \
+  --state /tmp/metering-self-evolve.jsonl \
+  < EVOLUTION_REQUEST.json
+```
+
+Use `apps/mutator/pi_skill_proposer.py` only with a pinned Pi model/provider and
+caller-approved proposal context. State generation, consecutive-rejection, and
+wall-clock limits before execution. The driver resumes only a verified matching
+ledger and never installs its selected head. Do not expose protected evaluator
+cases or per-case evidence to the proposer. Reserve an untouched final suite.
 
 ## Pi text-only runner
 

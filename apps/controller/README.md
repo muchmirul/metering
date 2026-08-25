@@ -61,7 +61,8 @@ decision:         promote_challenger
 ## Run an agent-skill generation
 
 Schema version 2 compares a content-identified default agent or parent skill
-with one caller-proposed challenger over identical finite task documents:
+with one challenger over identical finite task documents. Mutator may bind a
+caller-supplied challenger or invoke one strict proposer command:
 
 ```bash
 uv run python apps/controller/controller.py \
@@ -69,8 +70,9 @@ uv run python apps/controller/controller.py \
 ```
 
 The example request's runner and evaluator are deterministic protocol test
-doubles. A real request can use the checked-in text-only Pi adapter or reviewed
-Pi, Prime Agent, task-runner, and hidden-verifier adapters. The controller uses Mutator artifact IDs,
+doubles. A real request can use the checked-in text-only Pi runner and Pi skill
+proposer or other reviewed task-runner and hidden-verifier adapters. The
+controller uses Mutator artifact IDs,
 Candidate Runner submissions and committed forecasts, Observer's post-run
 trusted evaluation, Forecast Assay reports, and Selection Gate's explicit task
 policy before returning `next_parent`.
@@ -80,6 +82,11 @@ Pi users can copy
 `~/.pi/agent/skills/` and invoke it explicitly as
 `/skill:metered-self-evolve`. See the complete
 [agent-skill evolution protocol](../../docs/agent-evolution.md).
+
+For bounded recurrence, use the outer
+[Evolution Driver](../evolution_driver/README.md). It submits one Controller
+request at a time and persists only completed generations; Controller itself
+remains stateless and performs no installation.
 
 ## Input
 
@@ -128,6 +135,10 @@ that both candidates used identical evidence.
 
 The applications are invoked as subprocesses through their documented JSON
 standard-stream boundaries. Controller does not import their private modules.
+Internally, `controller.py` keeps fixture orchestration while
+`agent_generation.py` owns schema-v2 orchestration and `component_runtime.py`
+owns only shared subprocess mechanics. The public command and outputs are
+unchanged.
 
 ## Output
 
@@ -163,8 +174,9 @@ The controller runs exactly one generation per request. It has no hidden
 randomness, mutation-policy adaptation, multi-generation lineage, persistent
 state, installation, rollback, deployment, parallel evaluation, or security
 sandbox. Schema version 1 callers choose the fixture, mutation distribution,
-draw, probes, and forecast threshold. Schema version 2 callers choose the skill
-artifacts, external commands, finite tasks, timeouts, and task policy.
+draw, probes, and forecast threshold. Schema version 2 callers choose a direct
+challenger or proposer command, external execution and evaluation commands,
+finite tasks, timeouts, and task policy.
 
 Version 2 adapter commands execute arbitrary caller-approved programs with the
 current user's permissions. Those adapters—not Controller—must isolate

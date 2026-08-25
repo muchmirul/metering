@@ -15,7 +15,8 @@ Candidate Runner turns one fixed genome into pre-reveal Observer forecasts
 Forecast Assay   measures revealed-target probabilistic behavior
 Selection Gate   verifies two reports and chooses differential retention
 Controller       executes one generation and returns the selected next parent
-Caller           owns repetition, budgets, policy adaptation, and stopping
+Evolution Driver optionally repeats completed skill generations under limits
+Caller           owns configuration, adapter budgets, final tests, and deployment
 ```
 
 ## Two loops
@@ -37,7 +38,7 @@ parent
   -> Forecast Assay reports
   -> Selection Gate
   -> controller returns the selected next parent
-  -> caller may submit another generation
+  -> caller or bounded Evolution Driver may submit another generation
 ```
 
 These loops may interact, but their state transitions must remain named. An
@@ -56,7 +57,9 @@ evidence. See the [agent-skill evolution protocol](agent-evolution.md).
 
 [`tests/test_controller.py`](../tests/test_controller.py) verifies the fixture
 process, [`tests/test_agent_evolution.py`](../tests/test_agent_evolution.py)
-verifies the agent-skill process, and
+verifies the agent-skill process,
+[`tests/test_self_evolution.py`](../tests/test_self_evolution.py) verifies bounded
+recurrence and resume, and
 [`tests/test_evolution_kernel.py`](../tests/test_evolution_kernel.py) retains the
 smaller content-ID composition check.
 
@@ -73,8 +76,8 @@ c_(t+1) = c'_t  when Delta_t > delta
 c_(t+1) = c_t   otherwise
 ```
 
-The current Mutator receives the finite support of `Q` and an explicit draw; it
-does not own random-number generation. Candidate Runner supplies the concrete
+Schema-version-1 Mutator receives the finite support of `Q` and an explicit
+draw; it does not own random-number generation. Candidate Runner supplies the concrete
 `q_c` for this fixture example. Forecast Assay reports `L_E`. Selection Gate
 verifies `Delta_t` and applies `delta`. The controller performs one transition,
 but any update to `theta_t` remains caller-owned.
@@ -116,11 +119,12 @@ complete normalized forecasts before target reveal, compare candidates on
 identical cases and budgets, keep environment-specific results separate, and
 reserve fresh final cases that are not repeatedly reused for selection.
 
-The six applications therefore form auditable one-generation boundaries, not
-an autonomous self-evolving agent. Repetition, installation, and every policy
-update remain explicit caller decisions. In schema version 2, external adapters
-also own sandboxing, hidden-test isolation, model and tool settings, and budgets
-beyond the enforced wall-clock timeout.
+The six applications therefore remain auditable one-generation boundaries. The
+source-only Evolution Driver can repeat the unchanged schema-version-2 boundary,
+but installation, deployment, final evaluation, and every policy change remain
+explicit caller decisions. External adapters also own sandboxing, hidden-test
+isolation, model and tool settings, and token or monetary budgets they alone can
+observe.
 
 ## Composition hypothesis
 

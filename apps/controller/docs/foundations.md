@@ -155,9 +155,9 @@ generation. A changed model makes the reports incomparable and fails closed.
 
 ## Why the software is designed this way
 
-- **One generation per request:** repetition, budgets, mutation-policy updates,
-  and stopping remain visible caller decisions instead of hidden optimizer
-  state.
+- **One generation per request:** Controller never hides recurrence or stopping.
+  A caller or the separate bounded Evolution Driver must make each next request;
+  adapters still own budgets they alone can observe.
 - **Subprocess composition:** every app is exercised through its documented
   standard-stream boundary. The controller cannot depend on convenient private
   imports that an external agent could not use.
@@ -176,8 +176,9 @@ generation. A changed model makes the reports incomparable and fails closed.
   and protect different boundaries.
 - **Fail closed:** a failed component, incomplete identification, identity
   mismatch, or unknown selected candidate produces no retention decision.
-- **No persistent lineage:** a lineage store would add recovery, concurrency,
-  branching, and trust semantics unrelated to demonstrating one transition.
+- **No Controller lineage:** persistence remains outside this one-transition
+  mechanism. The optional Evolution Driver adds one linear hash-linked ledger,
+  not branching or implicit Controller state.
 
 ## Falsifiable hypotheses
 
@@ -237,7 +238,7 @@ declared evidence rather than treating confidence itself as quality.
 A complete repeated-loop hypothesis must be tested outside this controller:
 
 > Under predeclared environments, paired initial states, identical candidate and
-> compute budgets, and untouched final observations, caller-driven repetition
+> compute budgets, and untouched final observations, explicit bounded repetition
 > using the strict log-loss gate produces lower final test mean log loss than a
 > measurement-independent retention baseline using the same mutation mechanism,
 > matched exogenous draws where applicable, and proposal budget.

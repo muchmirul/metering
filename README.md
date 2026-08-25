@@ -27,10 +27,11 @@ behind the complete composition.
 
 ```mermaid
 flowchart LR
-    Caller["External caller<br/>repetition, policy updates, stopping"]
+    Caller["External caller<br/>configuration, approval, deployment"]
     Sandbox["Versioned sandbox"]
 
     subgraph Applications["Repository-local applications (source only)"]
+        Evolver["Evolution Driver<br/>bounded recurrence"]
         Controller["Evolution Controller<br/>one generation"]
         Observer["Observer<br/>observation boundary"]
         Mutator["Mutator<br/>one legal child"]
@@ -45,7 +46,9 @@ flowchart LR
         History["metering-history<br/>opt-in pair ledger"]
     end
 
-    Caller -->|generation request| Controller
+    Caller -->|one generation| Controller
+    Caller -. optional bounded run .-> Evolver
+    Evolver -->|one request at a time| Controller
     Caller -->|direct Python measurement| API
     Caller -->|one JSON measurement| CLI
     Caller -. optional record, log, or verify .-> History
@@ -61,6 +64,8 @@ flowchart LR
     Controller -->|two aligned reports| Gate
     Gate -->|selected identity| Controller
     Controller -->|next parent| Caller
+    Controller -->|completed generation| Evolver
+    Evolver -->|selected run-local head| Caller
 
     Observer --> CLI
     Observer -. optional history .-> History
@@ -73,9 +78,11 @@ flowchart LR
 ```
 
 Solid arrows show explicit calls or returned data. Dashed arrows are opt-in
-measurement recording. The repository controller owns one generation; the
-external caller still owns repetition and every policy update. Metering only
-validates caller-supplied probability models and evaluates named measures.
+measurement recording. Controller owns one generation. The optional source-only
+Evolution Driver repeats completed agent-skill generations under explicit
+limits; the caller still owns configuration, final evaluation, installation,
+and deployment. Metering only validates caller-supplied probability models and
+evaluates named measures.
 
 ## Install
 
@@ -342,13 +349,13 @@ owns later requests, mutation-policy changes, budgets, persistence, and
 stopping. See the [controller contract](apps/controller/README.md) and complete
 integration tests in [`tests/test_controller.py`](tests/test_controller.py).
 
-[`apps/README.md`](apps/README.md) indexes all six repository-local applications.
-None extends the installed Metering API.
+[`apps/README.md`](apps/README.md) indexes the six repository-local stages and
+the optional outer Evolution Driver. None extends the installed Metering API.
 
 ## Agent-skill generation
 
-Application schema version 2 composes the same six boundaries around external
-agents such as Pi or Prime Agent. It supports a content-identified default agent
+Application schema version 2 composes the same six boundaries around Pi or any
+compatible external agent command. It supports a content-identified default agent
 or UTF-8 Agent Skills directory, caller-selected runner and trusted evaluator
 commands, matched finite task cases, explicit pass and safety evidence,
 committed pre-evaluation forecasts, and one selected `next_parent`.
@@ -361,11 +368,11 @@ uv run python apps/controller/controller.py \
 ```
 
 The example request uses deterministic demo adapters that inspect skill text;
-it does not call a model. The checked-in text-only Pi adapter is a concrete
-model integration, while Prime Agent and tool-enabled coding agents use the same
-external protocol through separately reviewed adapters. An agent adapter
-receives a temporary skill path and public task document, then returns a JSON
-submission plus a normalized outcome forecast. A separate
+it does not call a model. The checked-in text-only Pi runner and Pi skill
+proposer are concrete model integrations; other agents and tool-enabled coding
+runners can implement the same external protocol. An agent adapter receives a
+temporary skill path and public task document, then returns a JSON submission
+plus a normalized outcome forecast. A separate
 trusted evaluator owns hidden checks and returns `passed`, `safety_passed`, and
 evidence for both candidates. Forecast Assay measures the committed forecast,
 while Selection Gate selects on the declared task and safety policy rather than
@@ -373,8 +380,20 @@ mistaking calibration for capability.
 
 Adapters run with the current user's permissions. They own sandboxing, model
 and tool configuration, resource budgets, hidden-test isolation, and task
-semantics. The controller performs no automatic iteration or skill installation.
-See the complete [agent-skill evolution protocol](docs/agent-evolution.md).
+semantics. Controller performs no automatic iteration or skill installation.
+For a bounded deterministic recurrence:
+
+```bash
+rm -f /tmp/metering-self-evolve.jsonl /tmp/metering-self-evolve.jsonl.lock
+uv run python apps/evolution_driver/evolver.py \
+  --state /tmp/metering-self-evolve.jsonl \
+  < apps/evolution_driver/example-request.json
+```
+
+The driver proposes one complete `SKILL.md`, invokes Controller, records only
+completed generations, resumes verified state, and stops at declared limits. It
+does not install its selected head. See the complete
+[agent-skill evolution protocol](docs/agent-evolution.md).
 
 ## Definitions and edge cases
 
@@ -423,10 +442,12 @@ uv build
 
 ## Compatibility
 
-Application schema version 2 is additive to the source-only applications.
-Schema version 1 fixture requests remain supported. Neither application version
-changes Metering's Python API, installed commands, JSON measurement protocol,
-history format, or numerical semantics.
+Application schema version 2 remains additive to the source-only applications;
+its direct-challenger request is unchanged and the proposer form is additional.
+The Evolution Driver has its own new source-only schema version 1 and state
+format. Schema version 1 fixture requests remain supported. None of these
+application boundaries changes Metering's Python API, installed commands, JSON
+measurement protocol, history format, or numerical semantics.
 
 The current design is a deliberate breaking replacement of the earlier
 hidden-fault harness. Old policies, commands, manifests, traces, reports, and

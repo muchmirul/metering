@@ -337,15 +337,16 @@ Forecast Assay, submits aligned reports to Selection Gate, and returns the
 selected candidate as `next_parent`.
 
 Application schema version 2 adds one bounded agent-skill generation without
-changing Metering's installed interfaces. Mutator binds either an explicit
-default-agent artifact or a normalized UTF-8 Agent Skills directory and one
-caller-proposed challenger. Candidate Runner invokes a caller-selected agent
-adapter for both candidates on identical finite task documents and validates a
-complete pre-evaluation outcome forecast. Observer invokes a separate trusted
-evaluator adapter only after both submissions exist. Forecast Assay reports
-named task pass, safety, and forecast-surprisal evidence. Selection Gate applies
-an explicit safety-regression and minimum-pass-improvement policy; it does not
-use lower surprisal as a substitute for task capability. Controller preserves
+changing Metering's installed interfaces. Mutator either binds one
+caller-supplied challenger or invokes one strict proposer command with only the
+current parent and caller-approved context, then binds the returned complete
+`SKILL.md`. Candidate Runner invokes a caller-selected agent adapter for both
+candidates on identical finite task documents and validates a complete
+pre-evaluation outcome forecast. Observer invokes a separate trusted evaluator
+adapter only after both submissions exist. Forecast Assay reports named task
+pass, safety, and forecast-surprisal evidence. Selection Gate applies an
+explicit safety-regression and minimum-pass-improvement policy; it does not use
+lower surprisal as a substitute for task capability. Controller preserves
 candidate IDs and returns one selected artifact.
 
 Version 2 adapters are ordinary caller-selected subprocesses. The controller
@@ -353,17 +354,29 @@ enforces command argument separation, equal task documents, ordering, candidate
 binding, finite timeouts, and report alignment. Adapter implementations own
 agent invocation, hidden verifiers, workspace isolation, model and tool
 settings, token or monetary budgets, and the meanings of `passed` and
-`safety_passed`. The checked-in demo adapters are deterministic protocol test
-doubles. The concrete text-only Pi adapter disables tools and discovered
-resources, then injects only the verified candidate `SKILL.md`; it is not a
-coding sandbox or empirical evidence of improvement. Prime Agent and other
-agents use the same external protocol.
+`safety_passed`. The checked-in demo adapters are deterministic protocol test doubles. The
+concrete text-only Pi runner and proposer disable tools and discovered
+resources, then inject only the verified candidate `SKILL.md`; neither is a
+coding sandbox or empirical evidence of improvement. Other agents may implement
+the same external protocols without becoming Metering dependencies.
 
 Both controller versions invoke every component through documented JSON
 standard streams. Neither owns a persistent lineage, automatic policy update,
-repetition, installation, deployment, rollback, or stopping rule. A caller must
-explicitly submit another request to advance another generation and must approve
-any installation of `next_parent`.
+repetition, installation, deployment, rollback, or stopping rule. A caller or
+the explicit source-only evolution driver must submit another request to advance
+another generation. Installation of `next_parent` always remains a separate
+caller-approved operation.
+
+The `apps/evolution_driver` wrapper owns only bounded recurrence between
+completed schema-version-2 generations. It keeps one append-only, hash-linked,
+canonical JSONL ledger, verifies the full chain before resuming, supplies the
+last selected artifact as the next parent, exposes only a fixed aggregate of the
+previous selection as proposer feedback, and does not start another generation
+after the first configured generation, consecutive-rejection, or per-invocation
+wall-clock limit. A failed or
+interrupted Controller call never appends a generation record. Selected skills
+remain run-local; the driver does not install, deploy, or claim general
+improvement.
 
 Application JSONL transports use standard input and output only. Recoverable
 line errors produce an aligned JSON response and leave later requests usable.
@@ -417,6 +430,7 @@ tests/
     test_controller.py
     test_evolution_kernel.py
     test_agent_evolution.py
+    test_self_evolution.py
 docs/
     README.md
     foundations.md
@@ -434,6 +448,7 @@ apps/
     candidate_runner/ fixture model and external-agent adapter boundary
     selection_gate/   forecast and task-capability retention policies
     controller/       fixture and agent-skill one-generation orchestrator
+    evolution_driver/ bounded run-local recurrence over selected SKILL.md artifacts
 ```
 
 Add a package module only when a concrete responsibility no longer fits one of
@@ -444,10 +459,12 @@ work.
 
 Candidate Runner and Evolution Controller are repository-local source examples.
 Application schema version 2 is additive: every schema version 1 request and
-response remains supported. Version 2 artifacts, reports, and adapter protocols
-are new and have no earlier format to migrate. These application changes do not
-change the installed Python API, Metering JSON protocol, history schema, or
-numerical definitions.
+response remains supported, and the original direct-challenger version 2 form
+is unchanged. Strict proposer invocation is an additional version 2 request
+form. The Evolution Driver has a separate source-only schema version 1 and no
+earlier state format to migrate. These application changes do not change the
+installed Python API, Metering JSON protocol, history schema, or numerical
+definitions.
 
 This scope reset intentionally removes the previous hidden-fault world,
 actions, policies, controller, calibration, reports, general trace/replay
@@ -456,6 +473,54 @@ usable only with a checkout of the historical implementation that created them.
 
 There is no compatibility shim. Keeping one would retain the unrelated product
 inside the new one and violate the one-purpose boundary.
+
+## Bounded Pi self-evolution
+
+The implemented source-only driver uses Pi through a strict proposer adapter and
+the existing Metering applications as its measurement and retention core. Prime
+Agent was a design reference only and is not a dependency.
+
+The irreducible transition is one metered recurrence:
+
+```text
+challenger[n] = propose_with_pi(parent[n], allowed_feedback[n])
+generation[n] = controller(parent[n], challenger[n], evaluation[n])
+parent[n + 1] = generation[n].next_parent
+```
+
+Controller continues to own ordering and validation within one generation; the
+driver owns only recurrence between completed generations. The implementation:
+
+- evolves exactly one complete, non-executable `SKILL.md` artifact and one
+  challenger per generation;
+- invokes a pinned Pi proposer through strict JSON with the current parent and
+  caller-approved context, not protected evaluator cases or outcomes;
+- advances the current parent only to the exact `next_parent` returned through
+  Selection Gate;
+- records a canonical hash-linked run header and completed Controller
+  request/result pairs in a caller-selected local JSONL file;
+- fails visibly on malformed, non-canonical, conflicting, or interrupted state;
+- enforces generation and consecutive-rejection limits, checks the
+  per-invocation wall-clock limit before each generation, and derives a bounded
+  Controller timeout from the proposer, runner, and evaluator timeouts, while
+  token and monetary limits remain adapter
+  responsibilities because only adapters can observe them;
+- keeps selected artifacts run-local and performs no installation, deployment,
+  or automatic rollback; and
+- requires an untouched final evaluation for any broader improvement claim.
+
+Pi may propose or execute a candidate, but it never judges its own retention.
+Task and safety evidence control selection. Forecast entropy and target
+surprisal remain separately named calibration signals that may expose
+uncertainty or blind spots; they are not a capability score and cannot move the
+parent by themselves.
+
+The driver has no recursive agent tree, candidate population, learned mutation
+policy, database, event bus, plugin framework, automatic global skill
+installation, or production deployment. The six semantic boundaries remain
+separate. Schema-version-1 fixture behavior and schema-version-2 direct
+challenger requests remain compatible; internal Controller and Observer modules
+are split by workflow only to keep unrelated mechanisms readable.
 
 ## Acceptance criteria
 
@@ -510,6 +575,12 @@ The rewrite is complete only when:
   forecast calibration;
 - the agent-skill controller returns only the parent or challenger artifact and
   performs no installation, repetition, or unsupported improvement claim;
+- Mutator's proposal form gives a strict proposer only the parent and declared
+  context, accepts exactly one replacement `SKILL.md`, and preserves the direct
+  caller-supplied challenger form;
+- the evolution driver advances only from a completed Controller result, verifies
+  its canonical hash-linked state before resume, stops at explicit limits, and
+  never installs its selected head;
 - the full test suite and package build pass.
 
 ## Source
