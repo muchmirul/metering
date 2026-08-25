@@ -227,7 +227,7 @@ and selection:
 
 $$
 \bar w\,\Delta\bar z
-=\operatorname{Cov}(w_i,z_i)+\mathbb E[w_i\Delta z_i].
+=\mathrm{Cov}(w_i,z_i)+\mathbb E[w_i\Delta z_i].
 $$
 
 Here $z_i$ is a parent trait, $w_i$ is its descendant contribution,
@@ -244,7 +244,7 @@ Each identity boundary defines its own canonical serialization $C_s(m)$ and
 uses a SHA-256 digest
 
 $$
-d_s(m)=\operatorname{SHA256}(\operatorname{UTF8}(C_s(m))).
+d_s(m)=\mathrm{SHA256}(\mathrm{UTF8}(C_s(m))).
 $$
 
 The schema-specific subscript matters: Observer manifests, candidate genomes,

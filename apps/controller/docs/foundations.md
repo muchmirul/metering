@@ -38,7 +38,7 @@ explicit:
 
 $$
 \bar w\,\Delta\bar z
-=\operatorname{Cov}(w_i,z_i)+\mathbb E[w_i\Delta z_i].
+=\mathrm{Cov}(w_i,z_i)+\mathbb E[w_i\Delta z_i].
 $$
 
 Here $z_i$ is a parent trait, $w_i$ is descendant contribution, and

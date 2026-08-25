@@ -176,9 +176,9 @@ complete file bytes, `rel_S(p)` its POSIX relative path, and $J$ the app's
 canonical JSON encoding. For each file define the exact manifest object
 
 $$
-m_S(p)=\{\text{path}:\operatorname{rel}_S(p),
-          \text{sha256}:\operatorname{SHA256}(\operatorname{bytes}(p)),
-          \text{size}:|\operatorname{bytes}(p)|\}.
+m_S(p)=\{\text{path}:\mathrm{rel}_S(p),
+          \text{sha256}:\mathrm{SHA256}(\mathrm{bytes}(p)),
+          \text{size}:|\mathrm{bytes}(p)|\}.
 $$
 
 If $p_1,\ldots,p_k$ are ordered by their relative paths, the manifest and
@@ -189,8 +189,8 @@ M(S)=[m_S(p_1),\ldots,m_S(p_k)],
 $$
 
 $$
-\operatorname{tree\_id}(S)
-=\operatorname{SHA256}(\operatorname{UTF8}(J(M(S)))).
+\mathrm{tree\_id}(S)
+=\mathrm{SHA256}(\mathrm{UTF8}(J(M(S)))).
 $$
 
 Two sandboxes are equivalent for version 1 identity exactly when
@@ -208,14 +208,14 @@ parent snapshot ID $p$, tree ID $t$, and canonical probe documents
 $q_1,\ldots,q_m$:
 
 $$
-\operatorname{snapshot\_id}
-=\operatorname{SHA256}(\operatorname{UTF8}(J(\{
+\mathrm{snapshot\_id}
+=\mathrm{SHA256}(\mathrm{UTF8}(J(\{
 \text{parent\_snapshot\_id}:p,\text{tree\_id}:t\}))),
 $$
 
 $$
-\operatorname{catalogue\_id}
-=\operatorname{SHA256}(\operatorname{UTF8}(J(\{
+\mathrm{catalogue\_id}
+=\mathrm{SHA256}(\mathrm{UTF8}(J(\{
 \text{probes}:[q_1,\ldots,q_m]\}))).
 $$
 

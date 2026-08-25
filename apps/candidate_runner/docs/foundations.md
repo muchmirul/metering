@@ -142,7 +142,7 @@ Candidate Runner independently checks the Mutator formula
 
 $$
 \text{candidate\_id}
-=\operatorname{SHA256}\!\left(\operatorname{UTF8}\!\left(
+=\mathrm{SHA256}\!\left(\mathrm{UTF8}\!\left(
 C_{\mathrm{runner}}\!\left(\left\{
 \text{genome}:g,
 \text{genome\_schema}:\texttt{flat-json-atoms-v1},

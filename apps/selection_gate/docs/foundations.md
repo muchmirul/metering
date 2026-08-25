@@ -23,7 +23,7 @@ The Price equation separates differential selection from transmission:
 
 $$
 \bar w\,\Delta\bar z
-=\operatorname{Cov}(w_i,z_i)+\mathbb E[w_i\Delta z_i].
+=\mathrm{Cov}(w_i,z_i)+\mathbb E[w_i\Delta z_i].
 $$
 
 Here $z_i$ is a parent trait, $w_i$ is descendant contribution, and
@@ -188,14 +188,14 @@ candidate.
 ## Evidence content identity
 
 Let $C$ be the gate's canonical JSON serialization and let
-$\operatorname{cases}(E)$ be the list of exact
+$\mathrm{cases}(E)$ be the list of exact
 `{"observation": ..., "target": ...}` objects sorted by observation ID. The
 returned identity is
 
 $$
 \text{evidence\_id}
-=\operatorname{SHA256}(\operatorname{UTF8}(C(\{
-\text{cases}:\operatorname{cases}(E),
+=\mathrm{SHA256}(\mathrm{UTF8}(C(\{
+\text{cases}:\mathrm{cases}(E),
 \text{evaluation}:E,
 \text{schema\_version}:1
 \}))).

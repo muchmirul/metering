@@ -21,7 +21,7 @@ selection:
 
 $$
 \bar w\,\Delta\bar z
-=\operatorname{Cov}(w_i,z_i)+\mathbb E[w_i\Delta z_i].
+=\mathrm{Cov}(w_i,z_i)+\mathbb E[w_i\Delta z_i].
 $$
 
 Here $z_i$ is a parent trait, $w_i$ is descendant contribution, and
@@ -149,7 +149,7 @@ For canonical JSON serialization $C$, a candidate content identity is
 
 $$
 \text{candidate\_id}(c)
-=\operatorname{SHA256}(\operatorname{UTF8}(C(\{
+=\mathrm{SHA256}(\mathrm{UTF8}(C(\{
 \text{genome}:c,
 \text{genome\_schema}:\texttt{flat-json-atoms-v1},
 \text{schema\_version}:1
