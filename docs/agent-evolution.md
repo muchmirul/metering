@@ -21,8 +21,29 @@ parent candidate + direct or proposer-produced challenger
 
 The controller performs one generation. It does not repeat generations,
 install the selected skill, or claim improvement outside the declared cases.
-The optional Evolution Driver repeats this same transition under explicit
-persistent limits without changing Controller semantics.
+The optional Evolution Driver repeats this same transition under persistent
+generation and rejection limits plus a per-invocation wall-clock limit, without
+changing Controller semantics.
+
+## Behavior-preserving decomposition
+
+Schema version 2 was added without turning the public entry points into mixed
+implementations:
+
+- `apps/controller/controller.py` retains schema-version-1 fixture orchestration
+  and dispatches schema-version-2 work to `agent_generation.py`;
+- `component_runtime.py` owns Controller subprocess and component-response
+  mechanics without owning application policy;
+- `apps/observer/observer.py` remains the independently copyable fixture
+  program, while `agent_evaluator.py` owns schema-version-2 external evaluation;
+- Mutator keeps direct-challenger requests and adds a separate strict proposer
+  path rather than weakening either request shape.
+
+These are internal ownership changes, not new public commands. Recorded
+schema-version-1 fixture outputs and direct-challenger schema-version-2 outputs
+remain byte-identical. The split centralizes transport mechanics while leaving
+mutation, evaluation, measurement, and retention policy in their owning
+applications.
 
 ## Candidate artifacts
 
