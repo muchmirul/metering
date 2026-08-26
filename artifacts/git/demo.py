@@ -24,7 +24,7 @@ from stdio_connector import (  # noqa: E402
 from git_repository import content_sha256, run_git  # noqa: E402
 
 EVOLVER = ROOT / "apps" / "evolution_driver" / "evolver.py"
-PROPOSER = HERE / "pi_git_proposer.py"
+PROPOSER = ROOT / "connectors" / "fixed" / "pi" / "git_proposer.py"
 ADAPTER = HERE / "git_candidate_adapter.py"
 VALIDATE = HERE / "demo_validate.py"
 BUILDER = HERE / "demo_model_builder.py"

@@ -153,7 +153,12 @@ def test_pi_skill_proposer_is_tool_free_and_injects_the_parent(tmp_path):
     result = run(
         PI_PROPOSER,
         request,
-        env={**os.environ, "PI_BIN": str(fake_pi), "PI_TRACE": str(trace)},
+        env={
+            **os.environ,
+            "METERING_PI_COMMAND": encode([str(fake_pi)]),
+            "PI_BIN": str(fake_pi),
+            "PI_TRACE": str(trace),
+        },
     )
 
     assert result.returncode == 0, result.stderr
@@ -191,7 +196,11 @@ def test_evolver_runs_one_complete_fake_pi_proposal_generation(tmp_path):
         request,
         "--state",
         str(state),
-        env={**os.environ, "PI_BIN": str(fake_pi)},
+        env={
+            **os.environ,
+            "METERING_PI_COMMAND": encode([str(fake_pi)]),
+            "PI_BIN": str(fake_pi),
+        },
     )
 
     assert result.returncode == 0, result.stderr

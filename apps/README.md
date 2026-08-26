@@ -28,7 +28,7 @@ reveal, submits aligned Forecast Assay reports, and applies Selection Gate.
 Schema version 2 reuses all six process boundaries for one agent-artifact
 generation. Mutator binds normalized artifacts supplied directly or invokes one
 strict proposer for a complete replacement `SKILL.md`; Candidate Runner invokes
-an external Pi or other adapter; Observer
+a fixed Pi, Prime Agent, or other reviewed connector; Observer
 invokes a separate trusted evaluator after both submissions exist; Forecast
 Assay reports task, safety, and Metering forecast evidence; Selection Gate
 applies an explicit pass-count and safety policy; and Controller returns one
@@ -38,13 +38,14 @@ and [`tests/test_agent_evolution.py`](../tests/test_agent_evolution.py).
 Shared source support is deliberately narrow. `agent_protocol.py` owns schema
 version 2 artifact and wire validation; `stdio_connector.py` owns the common
 canonical JSON, one-shot/JSONL, and subprocess mechanics used by the composable
-stdin applications. Application modules still own schemas, mathematics,
-ordering, and error policy. Observer's independently copyable fixture protocol
-and external adapter examples remain self-contained where sharing would create
-the wrong dependency. Observer's task evaluator and Controller's schema-v2
-orchestration are separate internal modules behind the unchanged commands. This
-keeps unrelated workflows readable without turning the six boundaries into one
-framework.
+stdin applications. Concrete Pi and Prime Agent CLI translations live under
+[`connectors/fixed/`](../connectors/fixed/README.md), outside every application
+owner. Application modules still own schemas, mathematics, ordering, and error
+policy. Observer's independently copyable fixture protocol remains self-contained
+where sharing would create the wrong dependency. Observer's task evaluator and
+Controller's schema-v2 orchestration are separate internal modules behind the
+unchanged commands. This keeps unrelated workflows readable without turning the
+six boundaries into one framework.
 
 [`evolution_driver/evolver.py`](evolution_driver/README.md) is an outer wrapper,
 not a seventh semantic stage. It repeats only completed schema-v2 generations,

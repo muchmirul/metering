@@ -152,6 +152,7 @@ def test_live_acceptance_runs_evolution_then_withheld_suite_with_fake_pi(tmp_pat
     fake_pi.chmod(0o755)
     environment = {
         **os.environ,
+        "METERING_PI_COMMAND": encode([str(fake_pi)]),
         "PI_BIN": str(fake_pi),
         "PI_MODEL": "fake-model",
         "PI_PROVIDER": "fake-provider",
@@ -174,6 +175,7 @@ def test_live_acceptance_runs_evolution_then_withheld_suite_with_fake_pi(tmp_pat
     assert report["final_assay"]["comparison"]["pass_improvement"] == 2
     assert report["agent_configuration"] == {
         "pi_bin": str(fake_pi),
+        "pi_command": [str(fake_pi)],
         "pi_model": "fake-model",
         "pi_provider": "fake-provider",
         "pi_reasoning_level": "fake-reasoning",

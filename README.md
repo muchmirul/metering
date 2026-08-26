@@ -11,10 +11,11 @@ It implements four named measures:
 - mutual information.
 
 That is the entire measurement surface. Metering does not run agents, choose
-actions, estimate probabilities, update beliefs, rank systems, or interpret
-meaning. The caller supplies the probability model; Metering validates it and
-returns a number. A separate opt-in command can retain accepted measurement
-request/response pairs without changing that surface.
+actions, estimate probabilities, update beliefs, generate harnesses, train
+weights, or interpret meaning. The caller supplies the probability model;
+Metering validates it and returns a number. Separate source-only applications
+can bind, execute, compare, retain, and record externally produced candidates
+without changing that surface.
 
 [`PLAN.md`](PLAN.md) is the normative contract. The
 [documentation index](docs/README.md) links the measurement theory, history
@@ -189,6 +190,31 @@ options are `-h`/`--help` and `--version`; abbreviations are rejected.
 The command handles one request per process. It does not access application
 files, call a network service, load a model, or choose which measure to run.
 
+## Agent harness connectors
+
+[`connectors/`](connectors/README.md) contains concrete source-only integrations
+for Pi and Prime Agent plus one shared Agent Skills-compatible Metering tool.
+From an agent's perspective Metering can be an internal shell or Python tool;
+from Metering's trust boundary the agent remains an external proposer or runner
+without evaluator or retention authority.
+
+The fixed connectors translate the existing strict proposer and runner JSON
+protocols. They do not add either harness, a provider SDK, or model dependency to
+the installed package. The former Pi adapter paths under `apps/` and
+`artifacts/git/` remain thin compatibility launchers.
+
+Run the explicit live conformance path with a model available to both installed
+harnesses:
+
+```bash
+uv run python connectors/live_agent_acceptance.py --model llamacpp/local
+```
+
+It launches the real `pi` and `prime-agent` commands, requires each model to call
+the public Metering JSON boundary through its native tool, and verifies the
+result. It performs model inference and is not part of deterministic CI. See the
+[connector contract](connectors/README.md) for pinning and pytest invocation.
+
 ## Versioned measurement history
 
 `metering-history` is the explicit filesystem-writing boundary. It wraps the
@@ -360,8 +386,8 @@ the optional outer Evolution Driver. None extends the installed Metering API.
 
 ## Agent-artifact generation
 
-Application schema version 2 composes the same six boundaries around Pi or any
-compatible external command. It supports a content-identified default agent,
+Application schema version 2 composes the same six boundaries around any
+compatible external agent command. It supports a content-identified default agent,
 UTF-8 Agent Skills directory, or immutable Git source/output descriptor;
 caller-selected runner and trusted evaluator commands; matched finite task
 cases; explicit pass and safety evidence;
@@ -375,9 +401,10 @@ uv run python apps/controller/controller.py \
 ```
 
 The example request uses deterministic demo adapters that inspect skill text;
-it does not call a model. The checked-in text-only Pi runner and Pi skill
-proposer are concrete model integrations; other agents and tool-enabled coding
-runners can implement the same external protocol. Default/skill adapters receive
+it does not call a model. Checked-in fixed Pi and Prime Agent runners and skill
+proposers are concrete model integrations under `connectors/fixed/`; other
+agents and tool-enabled coding runners can implement the same external protocol.
+Default/skill adapters receive
 a temporary skill path and public task document. Git adapters receive the
 normalized commit/tree/output descriptor. Both return a JSON submission plus a
 normalized outcome forecast. A separate
@@ -400,8 +427,8 @@ uv run python apps/evolution_driver/evolver.py \
 
 The driver proposes one complete skill or Git candidate, invokes Controller,
 records only completed generations, resumes verified state, and stops at
-declared limits. It does not install its selected head. A pinned live Pi can
-exercise Git adapter source plus a hash-addressed model-output receipt with:
+declared limits. It does not install its selected head. A pinned live Pi connector can exercise Git adapter source plus a
+hash-addressed model-output receipt with:
 
 ```bash
 uv run python artifacts/git/demo.py --root /tmp/metering-git-live-$(date +%s)

@@ -1,7 +1,9 @@
 # Git-backed evolution artifacts
 
-This directory is an external candidate bridge for the frozen Pi + Metering
-control plane. It does not add a seventh semantic stage. The existing six apps
+This directory is an agent-neutral external candidate bridge for Metering's
+frozen control plane. Concrete Pi and Prime Agent workspace translations live
+under [`connectors/fixed/`](../../connectors/fixed/README.md). The bridge does
+not add a seventh semantic stage. The existing six apps
 still own variation, execution, observation, measurement, retention, and one
 generation; Evolution Driver still owns bounded recurrence.
 
@@ -10,8 +12,8 @@ candidates without hiding them in `SKILL.md`:
 
 ```text
 selected git-candidate-v1
-    -> Mutator invokes pi_git_proposer.py
-    -> Pi edits a disposable file-only workspace
+    -> Mutator invokes one fixed agent Git proposer
+    -> the external agent edits a disposable file-only workspace
     -> visible validation and optional build/training command run
     -> trusted bridge creates and publishes an immutable Git commit
     -> Candidate Runner invokes git_candidate_adapter.py for both candidates
@@ -56,9 +58,11 @@ the selected candidate.
 ## Components
 
 - `git_artifact.py` verifies an existing commit and emits its initial descriptor.
-- `pi_git_proposer.py` clones the selected parent, copies files into a workspace
-  without `.git`, lets Pi edit, runs visible checks/building, creates a commit
-  with trusted Git plumbing, and publishes one append-only candidate ref.
+- `git_proposer.py` owns shared trusted clone, validation, build, commit, and
+  publication mechanics without launching a model.
+- `connectors/fixed/{pi,prime_agent}/git_proposer.py` each let one concrete agent
+  edit the workspace without `.git`; `pi_git_proposer.py` is a compatibility
+  launcher.
 - `git_candidate_adapter.py` verifies the descriptor and checkout, then passes it
   to one fixed executor command. It never executes candidate files itself.
 - `demo_validate.py`, `demo_model_builder.py`, `demo_executor.py`, and
@@ -73,13 +77,13 @@ The proposer uses caller-controlled environment variables:
 ```text
 METERING_GIT_REPOSITORY             exact allowed repository
 METERING_GIT_REF_PREFIX             append-only candidate branch prefix
-METERING_GIT_ALLOWED_PATHS_JSON     paths Pi/building may change
+METERING_GIT_ALLOWED_PATHS_JSON     paths agent/building may change
 METERING_GIT_VALIDATE_COMMAND       visible validation command array
 METERING_GIT_VALIDATE_TIMEOUT       validation timeout
 METERING_GIT_BUILD_COMMAND          optional build/training command array
 METERING_GIT_BUILD_TIMEOUT          build/training timeout
-PI_BIN                              Pi executable
-PI_PROVIDER / PI_MODEL              pinned Pi configuration
+METERING_PI_COMMAND                 pinned Pi command array
+METERING_PRIME_AGENT_COMMAND        pinned Prime Agent command array
 ```
 
 The optional build command receives this JSON on standard input:
@@ -133,6 +137,7 @@ Pin Pi and choose a directory that does not exist:
 export PI_PROVIDER=openai-codex
 export PI_MODEL=gpt-5.6-sol
 export PI_REASONING_LEVEL=max
+export METERING_PI_COMMAND='["pi","--provider","openai-codex","--model","gpt-5.6-sol","--thinking","max"]'
 uv run python artifacts/git/demo.py \
   --root /tmp/metering-git-live-$(date +%s)
 ```
@@ -151,7 +156,7 @@ trained Qwen improvement.
 
 ## Security and lifecycle boundary
 
-Pi tools and validation/build commands are not sandboxed by these Python files.
+Agent tools and validation/build commands are not sandboxed by these Python files.
 Run the complete proposer inside a disposable container or VM with no protected
 evaluator mount, host credentials, or network by default. Run candidate source
 only through a separately reviewed executor sandbox. The path allowlist and Git

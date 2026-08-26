@@ -247,6 +247,12 @@ def test_pi_text_adapter_isolates_default_and_explicit_skill_loading(tmp_path):
             "input": {"outcomes": ["fail", "pass"], "prompt": "Answer."},
         },
     }
+    agent_environment = {
+        **os.environ,
+        "METERING_PI_COMMAND": encode([str(fake_pi)]),
+        "PI_BIN": str(fake_pi),
+        "PI_TRACE": str(trace),
+    }
     result = subprocess.run(
         [sys.executable, str(PI_TEXT_ADAPTER)],
         cwd=ROOT,
@@ -254,7 +260,7 @@ def test_pi_text_adapter_isolates_default_and_explicit_skill_loading(tmp_path):
         capture_output=True,
         text=True,
         check=False,
-        env={**os.environ, "PI_BIN": str(fake_pi), "PI_TRACE": str(trace)},
+        env=agent_environment,
     )
 
     assert result.returncode == 0, result.stderr
@@ -283,7 +289,7 @@ def test_pi_text_adapter_isolates_default_and_explicit_skill_loading(tmp_path):
         capture_output=True,
         text=True,
         check=False,
-        env={**os.environ, "PI_BIN": str(fake_pi), "PI_TRACE": str(trace)},
+        env=agent_environment,
     )
     assert with_skill.returncode == 0, with_skill.stderr
     arguments = json.loads(trace.read_text())

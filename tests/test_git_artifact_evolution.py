@@ -7,10 +7,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = ROOT / "artifacts" / "git"
 GIT_ARTIFACT = ARTIFACTS / "git_artifact.py"
-GIT_PROPOSER = ARTIFACTS / "pi_git_proposer.py"
+PI_GIT_PROPOSER = ROOT / "connectors" / "fixed" / "pi" / "git_proposer.py"
+PRIME_GIT_PROPOSER = (
+    ROOT / "connectors" / "fixed" / "prime_agent" / "git_proposer.py"
+)
 GIT_ADAPTER = ARTIFACTS / "git_candidate_adapter.py"
 DEMO_VALIDATE = ARTIFACTS / "demo_validate.py"
 DEMO_BUILDER = ARTIFACTS / "demo_model_builder.py"
@@ -29,6 +34,10 @@ CORE_FILES = [
     ROOT / "apps" / "selection_gate" / "selection_gate.py",
     ROOT / "apps" / "controller" / "controller.py",
     ROOT / "apps" / "evolution_driver" / "evolver.py",
+    ROOT / "artifacts" / "git" / "git_proposer.py",
+    ROOT / "connectors" / "fixed" / "command.py",
+    ROOT / "connectors" / "fixed" / "pi" / "git_proposer.py",
+    ROOT / "connectors" / "fixed" / "prime_agent" / "git_proposer.py",
 ]
 
 
@@ -160,17 +169,20 @@ def git_environment(
             [sys.executable, str(DEMO_VALIDATE)]
         ),
         "METERING_GIT_VALIDATE_TIMEOUT": "30",
+        "METERING_PI_COMMAND": encode([str(pi)]),
         "PI_BIN": str(pi),
         "PI_TRACE": str(trace),
     }
 
 
-def evolution_request(parent: dict[str, object]) -> dict[str, object]:
+def evolution_request(
+    parent: dict[str, object], proposer: Path = PI_GIT_PROPOSER
+) -> dict[str, object]:
     return {
         "schema_version": 1,
         "initial_parent_artifact": parent,
         "proposal": {
-            "command": [sys.executable, str(GIT_PROPOSER)],
+            "command": [sys.executable, str(proposer)],
             "context": {
                 "objective": "Adapt the environment adapter and produce a model artifact."
             },
@@ -254,17 +266,29 @@ def test_git_artifact_normalizes_external_outputs_and_rejects_duplicates(tmp_pat
     assert "duplicate kind and name" in duplicate.stderr
 
 
-def test_git_artifact_runs_through_the_complete_frozen_evolution_loop(tmp_path):
+@pytest.mark.parametrize(
+    ("proposer", "command_environment"),
+    [
+        (PI_GIT_PROPOSER, "METERING_PI_COMMAND"),
+        (PRIME_GIT_PROPOSER, "METERING_PRIME_AGENT_COMMAND"),
+    ],
+)
+def test_git_artifact_runs_through_the_complete_frozen_evolution_loop(
+    tmp_path: Path,
+    proposer: Path,
+    command_environment: str,
+):
     remote, parent_commit = seed_repository(tmp_path)
-    pi, trace = fake_pi(tmp_path)
-    environment = git_environment(tmp_path, remote, pi, trace)
+    agent, trace = fake_pi(tmp_path)
+    environment = git_environment(tmp_path, remote, agent, trace)
+    environment[command_environment] = encode([str(agent)])
     parent = initial_artifact(remote, parent_commit, environment)
     state = tmp_path / "evolution.jsonl"
     before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in CORE_FILES}
 
     result = run(
         EVOLVER,
-        evolution_request(parent),
+        evolution_request(parent, proposer),
         "--state",
         str(state),
         env=environment,
@@ -302,7 +326,7 @@ def test_git_artifact_runs_through_the_complete_frozen_evolution_loop(tmp_path):
     state_before = state.read_bytes()
     resumed = run(
         EVOLVER,
-        evolution_request(parent),
+        evolution_request(parent, proposer),
         "--state",
         str(state),
         env=environment,
@@ -323,6 +347,7 @@ def test_documented_git_artifact_demo_runs_with_fake_pi(tmp_path):
         check=False,
         env={
             **os.environ,
+            "METERING_PI_COMMAND": encode([str(pi)]),
             "PI_BIN": str(pi),
             "PI_MODEL": "fake-model",
             "PI_PROVIDER": "fake-provider",

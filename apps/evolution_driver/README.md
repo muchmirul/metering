@@ -37,13 +37,14 @@ that already reached a limit emits the same summary without appending records.
 ## Constructed live-Pi acceptance
 
 `signal_relay_acceptance.py` provides one reproducible, deliberately narrow
-empirical check using the concrete Pi proposer and text runner. Pin Pi through
+empirical check using the concrete fixed Pi proposer and text runner. Pin Pi through
 its environment, choose a new state path, and retain the report:
 
 ```bash
 export PI_PROVIDER=openai-codex
 export PI_MODEL=gpt-5.6-sol
 export PI_REASONING_LEVEL=max
+export METERING_PI_COMMAND='["pi","--provider","openai-codex","--model","gpt-5.6-sol","--thinking","max"]'
 state=/tmp/metering-signal-relay-$(date +%s).jsonl
 uv run python apps/evolution_driver/signal_relay_acceptance.py \
   --state "$state" \
@@ -69,9 +70,10 @@ result back into evolution. Acceptance requires baseline `0/2`, challenger
 an existing state path so a report cannot silently resume an earlier run.
 
 The checked-in fake-Pi test proves this complete command deterministically. A
-successful real-Pi report additionally proves proposal, execution, retention,
-persistence, and transfer to those two withheld payloads for that exact run and
-pinned configuration. It does **not** prove broad capability improvement. The
+successful real-Pi report records the exact connector command and additionally
+proves proposal, execution, retention, persistence, and transfer to those two
+withheld payloads for that exact run and pinned configuration. It does **not**
+prove broad capability improvement. The
 assets are process-separated, not a security sandbox: commands still inherit
 caller permissions, and rerunning the published final suite makes it reused
 rather than untouched evidence.
@@ -95,17 +97,20 @@ For live proposals, replace the demo command with:
 {
   "command":[
     "uv","run","python",
-    "apps/mutator/pi_skill_proposer.py"
+    "connectors/fixed/pi/skill_proposer.py"
   ],
   "context":{},
   "timeout_seconds":300
 }
 ```
 
-Pin the Pi model and provider in the command's environment or a reviewed wrapper.
-The tool-free adapter disables discovered resources, context files, tools, and
-session persistence. It receives only the current parent and proposal context,
-then returns one complete replacement `SKILL.md` and a reason.
+Pin the Pi command with `METERING_PI_COMMAND` as documented in
+[`connectors/fixed/pi`](../../connectors/fixed/pi/README.md). The tool-free
+connector disables discovered resources, context files, tools, and session
+persistence. It receives only the current parent and proposal context, then
+returns one complete replacement `SKILL.md` and a reason. Prime Agent implements
+the same protocol under `connectors/fixed/prime_agent/`; the general Signal
+Relay acceptance remains Pi-specific for compatibility.
 
 ## State
 

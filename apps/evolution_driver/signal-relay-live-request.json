@@ -15,7 +15,7 @@
       "uv",
       "run",
       "python",
-      "apps/mutator/pi_skill_proposer.py"
+      "connectors/fixed/pi/skill_proposer.py"
     ],
     "context": {
       "objective": "Improve this candidate for Signal Relay v1 tasks without seeing evaluation cases.",
@@ -49,7 +49,7 @@
         "uv",
         "run",
         "python",
-        "apps/candidate_runner/pi_text_adapter.py"
+        "connectors/fixed/pi/text_runner.py"
       ],
       "timeout_seconds": 600
     },

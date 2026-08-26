@@ -71,17 +71,17 @@ uv run python apps/controller/controller.py \
 ```
 
 The example request's runner and evaluator are deterministic protocol test
-doubles. A real request can use the checked-in text-only Pi runner and Pi skill
-proposer or other reviewed task-runner and hidden-verifier adapters. The
-controller uses Mutator artifact IDs,
+doubles. A real request can use the fixed Pi or Prime Agent connectors under
+[`connectors/fixed/`](../../connectors/fixed/README.md), plus a separate reviewed
+hidden-verifier command. The controller uses Mutator artifact IDs,
 Candidate Runner submissions and committed forecasts, Observer's post-run
 trusted evaluation, Forecast Assay reports, and Selection Gate's explicit task
 policy before returning `next_parent`.
 
-Pi users can copy
-[`skills/metered-self-evolve`](skills/metered-self-evolve/SKILL.md) into
-`~/.pi/agent/skills/` and invoke it explicitly as
-`/skill:metered-self-evolve`. See the complete
+Pi and Prime Agent users can explicitly load the shared
+[`connectors/tools/metering`](../../connectors/tools/metering/README.md) skill.
+The older [`skills/metered-self-evolve`](skills/metered-self-evolve/SKILL.md)
+remains a Pi-oriented compatibility workflow. See the complete
 [agent-artifact evolution protocol](../../docs/agent-evolution.md).
 
 For bounded recurrence, use the outer

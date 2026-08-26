@@ -7,6 +7,7 @@ set is loaded only after the bounded development generation has completed.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -142,13 +143,13 @@ def _controller_timeout(
     )
 
 
-def _agent_configuration() -> dict[str, str]:
+def _agent_configuration() -> dict[str, object]:
     names = {
         "pi_model": "PI_MODEL",
         "pi_provider": "PI_PROVIDER",
         "pi_reasoning_level": "PI_REASONING_LEVEL",
     }
-    configuration: dict[str, str] = {}
+    configuration: dict[str, object] = {}
     for output_name, environment_name in names.items():
         value = os.environ.get(environment_name)
         if not value or "\x00" in value:
@@ -156,7 +157,23 @@ def _agent_configuration() -> dict[str, str]:
                 f"{environment_name} must pin the live acceptance configuration"
             )
         configuration[output_name] = value
-    pi_bin = os.environ.get("PI_BIN", "pi")
+    command_source = os.environ.get("METERING_PI_COMMAND")
+    if command_source:
+        try:
+            command = json.loads(command_source)
+        except json.JSONDecodeError as exc:
+            raise AcceptanceError(
+                f"METERING_PI_COMMAND is invalid JSON: {exc}"
+            ) from exc
+        if type(command) is not list or not command or any(
+            type(item) is not str or not item or "\x00" in item for item in command
+        ):
+            raise AcceptanceError(
+                "METERING_PI_COMMAND must contain a non-empty JSON string array"
+            )
+    else:
+        command = [os.environ.get("PI_BIN", "pi")]
+    pi_bin = command[0]
     try:
         completed = subprocess.run(
             [pi_bin, "--version"],
@@ -166,11 +183,16 @@ def _agent_configuration() -> dict[str, str]:
             timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise AcceptanceError(f"cannot identify PI_BIN: {exc}") from exc
+        raise AcceptanceError(f"cannot identify the Pi command: {exc}") from exc
     version = completed.stdout.strip()
     if completed.returncode != 0 or completed.stderr or not version or "\n" in version:
-        raise AcceptanceError("PI_BIN --version did not return one clean line")
-    return {"pi_bin": pi_bin, "pi_version": version, **configuration}
+        raise AcceptanceError("Pi --version did not return one clean line")
+    return {
+        "pi_bin": pi_bin,
+        "pi_command": command,
+        "pi_version": version,
+        **configuration,
+    }
 
 
 def _state_generation(path: Path) -> dict[str, object]:

@@ -81,11 +81,12 @@ digests; it does not embed source or model weights. In both forms Mutator report
 changed paths (`@git-candidate` for a changed Git descriptor) and never claims
 that the challenger is better.
 
-For a live tool-free skill proposal, use
-`apps/mutator/pi_skill_proposer.py`. For a tool-enabled Git workspace proposal,
-use [`../../artifacts/git/pi_git_proposer.py`](../../artifacts/git/README.md)
-inside a reviewed builder sandbox. The bounded Evolution Driver provides the
-complete request and persistence example in
+For a live tool-free skill proposal, use a concrete Pi or Prime Agent command
+under [`../../connectors/fixed/`](../../connectors/fixed/README.md). Tool-enabled
+Git workspace proposers live under the same provider directories and must run
+inside a reviewed builder sandbox. The former Pi paths in this directory and
+`artifacts/git/` are compatibility launchers. The bounded Evolution Driver
+provides the complete request and persistence example in
 [`../evolution_driver/README.md`](../evolution_driver/README.md).
 
 Encode an existing local skill directory with:
@@ -108,7 +109,7 @@ artifact schema and complete six-application composition.
 ```text
 mutator/
     mutator.py
-    pi_skill_proposer.py
+    pi_skill_proposer.py  compatibility launcher
     skill_artifact.py
     README.md
     docs/

@@ -145,15 +145,17 @@ For proposer-generated changes, parent and challenger may be a default artifact,
 exactly one `SKILL.md`, or a normalized `git-candidate-v1`; the challenger may
 not be default and must differ. Mutator records the proposer command digest as
 provenance. It does not pass tasks, evaluator commands, submissions, or
-protected evidence. The checked-in Pi skill proposer remains skill-only; the
-external Git proposer emits Git artifacts through the same Mutator command
-boundary.
+protected evidence. Fixed Pi and Prime Agent skill proposers remain skill-only;
+their Git-workspace proposers emit Git artifacts through the same Mutator
+command boundary.
 
-The checked-in `apps/mutator/pi_skill_proposer.py` is a concrete tool-free Pi
-adapter. It disables tools, context files, discovered resources, and sessions,
-then registers and injects the verified current `SKILL.md`. Pin model and
-provider selection in its environment or a reviewed wrapper. It returns a full
-replacement, never a patch, and does not decide retention.
+Concrete fixed skill proposers for Pi and Prime Agent live under
+[`connectors/fixed/`](../connectors/fixed/README.md). Each disables tools,
+context files, discovered resources, and sessions, then registers and injects
+the verified current `SKILL.md`. Pin the complete harness command, including
+model and provider, through its documented JSON command environment. A proposer
+returns a full replacement, never a patch, and does not decide retention. The
+former Pi path under `apps/mutator/` is a compatibility launcher.
 
 ## Agent adapter
 
@@ -174,10 +176,11 @@ Adapter request:
 }
 ```
 
-`skill_path` is `null` for the default-agent artifact. A Pi adapter can omit
-`--skill` for that candidate and use `--no-skills --skill PATH/SKILL.md` for a
-skill candidate. Any other runner may implement the same JSON boundary using
-its own public command. Agent SDKs do not belong in Metering.
+`skill_path` is `null` for the default-agent artifact. The fixed Pi and Prime
+Agent connectors omit `--skill` for that candidate and use
+`--no-skills --skill PATH/SKILL.md` for a skill candidate. Another runner may
+implement the same JSON boundary through a reviewed concrete public command.
+Agent SDKs do not belong in Metering.
 
 For `git-candidate-v1`, Candidate Runner uses adapter protocol version 2 and
 passes the descriptor without resolving or executing it:
@@ -221,21 +224,22 @@ For text-only Pi evaluations, use:
 {
   "command":[
     "uv","run","python",
-    "apps/candidate_runner/pi_text_adapter.py"
+    "connectors/fixed/pi/text_runner.py"
   ],
   "timeout_seconds":300
 }
 ```
 
 Its task input is exactly `{"prompt":"...","outcomes":["fail","pass"]}`. The
-adapter disables tools, context files, discovered resources, and session
+connector disables tools, context files, discovered resources, and session
 persistence. Pi normally uses `read` for progressive skill disclosure, so this
-tool-free adapter registers the candidate skill and injects the complete,
+tool-free connector registers the candidate skill and injects the complete,
 verified materialized `SKILL.md` into Pi's system prompt. Referenced scripts and
-assets are not exposed. Pin the Pi model and provider through the runner
-environment or a reviewed wrapper command. The adapter therefore cannot
-evaluate tool-using coding tasks. Such tasks need a separately reviewed adapter
-with isolated workspaces and explicit tool and budget controls.
+assets are not exposed. Pin the complete Pi command through
+`METERING_PI_COMMAND`. Prime Agent's fixed text runner accepts the same request
+under `connectors/fixed/prime_agent/`. Neither can evaluate tool-using coding
+tasks; those need a separately reviewed connector with isolated workspaces and
+explicit tool and budget controls.
 
 ## Evaluator adapter
 
@@ -325,10 +329,26 @@ uv run python apps/controller/controller.py \
 ```
 
 The commands in this example request are deterministic test doubles. They prove
-protocol composition only; they do not run Pi or establish empirical agent
-improvement. Replace its runner with the checked-in text-only Pi adapter, or a
-separately reviewed external adapter, and replace the evaluator for a real
+protocol composition only; they do not run a model or establish empirical agent
+improvement. Replace its runner with a fixed Pi or Prime Agent connector, or a
+separately reviewed external command, and replace the evaluator for a real
 evaluation.
+
+## Agent-internal Metering tool
+
+The shared [`connectors/tools/metering`](../connectors/tools/metering/README.md)
+skill lets either harness invoke Metering through its native tool surface while
+preserving the public JSON boundary. The explicit live acceptance launches real
+Pi and Prime Agent commands, verifies a `bash` or `ipython` tool event, and checks
+the exact Metering receipt:
+
+```bash
+uv run python connectors/live_agent_acceptance.py --model llamacpp/local
+```
+
+This proves one internal-tool call for the selected model and installed harness
+versions. It does not prove proposal quality, candidate promotion, or general
+provider neutrality.
 
 ## Bounded recurrence
 

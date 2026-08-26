@@ -28,3 +28,8 @@ where = ["src"]
 
 [tool.setuptools_scm]
 fallback_version = "0+untagged"
+
+[tool.pytest.ini_options]
+markers = [
+    "live_agents: invokes real external agent harnesses and model inference",
+]

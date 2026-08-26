@@ -38,6 +38,7 @@ uv run python apps/evolution_driver/evolver.py \
   --state /tmp/metering-self-evolve.jsonl \
   < apps/evolution_driver/example-request.json \
   > /tmp/metering-self-evolve-result.json
+uv run --extra test pytest -q tests/test_connectors.py -m 'not live_agents'
 uv run --extra test pytest -q tests/test_git_artifact_evolution.py
 uv build
 ```
@@ -48,13 +49,22 @@ example must select its deterministic challenger; the bounded evolution smoke
 must promote once, then stop after one retained-parent decision. The wheel should
 contain only the four package modules and packaging metadata. The source
 archive also contains tests, Markdown sources, build configuration, the
-non-packaged applications under `apps/`, and the external bridge under
-`artifacts/`. Inspect both
+non-packaged applications under `apps/`, the external bridge under `artifacts/`,
+and concrete source-only integrations under `connectors/`. Inspect both
 archives for legacy harness modules, generated application runs or sandboxes,
 caches, and other build output; none belongs in a release.
 
+When one model is available through both installed harnesses, run the optional
+live internal-tool conformance and preserve its report:
+
+```bash
+uv run python connectors/live_agent_acceptance.py \
+  --model llamacpp/local \
+  > /tmp/metering-live-agent-conformance.json
+```
+
 When a pinned Pi provider is intentionally available, the optional constructed
-acceptance can also be run once with a fresh state path:
+candidate acceptance can also be run once with a fresh state path:
 
 ```bash
 state=/tmp/metering-signal-relay-$(date +%s).jsonl

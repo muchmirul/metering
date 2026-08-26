@@ -7,6 +7,10 @@ disable-model-invocation: true
 
 # Metered Self-Evolve
 
+This is the legacy Pi-oriented workflow skill. New Pi and Prime Agent users
+should load `connectors/tools/metering/SKILL.md`; the commands below remain a
+compatibility guide.
+
 Run exactly one candidate generation unless the user explicitly requests the
 bounded Evolution Driver and approves its limits. Never silently modify the
 loaded skill, install a challenger, exceed those limits, or claim broad
@@ -72,7 +76,7 @@ uv run python apps/evolution_driver/evolver.py \
   < EVOLUTION_REQUEST.json
 ```
 
-Use `apps/mutator/pi_skill_proposer.py` only with a pinned Pi model/provider and
+Use `connectors/fixed/pi/skill_proposer.py` only with a pinned Pi model/provider and
 caller-approved proposal context. State generation, consecutive-rejection, and
 wall-clock limits before execution. The driver resumes only a verified matching
 ledger and never installs its selected head. Do not expose protected evaluator
@@ -82,7 +86,7 @@ cases or per-case evidence to the proposer. Reserve an untouched final suite.
 
 Read `artifacts/git/README.md` before evolving source or build outputs. Use
 `git_artifact.py` to create the parent descriptor,
-`pi_git_proposer.py` as Mutator's external proposer, and
+`connectors/fixed/pi/git_proposer.py` as Mutator's external proposer, and
 `git_candidate_adapter.py` as Candidate Runner's fixed resolver. Bind source to
 an immutable commit, tree, and portable content SHA-256. Bind model checkpoints
 or other large outputs by URI and SHA-256; never use a mutable branch as
@@ -103,7 +107,7 @@ For tasks requiring no tools or mutable workspace, the runner command may be:
 {
   "command":[
     "uv","run","python",
-    "apps/candidate_runner/pi_text_adapter.py"
+    "connectors/fixed/pi/text_runner.py"
   ],
   "timeout_seconds":300
 }

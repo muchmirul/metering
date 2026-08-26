@@ -101,17 +101,16 @@ normalized forecast over evaluator-owned outcomes. Candidate Runner validates
 that forecast through Metering before Observer invokes the evaluator. This is
 the Pi and external-command integration seam; agent SDKs do not enter Metering.
 
-The checked-in `pi_text_adapter.py` is a concrete read-only Pi integration for
-text-response tasks. It disables discovered skills, context, extensions, tools,
-and session persistence. Because Pi normally discloses full skill text through
-the disabled `read` tool, the adapter explicitly injects the verified
-materialized `SKILL.md` into Pi's system prompt while registering that skill.
-Referenced scripts and assets are not exposed. Pin the Pi model and provider in
-the runner environment or a reviewed wrapper command. The adapter gives Pi a valid numeric uniform forecast example rather than a
-string placeholder, but still requires Pi to return a strict JSON submission
-and numeric forecast without coercion. It is not suitable for coding
-tasks that need tools or a mutable workspace. Tool-enabled Pi and other runners
-implement the same adapter JSON boundary externally.
+Concrete fixed text runners now live under
+[`connectors/fixed/`](../../connectors/fixed/README.md) for both Pi and Prime
+Agent. Each disables discovered skills, context, extensions, tools, and session
+persistence, then explicitly injects the verified materialized `SKILL.md` while
+registering that skill. Referenced scripts and assets are not exposed. Pin the
+agent command, model, and provider through the connector's documented JSON
+command environment. Both runners provide a valid numeric uniform forecast
+example rather than a string placeholder, but still require strict JSON without
+coercion. They are not suitable for coding tasks that need tools or a mutable
+workspace. The former `pi_text_adapter.py` path is a compatibility launcher.
 
 Adapter commands execute with caller permissions. They own agent configuration,
 workspace isolation, tools, model budgets, and submission semantics. The

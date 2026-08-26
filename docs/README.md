@@ -17,9 +17,12 @@ contract:
   optional source-only driver performs explicit bounded recurrence.
 - [Agent-artifact evolution protocol](agent-evolution.md) specifies the additive
   schema version 2 candidate, proposer, runner, evaluator, assay, selection, and
-  one-generation boundaries, plus the source-only bounded Pi recurrence driver,
+  one-generation boundaries, plus the source-only bounded recurrence driver,
   constructed live-Pi acceptance, additive Git source/model-output artifact
   bridge, and persistence and isolation limits.
+- [Agent connectors](../connectors/README.md) documents the fixed Pi and Prime
+  Agent translations, the shared internal Metering skill, and the explicit live
+  harness conformance path.
 - [Example applications](../apps/README.md) indexes each non-packaged
   application and its local architecture, foundations, and protocol documents.
 
