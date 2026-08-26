@@ -1,4 +1,4 @@
-"""Repeat the six-app agent-skill generation under explicit bounded state."""
+"""Repeat the six-app agent-artifact generation under explicit bounded state."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ if str(APPS_ROOT) not in sys.path:
 from agent_protocol import (  # noqa: E402
     AGENT_SCHEMA_VERSION,
     DEFAULT_ARTIFACT_SCHEMA,
+    GIT_ARTIFACT_SCHEMA,
     ProtocolError,
     candidate_record,
     decode_candidate,
@@ -71,10 +72,13 @@ def _positive_integer(value: object, location: str) -> int:
     return value
 
 
-def _single_skill_candidate(value: object, location: str) -> dict[str, object]:
+def _evolution_candidate(value: object, location: str) -> dict[str, object]:
     candidate = candidate_record(value, location)
     artifact = cast(dict[str, object], candidate["artifact"])
-    if artifact["artifact_schema"] == DEFAULT_ARTIFACT_SCHEMA:
+    if artifact["artifact_schema"] in {
+        DEFAULT_ARTIFACT_SCHEMA,
+        GIT_ARTIFACT_SCHEMA,
+    }:
         return candidate
     files = cast(list[dict[str, object]], artifact["files"])
     if len(files) != 1 or files[0]["path"] != "SKILL.md":
@@ -117,7 +121,7 @@ def decode_request(source: str) -> dict[str, object]:
             raise ProtocolError(
                 f"schema_version must be {DRIVER_SCHEMA_VERSION}"
             )
-        initial_parent = _single_skill_candidate(
+        initial_parent = _evolution_candidate(
             request["initial_parent_artifact"], "initial_parent_artifact"
         )
 

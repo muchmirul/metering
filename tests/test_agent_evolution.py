@@ -263,6 +263,10 @@ def test_pi_text_adapter_isolates_default_and_explicit_skill_loading(tmp_path):
     assert "--no-tools" in arguments
     assert "--skill" not in arguments
     assert "--append-system-prompt" not in arguments
+    model_prompt = arguments[arguments.index("-p") + 1]
+    assert "NUMBER_FROM_0_TO_1" not in model_prompt
+    assert '"probability":0.5' in model_prompt
+    assert '"submission":{}' in model_prompt
     assert json.loads(result.stdout)["submission"] == {"answer": "ok"}
 
     skill = tmp_path / "candidate"

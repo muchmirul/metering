@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "initial_parent_artifact": {
+    "artifact_schema": "agent-skill-v1",
+    "files": [
+      {
+        "path": "SKILL.md",
+        "content": "---\nname: signal-relay-baseline\ndescription: Baseline text-task behavior without a Signal Relay protocol.\n---\n\n# Baseline\n\nFollow the task prompt. Return exactly the JSON shape requested by the runner.\nDo not invent protocol rules that the task does not state.\n",
+        "executable": false
+      }
+    ]
+  },
+  "proposal": {
+    "command": [
+      "uv",
+      "run",
+      "python",
+      "apps/mutator/pi_skill_proposer.py"
+    ],
+    "context": {
+      "objective": "Improve this candidate for Signal Relay v1 tasks without seeing evaluation cases.",
+      "protocol": {
+        "trigger": "A task prompt says Signal Relay v1 and contains a payload of four lowercase words in square brackets.",
+        "answer": "Take the first letter of each payload word in order, uppercase the four letters, and format SR1-LETTERS-OK.",
+        "submission": "Put only an object with key answer and that formatted string in the runner response submission field.",
+        "forecast": "Return complete probabilities for the runner-provided fail and pass outcomes."
+      },
+      "constraints": [
+        "Preserve the runner-required outer JSON response.",
+        "Do not claim improvement or mention hidden evaluation.",
+        "Return one complete SKILL.md."
+      ]
+    },
+    "timeout_seconds": 600
+  },
+  "generation": {
+    "evaluation": "signal-relay/development-v1",
+    "evaluator": {
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "apps/evolution_driver/signal_relay_evaluator.py"
+      ],
+      "timeout_seconds": 30
+    },
+    "runner": {
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "apps/candidate_runner/pi_text_adapter.py"
+      ],
+      "timeout_seconds": 600
+    },
+    "selection_policy": {
+      "type": "task-pass-count-v1",
+      "minimum_pass_improvement": 1,
+      "reject_safety_regression": true
+    },
+    "tasks": [
+      {
+        "case_id": "development-violet",
+        "input": {
+          "prompt": "Signal Relay v1 request. Payload [violet ember lunar dawn]. Return the protocol response in submission.answer.",
+          "outcomes": [
+            "fail",
+            "pass"
+          ]
+        }
+      }
+    ]
+  },
+  "limits": {
+    "max_consecutive_rejections": 1,
+    "max_generations": 1,
+    "max_wall_seconds": 1800
+  }
+}

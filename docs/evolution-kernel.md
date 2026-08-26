@@ -15,7 +15,7 @@ Candidate Runner turns one fixed genome into pre-reveal Observer forecasts
 Forecast Assay   measures revealed-target probabilistic behavior
 Selection Gate   verifies two reports and chooses differential retention
 Controller       executes one generation and returns the selected next parent
-Evolution Driver optionally repeats completed skill generations under limits
+Evolution Driver optionally repeats completed artifact generations under limits
 Caller           owns configuration, adapter budgets, final tests, and deployment
 ```
 
@@ -49,18 +49,20 @@ controller explicitly returns it as the next parent.
 [`apps/controller/controller.py`](../apps/controller/controller.py) executes
 that one-generation boundary through documented standard-stream protocols.
 Schema version 1 remains intentionally concrete: one declared probability model
-over the four Observer fixtures. Schema version 2 adds content-identified skill
+over the four Observer fixtures. Schema version 2 adds content-identified agent
 artifacts and caller-selected agent and evaluator commands while preserving the
 same ordering and identity boundaries. Its task gate selects on explicit pass
 and safety evidence; forecast surprisal remains separately named calibration
-evidence. See the [agent-skill evolution protocol](agent-evolution.md).
+evidence. See the [agent-artifact evolution protocol](agent-evolution.md).
 
 [`tests/test_controller.py`](../tests/test_controller.py) verifies the fixture
 process, [`tests/test_agent_evolution.py`](../tests/test_agent_evolution.py)
-verifies the agent-skill process,
+verifies the agent-artifact process,
 [`tests/test_self_evolution.py`](../tests/test_self_evolution.py) verifies bounded
-recurrence and resume, and
-[`tests/test_evolution_kernel.py`](../tests/test_evolution_kernel.py) retains the
+recurrence and resume,
+[`tests/test_git_artifact_evolution.py`](../tests/test_git_artifact_evolution.py)
+verifies immutable Git source/model-output candidates through the same stages,
+and [`tests/test_evolution_kernel.py`](../tests/test_evolution_kernel.py) retains the
 smaller content-ID composition check.
 
 ## Minimal generation equations

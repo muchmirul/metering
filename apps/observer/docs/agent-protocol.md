@@ -2,7 +2,7 @@
 
 This page specifies the fixture-session protocol. Observer's separate one-shot
 `--evaluate` boundary for schema version 2 agent tasks is specified in the
-[agent-skill evolution protocol](../../../docs/agent-evolution.md).
+[agent-artifact evolution protocol](../../../docs/agent-evolution.md).
 
 ## Status
 

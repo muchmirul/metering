@@ -58,10 +58,11 @@ challenger mean:  0.2630344058337938 bits
 decision:         promote_challenger
 ```
 
-## Run an agent-skill generation
+## Run an agent-artifact generation
 
-Schema version 2 compares a content-identified default agent or parent skill
-with one challenger over identical finite task documents. Mutator may bind a
+Schema version 2 compares a content-identified default agent, skill, or
+Git-backed source/output candidate with one challenger over identical finite
+task documents. Mutator may bind a
 caller-supplied challenger or invoke one strict proposer command:
 
 ```bash
@@ -81,7 +82,7 @@ Pi users can copy
 [`skills/metered-self-evolve`](skills/metered-self-evolve/SKILL.md) into
 `~/.pi/agent/skills/` and invoke it explicitly as
 `/skill:metered-self-evolve`. See the complete
-[agent-skill evolution protocol](../../docs/agent-evolution.md).
+[agent-artifact evolution protocol](../../docs/agent-evolution.md).
 
 For bounded recurrence, use the outer
 [Evolution Driver](../evolution_driver/README.md). It submits one Controller
@@ -182,8 +183,10 @@ Version 2 adapter commands execute arbitrary caller-approved programs with the
 current user's permissions. Those adapters—not Controller—must isolate
 workspaces, hidden tests, credentials, networks, tools, models, and non-time
 budgets. Process ordering proves only what this trusted controller invoked. The
-checked-in fixture and skill demonstrations prove protocol composition, not
-generalization or real-world improvement.
+checked-in fixture, skill, and Git-artifact demonstrations prove protocol
+composition, not generalization or real-world improvement. The
+[Git bridge](../../artifacts/git/README.md) keeps candidate source/build policy
+outside Controller.
 
 ## Documentation
 

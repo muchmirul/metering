@@ -2,7 +2,7 @@
 
 This page specifies fixture-model schema version 1. External agent-adapter
 schema version 2 is specified in the
-[agent-skill evolution protocol](../../../docs/agent-evolution.md) and uses the
+[agent-artifact evolution protocol](../../../docs/agent-evolution.md) and uses the
 same one-shot and JSONL transports.
 
 ## Transport

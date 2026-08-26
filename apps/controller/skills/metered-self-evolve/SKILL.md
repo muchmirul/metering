@@ -1,6 +1,6 @@
 ---
 name: metered-self-evolve
-description: Runs one or a caller-bounded sequence of evidence-gated comparisons between a default Pi agent or existing Agent Skills directory and complete SKILL.md challengers. Use only when the user asks to evolve a skill and approves a trusted evaluator and explicit limits.
+description: Runs one or a caller-bounded sequence of evidence-gated comparisons between default, SKILL.md, or immutable Git-backed candidates. Use only when the user approves a trusted evaluator, explicit limits, and any required builder or executor sandbox.
 compatibility: Requires Python 3.11+, uv, and a checkout of the Metering repository containing application schema version 2.
 disable-model-invocation: true
 ---
@@ -17,7 +17,8 @@ improvement.
 Establish all of these before proposing:
 
 1. Metering repository root and clean-status context.
-2. Parent: either the default agent or an existing skill directory.
+2. Parent: the default agent, an existing skill directory, or one verified
+   `git-candidate-v1` descriptor.
 3. One specific task and immutable evaluation ID.
 4. Finite public case documents.
 5. Reviewed agent-runner command.
@@ -76,6 +77,23 @@ caller-approved proposal context. State generation, consecutive-rejection, and
 wall-clock limits before execution. The driver resumes only a verified matching
 ledger and never installs its selected head. Do not expose protected evaluator
 cases or per-case evidence to the proposer. Reserve an untouched final suite.
+
+## Git-backed adapter or model output
+
+Read `artifacts/git/README.md` before evolving source or build outputs. Use
+`git_artifact.py` to create the parent descriptor,
+`pi_git_proposer.py` as Mutator's external proposer, and
+`git_candidate_adapter.py` as Candidate Runner's fixed resolver. Bind source to
+an immutable commit, tree, and portable content SHA-256. Bind model checkpoints
+or other large outputs by URI and SHA-256; never use a mutable branch as
+candidate identity.
+
+Pi must edit a workspace without `.git`. Trusted bridge code creates and
+publishes the commit only after visible checks. Keep the fixed executor,
+protected evaluator, and artifact credentials outside candidate access. Run the
+builder and executor in reviewed containers or VMs. A selected descriptor is
+run-local evidence; do not merge its branch, install its adapter, or serve its
+model without a separate explicit operation.
 
 ## Pi text-only runner
 

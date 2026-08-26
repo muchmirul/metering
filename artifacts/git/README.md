@@ -1,0 +1,164 @@
+# Git-backed evolution artifacts
+
+This directory is an external candidate bridge for the frozen Pi + Metering
+control plane. It does not add a seventh semantic stage. The existing six apps
+still own variation, execution, observation, measurement, retention, and one
+generation; Evolution Driver still owns bounded recurrence.
+
+The bridge makes source code and externally stored outputs first-class
+candidates without hiding them in `SKILL.md`:
+
+```text
+selected git-candidate-v1
+    -> Mutator invokes pi_git_proposer.py
+    -> Pi edits a disposable file-only workspace
+    -> visible validation and optional build/training command run
+    -> trusted bridge creates and publishes an immutable Git commit
+    -> Candidate Runner invokes git_candidate_adapter.py for both candidates
+    -> fixed executor verifies/runs each checkout under matched controls
+    -> existing Observer, Assay, Gate, Controller, and Driver select and persist
+```
+
+## Artifact contract
+
+A normalized candidate descriptor is:
+
+```json
+{
+  "artifact_schema":"git-candidate-v1",
+  "commit":"LOWERCASE_GIT_OBJECT_ID",
+  "content_sha256":"SHA256_OF_PATHS_MODES_AND_BLOBS",
+  "entrypoint":"adapter.py",
+  "git_tree":"LOWERCASE_GIT_TREE_ID",
+  "outputs":[
+    {
+      "kind":"model_checkpoint",
+      "name":"qwen-candidate",
+      "sha256":"EXTERNAL_CONTENT_SHA256",
+      "uri":"artifact://models/qwen/candidate-17"
+    }
+  ],
+  "repository":"PINNED_CALLER_APPROVED_REPOSITORY"
+}
+```
+
+Candidate identity is Metering's existing SHA-256 over this complete normalized
+artifact. A branch is deliberately absent: branches organize proposals but are
+mutable and never control retention. The commit, Git tree, portable content
+SHA-256, and external output digests are authoritative.
+
+Git trees may contain only regular UTF-8-named paths with Git modes `100644` or
+`100755`. Symlinks, submodules, escaping paths, duplicate output identities,
+missing entrypoints, mismatched trees, and mismatched content hashes fail.
+Large binaries remain outside Git; `outputs` binds their URI and SHA-256 into
+the selected candidate.
+
+## Components
+
+- `git_artifact.py` verifies an existing commit and emits its initial descriptor.
+- `pi_git_proposer.py` clones the selected parent, copies files into a workspace
+  without `.git`, lets Pi edit, runs visible checks/building, creates a commit
+  with trusted Git plumbing, and publishes one append-only candidate ref.
+- `git_candidate_adapter.py` verifies the descriptor and checkout, then passes it
+  to one fixed executor command. It never executes candidate files itself.
+- `demo_validate.py`, `demo_model_builder.py`, `demo_executor.py`, and
+  `demo_evaluator.py` are deterministic protocol doubles.
+- `demo.py` runs one complete live-Pi generation in a caller-selected new
+  directory.
+
+## Builder configuration
+
+The proposer uses caller-controlled environment variables:
+
+```text
+METERING_GIT_REPOSITORY             exact allowed repository
+METERING_GIT_REF_PREFIX             append-only candidate branch prefix
+METERING_GIT_ALLOWED_PATHS_JSON     paths Pi/building may change
+METERING_GIT_VALIDATE_COMMAND       visible validation command array
+METERING_GIT_VALIDATE_TIMEOUT       validation timeout
+METERING_GIT_BUILD_COMMAND          optional build/training command array
+METERING_GIT_BUILD_TIMEOUT          build/training timeout
+PI_BIN                              Pi executable
+PI_PROVIDER / PI_MODEL              pinned Pi configuration
+```
+
+The optional build command receives this JSON on standard input:
+
+```json
+{
+  "context":{},
+  "parent_artifact":{},
+  "protocol_version":1
+}
+```
+
+It returns exactly `{"outputs":[]}`. A real Unsloth worker can train a model,
+store the checkpoint outside Git, and return its immutable receipt here. The
+checked-in demo builder writes a tiny deterministic checkpoint; it proves the
+contract and digest binding, not model training quality.
+
+## Runtime configuration
+
+`git_candidate_adapter.py` is selected as Candidate Runner's adapter command and
+receives protocol version 2. Configure:
+
+```text
+METERING_GIT_REPOSITORY
+METERING_GIT_EXECUTOR_COMMAND
+METERING_GIT_EXECUTOR_TIMEOUT
+```
+
+The fixed executor receives the verified checkout path, complete artifact,
+candidate ID, and unchanged task. It owns container/VM isolation, environment
+SDK access, action and compute budgets, and verification/fetching of every
+external output URI. Parent and challenger use the same executor command.
+
+## Deterministic proof
+
+```bash
+uv run --extra test pytest -q tests/test_git_artifact_evolution.py
+```
+
+The test creates a separate bare repository, uses fake Pi to change only
+`adapter.py`, emits a hash-addressed model output, executes parent and challenger
+through the complete existing loop, promotes the challenger, resumes without an
+append, rejects disallowed paths and content tampering, and verifies the trusted
+core files were not modified.
+
+## Live Pi demo
+
+Pin Pi and choose a directory that does not exist:
+
+```bash
+export PI_PROVIDER=openai-codex
+export PI_MODEL=gpt-5.6-sol
+export PI_REASONING_LEVEL=max
+uv run python artifacts/git/demo.py \
+  --root /tmp/metering-git-live-$(date +%s)
+```
+
+The expected Git diff is:
+
+```diff
+-ANSWER = "BASELINE"
++ANSWER = "ADAPTED"
+```
+
+The challenger passes one declared case, publishes an immutable candidate
+branch, and contains a verified demo `model_checkpoint` output. This proves the
+Git/output mechanism for that constructed run, not ARC-AGI-3 performance or a
+trained Qwen improvement.
+
+## Security and lifecycle boundary
+
+Pi tools and validation/build commands are not sandboxed by these Python files.
+Run the complete proposer inside a disposable container or VM with no protected
+evaluator mount, host credentials, or network by default. Run candidate source
+only through a separately reviewed executor sandbox. The path allowlist and Git
+checks are defense-in-depth, not an isolation boundary.
+
+A failed generation never advances Evolution Driver's selected parent, but Git
+branches, checkpoints, or other build products created before a later failure
+may remain as unselected garbage. Artifact-store retention and cleanup are
+caller responsibilities. Selection never installs, serves, merges, or deploys
+the winning branch/model automatically.

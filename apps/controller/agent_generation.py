@@ -1,4 +1,4 @@
-"""Run one schema-v2 agent-skill generation through the six applications."""
+"""Run one schema-v2 agent-artifact generation through the six applications."""
 
 from __future__ import annotations
 

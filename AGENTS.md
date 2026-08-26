@@ -114,6 +114,43 @@ Do not weaken these without explicit approval and a corresponding plan change.
   present those decisions or a world-specific result as part of Metering's
   general semantics.
 
+### Self-evolution tool and output boundary
+
+- The six applications—Mutator, Candidate Runner, Observer, Forecast Assay,
+  Selection Gate, and Controller—are trusted tools used by the Pi + Metering
+  self-evolution loop. They are not themselves evolution candidates or generated
+  outputs.
+- Evolution Driver and the shared protocol, transport, validation, measurement,
+  evidence, retention, and ledger mechanics are part of the same trusted control
+  plane. A running candidate may invoke these tools through their public
+  boundaries but may not edit, replace, select, or install them.
+- Once a control-plane version is declared frozen, it is immutable for every run
+  pinned to that version. A reviewed future change creates a new explicit Git
+  commit, branch/release line, or artifact version; self-evolution never rewrites
+  a frozen version in place.
+- Environment adapters, strategy skills, training source and configuration,
+  runtime configuration, and trained-model/checkpoint references are candidate
+  outputs outside the frozen control plane. They must be versioned and
+  content-identified so the exact selected output can become the next parent.
+- Git diffs may describe mutations and branches may organize candidates, but a
+  mutable branch name is never candidate identity. Bind evidence and retention
+  to immutable commit and tree identifiers plus cryptographic digests for
+  external binaries, datasets, images, or model checkpoints.
+- Keep environment and model semantics in external candidate builders, runners,
+  evaluators, and artifact stores. The trusted core should require only explicit
+  candidate identity, execution, evidence, selection, and recurrence contracts;
+  do not add ARC-, provider-, trainer-, model-, or environment-specific policy
+  to the six applications or installed Metering package.
+- If a frozen protocol cannot represent a required candidate output honestly,
+  stop rather than hiding code, weights, or mutable references inside an
+  unrelated field. Design the narrowest general additive boundary, test and
+  review it as a new control-plane version, preserve prior pinned behavior, and
+  freeze that version before using it for evolution.
+- Initially change one candidate axis per generation—skill, environment adapter,
+  model, or runtime configuration—while freezing the others. Task and safety
+  evidence remain the retention authority; the proposer or trained model never
+  judges itself.
+
 ## Change discipline
 
 1. Inspect `git status` before editing. Do not overwrite unrelated work.

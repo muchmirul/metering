@@ -79,10 +79,16 @@ flowchart LR
 
 Solid arrows show explicit calls or returned data. Dashed arrows are opt-in
 measurement recording. Controller owns one generation. The optional source-only
-Evolution Driver repeats completed agent-skill generations under explicit
+Evolution Driver repeats completed agent-artifact generations under explicit
 limits; the caller still owns configuration, final evaluation, installation,
 and deployment. Metering only validates caller-supplied probability models and
-evaluates named measures.
+evaluates named measures. The Evolution Driver
+[README](apps/evolution_driver/README.md) includes a constructed live-Pi
+acceptance command that keeps its final cases outside retention and states the
+narrow evidence it can establish. The external
+[Git artifact bridge](artifacts/git/README.md) uses the same six-stage loop to
+select immutable source commits and hash-addressed model-output receipts without
+putting environment or trainer policy into Metering.
 
 ## Install
 
@@ -352,12 +358,13 @@ integration tests in [`tests/test_controller.py`](tests/test_controller.py).
 [`apps/README.md`](apps/README.md) indexes the six repository-local stages and
 the optional outer Evolution Driver. None extends the installed Metering API.
 
-## Agent-skill generation
+## Agent-artifact generation
 
 Application schema version 2 composes the same six boundaries around Pi or any
-compatible external agent command. It supports a content-identified default agent
-or UTF-8 Agent Skills directory, caller-selected runner and trusted evaluator
-commands, matched finite task cases, explicit pass and safety evidence,
+compatible external command. It supports a content-identified default agent,
+UTF-8 Agent Skills directory, or immutable Git source/output descriptor;
+caller-selected runner and trusted evaluator commands; matched finite task
+cases; explicit pass and safety evidence;
 committed pre-evaluation forecasts, and one selected `next_parent`.
 
 Run the deterministic protocol demonstration:
@@ -370,9 +377,10 @@ uv run python apps/controller/controller.py \
 The example request uses deterministic demo adapters that inspect skill text;
 it does not call a model. The checked-in text-only Pi runner and Pi skill
 proposer are concrete model integrations; other agents and tool-enabled coding
-runners can implement the same external protocol. An agent adapter receives a
-temporary skill path and public task document, then returns a JSON submission
-plus a normalized outcome forecast. A separate
+runners can implement the same external protocol. Default/skill adapters receive
+a temporary skill path and public task document. Git adapters receive the
+normalized commit/tree/output descriptor. Both return a JSON submission plus a
+normalized outcome forecast. A separate
 trusted evaluator owns hidden checks and returns `passed`, `safety_passed`, and
 evidence for both candidates. Forecast Assay measures the committed forecast,
 while Selection Gate selects on the declared task and safety policy rather than
@@ -390,10 +398,17 @@ uv run python apps/evolution_driver/evolver.py \
   < apps/evolution_driver/example-request.json
 ```
 
-The driver proposes one complete `SKILL.md`, invokes Controller, records only
-completed generations, resumes verified state, and stops at declared limits. It
-does not install its selected head. See the complete
-[agent-skill evolution protocol](docs/agent-evolution.md).
+The driver proposes one complete skill or Git candidate, invokes Controller,
+records only completed generations, resumes verified state, and stops at
+declared limits. It does not install its selected head. A pinned live Pi can
+exercise Git adapter source plus a hash-addressed model-output receipt with:
+
+```bash
+uv run python artifacts/git/demo.py --root /tmp/metering-git-live-$(date +%s)
+```
+
+See the complete [agent-artifact evolution protocol](docs/agent-evolution.md)
+and [Git bridge contract](artifacts/git/README.md).
 
 ## Definitions and edge cases
 

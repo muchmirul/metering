@@ -336,11 +336,12 @@ Runner forecasts before each Observer reveal, carries exact content IDs into
 Forecast Assay, submits aligned reports to Selection Gate, and returns the
 selected candidate as `next_parent`.
 
-Application schema version 2 adds one bounded agent-skill generation without
+Application schema version 2 adds one bounded agent-artifact generation without
 changing Metering's installed interfaces. Mutator either binds one
 caller-supplied challenger or invokes one strict proposer command with only the
 current parent and caller-approved context, then binds the returned complete
-`SKILL.md`. Candidate Runner invokes a caller-selected agent adapter for both
+`SKILL.md` or immutable Git descriptor. Candidate Runner invokes a
+caller-selected adapter for both
 candidates on identical finite task documents and validates a complete
 pre-evaluation outcome forecast. Observer invokes a separate trusted evaluator
 adapter only after both submissions exist. Forecast Assay reports named task
@@ -431,6 +432,8 @@ tests/
     test_evolution_kernel.py
     test_agent_evolution.py
     test_self_evolution.py
+    test_signal_relay_acceptance.py
+    test_git_artifact_evolution.py
 docs/
     README.md
     foundations.md
@@ -438,6 +441,8 @@ docs/
     history.md
     evolution-kernel.md
     agent-evolution.md
+artifacts/
+    git/              external Git source/model-output candidate bridge
 apps/
     README.md         application index and composition boundary
     agent_protocol.py shared source-only agent artifact and adapter validation
@@ -459,9 +464,11 @@ work.
 
 Candidate Runner and Evolution Controller are repository-local source examples.
 Application schema version 2 is additive: every schema version 1 request and
-response remains supported, and the original direct-challenger version 2 form
-is unchanged. Strict proposer invocation is an additional version 2 request
-form. The Evolution Driver has a separate source-only schema version 1 and no
+response remains supported, and existing default/skill direct-challenger and
+proposal behavior is unchanged. `git-candidate-v1` and its adapter protocol
+version 2 are additional artifact/execution forms; default and skill adapters
+remain on protocol version 1. The Evolution Driver has a separate source-only
+schema version 1 and no
 earlier state format to migrate. These application changes do not change the
 installed Python API, Metering JSON protocol, history schema, or numerical
 definitions.
@@ -491,8 +498,9 @@ parent[n + 1] = generation[n].next_parent
 Controller continues to own ordering and validation within one generation; the
 driver owns only recurrence between completed generations. The implementation:
 
-- evolves exactly one complete, non-executable `SKILL.md` artifact and one
-  challenger per generation;
+- evolves exactly one normalized artifact and one challenger per generation;
+  checked-in proposers support a complete non-executable `SKILL.md` or an
+  immutable Git source/output descriptor;
 - invokes a pinned Pi proposer through strict JSON with the current parent and
   caller-approved context, not protected evaluator cases or outcomes;
 - advances the current parent only to the exact `next_parent` returned through
@@ -509,6 +517,13 @@ driver owns only recurrence between completed generations. The implementation:
   or automatic rollback; and
 - requires an untouched final evaluation for any broader improvement claim.
 
+The checked-in Signal Relay acceptance command exercises one real Pi proposal,
+one development retention decision, and a separate two-case final comparison.
+The final cases are loaded only after retention and never become proposer
+feedback. Passing proves this exact constructed run and configuration, not broad
+agent improvement; its deterministic fake-Pi regression remains the CI-safe
+mechanism proof.
+
 Pi may propose or execute a candidate, but it never judges its own retention.
 Task and safety evidence control selection. Forecast entropy and target
 surprisal remain separately named calibration signals that may expose
@@ -521,6 +536,279 @@ installation, or production deployment. The six semantic boundaries remain
 separate. Schema-version-1 fixture behavior and schema-version-2 direct
 challenger requests remain compatible; internal Controller and Observer modules
 are split by workflow only to keep unrelated mechanisms readable.
+
+## Provider-neutral coding-agent connector roadmap
+
+**Status:** parked; no connector reorganization or full-context protocol is
+implemented yet. The current concrete model integrations remain Pi-specific,
+and Prime Agent remains a design reference rather than a dependency. Do not
+claim support for another coding agent until its connector passes the same
+end-to-end evidence path.
+
+The goal is to let an arbitrary coding agent adopt this repository as an
+explicit tool: inspect the complete authorized implementation context, identify
+the selected parent and bounded run state, create or execute one candidate, and
+invoke the frozen applications through documented public commands. “Adopt” does
+not mean that the agent may rewrite the control plane, inspect protected
+assessment material, judge itself, install a winner, or rely on ambient global
+memory.
+
+This remains source-only. It must not add agent SDKs, model providers, sessions,
+or connector APIs to the installed `metering` package.
+
+### Connector cleanup and ownership
+
+When this roadmap is activated, put every checked-in executable that translates
+between a coding-agent runtime and the self-evolution protocols under one
+source-only top-level directory with two explicit profiles:
+
+```text
+connectors/
+    README.md
+    fixed/
+        README.md
+        pi/
+        AGENT_NAME/
+    full_context/
+        README.md
+        context_manifest/
+        pi/
+        AGENT_NAME/
+```
+
+The names under `AGENT_NAME` are concrete reviewed integrations, not dynamic
+plugins. Do not add a registry, provider framework, import-time discovery, or a
+common “agent” class. A connector is still an ordinary strict JSON subprocess
+command.
+
+The cleanup should move the current Pi proposer/runner translations and the Git
+candidate runtime translation to the appropriate connector profile without
+moving mutation, evaluation, measurement, selection, recurrence, Git identity,
+or artifact-store semantics out of their existing owners. Git object and output
+identity helpers remain under `artifacts/`; application schemas remain under
+`apps/`; deterministic agent/evaluator doubles become clearly named test
+fixtures rather than production connectors.
+
+`apps/stdio_connector.py` currently owns generic transport mechanics rather than
+an agent connector. In the reviewed control-plane release that performs this
+cleanup, rename it to make that distinction explicit or document why the name is
+retained. Preserve one implementation owner for canonical JSON, subprocess, and
+timeout mechanics; do not copy those functions into each provider directory.
+Existing frozen commits remain valid, and any old source command retained for
+compatibility must be a thin launcher rather than a second implementation.
+
+### Profile 1: fixed connector
+
+`fixed-connector-v1` is the least-privilege profile corresponding to the current
+Pi-style adapters. It receives only the data required for one declared role—such
+as proposing one challenger or running one candidate on one public task—and
+returns one strict protocol response. It has:
+
+- no implicit repository scan, discovered skills, context files, prior session,
+  provider memory, or mutable global state;
+- one caller-pinned agent, model, tool policy, command, timeout, and budget;
+- an explicit candidate and public task/context payload;
+- canonical JSON input and strict, no-coercion output validation; and
+- no evaluator secrets, selection authority, installation, or deployment
+  capability.
+
+Use this profile for reproducible comparisons and narrow production runners.
+Provider-specific code may translate the fixed request into Pi, Prime Agent, or
+another coding agent's public CLI/SDK boundary, but it must not change Metering's
+candidate, evidence, or retention semantics.
+
+### Profile 2: full-context connector
+
+`full-context-connector-v1` is the transparent repository-adoption profile. It
+receives a content-identified `agent-context-v1` manifest plus read-only access
+to the referenced repository snapshot. The manifest exposes all *authorized*
+information needed to understand and operate the self-evolution implementation,
+not all information available to the trusted host.
+
+At minimum the normalized manifest must identify:
+
+- repository origin, immutable commit/tree/content digest, root, path inventory,
+  and the read-only documentation/source/test entry points the agent may inspect;
+- frozen control-plane version and the exact protocol/schema versions and public
+  command arrays available as tools;
+- current selected parent artifact, candidate axis, generation number, ledger
+  chain head, approved aggregate feedback, and generation/rejection/wall-clock
+  limits;
+- caller-approved task and proposal context, evaluation-suite identity, outcome
+  vocabulary, and the fact that protected cases or evidence are withheld;
+- provider, model, reasoning, tool, sandbox, runtime, token, monetary, and
+  compute configuration identities where the host can observe them;
+- read-only, writable, temporary, and forbidden filesystem locations plus
+  network and credential policy;
+- allowed candidate paths and artifact/output receipt contracts;
+- trusted commands the agent may invoke and the exact request/response documents
+  expected by each; and
+- explicit omitted or redacted categories so absence cannot be mistaken for an
+  empty value.
+
+The complete source need not be embedded in one huge prompt or JSON document.
+The manifest should bind a read-only checkout and a finite path/digest index so a
+coding agent can load files progressively with its normal tools. Required fields
+must never be inferred from an installed agent's ambient configuration.
+
+The context ID is the SHA-256 of canonical normalized manifest content. Every
+agent action and connector response binds that context ID, selected-parent ID,
+and ledger head. Resume rejects stale, conflicting, or tampered context rather
+than silently combining it with a newer run. The candidate sees only a safe
+state projection; the trusted ledger, hidden evaluator code, credentials,
+one-use final suites, protected submissions, and disallowed per-case evidence
+remain outside the manifest.
+
+The full-context connector may help a coding agent read the repository, prepare
+one candidate, and call the fixed control-plane tools. It does not become a
+seventh semantic stage or an autonomous selector. Proposal still belongs to
+Mutator, execution to Candidate Runner, evaluation to Observer, measurement to
+Forecast Assay, retention to Selection Gate, one-generation ordering to
+Controller, and recurrence to Evolution Driver.
+
+### Provider conformance and evidence
+
+The provider-neutral claim requires behavior, not a directory name. Before this
+roadmap moves from parked to implemented:
+
+1. Define strict fixtures for both connector profiles, including duplicate-key,
+   extra-key, malformed-output, timeout, stale-state, context-digest, and secret-
+   exclusion failures.
+2. Preserve deterministic fake-agent tests that exercise the complete six-stage
+   loop and ledger resume without network or paid-model access.
+3. Prove the same public context manifest and control-plane commands with Pi and
+   at least one independently implemented non-Pi coding agent. Prime Agent may
+   serve as that second integration only if its reviewed public boundary fits;
+   it is not privileged by the design.
+4. Run parent and challenger with matched agent/model/tool/budget settings and a
+   separate trusted evaluator. A coding agent may propose or execute both sides
+   but may not evaluate or retain itself.
+5. Demonstrate one promotion, one retention, interruption-safe resume, and
+   rejection of a connector that attempts to alter the frozen control plane or
+   read a forbidden path.
+6. Verify that existing schema-version-1, skill schema-version-2, and Git
+   candidate outputs remain byte-identical for pinned requests, or release an
+   explicitly versioned additive migration with exact compatibility evidence.
+7. Keep the wheel public API, dependency count, and package contents unchanged.
+
+Any live result proves only that connector, agent version, model, context
+manifest, tasks, evaluator, and budget. It does not establish that every coding
+agent is supported or that autonomous self-modification is safe. Production
+full-context connectors still require a reviewed container or VM boundary and a
+separate explicit operation to install or deploy a selected artifact.
+
+## Environment harness and model evolution roadmap
+
+**Status:** the general Git source/output substrate is implemented and tested;
+ARC-AGI-3 integration and real Unsloth/Qwen training remain parked. The Git
+bridge is source-only and adds no installed package dependency or improvement
+claim.
+
+The intended general-purpose core remains the fixed evidence transition:
+
+```text
+propose one content-identified candidate
+    -> execute parent and challenger under matched controls
+    -> obtain independent task and safety evidence
+    -> retain exactly one candidate
+    -> persist the selected identity
+```
+
+The trusted Controller, Observer, Forecast Assay, Selection Gate, and ledger
+must not rewrite themselves. Adaptation happens in versioned, untrusted
+artifacts at the edge. Pi may create those artifacts, but it may not access the
+protected scorer, approve its own candidate, install the winner, or alter the
+retention policy.
+
+### Phase 1: prove skill evolution in an interactive environment
+
+Use the existing single-`SKILL.md` evolution unchanged against one concrete
+ARC-AGI-3 runner. The environment adapter and official scorer remain fixed and
+reviewed. Parent and challenger receive identical environment versions, seeds,
+action limits, model settings, and compute budgets. Each case records a complete
+trajectory; `passed` means the official environment was solved, while
+`safety_passed` means the run respected declared action, budget, and isolation
+constraints. A separately reserved final suite is required. This phase tests
+whether the current skill mechanism transfers beyond text without yet evolving
+executable harness code.
+
+### Phase 2: evolve an environment harness
+
+The additive `git-candidate-v1` descriptor and `artifacts/git/` bridge implement
+the smallest general source boundary without an environment registry. A
+candidate binds an immutable repository commit, Git tree, portable SHA-256 over
+paths/modes/blobs, entrypoint, and external output receipts. Branch names are
+publish/audit conveniences and never candidate identity. Pi's builder may
+receive the parent harness, public SDK documentation, public practice
+environments, and visible contract-test failures. It must not receive protected
+cases, scorer code, credentials, or retained outcomes beyond an approved
+aggregate. The deterministic and live demos prove Git adapter-source mutation,
+not ARC-AGI-3 performance.
+
+Executable harness candidates are untrusted. Run them only in disposable
+containers or VMs with no host credentials, evaluator mount, or network by
+default; read-only SDK inputs; bounded writable storage; CPU, memory, action,
+token, monetary, and wall-clock limits; and complete filesystem and action
+traces. Contract and isolation checks run before task evaluation. A failed,
+timed-out, malformed, or interrupted candidate never becomes the selected
+harness. Selection remains run-local until a separate explicit installation
+operation.
+
+Do not evolve the strategy skill and harness in the same initial generation.
+Freeze the skill while comparing harnesses, then freeze the selected harness
+while comparing skills. Changing one component at a time preserves causal
+attribution and makes evaluator gaming easier to detect.
+
+### Phase 3: evolve a trained model candidate
+
+The Git proposer now supports an optional fixed build/training command that
+returns content-addressed external output receipts. The deterministic worker
+proves that a model-checkpoint receipt is bound into candidate identity and
+verified by a fixed executor; it does not train a useful model. After the
+environment boundary is proven, connect the same contract to an external GPU
+training worker. The initial live implementation target is the user-selected
+Unsloth Qwen training path documented at:
+
+- https://unsloth.ai/docs/models/qwen3.8/train
+
+This link is a candidate implementation reference, not a current dependency or
+validated protocol. Review and pin the exact model, Unsloth release, license,
+training API, and hardware requirements before implementation.
+
+A model candidate must bind at least the immutable base-model identifier,
+parent checkpoint or adapter identifier, tokenizer and chat template, exact
+training code and configuration, dataset-manifest hashes and licenses, random
+seeds, dependency lock, hardware/runtime description, and produced checkpoint
+hash. Large datasets and weights stay in an external artifact store; the
+Metering ledger records identities and evidence, not model files. Training
+workers receive no protected evaluator assets or deployment credentials.
+
+One generation changes one declared axis. Initially, freeze the environment
+harness and strategy skill while producing a challenger model from the parent
+checkpoint. Compare parent and challenger with identical inference settings,
+tasks, seeds where applicable, token limits, and compute budgets. Task and
+safety evidence continue to control retention; forecast entropy and surprisal
+remain calibration evidence only. Because training and inference are
+stochastic, predeclare seeds and repeat counts and report dispersion rather than
+promoting from one lucky run.
+
+The eventual composite execution identity is conceptually:
+
+```text
+candidate = (model_id, strategy_skill_id, environment_harness_id,
+             runner_configuration_id)
+```
+
+Do not add this abstraction to the protocol until the ARC harness and one model
+training experiment prove that all four identities are necessary. During early
+experiments, freeze three components and mutate only the fourth.
+
+Before either deferred phase is accepted, require a reviewed sandbox threat
+model, official environment or training interfaces, fixed baselines, matched
+budgets, data provenance, interruption-safe external artifact writes, rollback,
+deterministic protocol doubles, repeated live trials, and a one-use final
+evaluation. No generated harness or checkpoint may automatically replace a
+host adapter, installed Pi skill, served model, or production deployment.
 
 ## Acceptance criteria
 
@@ -562,8 +850,9 @@ The rewrite is complete only when:
 - the schema version 1 controller obtains both forecasts before each Observer
   reveal, carries Mutator content IDs through Forecast Assay and Selection Gate,
   and returns the selected candidate without claiming an autonomous loop;
-- schema version 2 binds normalized default-agent or UTF-8 skill artifacts to
-  content IDs and rejects escaping, duplicate, or ambiguous paths;
+- schema version 2 binds normalized default-agent, UTF-8 skill, or immutable Git
+  source/output artifacts to content IDs and rejects escaping, duplicate, or
+  ambiguous paths and output identities;
 - schema version 2 runs parent and challenger adapters on identical case
   documents before a separate evaluator command receives either submission,
   rejects malformed adapter output, and terminates timed-out POSIX process
@@ -576,11 +865,20 @@ The rewrite is complete only when:
 - the agent-skill controller returns only the parent or challenger artifact and
   performs no installation, repetition, or unsupported improvement claim;
 - Mutator's proposal form gives a strict proposer only the parent and declared
-  context, accepts exactly one replacement `SKILL.md`, and preserves the direct
-  caller-supplied challenger form;
+  context, accepts exactly one replacement `SKILL.md` or Git descriptor, and
+  preserves the direct caller-supplied challenger form;
 - the evolution driver advances only from a completed Controller result, verifies
   its canonical hash-linked state before resume, stops at explicit limits, and
   never installs its selected head;
+- the constructed live-Pi acceptance loads its final cases only after the
+  development generation, never feeds them back to the proposer, and fails
+  unless the exact selected head passes the declared development and final
+  thresholds without a safety regression;
+- `git-candidate-v1` binds an immutable commit, tree, portable content digest,
+  entrypoint, and sorted external-output receipts; the Git bridge runs through
+  the unchanged six semantic stages, rejects disallowed paths and digest
+  tampering, persists only Selection Gate's winner, and leaves branch movement,
+  sandboxing, artifact storage, installation, and deployment outside the core;
 - the full test suite and package build pass.
 
 ## Source

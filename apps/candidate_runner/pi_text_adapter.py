@@ -109,20 +109,24 @@ def _decode_request(
 
 
 def _model_prompt(case_id: str, prompt: str, outcomes: list[str]) -> str:
+    uniform_probability = 1.0 / len(outcomes)
     response_contract = {
         "forecast": {
             "outcomes": [
-                {"outcome": outcome, "probability": "NUMBER_FROM_0_TO_1"}
+                {"outcome": outcome, "probability": uniform_probability}
                 for outcome in outcomes
             ]
         },
-        "submission": "ANY_JSON_VALUE",
+        "submission": {},
     }
     return (
         "Complete the task using the loaded candidate skill. Return exactly one "
-        "JSON object and no Markdown. The probabilities must be finite, "
-        "non-negative, include every listed evaluator outcome exactly once, and "
-        "sum to 1. Commit the forecast before any hidden evaluator is run.\n\n"
+        "JSON object and no Markdown. The displayed probabilities are numeric "
+        "examples: replace them with your numeric forecast, never strings. The "
+        "probabilities must be finite, non-negative, include every listed "
+        "evaluator outcome exactly once, and sum to 1. Replace the displayed "
+        "empty submission object with your actual JSON submission. Commit the "
+        "forecast before any hidden evaluator is run.\n\n"
         f"Task case: {case_id}\n"
         f"Allowed evaluator outcomes: {canonical_json(outcomes)}\n"
         f"Required response shape: {canonical_json(response_contract)}\n\n"

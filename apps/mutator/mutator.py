@@ -18,6 +18,7 @@ from agent_protocol import (  # noqa: E402
     AGENT_SCHEMA_VERSION,
     CANDIDATE_SCHEMA,
     DEFAULT_ARTIFACT_SCHEMA,
+    GIT_ARTIFACT_SCHEMA,
     ProtocolError,
     candidate_record,
     changed_artifact_paths,
@@ -423,15 +424,20 @@ def _mutate_skill_artifact(request: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _require_single_skill_candidate(
+def _require_proposable_candidate(
     candidate: dict[str, object], location: str, *, allow_default: bool
 ) -> None:
     artifact = candidate["artifact"]
     assert type(artifact) is dict
-    if artifact["artifact_schema"] == DEFAULT_ARTIFACT_SCHEMA:
+    artifact_schema = artifact["artifact_schema"]
+    if artifact_schema == DEFAULT_ARTIFACT_SCHEMA:
         if allow_default:
             return
-        raise RequestError(f"{location} must be an agent-skill-v1 artifact")
+        raise RequestError(
+            f"{location} must be an agent-skill-v1 or git-candidate-v1 artifact"
+        )
+    if artifact_schema == GIT_ARTIFACT_SCHEMA:
+        return
     files = artifact["files"]
     if (
         type(files) is not list
@@ -457,7 +463,7 @@ def _propose_skill_artifact(request: dict[str, object]) -> dict[str, object]:
         )
         require_schema_version(request["schema_version"])
         parent = candidate_record(request["parent_artifact"], "parent_artifact")
-        _require_single_skill_candidate(
+        _require_proposable_candidate(
             parent, "parent_artifact", allow_default=True
         )
         context = normalize_json_value(request["proposal_context"], "proposal_context")
@@ -487,7 +493,7 @@ def _propose_skill_artifact(request: dict[str, object]) -> dict[str, object]:
             response["challenger_artifact"],
             "proposal adapter response.challenger_artifact",
         )
-        _require_single_skill_candidate(
+        _require_proposable_candidate(
             challenger,
             "proposal adapter response.challenger_artifact",
             allow_default=False,

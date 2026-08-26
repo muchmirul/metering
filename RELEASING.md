@@ -38,6 +38,7 @@ uv run python apps/evolution_driver/evolver.py \
   --state /tmp/metering-self-evolve.jsonl \
   < apps/evolution_driver/example-request.json \
   > /tmp/metering-self-evolve-result.json
+uv run --extra test pytest -q tests/test_git_artifact_evolution.py
 uv build
 ```
 
@@ -46,10 +47,33 @@ The measurement smoke check must emit a finite entropy value of `1.0` at base
 example must select its deterministic challenger; the bounded evolution smoke
 must promote once, then stop after one retained-parent decision. The wheel should
 contain only the four package modules and packaging metadata. The source
-archive also contains tests, Markdown sources, build
-configuration, and the non-packaged applications under `apps/`. Inspect both
+archive also contains tests, Markdown sources, build configuration, the
+non-packaged applications under `apps/`, and the external bridge under
+`artifacts/`. Inspect both
 archives for legacy harness modules, generated application runs or sandboxes,
 caches, and other build output; none belongs in a release.
+
+When a pinned Pi provider is intentionally available, the optional constructed
+acceptance can also be run once with a fresh state path:
+
+```bash
+state=/tmp/metering-signal-relay-$(date +%s).jsonl
+uv run python apps/evolution_driver/signal_relay_acceptance.py \
+  --state "$state" \
+  > /tmp/metering-signal-relay-report.json
+```
+
+The Git-backed live demo is also optional when tool-enabled Pi execution is
+intended:
+
+```bash
+uv run python artifacts/git/demo.py \
+  --root /tmp/metering-git-live-$(date +%s)
+```
+
+These paid, model-dependent smokes are not deterministic release gates. Preserve
+their reports when citing them, and do not describe published final cases as
+untouched after reuse.
 
 Create and push an annotated numeric tag only after those checks pass:
 

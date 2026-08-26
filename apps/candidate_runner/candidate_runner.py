@@ -21,6 +21,8 @@ from agent_protocol import (  # noqa: E402
     ADAPTER_PROTOCOL_VERSION,
     AGENT_SCHEMA_VERSION,
     DEFAULT_ARTIFACT_SCHEMA,
+    GIT_ADAPTER_PROTOCOL_VERSION,
+    GIT_ARTIFACT_SCHEMA,
     ProtocolError,
     decode_candidate,
     decode_command,
@@ -242,20 +244,30 @@ def _run_agent_skill(request: dict[str, object]) -> dict[str, object]:
 
     with tempfile.TemporaryDirectory(prefix="metering-agent-skill-") as temp:
         artifact = cast(dict[str, object], candidate["artifact"])
-        if artifact["artifact_schema"] == DEFAULT_ARTIFACT_SCHEMA:
-            skill_path: str | None = None
+        if artifact["artifact_schema"] == GIT_ARTIFACT_SCHEMA:
+            adapter_request = {
+                "candidate": {
+                    "artifact": artifact,
+                    "candidate_id": candidate["candidate_id"],
+                },
+                "protocol_version": GIT_ADAPTER_PROTOCOL_VERSION,
+                "task": task,
+            }
         else:
-            skill_root = Path(temp) / "skill"
-            materialize_skill(artifact, skill_root)
-            skill_path = str(skill_root)
-        adapter_request = {
-            "candidate": {
-                "candidate_id": candidate["candidate_id"],
-                "skill_path": skill_path,
-            },
-            "protocol_version": ADAPTER_PROTOCOL_VERSION,
-            "task": task,
-        }
+            if artifact["artifact_schema"] == DEFAULT_ARTIFACT_SCHEMA:
+                skill_path: str | None = None
+            else:
+                skill_root = Path(temp) / "skill"
+                materialize_skill(artifact, skill_root)
+                skill_path = str(skill_root)
+            adapter_request = {
+                "candidate": {
+                    "candidate_id": candidate["candidate_id"],
+                    "skill_path": skill_path,
+                },
+                "protocol_version": ADAPTER_PROTOCOL_VERSION,
+                "task": task,
+            }
         try:
             adapter_response = run_adapter(
                 "candidate adapter",

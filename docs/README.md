@@ -15,10 +15,11 @@ contract:
 - [Minimal information-guided evolution kernel](evolution-kernel.md) explains
   how the six repository-local applications execute one generation and how the
   optional source-only driver performs explicit bounded recurrence.
-- [Agent-skill evolution protocol](agent-evolution.md) specifies the additive
+- [Agent-artifact evolution protocol](agent-evolution.md) specifies the additive
   schema version 2 candidate, proposer, runner, evaluator, assay, selection, and
-  one-generation boundaries, plus the source-only bounded Pi recurrence driver
-  and its persistence and isolation limits.
+  one-generation boundaries, plus the source-only bounded Pi recurrence driver,
+  constructed live-Pi acceptance, additive Git source/model-output artifact
+  bridge, and persistence and isolation limits.
 - [Example applications](../apps/README.md) indexes each non-packaged
   application and its local architecture, foundations, and protocol documents.
 

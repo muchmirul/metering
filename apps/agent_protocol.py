@@ -1,4 +1,4 @@
-"""Shared version 2 contracts for agent-skill application examples.
+"""Shared version 2 contracts for agent-artifact application examples.
 
 This module is source-only application support. It is not part of the installed
 ``metering`` package. The public integration boundary remains canonical JSON
@@ -22,8 +22,10 @@ from stdio_connector import (
 
 SKILL_ARTIFACT_SCHEMA = "agent-skill-v1"
 DEFAULT_ARTIFACT_SCHEMA = "agent-default-v1"
+GIT_ARTIFACT_SCHEMA = "git-candidate-v1"
 CANDIDATE_SCHEMA = "agent-candidate-v1"
 ADAPTER_PROTOCOL_VERSION = 1
+GIT_ADAPTER_PROTOCOL_VERSION = 2
 AGENT_SCHEMA_VERSION = 2
 SHA256_LENGTH = 64
 
@@ -111,6 +113,76 @@ def _normalized_artifact_path(value: object, location: str) -> str:
     return path
 
 
+def _git_object_id(value: object, location: str) -> str:
+    identifier = require_nonempty_string(value, location)
+    if len(identifier) not in {40, 64} or any(
+        character not in "0123456789abcdef" for character in identifier
+    ):
+        raise ProtocolError(f"{location} must be a lowercase Git object ID")
+    return identifier
+
+
+def _decode_git_output(value: object, location: str) -> dict[str, object]:
+    if type(value) is not dict:
+        raise ProtocolError(f"{location} must be a JSON object")
+    require_exact_keys(value, {"kind", "name", "sha256", "uri"}, location)
+    return {
+        "kind": require_nonempty_string(value["kind"], f"{location}.kind"),
+        "name": require_nonempty_string(value["name"], f"{location}.name"),
+        "sha256": require_sha256(value["sha256"], f"{location}.sha256"),
+        "uri": require_nonempty_string(value["uri"], f"{location}.uri"),
+    }
+
+
+def _decode_git_artifact(
+    value: dict[str, object], location: str
+) -> dict[str, object]:
+    require_exact_keys(
+        value,
+        {
+            "artifact_schema",
+            "commit",
+            "content_sha256",
+            "entrypoint",
+            "git_tree",
+            "outputs",
+            "repository",
+        },
+        location,
+    )
+    raw_outputs = value["outputs"]
+    if type(raw_outputs) is not list:
+        raise ProtocolError(f"{location}.outputs must be a JSON array")
+    outputs: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+    for index, raw_output in enumerate(raw_outputs):
+        output = _decode_git_output(raw_output, f"{location}.outputs[{index}]")
+        identity = (str(output["kind"]), str(output["name"]))
+        if identity in seen:
+            raise ProtocolError(
+                f"{location}.outputs contains duplicate kind and name: "
+                f"{identity[0]}/{identity[1]}"
+            )
+        seen.add(identity)
+        outputs.append(output)
+    outputs.sort(key=lambda item: (str(item["kind"]), str(item["name"])))
+    return {
+        "artifact_schema": GIT_ARTIFACT_SCHEMA,
+        "commit": _git_object_id(value["commit"], f"{location}.commit"),
+        "content_sha256": require_sha256(
+            value["content_sha256"], f"{location}.content_sha256"
+        ),
+        "entrypoint": _normalized_artifact_path(
+            value["entrypoint"], f"{location}.entrypoint"
+        ),
+        "git_tree": _git_object_id(value["git_tree"], f"{location}.git_tree"),
+        "outputs": outputs,
+        "repository": require_nonempty_string(
+            value["repository"], f"{location}.repository"
+        ),
+    }
+
+
 def decode_agent_artifact(
     value: object, location: str = "artifact"
 ) -> dict[str, object]:
@@ -120,10 +192,12 @@ def decode_agent_artifact(
     if schema == DEFAULT_ARTIFACT_SCHEMA:
         require_exact_keys(value, {"artifact_schema"}, location)
         return {"artifact_schema": DEFAULT_ARTIFACT_SCHEMA}
+    if schema == GIT_ARTIFACT_SCHEMA:
+        return _decode_git_artifact(value, location)
     if schema != SKILL_ARTIFACT_SCHEMA:
         raise ProtocolError(
-            f"{location}.artifact_schema must be {DEFAULT_ARTIFACT_SCHEMA} "
-            f"or {SKILL_ARTIFACT_SCHEMA}"
+            f"{location}.artifact_schema must be {DEFAULT_ARTIFACT_SCHEMA}, "
+            f"{SKILL_ARTIFACT_SCHEMA}, or {GIT_ARTIFACT_SCHEMA}"
         )
     require_exact_keys(value, {"artifact_schema", "files"}, location)
     raw_files = value["files"]
@@ -190,6 +264,13 @@ def _artifact_file_map(
 def changed_artifact_paths(
     parent: dict[str, object], challenger: dict[str, object]
 ) -> list[str]:
+    parent_artifact = cast(dict[str, object], parent["artifact"])
+    challenger_artifact = cast(dict[str, object], challenger["artifact"])
+    if (
+        parent_artifact.get("artifact_schema") == GIT_ARTIFACT_SCHEMA
+        or challenger_artifact.get("artifact_schema") == GIT_ARTIFACT_SCHEMA
+    ):
+        return [] if parent_artifact == challenger_artifact else ["@git-candidate"]
     parent_files = _artifact_file_map(parent)
     challenger_files = _artifact_file_map(challenger)
     return sorted(

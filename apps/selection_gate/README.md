@@ -115,7 +115,7 @@ pass-count improvement. The gate recomputes target self-information and all
 report aggregates before selecting. It does not infer correctness, compare
 unmatched cases, or install the selected artifact.
 
-See the [agent-skill protocol](../../docs/agent-evolution.md).
+See the [agent-artifact protocol](../../docs/agent-evolution.md).
 
 ## Documentation
 

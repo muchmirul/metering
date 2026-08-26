@@ -2,9 +2,10 @@
 
 `mutator.py` supports two explicit variation boundaries. Schema version 1
 generates exactly one legal one-locus child from an immutable flat genome and a
-finite mutation model. Schema version 2 either binds one caller-proposed Agent
-Skills artifact or invokes one strict proposer command, then binds immutable
-parent and challenger content identities.
+finite mutation model. Schema version 2 either binds one caller-proposed agent
+artifact or invokes one strict proposer command, then binds immutable parent and
+challenger content identities. Artifacts may be default, skill, or Git-backed
+source/output descriptors.
 
 It is a variation operator, not an evolutionary system:
 
@@ -68,19 +69,23 @@ Neither quantity establishes quality, usefulness, novelty, intelligence, or
 expected improvement. The repository [Evolution Controller](../controller/README.md)
 carries these content IDs into one fixed Candidate Runner evaluation.
 
-## Agent-skill artifacts
+## Agent and Git artifacts
 
-Schema version 2 accepts either `agent-default-v1` or a normalized UTF-8
-`agent-skill-v1` artifact. The original form binds a challenger already supplied
-by the caller. The proposal form instead sends only the current parent and
-caller-approved context to one command, requires exactly one complete,
-non-executable replacement `SKILL.md`, and records the command identity as
-proposal provenance. In both forms Mutator reports changed paths and never
-claims that the challenger is better.
+Schema version 2 accepts `agent-default-v1`, normalized UTF-8 `agent-skill-v1`,
+or immutable `git-candidate-v1`. The original form binds a challenger already
+supplied by the caller. The proposal form sends only the current parent and
+caller-approved context to one command, requires one complete replacement skill
+or Git descriptor, and records the command identity as proposal provenance. A
+Git descriptor binds source commit/tree/content identities and external output
+digests; it does not embed source or model weights. In both forms Mutator reports
+changed paths (`@git-candidate` for a changed Git descriptor) and never claims
+that the challenger is better.
 
-For a live tool-free Pi proposal, use
-`apps/mutator/pi_skill_proposer.py` as the proposer command. The bounded
-Evolution Driver provides the complete request and persistence example in
+For a live tool-free skill proposal, use
+`apps/mutator/pi_skill_proposer.py`. For a tool-enabled Git workspace proposal,
+use [`../../artifacts/git/pi_git_proposer.py`](../../artifacts/git/README.md)
+inside a reviewed builder sandbox. The bounded Evolution Driver provides the
+complete request and persistence example in
 [`../evolution_driver/README.md`](../evolution_driver/README.md).
 
 Encode an existing local skill directory with:
@@ -89,7 +94,7 @@ Encode an existing local skill directory with:
 uv run python apps/mutator/skill_artifact.py PATH
 ```
 
-See the [agent-skill evolution protocol](../../docs/agent-evolution.md) for the
+See the [agent-artifact evolution protocol](../../docs/agent-evolution.md) for the
 artifact schema and complete six-application composition.
 
 ## Documentation

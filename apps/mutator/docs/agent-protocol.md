@@ -3,7 +3,7 @@
 This page specifies flat-genome schema version 1. Agent artifact schema version
 2, including direct challenger binding and strict proposer invocation, is
 specified in the repository-wide
-[agent-skill evolution protocol](../../../docs/agent-evolution.md) and uses the
+[agent-artifact evolution protocol](../../../docs/agent-evolution.md) and uses the
 same one-shot and JSONL transports.
 
 ## Transport

@@ -1,9 +1,9 @@
-# Agent-skill evolution protocol
+# Agent-artifact evolution protocol
 
 ## Scope
 
 Application schema version 2 executes one bounded comparison between an
-incumbent agent configuration and one proposed skill artifact. It is an
+incumbent agent configuration and one proposed skill or Git-backed artifact. It is an
 additive, source-only application protocol. The installed `metering` package and
 its JSON command are unchanged.
 
@@ -11,7 +11,7 @@ The reusable transition is:
 
 ```text
 parent candidate + direct or proposer-produced challenger
-    -> bind immutable skill artifacts
+    -> bind immutable skill or Git-backed artifacts
     -> run both through the same agent adapter on the same task cases
     -> reveal task results through a trusted evaluator adapter
     -> measure each committed outcome forecast
@@ -47,7 +47,8 @@ applications.
 
 ## Candidate artifacts
 
-Version 2 supports two candidate artifact schemas.
+Version 2 supports three candidate artifact schemas. Existing default and skill
+forms are unchanged; the Git form is an additive external-output boundary.
 
 A default agent with no candidate skill is:
 
@@ -80,7 +81,30 @@ non-string content are rejected. Executable mode is represented explicitly.
 Binary assets, symlinks, ownership, timestamps, and other filesystem metadata
 are not represented in version 1.
 
-The candidate ID is:
+An immutable Git-backed source/output candidate is:
+
+```json
+{
+  "artifact_schema":"git-candidate-v1",
+  "commit":"GIT_OBJECT_ID",
+  "content_sha256":"PORTABLE_TREE_CONTENT_SHA256",
+  "entrypoint":"adapter.py",
+  "git_tree":"GIT_TREE_ID",
+  "outputs":[
+    {"kind":"model_checkpoint","name":"candidate","sha256":"SHA256","uri":"artifact://checkpoint"}
+  ],
+  "repository":"CALLER_APPROVED_REPOSITORY"
+}
+```
+
+The repository-local bridge under [`artifacts/git/`](../artifacts/git/README.md)
+verifies the commit, tree, regular-file modes, portable content hash, and
+entrypoint. External outputs such as model checkpoints are represented by URI
+and SHA-256 rather than embedded in JSON or ordinary Git. Branch names are not
+part of identity. Candidate Runner sends this artifact to Git adapter protocol
+version 2; default and skill adapters continue to receive protocol version 1.
+
+The candidate ID for every artifact form is:
 
 ```text
 SHA-256(canonical JSON of {
@@ -117,10 +141,13 @@ The proposer must return exactly:
 }
 ```
 
-For proposer-generated changes, both parent and challenger are restricted to a
-default artifact or exactly one `SKILL.md`; the challenger must be a skill and
-must differ. Mutator records the proposer command digest as provenance. It does
-not pass tasks, evaluator commands, submissions, or protected evidence.
+For proposer-generated changes, parent and challenger may be a default artifact,
+exactly one `SKILL.md`, or a normalized `git-candidate-v1`; the challenger may
+not be default and must differ. Mutator records the proposer command digest as
+provenance. It does not pass tasks, evaluator commands, submissions, or
+protected evidence. The checked-in Pi skill proposer remains skill-only; the
+external Git proposer emits Git artifacts through the same Mutator command
+boundary.
 
 The checked-in `apps/mutator/pi_skill_proposer.py` is a concrete tool-free Pi
 adapter. It disables tools, context files, discovered resources, and sessions,
@@ -151,6 +178,24 @@ Adapter request:
 `--skill` for that candidate and use `--no-skills --skill PATH/SKILL.md` for a
 skill candidate. Any other runner may implement the same JSON boundary using
 its own public command. Agent SDKs do not belong in Metering.
+
+For `git-candidate-v1`, Candidate Runner uses adapter protocol version 2 and
+passes the descriptor without resolving or executing it:
+
+```json
+{
+  "candidate":{"artifact":{"artifact_schema":"git-candidate-v1"},"candidate_id":"HEX_SHA256"},
+  "protocol_version":2,
+  "task":{"case_id":"case-1","input":{}}
+}
+```
+
+The checked-in Git resolver verifies one caller-allowed repository, immutable
+commit/tree/content identities, regular-file constraints, and entrypoint before
+delegating to a fixed executor. The executor owns sandboxing and external-output
+digest verification. Its command and environment must be pinned by the caller;
+the general application kernel does not authenticate remote stores or runtime
+configuration.
 
 The adapter must emit exactly:
 
@@ -317,6 +362,27 @@ assets. The selected head remains in the ledger and is not installed.
 
 See [`apps/evolution_driver/README.md`](../apps/evolution_driver/README.md) for
 the exact boundary and stopping statuses.
+
+## Constructed empirical acceptance
+
+`apps/evolution_driver/signal_relay_acceptance.py` exercises the concrete Pi
+proposer and text runner against one development case, then compares the
+original parent and selected head on two separately loaded final cases. The
+strict Signal Relay evaluator computes exact answers after both submissions
+exist. The proposer receives the transformation rule but no case payloads or
+results. The final suite is not loaded until the development generation has
+completed and cannot affect retention.
+
+The command succeeds only when Selection Gate promotes a one-pass development
+improvement with no safety regression and the same selected candidate improves
+from zero to two passes on the final suite. Its deterministic fake-Pi regression
+test covers the complete wiring; a real-Pi invocation records the pinned agent
+configuration and exact evidence in its report.
+
+This is a constructed acceptance test, not a benchmark or a general improvement
+claim. Its final cases are withheld from the proposer for one run, not secret
+from the operating-system user. Reusing the published suite destroys its status
+as untouched evidence for subsequent claims.
 
 ## Trust and security boundary
 

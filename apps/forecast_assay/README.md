@@ -133,7 +133,7 @@ evidence, and target self-information under separate names. Pass count
 is evaluator-owned capability evidence; mean target surprisal is forecast
 calibration evidence. Neither is relabeled as a universal score.
 
-See the [agent-skill protocol](../../docs/agent-evolution.md).
+See the [agent-artifact protocol](../../docs/agent-evolution.md).
 
 ## Compatibility
 

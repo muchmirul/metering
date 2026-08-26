@@ -36,6 +36,8 @@ jobs:
             > /tmp/metering-self-evolve-result.json
           uv run python -c \
             'import json; r=json.load(open("/tmp/metering-self-evolve-result.json")); assert r["status"] == "rejection_limit" and r["completed_generations"] == 2'
+      - name: Run Git artifact evolution example
+        run: uv run --extra test pytest -q tests/test_git_artifact_evolution.py
       - name: Build distributions
         run: uv build
       - name: Smoke test installed wheel

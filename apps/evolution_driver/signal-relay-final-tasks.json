@@ -1,0 +1,25 @@
+{
+  "evaluation": "signal-relay/untouched-final-v1",
+  "tasks": [
+    {
+      "case_id": "final-morrow",
+      "input": {
+        "prompt": "Signal Relay v1 request. Payload [morrow cedar opal thyme]. Return the protocol response in submission.answer.",
+        "outcomes": [
+          "fail",
+          "pass"
+        ]
+      }
+    },
+    {
+      "case_id": "final-brisk",
+      "input": {
+        "prompt": "Signal Relay v1 request. Payload [brisk umber nexus fern]. Return the protocol response in submission.answer.",
+        "outcomes": [
+          "fail",
+          "pass"
+        ]
+      }
+    }
+  ]
+}

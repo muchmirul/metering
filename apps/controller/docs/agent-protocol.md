@@ -1,8 +1,8 @@
 # Evolution Controller agent protocol
 
-This page specifies fixture generation schema version 1. General agent-skill
+This page specifies fixture generation schema version 1. General agent-artifact
 generation schema version 2 is specified in the
-[agent-skill evolution protocol](../../../docs/agent-evolution.md) and uses the
+[agent-artifact evolution protocol](../../../docs/agent-evolution.md) and uses the
 same one-shot and JSONL transports. Bounded recurrence is an outer
 [Evolution Driver](../../evolution_driver/README.md), not Controller state.
 
