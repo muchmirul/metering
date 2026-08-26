@@ -11,3 +11,6 @@ htmlcov/
 .venv/
 build/
 dist/
+
+# Local coding-agent instructions
+/AGENTS.md
