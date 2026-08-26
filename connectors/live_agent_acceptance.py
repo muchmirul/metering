@@ -18,6 +18,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from connectors.fixed.command import command_prefix  # noqa: E402
+
 SKILL = ROOT / "connectors" / "tools" / "metering" / "SKILL.md"
 INVOKER = SKILL.parent / "invoke.py"
 REQUEST = {"measure": "entropy", "probabilities": [0.125] * 8}
@@ -40,23 +45,10 @@ def _canonical_json(value: object) -> str:
 def _command_prefix(
     environment_name: str, binary_environment: str, binary_name: str
 ) -> list[str]:
-    source = os.environ.get(environment_name)
-    if not source:
-        binary = os.environ.get(binary_environment, binary_name)
-        if not binary or "\x00" in binary:
-            raise AcceptanceError(f"{binary_environment} must name one executable")
-        return [binary]
     try:
-        value = json.loads(source)
-    except json.JSONDecodeError as exc:
-        raise AcceptanceError(f"{environment_name} is invalid JSON: {exc}") from exc
-    if type(value) is not list or not value or any(
-        type(item) is not str or not item or "\x00" in item for item in value
-    ):
-        raise AcceptanceError(
-            f"{environment_name} must contain a non-empty JSON string array"
-        )
-    return value
+        return command_prefix(environment_name, binary_environment, binary_name)
+    except ValueError as exc:
+        raise AcceptanceError(str(exc)) from exc
 
 
 def _stop_process(process: subprocess.Popen[str]) -> None:
@@ -289,7 +281,7 @@ def _run_harness(
     }
     if harness == "pi":
         reviewed = os.environ.get("METERING_PI_CONFIG_DIR")
-        if reviewed:
+        if reviewed is not None:
             configuration = Path(reviewed)
             if not configuration.is_absolute() or not configuration.is_dir():
                 raise AcceptanceError(
@@ -312,7 +304,7 @@ def _run_harness(
         environment["PI_CODING_AGENT_DIR"] = str(configuration)
     else:
         reviewed = os.environ.get("METERING_PRIME_AGENT_CONFIG_DIR")
-        if reviewed:
+        if reviewed is not None:
             configuration = Path(reviewed)
             if not configuration.is_absolute() or not configuration.is_dir():
                 raise AcceptanceError(

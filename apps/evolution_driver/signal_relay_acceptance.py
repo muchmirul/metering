@@ -7,7 +7,6 @@ set is loaded only after the bounded development generation has completed.
 
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -16,8 +15,9 @@ from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
 APPS_ROOT = ROOT / "apps"
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
+for import_root in (ROOT, APPS_ROOT):
+    if str(import_root) not in sys.path:
+        sys.path.insert(0, str(import_root))
 
 from agent_protocol import (  # noqa: E402
     AGENT_SCHEMA_VERSION,
@@ -27,6 +27,7 @@ from agent_protocol import (  # noqa: E402
     require_exact_keys,
     require_nonempty_string,
 )
+from connectors.fixed.command import command_prefix  # noqa: E402
 from stdio_connector import (  # noqa: E402
     JsonProcessError,
     canonical_json,
@@ -157,26 +158,14 @@ def _agent_configuration() -> dict[str, object]:
                 f"{environment_name} must pin the live acceptance configuration"
             )
         configuration[output_name] = value
-    command_source = os.environ.get("METERING_PI_COMMAND")
-    if command_source:
-        try:
-            command = json.loads(command_source)
-        except json.JSONDecodeError as exc:
-            raise AcceptanceError(
-                f"METERING_PI_COMMAND is invalid JSON: {exc}"
-            ) from exc
-        if type(command) is not list or not command or any(
-            type(item) is not str or not item or "\x00" in item for item in command
-        ):
-            raise AcceptanceError(
-                "METERING_PI_COMMAND must contain a non-empty JSON string array"
-            )
-    else:
-        command = [os.environ.get("PI_BIN", "pi")]
+    try:
+        command = command_prefix("METERING_PI_COMMAND", "PI_BIN", "pi")
+    except ValueError as exc:
+        raise AcceptanceError(str(exc)) from exc
     pi_bin = command[0]
     try:
         completed = subprocess.run(
-            [pi_bin, "--version"],
+            [*command, "--version"],
             capture_output=True,
             text=True,
             check=False,

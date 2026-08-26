@@ -36,6 +36,7 @@ CORE_FILES = [
     ROOT / "apps" / "evolution_driver" / "evolver.py",
     ROOT / "artifacts" / "git" / "git_proposer.py",
     ROOT / "connectors" / "fixed" / "command.py",
+    ROOT / "connectors" / "fixed" / "environment.py",
     ROOT / "connectors" / "fixed" / "pi" / "git_proposer.py",
     ROOT / "connectors" / "fixed" / "prime_agent" / "git_proposer.py",
 ]
@@ -264,6 +265,25 @@ def test_git_artifact_normalizes_external_outputs_and_rejects_duplicates(tmp_pat
     )
     assert duplicate.returncode == 2
     assert "duplicate kind and name" in duplicate.stderr
+
+
+def test_git_proposer_rejects_an_explicit_empty_build_command(tmp_path: Path):
+    remote, parent_commit = seed_repository(tmp_path)
+    agent, trace = fake_pi(tmp_path)
+    environment = git_environment(tmp_path, remote, agent, trace)
+    parent = initial_artifact(remote, parent_commit, environment)
+    environment["METERING_GIT_BUILD_COMMAND"] = ""
+
+    result = run(
+        EVOLVER,
+        evolution_request(parent),
+        "--state",
+        str(tmp_path / "empty-build-command.jsonl"),
+        env=environment,
+    )
+
+    assert result.returncode == 2
+    assert "METERING_GIT_BUILD_COMMAND" in result.stderr
 
 
 @pytest.mark.parametrize(

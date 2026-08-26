@@ -101,7 +101,8 @@ def _expected_answer(case: dict[str, object]) -> str:
     task_input = cast(dict[str, object], case["input"])
     prompt = cast(str, task_input["prompt"])
     match = PROMPT_PATTERN.fullmatch(prompt)
-    assert match is not None
+    if match is None:
+        raise EvaluatorError("case.input.prompt is not a Signal Relay v1 task")
     letters = "".join(word[0] for word in match.groups()).upper()
     return f"SR1-{letters}-OK"
 
@@ -112,12 +113,13 @@ def evaluate(source: str) -> dict[str, object]:
     results: list[dict[str, object]] = []
     for item in submissions:
         submission = item["submission"]
-        shape_valid = (
-            type(submission) is dict
-            and set(submission) == {"answer"}
-            and type(submission.get("answer")) is str
-        )
-        passed = shape_valid and submission["answer"] == expected
+        if type(submission) is dict:
+            answer = submission.get("answer")
+            shape_valid = set(submission) == {"answer"} and type(answer) is str
+        else:
+            answer = None
+            shape_valid = False
+        passed = shape_valid and answer == expected
         results.append(
             {
                 "candidate_id": item["candidate_id"],

@@ -15,7 +15,11 @@ def command_prefix(
     """Return one caller-pinned command prefix without invoking a shell."""
 
     source = os.environ.get(command_environment)
-    if source:
+    if source is not None:
+        if not source.strip():
+            raise ValueError(
+                f"{command_environment} must contain a non-empty JSON string array"
+            )
         try:
             value = json.loads(source)
         except json.JSONDecodeError as exc:

@@ -5,6 +5,8 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 
 import pytest
@@ -13,11 +15,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from connectors.fixed.command import command_prefix  # noqa: E402
 from connectors.fixed.pi.environment import (  # noqa: E402
     isolated_configuration as isolated_pi_configuration,
 )
 from connectors.fixed.prime_agent.environment import (  # noqa: E402
     isolated_configuration as isolated_prime_configuration,
+)
+from connectors.live_agent_acceptance import (  # noqa: E402
+    AcceptanceError,
+    _run_harness,
 )
 PI_PROPOSER = ROOT / "connectors" / "fixed" / "pi" / "skill_proposer.py"
 PRIME_PROPOSER = (
@@ -61,6 +68,60 @@ def fake_agent(tmp_path: Path, response: dict[str, object]) -> tuple[Path, Path]
     )
     binary.chmod(0o755)
     return binary, trace
+
+
+def test_command_prefix_rejects_an_explicit_empty_command(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("TEST_AGENT_COMMAND", "")
+    monkeypatch.setenv("TEST_AGENT_BIN", "fallback-agent")
+
+    with pytest.raises(ValueError, match="TEST_AGENT_COMMAND must contain"):
+        command_prefix("TEST_AGENT_COMMAND", "TEST_AGENT_BIN", "default-agent")
+
+
+@pytest.mark.parametrize(
+    ("environment_name", "configuration"),
+    [
+        ("METERING_PI_CONFIG_DIR", isolated_pi_configuration),
+        ("METERING_PRIME_AGENT_CONFIG_DIR", isolated_prime_configuration),
+    ],
+)
+def test_isolated_configuration_rejects_an_explicit_empty_reviewed_directory(
+    monkeypatch: pytest.MonkeyPatch,
+    environment_name: str,
+    configuration: Callable[[], AbstractContextManager[None]],
+):
+    monkeypatch.setenv(environment_name, "")
+
+    with pytest.raises(ValueError, match="existing absolute directory"):
+        with configuration():
+            pytest.fail("empty reviewed configuration was accepted")
+
+
+@pytest.mark.parametrize(
+    ("harness", "environment_name"),
+    [
+        ("pi", "METERING_PI_CONFIG_DIR"),
+        ("prime-agent", "METERING_PRIME_AGENT_CONFIG_DIR"),
+    ],
+)
+def test_live_acceptance_rejects_an_explicit_empty_reviewed_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    harness: str,
+    environment_name: str,
+):
+    monkeypatch.setenv(environment_name, "")
+
+    with pytest.raises(AcceptanceError, match="existing absolute directory"):
+        _run_harness(
+            harness,
+            model="unused-model",
+            thinking="low",
+            workspace=tmp_path,
+            timeout_seconds=1,
+        )
 
 
 @pytest.mark.parametrize(

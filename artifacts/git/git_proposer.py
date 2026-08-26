@@ -51,12 +51,16 @@ class ProposerError(RuntimeError):
     """Raised when an agent does not produce one valid Git challenger."""
 
 
-def _json_command(name: str, *, required: bool) -> list[str] | None:
+def _json_string_array(name: str, *, required: bool) -> list[str] | None:
     source = os.environ.get(name)
-    if not source:
+    if source is None:
         if required:
-            raise ProposerError(f"{name} must contain a JSON command array")
+            raise ProposerError(
+                f"{name} must contain a non-empty JSON string array"
+            )
         return None
+    if not source.strip():
+        raise ProposerError(f"{name} must contain a non-empty JSON string array")
     try:
         value = json.loads(source)
     except json.JSONDecodeError as exc:
@@ -153,7 +157,8 @@ def _run_workspace_command(
 def _validate(workspace: Path) -> None:
     validate_workspace(workspace)
     command = cast(
-        list[str], _json_command("METERING_GIT_VALIDATE_COMMAND", required=True)
+        list[str],
+        _json_string_array("METERING_GIT_VALIDATE_COMMAND", required=True),
     )
     _run_workspace_command("METERING_GIT_VALIDATE", command, workspace)
     validate_workspace(workspace)
@@ -164,7 +169,7 @@ def _build_outputs(
     parent: dict[str, object],
     context: dict[str, object],
 ) -> list[dict[str, object]]:
-    command = _json_command("METERING_GIT_BUILD_COMMAND", required=False)
+    command = _json_string_array("METERING_GIT_BUILD_COMMAND", required=False)
     if command is None:
         return cast(list[dict[str, object]], parent["outputs"])
     source = _run_workspace_command(
@@ -187,7 +192,7 @@ def _build_outputs(
 def _allowed_paths() -> list[str]:
     paths = cast(
         list[str],
-        _json_command("METERING_GIT_ALLOWED_PATHS_JSON", required=True),
+        _json_string_array("METERING_GIT_ALLOWED_PATHS_JSON", required=True),
     )
     for path in paths:
         parts = path.split("/")
