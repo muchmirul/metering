@@ -27,6 +27,29 @@ OBSERVER = "apps/observer/observer.py"
 SELECTION_GATE = "apps/selection_gate/selection_gate.py"
 
 
+def agent_generation_timeout_seconds(
+    *,
+    proposer_timeout_seconds: int,
+    runner_timeout_seconds: int,
+    evaluator_timeout_seconds: int,
+    task_count: int,
+) -> int:
+    """Return the outer timeout for one sequential schema-v2 generation."""
+
+    margin = COMPONENT_TIMEOUT_SECONDS
+    return (
+        proposer_timeout_seconds
+        + margin
+        + task_count
+        * (
+            2 * (runner_timeout_seconds + margin)
+            + evaluator_timeout_seconds
+            + margin
+        )
+        + 4 * margin
+    )
+
+
 class RequestError(ValueError):
     """Raised when a controller request violates its protocol."""
 

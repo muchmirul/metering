@@ -200,6 +200,47 @@ def test_candidate_runner_rejects_malformed_adapter_output():
     assert "returned invalid JSON" in error["message"]
 
 
+@pytest.mark.parametrize(
+    "probability",
+    ["1e-999", "0.999999999999999999999999999999"],
+)
+def test_candidate_runner_rejects_adapter_numbers_that_change_zero_or_one(
+    probability,
+):
+    response = (
+        '{"forecast":{"outcomes":['
+        f'{{"outcome":"fail","probability":{probability}}},'
+        '{"outcome":"pass","probability":1.0}]},"submission":{}}'
+    )
+    request = candidate_runner_request(
+        [sys.executable, "-c", f"print({response!r})"]
+    )
+
+    result = run(CANDIDATE_RUNNER, request)
+
+    assert result.returncode == 2
+    error = json.loads(result.stderr)["error"]
+    assert error["code"] == "invalid_request"
+    assert "change whether its value is zero or one" in error["message"]
+
+
+def test_candidate_runner_rejects_non_utf8_adapter_submission():
+    response = (
+        '{"forecast":{"outcomes":[{"outcome":"pass","probability":1.0}]},'
+        '"submission":{"answer":"\\ud800"}}'
+    )
+    request = candidate_runner_request(
+        [sys.executable, "-c", f"print({response!r})"]
+    )
+
+    result = run(CANDIDATE_RUNNER, request)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "valid UTF-8" in json.loads(result.stderr)["error"]["message"]
+    assert "Traceback" not in result.stderr
+
+
 @pytest.mark.skipif(os.name != "posix", reason="POSIX process-group cleanup")
 def test_candidate_adapter_timeout_kills_descendants(tmp_path):
     marker = tmp_path / "leaked-child"
@@ -336,6 +377,18 @@ def test_skill_mutator_rejects_escaping_artifact_paths():
 
     assert result.returncode == 2
     assert "normalized relative" in json.loads(result.stderr)["error"]["message"]
+
+
+def test_skill_mutator_rejects_non_utf8_artifact_text():
+    request = generation_request()["mutation_request"]
+    request["challenger_artifact"]["files"][0]["content"] = "\ud800"
+
+    result = run(MUTATOR, request)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "valid UTF-8" in json.loads(result.stderr)["error"]["message"]
+    assert "Traceback" not in result.stderr
 
 
 def assay_report(

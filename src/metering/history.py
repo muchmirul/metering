@@ -10,10 +10,10 @@ import re
 import subprocess
 import sys
 import tempfile
-from collections.abc import Sequence
-from contextlib import contextmanager
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager, suppress
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from . import __version__
 
@@ -311,10 +311,8 @@ def _write_file_atomically(path: Path, text: str) -> None:
     except OSError as exc:
         raise HistoryError(f"cannot write {path}: {exc}") from exc
     finally:
-        try:
+        with suppress(OSError):
             temporary.unlink(missing_ok=True)
-        except OSError:
-            pass
 
 
 def _store_record(root: Path, record_id: str, payload: dict[str, Any]) -> None:

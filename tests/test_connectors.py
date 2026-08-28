@@ -239,6 +239,56 @@ def test_fixed_text_runners_use_the_same_strict_candidate_protocol(
     assert '"submission":{}' in prompt
 
 
+@pytest.mark.parametrize(
+    ("script", "command_environment"),
+    [
+        (PI_RUNNER, "METERING_PI_COMMAND"),
+        (PRIME_RUNNER, "METERING_PRIME_AGENT_COMMAND"),
+    ],
+)
+def test_fixed_text_runners_reject_probability_underflow(
+    tmp_path: Path,
+    script: Path,
+    command_environment: str,
+):
+    binary = tmp_path / "fake-agent"
+    response = (
+        '{"forecast":{"outcomes":['
+        '{"outcome":"fail","probability":1e-999},'
+        '{"outcome":"pass","probability":1.0}]},"submission":{}}'
+    )
+    binary.write_text(
+        f"#!{sys.executable}\nprint({response!r})\n",
+        encoding="utf-8",
+    )
+    binary.chmod(0o755)
+    request = {
+        "candidate": {"candidate_id": "1" * 64, "skill_path": None},
+        "protocol_version": 1,
+        "task": {
+            "case_id": "connector-case",
+            "input": {"outcomes": ["fail", "pass"], "prompt": "Answer."},
+        },
+    }
+
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=ROOT,
+        input=encode(request),
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            **os.environ,
+            command_environment: encode([str(binary)]),
+        },
+    )
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "change whether its value is zero or one" in result.stderr
+
+
 def test_prime_connector_excludes_ambient_harness_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

@@ -360,7 +360,10 @@ candidate IDs and returns one selected artifact.
 
 Version 2 adapters are ordinary caller-selected subprocesses. The controller
 enforces command argument separation, equal task documents, ordering, candidate
-binding, finite timeouts, and report alignment. Adapter implementations own
+binding, finite timeouts, and report alignment. Protocol strings must encode as
+UTF-8, and adapter decimal tokens are rejected when double-precision conversion
+would produce infinity or change whether the value is zero or one. Adapter
+implementations own
 agent invocation, hidden verifiers, workspace isolation, model and tool
 settings, token or monetary budgets, and the meanings of `passed` and
 `safety_passed`. The checked-in demo adapters are deterministic protocol test
@@ -466,9 +469,9 @@ apps/
     stdio_connector.py shared strict JSON decoding, stdio, and subprocess mechanics
     observer/         fixture observer and trusted task-evaluator boundary
     forecast_assay/   forecast and task-evidence assay
-    mutator/          finite-genome mutator and skill-artifact binder
+    mutator/          schema-v1 genome mutation plus schema-v2 artifact mutation
     candidate_runner/ fixture model and external-agent adapter boundary
-    selection_gate/   forecast and task-capability retention policies
+    selection_gate/   schema-specific forecast/task retention implementations
     controller/       fixture and agent-skill one-generation orchestrator
     evolution_driver/ bounded run-local recurrence over selected SKILL.md artifacts
 ```
@@ -895,12 +898,15 @@ The rewrite is complete only when:
   reveal, carries Mutator content IDs through Forecast Assay and Selection Gate,
   and returns the selected candidate without claiming an autonomous loop;
 - schema version 2 binds normalized default-agent, UTF-8 skill, or immutable Git
-  source/output artifacts to content IDs and rejects escaping, duplicate, or
-  ambiguous paths and output identities;
+  source/output artifacts to content IDs and rejects escaping, duplicate,
+  ambiguous, or non-UTF-8 paths, content, and output identities;
 - schema version 2 runs parent and challenger adapters on identical case
   documents before a separate evaluator command receives either submission,
-  rejects malformed adapter output, and terminates timed-out POSIX process
-  groups rather than leaking ordinary descendants;
+  rejects malformed adapter output and decimal tokens that collapse probability
+  support during double-precision conversion, and terminates timed-out POSIX
+  process groups rather than leaking ordinary descendants;
+- the persistent schema-version-1 Observer session also terminates its POSIX
+  process group on abort or shutdown timeout rather than leaving descendants;
 - schema version 2 Forecast Assay verifies reported forecast entropy, recomputes
   target self-information, and keeps pass and safety evidence separately named;
 - schema version 2 Selection Gate rejects a configured safety regression and

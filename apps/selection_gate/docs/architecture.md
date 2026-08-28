@@ -20,15 +20,22 @@ external controller
 The external controller may make the selected candidate the next parent. That
 inheritance transition is intentionally outside this process.
 
+## Implementation ownership
+
+`selection_gate.py` remains the command and schema-version-1 forecast-retention
+implementation. `task_selection.py` owns schema-version-2 task and safety
+retention. `report_validation.py` owns only the numeric and envelope checks used
+by both schemas. This split changes no command, schema, or output.
+
 ## Irreducible responsibilities
 
 1. Decode one strict versioned comparison request.
-2. Require Forecast Assay report schema version 1, then validate and
-   independently recompute both reports.
-3. Align evidence by observation identifier and target label.
+2. Validate and independently recompute both reports.
+3. Align schema-version-1 evidence by observation and target, or
+   schema-version-2 evidence by task case.
 4. Reject incomparable reports instead of silently pooling or truncating them.
-5. Apply one explicit strict improvement threshold.
-6. Represent finite and infinite comparisons as valid canonical JSON.
+5. Apply the declared forecast threshold or task-pass/safety policy.
+6. Represent finite and infinite measurements as valid canonical JSON.
 7. Return the selected candidate identity and evidence content ID.
 
 The gate does not merely compare two caller-supplied aggregate numbers. Doing so
@@ -72,7 +79,8 @@ the promotion decision.
 ## State and dependency direction
 
 ```text
-external controller -> apps/selection_gate -> public Metering Python API
+external controller -> selection_gate.py -> schema-specific verifier
+                                      -> public Metering Python API
 ```
 
 Each request is independent. There is no database, filesystem write, network

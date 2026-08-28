@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import runpy
 import selectors
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -191,6 +193,37 @@ def test_controller_captures_both_forecasts_before_observer_reveal(monkeypatch):
 
     assert events == ["runner:parent", "runner:child", "observer:reveal"]
     assert report["next_parent"] == {"candidate_id": "child", "genome": {"gene": 2}}
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX process-group cleanup")
+def test_observer_session_abort_kills_descendants(tmp_path, monkeypatch):
+    api = runpy.run_path(str(SCRIPT))
+    marker = tmp_path / "leaked-observer-child"
+    observer = tmp_path / "fake-observer.py"
+    child = (
+        "import pathlib,time;"
+        "time.sleep(1.5);"
+        f"pathlib.Path({str(marker)!r}).write_text('leaked')"
+    )
+    observer.write_text(
+        "import subprocess,sys,time\n"
+        f"subprocess.Popen([sys.executable,'-c',{child!r}])\n"
+        "for line in sys.stdin:\n"
+        "    time.sleep(10)\n",
+        encoding="utf-8",
+    )
+    globals_ = api["ObserverSession"].__init__.__globals__
+    monkeypatch.setitem(globals_, "OBSERVER", str(observer))
+    monkeypatch.setitem(globals_, "COMPONENT_TIMEOUT_SECONDS", 1)
+    session = api["ObserverSession"]("v1")
+    try:
+        with pytest.raises(api["ControllerError"], match="component timeout"):
+            session.request({"action": "state"})
+    finally:
+        session.abort()
+    time.sleep(1.0)
+
+    assert not marker.exists()
 
 
 def test_controller_retains_the_parent_when_v3_confidence_hurts_v4_results():

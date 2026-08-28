@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 import selectors
 import subprocess
 import sys
@@ -39,7 +40,11 @@ from component_runtime import (  # noqa: E402
     _require_nonempty_string,
     _run_component,
 )
-from stdio_connector import canonical_json, run_stdio_application  # noqa: E402
+from stdio_connector import (  # noqa: E402
+    canonical_json,
+    kill_process_tree,
+    run_stdio_application,
+)
 
 
 def _decode_probe(raw_probe: object, location: str) -> dict[str, str]:
@@ -212,6 +217,7 @@ class ObserverSession:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                start_new_session=os.name == "posix",
             )
         except OSError as exc:
             raise ControllerError(f"cannot start Observer: {exc}") from exc
@@ -262,8 +268,7 @@ class ObserverSession:
             self.process.stdin.close()
             status = self.process.wait(timeout=COMPONENT_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired as exc:
-            self.process.kill()
-            self.process.wait()
+            kill_process_tree(self.process)
             raise ControllerError("Observer did not stop after input EOF") from exc
         remaining_output = self.process.stdout.read()
         stderr = self.process.stderr.read()
@@ -276,15 +281,15 @@ class ObserverSession:
             raise ControllerError("Observer returned unexpected extra responses")
 
     def abort(self) -> None:
+        if getattr(self, "closed", False):
+            return
         self.closed = True
         selector = getattr(self, "selector", None)
         if selector is not None:
             selector.close()
         process = getattr(self, "process", None)
         if process is not None:
-            if process.poll() is None:
-                process.kill()
-            process.wait()
+            kill_process_tree(process)
 
 
 def _observer_ok(response: dict[str, object], action: str) -> None:

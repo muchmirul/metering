@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -25,7 +24,10 @@ from agent_protocol import (  # noqa: E402
     require_timeout,
     run_adapter,
 )
-from stdio_connector import canonical_json  # noqa: E402
+from stdio_connector import (  # noqa: E402
+    decode_json_object,
+    run_stdio_application,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -38,44 +40,8 @@ class EvaluationError(RuntimeError):
     """Raised when the trusted evaluator cannot produce valid evidence."""
 
 
-def _write_json(stream: object, document: dict[str, object]) -> None:
-    text = canonical_json(document) + "\n"
-    try:
-        stream.write(text)  # type: ignore[attr-defined]
-        stream.flush()  # type: ignore[attr-defined]
-    except BrokenPipeError:
-        raise
-
-
-def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    result: dict[str, object] = {}
-    for key, value in pairs:
-        if key in result:
-            raise AgentRequestError(f"duplicate JSON key {key!r}")
-        result[key] = value
-    return result
-
-
-def _reject_nonfinite(token: str) -> None:
-    raise AgentRequestError(f"non-finite JSON number {token!r} is not allowed")
-
-
 def _decode_request(source: str) -> dict[str, object]:
-    if not source.strip():
-        raise AgentRequestError("stdin must contain one JSON object")
-    try:
-        request = json.loads(
-            source,
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_nonfinite,
-        )
-    except AgentRequestError:
-        raise
-    except (json.JSONDecodeError, RecursionError, ValueError) as exc:
-        raise AgentRequestError(f"invalid JSON: {exc}") from exc
-    if type(request) is not dict:
-        raise AgentRequestError("request must be one JSON object")
-    return request
+    return decode_json_object(source, AgentRequestError)
 
 
 def _decode_run(
@@ -174,33 +140,17 @@ def evaluate_pair(source: str) -> dict[str, object]:
     }
 
 
-def _read_stdin() -> str:
-    stream = getattr(sys.stdin, "buffer", None)
-    if stream is None:
-        return sys.stdin.read()
-    try:
-        return stream.read().decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise AgentRequestError("standard input must be valid UTF-8 JSON") from exc
-
-
-def main() -> int:
-    try:
-        response = evaluate_pair(_read_stdin())
-    except AgentRequestError as exc:
-        _write_json(
-            sys.stderr,
-            {"error": {"code": "invalid_request", "message": str(exc)}},
-        )
-        return 2
-    except EvaluationError as exc:
-        _write_json(
-            sys.stderr,
-            {"error": {"code": "observer_error", "message": str(exc)}},
-        )
-        return 2
-    _write_json(sys.stdout, response)
-    return 0
+def main(argv: list[str] | None = None) -> int:
+    arguments = sys.argv[1:] if argv is None else argv
+    return run_stdio_application(
+        evaluate_pair,
+        arguments,
+        error_rules=(
+            (AgentRequestError, "invalid_request"),
+            (EvaluationError, "observer_error"),
+        ),
+        stream_error_code="observer_error",
+    )
 
 
 if __name__ == "__main__":

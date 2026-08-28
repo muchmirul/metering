@@ -117,6 +117,10 @@ unmatched cases, or install the selected artifact.
 
 See the [agent-artifact protocol](../../docs/agent-evolution.md).
 
+The command remains `selection_gate.py`. Its schema-version-2 implementation is
+isolated in `task_selection.py`; shared report-number checks live in
+`report_validation.py`. This is source organization only, not another stage.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)

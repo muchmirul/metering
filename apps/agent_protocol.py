@@ -18,6 +18,7 @@ from stdio_connector import (
     canonical_digest,
     canonical_json,
     run_json_process,
+    strict_json_float,
 )
 
 SKILL_ARTIFACT_SCHEMA = "agent-skill-v1"
@@ -57,9 +58,18 @@ def require_exact_keys(
         raise ProtocolError(f"{location}: {'; '.join(details)}")
 
 
+def _require_utf8(value: str, location: str) -> str:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ProtocolError(f"{location} must be valid UTF-8") from error
+    return value
+
+
 def require_nonempty_string(value: object, location: str) -> str:
     if type(value) is not str or not value:
         raise ProtocolError(f"{location} must be a non-empty string")
+    _require_utf8(value, location)
     if "\x00" in value:
         raise ProtocolError(f"{location} must not contain NUL")
     return value
@@ -218,6 +228,7 @@ def decode_agent_artifact(
         content = raw_file["content"]
         if type(content) is not str:
             raise ProtocolError(f"{file_location}.content must be a UTF-8 string")
+        _require_utf8(content, f"{file_location}.content")
         executable = require_bool(raw_file["executable"], f"{file_location}.executable")
         files.append({"content": content, "executable": executable, "path": path})
 
@@ -313,6 +324,7 @@ def decode_adapter_output(name: str, source: str) -> dict[str, object]:
             source,
             object_pairs_hook=lambda pairs: _unique_adapter_object(name, pairs),
             parse_constant=lambda token: _reject_adapter_nonfinite(name, token),
+            parse_float=strict_json_float,
         )
     except ProtocolError:
         raise
@@ -357,8 +369,10 @@ def run_adapter(
 
 
 def normalize_json_value(value: object, location: str = "value") -> object:
-    if value is None or type(value) in {bool, int, str}:
+    if value is None or type(value) in {bool, int}:
         return value
+    if type(value) is str:
+        return _require_utf8(value, location)
     if isinstance(value, (float, Decimal)):
         try:
             converted = float(value)
@@ -379,6 +393,7 @@ def normalize_json_value(value: object, location: str = "value") -> object:
         for key, item in value.items():
             if type(key) is not str:
                 raise ProtocolError(f"{location} contains a non-string object key")
+            _require_utf8(key, f"{location} object key")
             normalized[key] = normalize_json_value(item, f"{location}.{key}")
         return normalized
     raise ProtocolError(f"{location} contains an unsupported JSON value")

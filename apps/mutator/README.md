@@ -72,9 +72,11 @@ carries these content IDs into one fixed Candidate Runner evaluation.
 ## Agent and Git artifacts
 
 Schema version 2 accepts `agent-default-v1`, normalized UTF-8 `agent-skill-v1`,
-or immutable `git-candidate-v1`. The original form binds a challenger already
-supplied by the caller. The proposal form sends only the current parent and
-caller-approved context to one command, requires one complete replacement skill
+or immutable `git-candidate-v1`. Strings that cannot be encoded as UTF-8 are
+rejected before candidate identity or materialization. The original form binds
+a challenger already supplied by the caller. The proposal form sends only the
+current parent and caller-approved context to one command, requires one complete
+replacement skill
 or Git descriptor, and records the command identity as proposal provenance. A
 Git descriptor binds source commit/tree/content identities and external output
 digests; it does not embed source or model weights. In both forms Mutator reports
@@ -108,7 +110,8 @@ artifact schema and complete six-application composition.
 
 ```text
 mutator/
-    mutator.py
+    mutator.py            schema dispatch and schema-v1 genome mutation
+    agent_mutation.py     schema-v2 artifact binding and proposal
     pi_skill_proposer.py  compatibility launcher
     skill_artifact.py
     README.md

@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import signal
 import subprocess
 import sys
 from collections.abc import Callable, Sequence
+from contextlib import suppress
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Literal, TextIO, TypeAlias
 
@@ -62,11 +65,31 @@ def canonical_digest(value: object) -> str:
     return hashlib.sha256(canonical_json(value).encode("ascii")).hexdigest()
 
 
+def strict_json_float(token: str) -> float:
+    """Convert one JSON decimal token without changing zero/one membership."""
+
+    try:
+        exact = Decimal(token)
+        converted = float(token)
+    except (InvalidOperation, OverflowError, ValueError) as error:
+        raise ValueError("JSON number exceeds supported numeric limits") from error
+    if not math.isfinite(converted):
+        raise ValueError("JSON number is outside the finite double-precision range")
+    if (converted == 0.0 and exact != 0) or (
+        converted == 1.0 and exact != 1
+    ):
+        raise ValueError(
+            "JSON number would change whether its value is zero or one "
+            "in double precision"
+        )
+    return 0.0 if converted == 0.0 else converted
+
+
 def decode_json_object(
     source: str,
     error_type: type[Exception],
     *,
-    parse_float: NumberParser = float,
+    parse_float: NumberParser = strict_json_float,
     parse_int: NumberParser = int,
 ) -> JsonDocument:
     """Decode one strict JSON object using an application's numeric policy."""
@@ -104,7 +127,7 @@ def decode_json_object(
     return document
 
 
-def _kill_process_tree(process: subprocess.Popen[str]) -> None:
+def kill_process_tree(process: subprocess.Popen[str]) -> None:
     """Kill a connected process and its descendants, then reap the child."""
 
     if os.name == "posix":
@@ -120,10 +143,8 @@ def _kill_process_tree(process: subprocess.Popen[str]) -> None:
     process.wait()
     for stream in (process.stdin, process.stdout, process.stderr):
         if stream is not None:
-            try:
+            with suppress(OSError):
                 stream.close()
-            except OSError:
-                pass
 
 
 def run_json_process(
@@ -154,10 +175,10 @@ def run_json_process(
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as error:
-        _kill_process_tree(process)
+        kill_process_tree(process)
         raise JsonProcessError("timeout") from error
     except BaseException:
-        _kill_process_tree(process)
+        kill_process_tree(process)
         raise
 
     if process.returncode != 0:

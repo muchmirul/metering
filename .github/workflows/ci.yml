@@ -17,6 +17,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.11"
+      - name: Run static checks
+        run: uv run --extra lint ruff check src apps connectors artifacts tests
       - name: Run full test suite
         run: uv run --extra test pytest -q
       - name: Run agent-skill generation example

@@ -29,6 +29,7 @@ from agent_protocol import (  # noqa: E402
     decode_forecast_outcomes,
     decode_task,
     materialize_skill,
+    normalize_json_value,
     require_exact_keys,
     require_schema_version,
     require_timeout,
@@ -292,7 +293,9 @@ def _run_agent_skill(request: dict[str, object]) -> dict[str, object]:
         )
         probabilities = [float(item["probability"]) for item in outcomes]
         forecast_entropy = entropy(probabilities, base=2)
-        submission = adapter_response["submission"]
+        submission = normalize_json_value(
+            adapter_response["submission"], "adapter response.submission"
+        )
         canonical_json(submission)
     except (ProtocolError, ProbabilityError, TypeError, ValueError) as exc:
         if isinstance(exc, ProbabilityError):

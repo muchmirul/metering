@@ -711,7 +711,7 @@ def main(argv: list[str] | None = None) -> int:
             sys.path.insert(0, observer_root)
         from agent_evaluator import main as evaluator_main
 
-        return evaluator_main()
+        return evaluator_main([])
 
     jsonl_requested = "--jsonl" in raw_arguments
     try:

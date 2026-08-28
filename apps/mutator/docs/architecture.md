@@ -3,15 +3,21 @@
 ## Purpose
 
 The Mutator is the variation boundary in a directed-evolution-inspired software
-loop. Its only state transition is:
+loop. It supports two explicit state transitions:
 
 ```text
-one immutable parent genome -> one immutable child genome
+schema 1: immutable parent genome -> one legal child genome
+schema 2: immutable parent artifact -> one bound challenger artifact
 ```
 
-The caller supplies every modeling decision: the legal mutation catalogue, the
+For schema version 1, the caller supplies the legal mutation catalogue, the
 probability assigned to each supported mutation, and the draw used to select one
-outcome. The process contains no hidden randomness.
+outcome. Schema version 2 either binds a direct challenger or invokes one strict
+external proposer. Neither path contains hidden randomness or retention policy.
+
+`mutator.py` owns command dispatch and schema-version-1 genome mutation.
+`agent_mutation.py` owns schema-version-2 direct/proposer artifact mutation.
+The split changes no command, schema, or output.
 
 ## Irreducible responsibilities
 
@@ -113,11 +119,15 @@ pairs.
 ## Dependency direction
 
 ```text
-external controller -> apps/mutator -> public Metering Python API
+external controller -> mutator.py -> schema-specific mutation
+                                  -> public Metering Python API
+                                  -> optional external proposer command
 ```
 
-The Mutator imports only `entropy`, `self_information`, and `ProbabilityError`
-from the public package. It performs no filesystem access and no network access.
+Schema version 1 imports only `entropy`, `self_information`, and
+`ProbabilityError` from the public package and performs no filesystem or network
+access. Schema version 2 uses shared source-only artifact validation and may call
+the explicitly supplied proposer; that subprocess owns any external effects.
 
 ## Deliberately absent
 

@@ -5,14 +5,17 @@ from __future__ import annotations
 import os
 import sys
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, cast
+from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
 APPS_ROOT = ROOT / "apps"
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
+CONTROLLER_ROOT = APPS_ROOT / "controller"
+for import_root in (APPS_ROOT, CONTROLLER_ROOT):
+    if str(import_root) not in sys.path:
+        sys.path.insert(0, str(import_root))
 
 from agent_protocol import (  # noqa: E402
     AGENT_SCHEMA_VERSION,
@@ -29,6 +32,7 @@ from agent_protocol import (  # noqa: E402
     require_nonempty_string,
     require_timeout,
 )
+from component_runtime import agent_generation_timeout_seconds  # noqa: E402
 from stdio_connector import (  # noqa: E402
     JsonProcessError,
     canonical_digest,
@@ -266,10 +270,7 @@ def _read_records(path: Path) -> list[dict[str, object]]:
     for index, line in enumerate(text.splitlines(), start=1):
         if not line:
             raise EvolutionError(f"state line {index} is empty")
-        try:
-            record = decode_json_object(line, EvolutionError)
-        except EvolutionError:
-            raise
+        record = decode_json_object(line, EvolutionError)
         if line != canonical_json(record):
             raise EvolutionError(f"state line {index} is not canonical JSON")
         records.append(record)
@@ -469,17 +470,11 @@ def _controller_timeout(config: dict[str, object]) -> int:
     runner = cast(dict[str, object], generation["runner"])
     evaluator = cast(dict[str, object], generation["evaluator"])
     tasks = cast(list[dict[str, object]], generation["tasks"])
-    component_margin = 10
-    return (
-        int(proposal["timeout_seconds"])
-        + component_margin
-        + len(tasks)
-        * (
-            2 * (int(runner["timeout_seconds"]) + component_margin)
-            + int(evaluator["timeout_seconds"])
-            + component_margin
-        )
-        + 4 * component_margin
+    return agent_generation_timeout_seconds(
+        proposer_timeout_seconds=int(proposal["timeout_seconds"]),
+        runner_timeout_seconds=int(runner["timeout_seconds"]),
+        evaluator_timeout_seconds=int(evaluator["timeout_seconds"]),
+        task_count=len(tasks),
     )
 
 
@@ -503,10 +498,7 @@ def _run_controller(
         else:
             message = "Controller wrote unexpected standard error"
         raise EvolutionError(message) from exc
-    try:
-        result = decode_json_object(source, EvolutionError)
-    except EvolutionError:
-        raise
+    result = decode_json_object(source, EvolutionError)
     if source != canonical_json(result) + "\n":
         raise EvolutionError("Controller returned non-canonical JSON")
     return result

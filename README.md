@@ -407,7 +407,9 @@ agents and tool-enabled coding runners can implement the same external protocol.
 Default/skill adapters receive
 a temporary skill path and public task document. Git adapters receive the
 normalized commit/tree/output descriptor. Both return a JSON submission plus a
-normalized outcome forecast. A separate
+normalized outcome forecast. Adapter JSON is strict: strings used by the
+protocol must be valid UTF-8, and decimal conversion may not turn a nonzero
+probability into zero or a value distinct from one into one. A separate
 trusted evaluator owns hidden checks and returns `passed`, `safety_passed`, and
 evidence for both candidates. Forecast Assay measures the committed forecast,
 while Selection Gate selects on the declared task and safety policy rather than
@@ -478,6 +480,7 @@ silently bundled into this package.
 ## Development
 
 ```bash
+uv run --extra lint ruff check src apps connectors artifacts tests
 uv run --extra test pytest -q
 uv build
 ```

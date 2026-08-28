@@ -36,8 +36,11 @@ implementations:
   mechanics without owning application policy;
 - `apps/observer/observer.py` remains the independently copyable fixture
   program, while `agent_evaluator.py` owns schema-version-2 external evaluation;
-- Mutator keeps direct-challenger requests and adds a separate strict proposer
-  path rather than weakening either request shape.
+- Mutator keeps schema-version-1 genome mutation in its entrypoint and owns
+  schema-version-2 direct/proposer artifact mutation in `agent_mutation.py`;
+- Selection Gate keeps schema-version-1 forecast retention in its entrypoint and
+  owns schema-version-2 task-evidence retention in `task_selection.py`, with
+  shared report-number validation in `report_validation.py`.
 
 These are internal ownership changes, not new public commands. Recorded
 schema-version-1 fixture outputs and direct-challenger schema-version-2 outputs
@@ -76,8 +79,9 @@ An Agent Skills directory is represented as canonical UTF-8 files:
 ```
 
 Paths are normalized relative POSIX paths. Absolute paths, `.` and `..`
-components, backslashes, duplicate paths, missing or empty `SKILL.md`, and
-non-string content are rejected. Executable mode is represented explicitly.
+components, backslashes, duplicate paths, missing or empty `SKILL.md`,
+non-string content, and strings that cannot encode as UTF-8 are rejected.
+Executable mode is represented explicitly.
 Binary assets, symlinks, ownership, timestamps, and other filesystem metadata
 are not represented in version 1.
 
@@ -216,7 +220,9 @@ The adapter must emit exactly:
 
 The complete finite outcome forecast is committed before the evaluator runs.
 Candidate Runner validates normalization through Metering and reports its
-entropy. `submission` is caller-owned JSON passed to the evaluator.
+entropy. Adapter decimal tokens are rejected if double-precision conversion
+would produce infinity, collapse nonzero to zero, or round a value distinct
+from one to one. `submission` is caller-owned JSON passed to the evaluator.
 
 For text-only Pi evaluations, use:
 
@@ -410,7 +416,9 @@ Runner, evaluator, and proposer commands execute with the current user's
 permissions. Temporary skill materialization is not a sandbox. Shared connector
 code executes command arrays
 without a shell, rejects malformed JSON process output, and on POSIX kills the
-ordinary process group when a timeout expires. This cleanup is not an isolation
+ordinary process group when a timeout expires. The persistent fixture Observer
+uses the same process-group cleanup when aborted or when shutdown times out.
+This cleanup is not an isolation
 boundary: an adversarial process may deliberately escape its group. The
 controller enforces equal task documents and timeout values, but an adapter must
 enforce model settings, tool access, token or monetary budgets, workspace

@@ -22,8 +22,10 @@ configuration by default; the provider README documents the explicit reviewed
 configuration override and credential boundary.
 
 The surrounding Mutator and Candidate Runner own finite timeouts. The connector
-owns only CLI translation and strict response decoding. Model/tool/token/budget
-matching and OS isolation remain caller responsibilities.
+owns only CLI translation and strict response decoding. It rejects model JSON
+numbers that overflow double precision or change whether a value is zero or one
+during conversion. Model/tool/token/budget matching and OS isolation remain
+caller responsibilities.
 
 The former Pi paths under `apps/` and `artifacts/git/` are compatibility
 launchers. New requests and documentation should use `connectors/fixed/pi/`.
