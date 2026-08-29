@@ -38,8 +38,8 @@ expand `PLAN.md`, and do not change any public or application contract:
   candidate registry, a bounded active candidate pool, explicit differential
   proposal allocation, behavior buckets, population-change attribution, and
   phased acceptance criteria. Its theoretical basis is variation, heredity,
-  differential contribution, population dynamics, diversity, and evolvability;
-  it does not use Gödel-machine or recursive self-modification theory.
+  differential contribution, population dynamics, diversity, coevolution, and
+  evolvability.
 
 The installed Python API remains only `ProbabilityError` and the four named
 measures. The history command is a separate explicit filesystem boundary, and
