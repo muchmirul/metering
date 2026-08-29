@@ -31,12 +31,15 @@ expanding that contract:
 These documents describe possible future work. They are not implemented, do not
 expand `PLAN.md`, and do not change any public or application contract:
 
-- [Variant search framework proposal](proposals/variant-search-framework.md)
-  specifies a developer-familiar framework above the current generation tools:
-  Git-backed variants, canonical JSON manifests, matched evaluation
-  mathematics, a branching candidate registry, an active candidate pool,
-  explicit proposal allocation, behavior buckets, and phased acceptance
-  criteria.
+- [Pure Darwinian variant search framework](proposals/variant-search-framework.md)
+  specifies a developer-familiar Darwinian layer above the current generation
+  tools: Git-backed heritable variants, canonical JSON configurable state,
+  semantic change records, matched evaluation mathematics, a branching
+  candidate registry, a bounded active candidate pool, explicit differential
+  proposal allocation, behavior buckets, population-change attribution, and
+  phased acceptance criteria. Its theoretical basis is variation, heredity,
+  differential contribution, population dynamics, diversity, and evolvability;
+  it does not use Gödel-machine or recursive self-modification theory.
 
 The installed Python API remains only `ProbabilityError` and the four named
 measures. The history command is a separate explicit filesystem boundary, and
