@@ -10,13 +10,12 @@ The proposal targets the architecture currently on `main` and keeps the
 repository focused on one idea:
 
 > Build a deterministic software substrate for **Darwinian search**: explicit
-> variation, heredity, differential future allocation, selection, diversity,
+> variation, heredity, differential future contribution, selection, diversity,
 > and accumulated evidence across generations.
 
-This proposal does **not** use Gödel-machine, recursive-self-rewrite, or
-self-referential proof machinery as a foundation. External agents may generate
-software variants, but the repository's scientific model is ordinary Darwinian
-variation and selection applied to computer artifacts.
+External agents may generate software variants, but the repository's scientific
+model is ordinary Darwinian variation and selection applied to computer
+artifacts.
 
 ## Why the current repository is close but incomplete
 
@@ -66,8 +65,8 @@ useful foundation for the framework:
 
 1. **Variation**: candidates differ.
 2. **Differential contribution**: some variants receive more future descendants
-   or future proposal opportunities than others.
-3. **Heredity**: descendants resemble their parents strongly enough that useful
+   or proposal opportunities than others.
+3. **Heredity**: descendants resemble parents strongly enough that useful
    differences can accumulate.
 
 For software, translate those conditions directly:
@@ -89,12 +88,12 @@ source files should use familiar software language.
 
 ## Scope principle
 
-The framework should preserve the current repository rule:
+The framework should preserve the repository rule:
 
-> Keep the deterministic mechanism small; keep assumptions, policies, and
+> Keep deterministic mechanism small; keep assumptions, policies, and
 > interpretation explicit in source-only layers above it.
 
-The installed Metering package remains responsible for the four named
+The installed Metering package remains responsible for exactly the four named
 information measures:
 
 ```text
@@ -109,7 +108,7 @@ as fitness, capability, intelligence, or meaning.
 
 ## Git tracks exact variants; canonical JSON describes configurable state
 
-The representation should have two layers.
+The representation has two layers.
 
 ### Git: exact inherited artifact
 
@@ -125,9 +124,9 @@ external output receipts
 parent commit(s)
 ```
 
-The existing `git-candidate-v1` boundary already provides most of this.
-Branches remain mutable navigation. Immutable commits, trees, content digests,
-and output hashes remain candidate identity inputs.
+The existing `git-candidate-v1` boundary already provides most of this. Branches
+remain mutable navigation. Immutable commits, trees, content digests, and output
+hashes remain candidate identity inputs.
 
 ### Canonical JSON: semantic variant manifest
 
@@ -137,7 +136,7 @@ Each framework-compatible Git candidate should contain:
 .metering/variant.json
 ```
 
-The manifest describes configurable state in developer language:
+Example:
 
 ```json
 {
@@ -166,16 +165,11 @@ The manifest describes configurable state in developer language:
 }
 ```
 
-The manifest is not a capability report. Fields such as `debugging_score` or
-`reasoning_quality` do not belong there unless they are literal configurable
-settings. Measured properties belong in evaluation evidence.
+The manifest describes inherited configurable state, not measured capability.
+A stable `setting_id` identifies the same configurable locus across variants;
+the current `value` is the inherited setting at that locus.
 
-A stable `setting_id` identifies the same configurable locus across variants.
-The current value is the inherited state at that locus. Stable identifiers make
-later comparison and recombination possible without depending on array order or
-file location alone.
-
-The normalized manifest identity is conceptually:
+The normalized manifest identity is
 
 \[
 \operatorname{manifest\_id}
@@ -184,7 +178,7 @@ The normalized manifest identity is conceptually:
 \]
 
 RFC 8785 is the engineering reference for deterministic JSON canonicalization
-when cryptographic identity depends on serialization.
+where cryptographic identity depends on serialization.
 
 ## Fixed run law versus configurable candidate state
 
@@ -200,7 +194,7 @@ where:
 - \(C_i\) is the immutable Git candidate;
 - \(V_i\) is its canonical variant manifest.
 
-The run law binds the conditions under which variants are compared:
+The run law binds:
 
 ```text
 schema versions
@@ -214,17 +208,15 @@ state-reducer version
 ```
 
 Changing the run law changes the experiment. It must start a new run or an
-explicitly versioned migration rather than silently extending old evidence.
+explicit versioned migration rather than silently extending old evidence.
 
-This boundary is important scientifically: natural selection is meaningful only
-relative to a defined environment and inheritance mechanism. Changing the
-selection environment while pretending the experiment is unchanged confounds
-the result.
+This is important scientifically because selection is always relative to an
+environment and inheritance mechanism.
 
 ## Semantic change records
 
-Git answers **what bytes changed**. A separate canonical JSON record answers
-**what configurable state changed**.
+Git answers **what bytes changed**. A separate canonical record answers **what
+configurable state changed**.
 
 ```json
 {
@@ -247,19 +239,19 @@ Git answers **what bytes changed**. A separate canonical JSON record answers
 
 A validator should prove structural consistency only:
 
-1. referenced parent and child variants exist;
-2. `before` values match the parent manifest;
-3. `after` values match the child manifest;
-4. referenced path changes agree with the Git tree difference;
+1. parent and child variants exist;
+2. `before` values match parent manifests;
+3. `after` values match child manifests;
+4. referenced path changes agree with Git differences;
 5. undeclared manifest changes are rejected;
 6. the record is canonical and content-addressed.
 
-The record does not claim that a change caused an improvement.
+The record does not claim that the change caused an improvement.
 
 ## Evaluation results are environment-bound evidence
 
 The same variant may perform differently under a different task suite, runtime,
-budget, or evaluator. Evaluation evidence must therefore bind all of them.
+budget, or evaluator. Evidence must bind all of them.
 
 ```json
 {
@@ -281,8 +273,7 @@ budget, or evaluator. Evaluation evidence must therefore bind all of them.
 }
 ```
 
-For matched parent \(p\), challenger \(c\), and task suite \(E\), define the
-observed effect vector
+For matched parent \(p\), challenger \(c\), and task suite \(E\):
 
 \[
 \Delta\boldsymbol{\phi}_E
@@ -294,13 +285,10 @@ This is local empirical evidence, not an intrinsic property of the manifest.
 
 ## Candidate registry and active candidate pool
 
-A Darwinian process should not discard every non-head branch.
-
 ### `candidate_registry`
 
-The registry contains all accepted, content-valid variants and their version
-relationships. It is append-only evidence of what existed and where it came
-from.
+The registry contains all accepted content-valid variants and their version
+relationships:
 
 ```text
 c0
@@ -312,31 +300,26 @@ c0
     └── c6
 ```
 
-The registry does not mean every stored variant is currently eligible for future
-proposals.
+It preserves stepping stones and ancestry.
 
 ### `candidate_pool`
 
-The pool is the bounded subset currently allowed to receive future proposal
+The pool is the bounded subset currently eligible for future proposal
 opportunities:
 
 \[
 P_t\subseteq R_t.
 \]
 
-Separating registry and pool prevents two bad collapses:
-
-- deleting useful historical stepping stones merely because they are currently
-  inactive;
-- treating every historical variant as equally active forever.
+Registry and pool must remain different concepts: historical existence is not
+the same as current reproductive/search activity.
 
 ## Differential future allocation
 
-Darwinian selection is not just pairwise comparison. Successful heritable
-variants must receive differential contribution to the future search.
+Darwinian selection requires that heritable variants contribute differently to
+future search.
 
-Let the active pool contain variants \(c_1,\ldots,c_n\). The caller declares a
-parent-allocation distribution
+Let active variants be \(c_1,\ldots,c_n\) with parent-allocation distribution
 
 \[
 W_t=(w_{1,t},\ldots,w_{n,t}),
@@ -346,18 +329,16 @@ w_{i,t}\ge0,
 \sum_iw_{i,t}=1.
 \]
 
-Given an explicit caller-supplied draw \(r_t\), parent choice is deterministic
-and replayable:
+Given caller-supplied draw \(r_t\):
 
 \[
 i_t=\operatorname{Draw}(W_t,r_t).
 \]
 
-The framework does not hide a random-number generator. Randomness may be
-external, but the exact distribution and realized draw become part of the event
-record.
+No hidden random-number generator is required. External randomness is acceptable
+only when the declared distribution and realized draw are recorded.
 
-A simple replicator-style allocation update is
+A simple replicator-style update is
 
 \[
 \boxed{
@@ -367,17 +348,16 @@ p_{i,t+1}
 {\sum_jp_{j,t}q_{j,t}}}
 \]
 
-where \(q_{i,t}\) is a caller-derived non-negative contribution factor from
-observed evidence. The framework may apply this declared update, but it must not
-invent a universal rule mapping task evidence into \(q_i\).
+where \(q_{i,t}\) is a caller-derived non-negative contribution factor. The
+framework may apply a declared update but must not invent a universal mapping
+from evidence to \(q_i\).
 
-Taylor and Jonker's replicator dynamics provide the mathematical reference for
-frequency change under differential success.
+Taylor and Jonker's replicator dynamics are the primary reference for this kind
+of frequency change under differential success.
 
 ## Mutation-selection accounting
 
-When variation also changes type, a discrete mutation-selection update has the
-form
+When variation changes type as well as frequency:
 
 \[
 \boxed{
@@ -387,26 +367,24 @@ p_{j,t+1}
 {\sum_i p_{i,t}q_{i,t}}}
 \]
 
-where \(M_{ij,t}\) is the declared probability that a contribution from parent
+where \(M_{ij,t}\) is the declared probability that contribution from parent
 type \(i\) produces descendant type \(j\).
 
-This separates two things that should remain separate in software:
+This keeps two responsibilities explicit:
 
 ```text
-selection/allocation: who gets more future opportunities?
-variation: what kinds of children are produced?
+allocation: which variants receive more future opportunities?
+variation: what descendants are produced?
 ```
 
-Eigen's mutation-selection/quasispecies work is a foundational reference for
-this decomposition.
+Eigen's mutation-selection and quasispecies work is the foundational reference.
 
 ## Price-equation attribution
 
-The Price equation is the cleanest population-level accounting identity for the
-framework.
+The Price equation gives a clean population-level accounting identity.
 
-For candidate characteristic \(z_i\), contribution \(w_i\), and average
-descendant change \(\Delta z_i\):
+For characteristic \(z_i\), contribution \(w_i\), and average descendant change
+\(\Delta z_i\):
 
 \[
 \boxed{
@@ -426,26 +404,23 @@ change_effect
 total_delta
 ```
 
-Interpretation:
-
-- `allocation_effect`: did variants already possessing characteristic \(z\)
-  receive more future contribution?
-- `change_effect`: did descendants differ from parents in \(z\)?
+- `allocation_effect`: variants with which characteristics received more future
+  contribution?
+- `change_effect`: how did descendants differ from parents?
 - `total_delta`: how did the candidate-pool mean change?
 
-The identity is useful because it prevents the framework from conflating a
-better proposal operator with merely allocating more attempts to already-strong
-variants.
+This prevents the framework from confusing better proposal generation with
+simply giving more attempts to already-strong variants.
 
-Price's 1970 covariance equation is the primary theoretical reference.
+Price's 1970 covariance equation is the primary reference.
 
 ## Evaluation mathematics missing from Metering
 
-Metering currently measures uncertainty, surprise, distributional difference,
-and dependence. Darwinian experiments also need ordinary finite statistics and
-proper scoring to describe the consequences of variation.
+Metering measures uncertainty, surprise, distributional difference, and
+dependence. Darwinian experiments also need ordinary finite statistics and
+proper scoring to quantify consequences of variation.
 
-These should first live in the source-only framework rather than expanding the
+These should first live in the source-only framework rather than changing the
 installed Metering API.
 
 ### Weighted mean
@@ -454,17 +429,11 @@ installed Metering API.
 \mu_x=\mathbb E_p[x]=\sum_i p_ix_i.
 \]
 
-Useful for expected task result, latency, resource cost, or candidate-pool
-characteristics under declared weights.
-
 ### Weighted variance
 
 \[
 \operatorname{Var}_p(x)=\sum_ip_i(x_i-\mu_x)^2.
 \]
-
-Useful for instability across tasks or contexts. Variance is not quality: a
-candidate may be consistently bad.
 
 ### Weighted covariance
 
@@ -474,12 +443,12 @@ candidate may be consistently bad.
 \sum_ip_i(x_i-\mu_x)(y_i-\mu_y).
 \]
 
-This is the key mathematical primitive required by the Price equation.
-Covariance is association under declared weights, not proof of causation.
+Covariance is the key primitive needed by Price attribution. It measures
+association under declared weights, not causation.
 
 ### Paired effect statistics
 
-Parent and challenger must run on matched cases. For a metric \(m\):
+Run parent and challenger on matched cases. For metric \(m\):
 
 \[
 d_i=m_i(c)-m_i(p),
@@ -491,7 +460,7 @@ d_i=m_i(c)-m_i(p),
 s_d^2=\frac1{n-1}\sum_i(d_i-\bar d)^2.
 \]
 
-Report at minimum:
+Report:
 
 ```text
 case_count
@@ -502,22 +471,20 @@ ties
 losses
 ```
 
-An optional paired bootstrap may use caller-supplied resampling indices. Efron's
-bootstrap is the standard reference for empirical resampling-based uncertainty.
+Optional paired bootstrap uncertainty may use caller-supplied resampling
+indices. Efron's bootstrap is the reference.
 
 ### Proper probability scoring
 
-The current Forecast Assay already uses realized log score via
-self-information. A bounded companion is the multiclass Brier score:
+The existing Forecast Assay already uses realized log score through
+self-information. A useful bounded companion is the Brier score:
 
 \[
 BS(q,y)=\sum_k(q_k-\mathbf 1[k=y])^2.
 \]
 
-Brier's 1950 score and the general theory of strictly proper scoring rules
-support keeping complete probabilistic forecasts honest. Log score and Brier
-score should be reported separately, never blended into a universal fitness
-number.
+Brier's score and proper-scoring-rule theory support honest complete probability
+forecasts. Log score and Brier score remain separate measurements.
 
 ## Multi-objective retention
 
@@ -531,7 +498,7 @@ Computer-agent evaluation is naturally a vector:
 
 Do not collapse this into one repository-defined scalar.
 
-After hard constraints, candidate \(a\) Pareto-dominates candidate \(b\) when
+After hard constraints, \(a\) Pareto-dominates \(b\) when
 
 \[
 m_k(a)\ge m_k(b)\quad\forall k
@@ -539,24 +506,23 @@ m_k(a)\ge m_k(b)\quad\forall k
 
 and it is strictly better in at least one dimension.
 
-A developer-facing ordering can be:
+Recommended ordering:
 
 ```text
 1. reject invalid or hard-constraint failures
 2. reject configured safety regressions
 3. prefer a Pareto-dominating candidate
-4. retain both when each is superior on different valid dimensions and
-   different behavior buckets permit coexistence
-5. use an explicit caller tie policy only when a single winner is required
+4. retain both when they occupy different valid behavior buckets
+5. use explicit caller tie policy only when one winner is required
 ```
 
-NSGA-II is a standard evolutionary-computation reference for elitist,
-non-dominated multi-objective selection with diversity preservation.
+NSGA-II is the standard evolutionary-computation reference for elitist
+multi-objective selection with diversity preservation.
 
 ## Diversity and behavior buckets
 
-Darwinian search can lose useful stepping stones if it retains only the current
-global winner. The framework should allow caller-defined behavior descriptors:
+Global-best-only search can discard useful stepping stones. Allow caller-defined
+behavior descriptors:
 
 ```json
 {
@@ -566,10 +532,7 @@ global winner. The framework should allow caller-defined behavior descriptors:
 }
 ```
 
-A behavior bucket is not a claim of biological niche equivalence. It is a
-software mechanism for preserving qualitatively different variants.
-
-Track at least:
+Track coverage:
 
 \[
 \operatorname{coverage}
@@ -578,78 +541,65 @@ Track at least:
 {\text{declared buckets}}.
 \]
 
-Existing Metering entropy can measure the distribution of active candidates
-across buckets. Existing mutual information can measure dependence between
-candidate/bucket identity and environment outcomes when the caller supplies a
-valid joint distribution.
+Existing Metering entropy can describe active-candidate distribution across
+buckets. Mutual information can describe dependence between candidate/bucket
+identity and environment outcome under a caller-supplied joint distribution.
 
-MAP-Elites is the main reference for preserving high-performing solutions across
-behavior dimensions. Novelty Search is a complementary reference showing that
-objective-only evolutionary search can become trapped and that behavioral
-novelty can preserve useful exploration.
+MAP-Elites is the primary reference for retaining strong solutions across
+behavior dimensions. Novelty Search provides complementary evidence that
+objective-only evolutionary search can lose exploration on deceptive landscapes.
 
 ## Evolvability as proposal yield
 
-The framework eventually needs to evaluate not only variants but also the
-variation process that produces them. Keep the code term developer-friendly:
-`proposal_yield`.
+The variation process itself can be evaluated without making the framework
+self-referential.
 
 For proposal policy \(\theta\), define an empirical yield such as
 
 \[
 Y(\theta)
 =
-\frac{\text{accepted useful children produced under }\theta}
-{\text{proposal budget consumed under }\theta}.
+\frac{\text{accepted useful children under }\theta}
+{\text{proposal budget under }\theta}.
 \]
 
-This is an empirical framework metric, not a universal definition of
-biological evolvability.
+Use developer term `proposal_yield`.
 
-Wagner and Altenberg provide the theoretical foundation: evolvability depends
-strongly on the representation and genotype-phenotype map, especially modularity
-and the ability for variation to change useful components without destroying
-unrelated function.
-
-The framework should therefore favor explicit modular settings and stable IDs,
-not opaque whole-repository strings as the only representation.
+Wagner and Altenberg motivate this direction: evolvability depends on how a
+representation maps heritable variation into useful phenotypic variation.
+Modular settings and stable identities are therefore preferable to treating an
+entire repository as one opaque mutable string.
 
 ## Structural innovation IDs
 
-If the manifest later supports graph-like module connections, new structural
-connections need persistent identities independent of array position.
+If the manifest later supports graph-like connections, new structural
+connections need stable identities independent of list position.
 
-NEAT provides a practical evolutionary-computation precedent: historical
-markers align structural innovations across varying topologies. The first
-framework phase only needs stable identifiers; crossover can remain deferred.
+NEAT provides a practical evolutionary-computation precedent through historical
+markers that align structural innovations across different topologies. Initial
+implementation should only establish stable IDs; recombination remains deferred.
 
-## Environment and task-suite changes
+## Optional candidate/test coevolution
 
-The first implementation should hold task suites and evaluator law fixed.
-Otherwise the system cannot attribute improvement cleanly.
+The first implementation should keep task suites and evaluator law fixed for
+clean attribution.
 
-A later **coevolution** phase may version task suites or adversarial test sets,
-but it must remain Darwinian in framing:
+A later phase may version task/test variants:
 
 ```text
 candidate variants change
         +
-test/task variants change
+test variants change
         ->
 reciprocal selection pressure
 ```
 
-Hillis's coevolving-parasites work is a direct computational reference for
-coevolving solutions and test cases to avoid local stagnation. Niche-construction
-and eco-evolutionary feedback literature provide biological references for
-organisms modifying conditions that subsequently alter selection.
-
-Protected final evaluation remains outside this loop. Repeatedly adapting to the
-same final suite turns it into development data.
+Hillis's coevolving-test work is the direct computational reference. Protected
+final evaluation remains outside this loop.
 
 ## Pure deterministic framework state
 
-Let framework state be
+Let
 
 \[
 S_t=(R_t,P_t,W_t,B_t,L_t,\Lambda),
@@ -664,9 +614,9 @@ where:
 - \(L_t\): append-only event ledger;
 - \(\Lambda\): fixed run law.
 
-A completed external event \(U_t\) contains all exogenous results required for a
-transition: parent draw, proposed child, Git identity, semantic change record,
-evaluation evidence, resource evidence, and comparison result.
+A completed external event \(U_t\) contains parent draw, proposed child, Git
+identity, semantic change record, evaluation evidence, resource evidence, and
+comparison result.
 
 The state transition is
 
@@ -677,14 +627,9 @@ The state transition is
 `F` must be deterministic. It must not call a model, generate hidden randomness,
 read protected evaluator state, invent metrics, or choose objectives.
 
-This is the repository's core engineering interpretation of Darwinian evolution:
-external variation may be stochastic, but recorded inheritance and selection are
-explicit and replayable.
-
 ## Proposed future source-only structure
 
-No runtime files are added by this documentation PR. A later implementation
-should use ordinary developer-facing names:
+No runtime files are added by this documentation PR.
 
 ```text
 apps/variant_search/
@@ -708,49 +653,46 @@ apps/variant_search/
 
 ### `README.md`
 
-Owns equations, schema meaning, trust boundaries, primary theory references,
-claims, nonclaims, and falsifiers.
+Equations, schema meaning, trust boundaries, references, claims, nonclaims, and
+falsifiers.
 
 ### `driver.py`
 
-Impure orchestration only: select one declared parent event, invoke the existing
+Impure orchestration only: select the declared parent event, invoke the existing
 one-generation path, collect the completed evidence bundle, and submit it to the
-reducer. It does not contain mathematical policy hidden from state.
+reducer.
 
 ### `state.py`
 
-Strict framework-state validation: registry, active pool, weights, bucket state,
-run law ID, and event-head identity.
+Strict state validation: registry, active pool, weights, bucket state, run law,
+and event-head identity.
 
 ### `reducer.py`
 
-Pure deterministic transition from valid state plus one completed event to the
-next state. No model calls, evaluator calls, file discovery, or random draws.
+Pure deterministic transition from valid state plus one completed event to next
+state. No model calls, evaluator calls, discovery, or random draws.
 
 ### `variant_manifest.py`
 
-Validates `.metering/variant.json`, stable setting identities, canonical JSON,
-Git-path references, and manifest identity.
+Validate `.metering/variant.json`, setting IDs, canonical JSON, Git references,
+and manifest identity.
 
 ### `change_record.py`
 
-Validates parent-to-child semantic changes against parent and child manifests and
-Git identities.
+Validate parent-to-child semantic changes against manifests and Git identities.
 
 ### `evaluation.py`
 
-Validates matched candidate evidence bound to task suite, evaluator, law, and
-budget.
+Validate matched evidence bound to task suite, evaluator, law, and budget.
 
 ### `evaluation_math.py`
 
-Neutral finite calculations: weighted mean, variance, covariance, paired effect,
-and paired effect variance.
+Weighted mean, variance, covariance, paired effect, and paired effect variance.
 
 ### `scoring.py`
 
-Complete probabilistic forecast scoring. Reuse Metering for log score where
-appropriate; add Brier score locally.
+Complete forecast scoring. Reuse Metering for log score where appropriate; add
+Brier score locally.
 
 ### `compare.py`
 
@@ -763,141 +705,98 @@ Append-only content and relationship registry for all accepted variants.
 
 ### `candidate_pool.py`
 
-Bounded currently active subset. Membership is distinct from historical
-existence.
+Bounded currently active subset.
 
 ### `allocation.py`
 
-Validates and applies declared parent weights, explicit draws, and documented
-allocation updates. It never converts arbitrary evidence to a hidden universal
-fitness value.
+Validate and apply parent weights, explicit draws, and declared allocation
+updates. Never invent a universal fitness mapping.
 
 ### `attribution.py`
 
-Price-equation population-change accounting with developer-facing names:
-`allocation_effect`, `change_effect`, `total_delta`.
+Price-equation accounting with `allocation_effect`, `change_effect`, and
+`total_delta`.
 
 ### `behavior_buckets.py`
 
-Validates caller-declared behavior descriptors, occupancy, local retained
-variants, coverage, and diversity diagnostics.
+Validate behavior descriptors, occupancy, local retained variants, coverage, and
+diversity diagnostics.
 
 ## Phased implementation
 
 ### Phase 1: variant identity and heredity
 
-Add only:
+Add `variant_manifest.py` and `change_record.py` only.
 
-```text
-variant_manifest.py
-change_record.py
-```
+Acceptance:
 
-Requirements:
-
-- `.metering/variant.json` is canonical and content-addressed;
-- Git candidate and manifest identities are bound;
-- parent-to-child changes are replayable and structurally verified;
-- no new selection behavior exists yet.
-
-This phase establishes heredity before adding population policy.
+- canonical `.metering/variant.json`;
+- Git/manifest binding;
+- replayable parent-to-child change;
+- no new selection behavior.
 
 ### Phase 2: matched evaluation mathematics
 
-Add:
+Add `evaluation.py`, `evaluation_math.py`, and `scoring.py`.
 
-```text
-evaluation.py
-evaluation_math.py
-scoring.py
-```
+Acceptance:
 
-Requirements:
-
-- parent and challenger use identical declared cases and budgets;
-- weighted moments reproduce independent calculations;
-- paired effects reproduce case-level differences;
-- Brier score matches known examples;
-- current log-score behavior remains separate and unchanged.
+- matched cases and budgets;
+- correct weighted moments;
+- correct paired effects;
+- Brier known-value tests;
+- existing log-score behavior unchanged.
 
 ### Phase 3: registry, pool, and differential allocation
 
-Add:
+Add registry, pool, allocation, state, reducer, and driver.
 
-```text
-candidate_registry.py
-candidate_pool.py
-allocation.py
-state.py
-reducer.py
-driver.py
-```
+Acceptance:
 
-Requirements:
+- multiple branches preserved;
+- bounded active pool;
+- explicit parent distribution + draw;
+- exact replay;
+- no hidden RNG.
 
-- multiple branches remain stored;
-- active pool is bounded independently of registry history;
-- parent selection is reproduced from declared distribution and explicit draw;
-- invalid, unknown, or inactive parents cannot produce an accepted event;
-- every completed event is replayable;
-- no hidden RNG exists.
-
-This is the first phase that satisfies the full variation + heredity +
-differential-contribution Darwinian structure.
+This is the first phase satisfying variation + heredity + differential
+contribution as a population process.
 
 ### Phase 4: multi-objective selection and diversity
 
-Add:
+Add comparison and behavior buckets.
 
-```text
-compare.py
-behavior_buckets.py
-```
+Acceptance:
 
-Requirements:
+- hard constraints precede preference;
+- deterministic Pareto comparison;
+- no global scalar fitness;
+- different valid behavior buckets can coexist;
+- coverage remains separately named.
 
-- hard constraints are applied before performance preference;
-- Pareto comparison is deterministic;
-- no repository-wide scalar fitness is introduced;
-- different behavior buckets can retain different valid variants;
-- coverage and bucket-distribution diagnostics are separately named.
+### Phase 5: attribution and proposal yield
 
-### Phase 5: selection/change attribution and proposal yield
+Add Price attribution and versioned proposal-policy evidence.
 
-Add:
+Acceptance:
 
-```text
-attribution.py
-```
-
-and versioned proposal-policy evidence.
-
-Requirements:
-
-- Price identity reconstructs observed pool-mean change;
-- `allocation_effect` and `change_effect` remain separate;
-- proposal policies are compared under matched budgets;
-- mutation/proposal policy changes are explicit configuration changes, not
-  hidden framework adaptation.
+- Price identity reconstructs pool-mean change;
+- allocation and descendant-change effects remain separate;
+- proposal policies compared under matched budgets;
+- proposal-policy changes are explicit configuration changes.
 
 ### Phase 6: optional coevolution
 
-Only after Phases 1-5 are stable:
+Only after Phases 1-5:
 
-- version task suites;
-- maintain a separate task/test registry;
+- version task/test suites;
+- maintain separate test registry;
 - evaluate reciprocal candidate/test pressure;
-- preserve a protected one-use final suite;
-- do not let candidates rewrite evaluator law or final evidence.
-
-This phase is grounded in coevolutionary computation, not Gödelian
-self-modification.
+- preserve protected final evaluation.
 
 ## Trust boundary
 
-Candidate variants must not be able to modify or read protected parts of the
-selection mechanism merely because they are part of the same repository.
-Initially keep these outside configurable candidate state:
+Keep these outside configurable candidate state initially:
 
 ```text
 canonical identity rules
@@ -910,100 +809,85 @@ protected final evaluation
 installation and deployment authority
 ```
 
-Selection pressure exploits whatever the evaluation actually rewards. A variant
-that changes or hides the evaluator has invalidated the experiment rather than
-improved under it.
+A candidate that weakens the evaluator invalidates the experiment rather than
+winning it.
 
 ## Scientific hypotheses and falsifiers
 
 ### H1: structured heredity improves attribution
 
-**Hypothesis.** A Git candidate plus canonical variant manifest and semantic
-change record makes it possible to identify which declared configurable state
-changed between parent and child without relying on free-form diff
-interpretation.
+**Hypothesis.** Git + canonical variant manifest + semantic change record makes
+declared configurable changes unambiguous.
 
-**Falsifier.** Two accepted variants have conflicting or unverifiable manifest
-changes, or a change record can disagree with their manifests without rejection.
+**Falsifier.** Conflicting or unverifiable manifest changes are accepted.
 
-### H2: candidate-pool search finds stepping stones a single head loses
+### H2: candidate-pool search preserves useful stepping stones
 
-**Hypothesis.** Under the same proposal and evaluation budget, preserving a
-bounded set of diverse valid parents can discover final variants that a
-single-head process misses on deceptive or multi-modal search spaces.
+**Hypothesis.** Under matched proposal/evaluation budget, a bounded diverse pool
+can find final variants that single-head search misses on deceptive or
+multi-modal spaces.
 
-**Falsifier.** Across predeclared repeated environments, the pool method does not
-improve final held-out outcome over matched single-head controls, or any observed
-advantage disappears under equalized proposal budget.
+**Falsifier.** The advantage disappears under predeclared matched repeated
+experiments.
 
-### H3: explicit parent allocation is replayable
+### H3: parent allocation is replayable
 
-**Hypothesis.** Given identical pool state, weights, and explicit draws, parent
-choice and accepted state transitions are identical.
+**Hypothesis.** Identical pool, weights, and draws reproduce identical parent
+choices and accepted transitions.
 
-**Falsifier.** A transition depends on hidden randomness, process order, wall
-clock, or undeclared mutable state.
+**Falsifier.** Results depend on hidden randomness or undeclared state.
 
-### H4: Price attribution reconstructs pool change
+### H4: Price attribution reconstructs population change
 
-**Hypothesis.** For valid finite declared data, `allocation_effect +
-change_effect` reconstructs `total_delta` within documented numerical tolerance.
+**Hypothesis.** `allocation_effect + change_effect = total_delta` within declared
+numerical tolerance.
 
 **Falsifier.** A valid finite counterexample violates the identity.
 
-### H5: behavior buckets preserve diversity without redefining quality
+### H5: behavior buckets preserve declared diversity
 
-**Hypothesis.** A bucketed pool retains more declared behavioral coverage than a
-single global incumbent under matched proposal budget, while quality remains a
-separate evidence dimension.
+**Hypothesis.** Bucketed retention preserves more declared coverage than a
+single global incumbent under matched proposal budget.
 
-**Falsifier.** Bucket assignment silently becomes a generic fitness score, or
-coverage cannot be reproduced from stored descriptors.
+**Falsifier.** Coverage cannot be reproduced or bucket labels silently become
+fitness.
 
-### H6: proposal policy can be evaluated as a heritable search component
+### H6: proposal policies differ in useful yield
 
-**Hypothesis.** Under matched parent/task/budget conditions, proposal policies
-have measurably different yields of valid retained children.
+**Hypothesis.** Under matched parents, tasks, and budgets, proposal policies have
+measurably different retained-child yield.
 
-**Falsifier.** Policy effects disappear under matched controlled runs or cannot
-be separated from unequal parent/task allocation.
+**Falsifier.** Effects vanish under controlled matched runs or are confounded by
+allocation differences.
 
-## What must remain out of scope
+## What remains out of scope
 
-The framework should not add:
-
-- Gödel-machine proof search;
-- recursive self-referential optimizer rewriting;
-- a universal intelligence or fitness scalar;
+- universal intelligence or fitness scalar;
 - hidden randomness;
 - automatic deployment or installation;
 - candidate access to evaluator secrets;
 - biological vocabulary as required public API terminology;
 - unbounded candidate retention;
-- unrestricted test/evaluator mutation;
+- unrestricted evaluator/test mutation;
 - claims that entropy or diversity alone imply capability.
 
 ## Theory-to-mechanism map
 
 | Mechanism | Theory |
 |---|---|
-| variation + differential contribution + heredity | Lewontin's abstract conditions for natural selection |
-| population change decomposition | Price equation |
+| variation + differential contribution + heredity | Lewontin |
+| population-change decomposition | Price equation |
 | parent-weight dynamics | replicator dynamics |
-| mutation + selection | Eigen mutation-selection / quasispecies models |
-| modular variant representation | Wagner & Altenberg on evolvability |
+| mutation + selection | Eigen mutation-selection models |
+| modular inherited representation | Wagner & Altenberg |
 | stable structural innovation identity | NEAT historical markings |
 | multi-objective retention | NSGA-II |
 | preserved behavioral diversity | Novelty Search; MAP-Elites |
 | probability forecast evaluation | Brier score; proper scoring rules |
 | paired uncertainty | bootstrap theory |
-| candidate/test coevolution | Hillis coevolving test cases |
+| candidate/test coevolution | Hillis |
 | canonical JSON identity | RFC 8785 |
 | uncertainty and distribution diagnostics | Shannon information theory |
-
-None of these references changes the repository contract by itself. They justify
-specific proposed mechanisms and identify what would falsify the corresponding
-engineering claim.
 
 ## Primary references
 
@@ -1073,9 +957,6 @@ engineering claim.
 
 ## Final architecture statement
 
-The repository should be understood as building deterministic tools for this
-process:
-
 \[
 \boxed{
 \text{variation}
@@ -1098,6 +979,6 @@ execution, evaluation, and pairwise retention. The proposed framework supplies
 the missing population, branching, allocation, diversity, and attribution
 layers.
 
-That is the entire scientific direction of this proposal: **pure Darwinian
-search over computer-agent variants, implemented with deterministic and
-reviewable software boundaries.**
+The scientific direction is intentionally narrow: **Darwinian search over
+computer-agent variants, implemented with deterministic and reviewable software
+boundaries.**
