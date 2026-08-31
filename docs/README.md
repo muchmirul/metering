@@ -8,8 +8,8 @@ contract:
   concise implemented/not-implemented boundary and operational checklist.
 - [System foundations, design rationale, and hypotheses](foundations.md)
   connects the information theory, Bayesian observation model, proper scoring,
-  biology analogy, content identity, software boundaries, and falsifiable
-  claims used across the repository.
+  biology analogy, content identity, software boundaries, and falsifiable claims
+  used across the repository.
 - [Theory and measurement boundary](theory.md) derives the four public
   information measures and records their numerical conventions.
 - [Measurement history](history.md) specifies the opt-in Git-backed
@@ -17,6 +17,10 @@ contract:
 - [Minimal information-guided evolution kernel](evolution-kernel.md) explains
   how the six repository-local applications execute one generation and how the
   optional source-only driver performs explicit bounded recurrence.
+- [Deterministic variant search](../apps/variant_search/README.md) specifies the
+  optional SQLite candidate registry, evidence binding, Pareto retention,
+  reproductive allocation, explicit parent draws, population accounting, and
+  two-parent Git recombination boundary.
 - [Agent-artifact evolution protocol](agent-evolution.md) specifies the additive
   schema version 2 candidate, proposer, runner, evaluator, assay, selection, and
   one-generation boundaries, plus the source-only bounded recurrence driver,
@@ -25,8 +29,8 @@ contract:
 - [Agent connectors](../connectors/README.md) documents the fixed Pi and Prime
   Agent translations, the shared internal Metering skill, and the explicit live
   harness conformance path.
-- [Example applications](../apps/README.md) indexes each non-packaged
-  application and its local architecture, foundations, and protocol documents.
+- [Example applications](../apps/README.md) indexes each non-packaged application
+  and its local architecture, foundations, and protocol documents.
 
 The installed Python API remains only `ProbabilityError` and the four named
 measures. The history command is a separate explicit filesystem boundary, and
