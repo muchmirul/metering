@@ -21,7 +21,7 @@ The executable has two modes over the same four immutable fixtures:
 | Observation choice | Built-in greedy maximum predicted-result-entropy policy | External agent |
 | Belief | Uniform candidate set | Explicit version-probability response |
 | Interaction | Complete automatic JSONL transcript | One request and response per line |
-| Measurement history | Optional parent-linked ledger | Optional with `--history` |
+| Measurement history | Optional Git-backed configuration/result history | Optional with `--history` |
 
 ## Run the current demo
 
@@ -32,7 +32,7 @@ uv run python apps/observer/observer.py --active v3
 ```
 
 `--active` accepts `v1` through `v4` and defaults to `v1`. `--history PATH`
-enables the explicit measurement ledger, `--jsonl` switches to the external
+enables the explicit Git measurement history, `--jsonl` switches to the external
 agent protocol, and `-h`/`--help` prints command help. Option abbreviations are
 rejected.
 

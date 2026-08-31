@@ -4,14 +4,16 @@
 remaining documents explain the implemented boundaries without expanding that
 contract:
 
+- [Current capability map](capabilities.md) gives users and coding agents a
+  concise implemented/not-implemented boundary and operational checklist.
 - [System foundations, design rationale, and hypotheses](foundations.md)
   connects the information theory, Bayesian observation model, proper scoring,
   biology analogy, content identity, software boundaries, and falsifiable
   claims used across the repository.
 - [Theory and measurement boundary](theory.md) derives the four public
   information measures and records their numerical conventions.
-- [Measurement history](history.md) specifies the opt-in `metering-history`
-  command, on-disk schema, integrity checks, and limitations.
+- [Measurement history](history.md) specifies the opt-in Git-backed
+  `metering-history` command, committed schema, replay checks, and limitations.
 - [Minimal information-guided evolution kernel](evolution-kernel.md) explains
   how the six repository-local applications execute one generation and how the
   optional source-only driver performs explicit bounded recurrence.

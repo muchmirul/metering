@@ -113,8 +113,8 @@ record, or proof that trusted software produced the document.
 
 Evolution Controller returns one selected `next_parent` but does not store a
 lineage. A caller may store parent links and promotion decisions separately.
-Metering history is not that lineage; it stores measurement request/response
-pairs.
+Git-backed Metering history is not that lineage; it commits individual
+measurement configurations, named results, and provenance.
 
 ## Dependency direction
 

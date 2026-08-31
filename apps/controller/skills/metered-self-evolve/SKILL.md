@@ -11,10 +11,11 @@ This is the legacy Pi-oriented workflow skill. New Pi and Prime Agent users
 should load `connectors/tools/metering/SKILL.md`; the commands below remain a
 compatibility guide.
 
-Run exactly one candidate generation unless the user explicitly requests the
-bounded Evolution Driver and approves its limits. Never silently modify the
-loaded skill, install a challenger, exceed those limits, or claim broad
-improvement.
+Read `docs/capabilities.md` before using this workflow. Run exactly one candidate
+generation unless the user explicitly requests the bounded Evolution Driver and
+approves its limits. Never silently modify the loaded skill, install a
+challenger, exceed those limits, or claim broad improvement. The current driver
+follows one selected head; it is not a Darwinian population engine.
 
 ## Required inputs
 
@@ -63,6 +64,14 @@ checks. Self-judgment is not evidence.
     all limitations. Lower surprisal is calibration evidence, not task quality.
 11. Show the candidate diff and ask for explicit approval before copying the
     selected artifact into any Pi skill location.
+
+## Optional Git measurement recording
+
+`metering-history` schema version 2 may separately commit individual Metering
+configurations and named results to a dedicated Git repository. It is not the
+Evolution Driver ledger or candidate lineage. Never place protected evaluator
+evidence in a candidate-readable measurement history. Run
+`metering-history verify PATH` before trusting committed results.
 
 ## Bounded recurrence
 

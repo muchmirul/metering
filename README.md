@@ -18,6 +18,8 @@ can bind, execute, compare, retain, and record externally produced candidates
 without changing that surface.
 
 [`PLAN.md`](PLAN.md) is the normative contract. The
+[current capability map](docs/capabilities.md) gives users and coding agents a
+short implemented/not-implemented boundary. The
 [documentation index](docs/README.md) links the measurement theory, history
 format, application composition boundary, and app-local protocols.
 The [system foundations](docs/foundations.md) state the equations, biological
@@ -44,7 +46,7 @@ flowchart LR
     subgraph Package["Installed Metering package"]
         API["Public Python API<br/>four named measures"]
         CLI["metering<br/>one-request JSON CLI"]
-        History["metering-history<br/>opt-in pair ledger"]
+        History["metering-history<br/>opt-in Git measurement history"]
     end
 
     Caller -->|one generation| Controller
@@ -93,8 +95,9 @@ putting environment or trainer policy into Metering.
 
 ## Install
 
-Metering requires Python 3.11 or newer and has no runtime dependencies. From a
-checkout with [`uv`](https://docs.astral.sh/uv/):
+Metering requires Python 3.11 or newer and has no Python runtime dependencies.
+The optional `metering-history` command additionally requires a `git`
+executable. From a checkout with [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync --extra test
@@ -217,8 +220,9 @@ result. It performs model inference and is not part of deterministic CI. See the
 
 ## Versioned measurement history
 
-`metering-history` is the explicit filesystem-writing boundary. It wraps the
-ordinary `metering` command and appends only successful request/response pairs:
+`metering-history` is the explicit Git-backed filesystem boundary. It wraps the
+ordinary `metering` command and commits only successful configurations and exact
+named results:
 
 ```bash
 history_dir="$(mktemp -d)"
@@ -226,34 +230,40 @@ printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
   | uv run metering-history record "$history_dir"
 ```
 
-The result contains schema version 1, the normalized request, exact Metering
-response, package version, `pair_id`, `parent_record_id`, and `record_id`. The
-pair ID identifies the request/response content. The record ID is the hash of
-the complete stored record and also binds that pair to its parent, so repeated
-pairs at different positions remain distinct history records.
+The first record initializes a dedicated Git repository. Its tracked worktree is
+only:
 
-Inspect newest-first history or check its structural integrity with:
+```text
+measurement/pair/configuration.json
+measurement/pair/result.json
+measurement/provenance.json
+```
+
+The schema-version-2 response uses the pair tree ID as `pair_id`, the Git commit
+as `record_id`, its first parent as `parent_record_id`, and the complete Git tree
+as `tree_id`. Provenance records the package and Python versions, actual
+implementation-file SHA-256, and source state without copying Metering code into
+the history.
+
+Inspect newest-first history or verify Git integrity and replay every committed
+measurement:
 
 ```bash
 uv run metering-history log "$history_dir"
 uv run metering-history verify "$history_dir"
 ```
 
-The directory contains an immutable object per record and a `HEAD` pointer.
-Writes are serialized with a `LOCK` directory and update `HEAD` atomically. An
-invalid Metering request does not create or advance the history. A process killed
-during a write may leave a stale `LOCK`; inspect the directory before removing
-that lock.
+`verify` rejects dirty files, malformed or noncanonical snapshots, merge commits,
+Git object corruption, and committed results that differ from current Metering
+replay. Git supplies storage, diffs, checkout, and optional remotes; it does not
+authenticate the author or prevent an authorized history rewrite. The wrapper
+requires a `git` executable but adds no Python dependency.
 
-Storage, command, and integrity failures are explicit canonical JSON errors with
-exit status 2. See the [measurement-history contract](docs/history.md) for exact
-response schemas, file layout, identity formulas, validation, and limitations.
-
-This is deliberately smaller than Git. It is one local linear lineage, with no
-branches, merges, remotes, tags, checkout, signatures, timestamps, or automatic
-replay. `verify` checks canonical encoding, hashes, parent links, and
-reachability. Hashes detect modification; they do not authenticate the author or
-prove that trusted software created an object.
+Interrupted writes can leave `.git/metering-history.lock` or a dirty worktree;
+inspect both before cleanup. Legacy schema-version-1 `objects/` histories require
+the historical implementation and are not modified automatically. See the
+[measurement-history contract](docs/history.md) for the exact schema, repository
+layout, verification behavior, and limitations.
 
 ## Example application: observer
 
@@ -469,9 +479,10 @@ numerical tolerance.
 ## What is deliberately absent from the package
 
 There is no world, policy, controller, optimizer, benchmark, model adapter,
-MCP server, HTTP service, general trace/report system, replay engine, overall
-score, or information-gain guess. The fixed measurement ledger stores only the
-accepted JSON pair, package version, and parent-bound identifiers.
+MCP server, HTTP service, general trace/report system, general replay engine,
+overall score, or information-gain guess. The optional Git measurement history
+stores only accepted configurations, named results, and provenance; its replay
+check is limited to verifying those four measurements.
 
 The supported measurement scope is finite discrete distributions. Continuous
 entropy and estimators from samples need modeling decisions and are not

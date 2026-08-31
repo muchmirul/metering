@@ -44,7 +44,8 @@ uv build
 ```
 
 The measurement smoke check must emit a finite entropy value of `1.0` at base
-`2.0`; the history smoke check must record and verify one pair; the agent-skill
+`2.0`; the history smoke check requires Git and must commit and replay-verify one
+pair; the agent-skill
 example must select its deterministic challenger; the bounded evolution smoke
 must promote once, then stop after one retained-parent decision. The wheel should
 contain only the four package modules and packaging metadata. The source

@@ -29,7 +29,7 @@ Likewise, a biological analogy does not make these programs organisms.
 | Assay | revealed targets -> empirical mean log loss | logarithmic proper scoring | Forecast Assay |
 | Retention | two aligned assay reports -> selected identity | strict pairwise elitist selection | Selection Gate |
 | One generation | variation -> expression -> reveal -> assay -> retention | directed-evolution-inspired composition | Evolution Controller |
-| Integrity | canonical object + parent digest -> content/lineage ID | SHA-256 content addressing | identities and `metering-history` |
+| Integrity | canonical measurement files -> Git tree -> commit lineage | Git object model plus measurement replay | identities and `metering-history` |
 
 The [high-level system diagram](../README.md#system-at-a-glance) shows the data
 flow. The separation above is substantive: an observation is not a mutation,
@@ -238,35 +238,34 @@ one-parent/one-child gate has neither a biological population nor reproductive
 weights. The equation supports the responsibility split, not a claim of
 biological equivalence.
 
-## 4. Content identity and linear history
+## 4. Content identity and Git measurement history
 
-Each identity boundary defines its own canonical serialization $C_s(m)$ and
-uses a SHA-256 digest
+Application identity boundaries continue to define schema-specific canonical
+serializations and SHA-256 digests. Observer snapshots, candidate artifacts,
+mutations, and selection evidence are not interchangeable merely because they
+use the same digest algorithm.
 
-$$
-d_s(m)=\mathrm{SHA256}(\mathrm{UTF8}(C_s(m))).
-$$
+Measurement history delegates storage identity and lineage to Git. One commit
+contains canonical configuration and result blobs under `measurement/pair` plus
+a separate provenance blob. Its identities are:
 
-The schema-specific subscript matters: Observer manifests, candidate genomes,
-mutations, selection evidence, and history records each document their own
-fields and JSON encoding. Digests from different schemas are not
-interchangeable merely because every boundary uses SHA-256. Candidate IDs bind
-a declared genome to its schema. Snapshot and history record IDs additionally
-include a parent identifier. For a history record $R_t$, the lineage relation
-is structurally
+```text
+pair_id          = Git tree ID of measurement/pair
+record_id        = Git commit ID
+parent_record_id = first parent commit ID or null
+tree_id          = complete commit tree ID
+```
 
-$$
-R_t.\text{parent\_record\_id}=d_{\mathrm{history}}(R_{t-1}),
-\qquad \text{record\_id}_t=d_{\mathrm{history}}(R_t).
-$$
+The pair tree is unchanged when the same normalized configuration and exact
+result are recorded again. The commit remains a new occurrence because it also
+binds its parent and Git metadata. Git's object format owns the concrete hash
+algorithm; callers treat these IDs as opaque Git identifiers.
 
-A changed canonical object should therefore have a different digest under the
-collision-resistance assumption of SHA-256, and the next unchanged descendant
-still points to the ancestor's old digest. This is integrity checking, not
-authentication. A
-party able to rewrite every object and `HEAD` can construct another internally
-consistent lineage; there are no signatures, trusted timestamps, or remote
-witnesses.
+This is integrity checking, not authentication. `git fsck` checks object and
+reference structure, while `metering-history verify` also reruns every stored
+configuration and compares the exact named result. A party able to rewrite all
+commits and refs can still construct another internally consistent history;
+protected remotes, signatures, and external checkpoints remain caller policy.
 
 ## 5. Why the software is designed this way
 
@@ -380,16 +379,16 @@ captured before that probe's reveal.
 or retention result under the checked-in request. This is a deterministic
 fixture hypothesis, not evidence of general learning.
 
-### H4: history tamper visibility
+### H4: Git history and replay expose tampering
 
-**Claim.** Changing a canonical stored record without finding a SHA-256
-collision or consistently rebuilding its descendants causes `metering-history
-verify` to reject the history.
+**Claim.** Changing a tracked measurement makes the worktree dirty, corrupting a
+committed object is detected by Git, and committing a false result is rejected by
+`metering-history verify` replay.
 
-**Falsifier.** An altered object accepted under its old record ID, or a broken
-parent/reachability relation accepted by `verify`. This claim excludes
-authentication, rollback detection against an external checkpoint, and an
-attacker who rewrites the entire lineage.
+**Falsifier.** A dirty tree, malformed or broken Git object, merge in the linear
+history, or result inconsistent with Metering replay accepted by `verify`. This
+claim excludes authentication, rollback detection against an external
+checkpoint, and an attacker who consistently replaces the complete Git history.
 
 ### H5: external adaptation experiment
 

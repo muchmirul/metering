@@ -130,17 +130,18 @@ With `--history`, the measurement edge is explicit but one step longer:
 ```text
 observer -> metering-history -> public Metering JSON CLI
                          |
-                         +----------> caller-owned pair ledger
+                         +----------> caller-owned Git history
 ```
 
 Metering knows nothing about folders, versions, probes, beliefs, agents, or
-session state. Observer does not import private Metering modules. The
-agent does not receive direct access to the active fixture directory.
+session state. Observer does not import private Metering modules. The agent does
+not receive direct access to the active fixture directory.
 
-The pair ledger is not the versioned environment. A folder `snapshot_id` binds
-folder content to its parent snapshot; a measurement `record_id` binds one exact
-Metering request/response pair to its parent record. Neither identifier implies
-the other.
+The Git measurement history is not the versioned environment. A folder
+`snapshot_id` binds modeled folder content to its parent snapshot. A measurement
+`pair_id` is the Git tree containing one configuration/result pair, while
+`record_id` is the Git commit that places it in history. None of these
+identifiers implies another boundary's identity.
 
 ## Non-goals
 

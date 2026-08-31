@@ -57,6 +57,13 @@ jobs:
             'import json,sys; assert json.load(open(sys.argv[1]))["value"] == 1.0' \
             "$valid_output"
           "$wheel_env/bin/metering" --version
+          history=/tmp/metering-wheel-history
+          rm -rf "$history"
+          printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
+            | "$wheel_env/bin/metering-history" record "$history" >/tmp/metering-wheel-record.json
+          "$wheel_env/bin/metering-history" verify "$history" >/tmp/metering-wheel-verify.json
+          "$wheel_env/bin/python" -c \
+            'import json; assert json.load(open("/tmp/metering-wheel-verify.json"))["valid"] is True'
           set +e
           printf '%s\n' '{"measure":"entropy","probabilities":[2]}' \
             | "$wheel_env/bin/metering" >"$invalid_output" 2>"$invalid_error"

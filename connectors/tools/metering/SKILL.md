@@ -1,7 +1,7 @@
 ---
 name: metering
-description: Measure caller-supplied finite probability models and invoke evidence-gated Metering application workflows. Use when uncertainty, forecast surprisal, candidate comparison, or metered evolution must be explicit and reproducible.
-compatibility: Requires Python 3.11+ and a Metering source checkout or installed metering command.
+description: Measure caller-supplied finite probability models, record named results in Git, and invoke evidence-gated Metering application workflows. Use when uncertainty, forecast surprisal, candidate comparison, or metered evolution must be explicit and reproducible.
+compatibility: Requires Python 3.11+ and a Metering source checkout or installed metering command. Git is required only for measurement history.
 ---
 
 # Metering tool
@@ -29,14 +29,42 @@ From Prime Agent, call the same command through `subprocess` in IPython. From Pi
 call it through the shell tool. Resolve `invoke.py` relative to this `SKILL.md`;
 do not assume the current working directory is the skill directory.
 
+## Git measurement history
+
+When the caller explicitly requests persistence, use the installed
+`metering-history` command with a dedicated absent or empty directory:
+
+```bash
+history="$(mktemp -d)"
+printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
+  | metering-history record "$history"
+metering-history verify "$history"
+```
+
+The repository commits only canonical configuration, named result, and
+provenance files. `record_id` is a Git commit and `pair_id` is the Git tree for
+the configuration/result pair. Verification checks Git integrity, rejects dirty
+state, and replays every result. Git identity is not authorship, model validity,
+or evidence that a result should control selection. Do not put evaluator secrets
+in this repository.
+
+Legacy schema-version-1 `objects/` histories are not migrated automatically.
+Read `docs/history.md` before modifying or publishing a history.
+
 ## Candidate evolution
 
-For one evidence-gated parent/challenger comparison, read the checkout's
-`PLAN.md` and `docs/agent-evolution.md`, then call the documented source
-applications. The external agent proposes or executes candidates. Metering only
-validates artifacts, measures declared forecasts, applies the explicit task and
-safety gate, and records selected identity. A selected candidate remains
-run-local until a separate caller-approved installation or deployment.
+For one evidence-gated parent/challenger comparison, first read the checkout's
+`docs/capabilities.md`, `PLAN.md`, and `docs/agent-evolution.md`, then call the
+documented source applications. The external agent proposes or executes
+candidates. Metering only validates artifacts, measures declared forecasts,
+applies the explicit task and safety gate, and records selected identity. A
+selected candidate remains run-local until a separate caller-approved
+installation or deployment.
+
+The current application path compares one parent and one child and the bounded
+driver follows one selected head. It does not implement a candidate population,
+Pareto pool, differential allocation, coevolution, or automatic deployment. A
+proposal document is not implemented capability.
 
 Use only a reviewed fixed connector under `connectors/fixed/`. Keep candidate
 processes away from protected evaluator data and the frozen Metering control

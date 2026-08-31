@@ -221,9 +221,9 @@ would add machinery without improving the measurement and does not belong here.
 
 ## Measurement history boundary
 
-`metering-history` is an explicit, filesystem-writing wrapper around the public
-`metering` command. The ordinary Python functions and `metering` command never
-enable it implicitly. Recording one request is deliberate:
+`metering-history` is an explicit Git-backed filesystem wrapper around the
+public `metering` command. The ordinary Python functions and `metering` command
+never enable it implicitly. Recording one request is deliberate:
 
 ```bash
 printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
@@ -231,44 +231,55 @@ printf '%s\n' '{"measure":"entropy","probabilities":[0.5,0.5]}' \
 ```
 
 The wrapper first asks `metering` to validate and measure the request. A rejected
-request leaves the history untouched. An accepted request and its exact response
-form a pair with these two identities:
+request leaves `PATH` absent. The first accepted request initializes a dedicated
+Git repository on branch `metering-history`; every accepted request then commits
+exactly these canonical files:
 
 ```text
-pair_id = SHA-256(canonical JSON of {
-    "request": normalized request,
-    "response": exact Metering response
-})
-
-record_id = SHA-256(canonical JSON of the complete six-field stored record)
+measurement/pair/configuration.json   normalized Metering request
+measurement/pair/result.json          exact named Metering response
+measurement/provenance.json           package, Python, source, and implementation identity
 ```
 
-`pair_id` is content identity: the same normalized request and response have the
-same pair ID. `record_id` is history identity: appending the same pair at a new
-place in the lineage produces a new record ID. Each immutable object contains
-exactly `schema_version`, `metering_version`, `pair_id`, `parent_record_id`,
-`request`, and `response`. `HEAD` points to the latest record. Objects and `HEAD`
-are canonical UTF-8 JSON or lowercase SHA-256 text, respectively.
-
-The complete command surface is:
+Git owns storage and lineage identity:
 
 ```text
-metering-history record PATH   read one Metering request and append its pair
-metering-history log PATH      emit HEAD and reachable records, newest first
-metering-history verify PATH   verify hashes, links, canonical form, and reachability
+pair_id          = Git tree ID of measurement/pair
+record_id        = Git commit ID
+parent_record_id = first parent commit ID or null
+tree_id          = complete commit tree ID
 ```
 
-Successful commands emit one canonical JSON object. Storage or integrity failures
-emit `invalid_history` through the same `error.code` and `error.message` envelope
-and exit with status two. Measurement request failures preserve the error produced
-by `metering` and do not create storage.
+Repeating the same configuration and result preserves `pair_id`. Every append
+creates a distinct commit even when its tree is unchanged. The result schema is
+version 2 and also exposes the implementation SHA-256, Metering version, Python
+version, optional source commit, and whether that source checkout was dirty.
+No Metering source code is copied into the history.
 
-This is a linear local ledger, not a general version-control system. It has no
-branches, merges, remotes, tags, checkout, signing, wall-clock metadata, or
-automatic replay. Hash verification detects accidental modification and broken
-lineage; it does not authenticate who created a record or prove that a stored
-response was produced by trusted software. A stale `LOCK` directory after an
-interrupted writer must be inspected and removed by the caller.
+The complete command surface remains:
+
+```text
+metering-history record PATH   validate, measure, and commit one pair
+metering-history log PATH      emit current-branch commits newest first
+metering-history verify PATH   verify Git, schemas, cleanliness, and replay
+```
+
+`verify` runs `git fsck`, rejects a dirty worktree, validates the exact tracked
+files and canonical schemas in every current-branch commit, requires a linear
+first-parent history, and reruns every stored configuration through the current
+Metering executable. A committed result that differs from replay is invalid.
+Git proves committed byte identity and parentage; replay supplies semantic
+measurement validation. Neither authenticates the author or prevents an actor
+with write authority from consistently replacing history. Remotes, protected
+branches, and signatures remain caller choices.
+
+The history wrapper requires a `git` executable but adds no Python dependency.
+Storage or integrity failures emit `invalid_history`; command-envelope failures
+emit `invalid_request`; both exit with status two. Measurement request failures
+preserve Metering's error and do not create storage. A stale
+`.git/metering-history.lock` after interruption must be inspected before removal.
+Legacy schema-version-1 `objects/` histories are intentionally not modified or
+automatically migrated; inspect them with the historical implementation.
 
 ## Application boundary
 
@@ -429,7 +440,7 @@ src/metering/
     __init__.py       exact public Python surface
     information.py    validation and four pure measures
     __main__.py       strict JSON standard-stream adapter
-    history.py        explicit content-addressed measurement ledger
+    history.py        explicit Git-backed measurement history
 tests/
     test_information.py
     test_cli.py
@@ -499,7 +510,9 @@ is source-path cleanup only: the former script paths remain compatibility
 launchers with the same standard-stream contracts. Prime Agent is an additive
 concrete connector over those existing contracts. These application and
 connector changes do not change the installed Python API, Metering JSON
-protocol, history schema, or numerical definitions.
+protocol, or numerical definitions. Measurement-history schema version 2 is a
+separate intentional storage break: Git commits replace schema-version-1
+`objects/` storage, which requires the historical implementation for inspection.
 
 This scope reset intentionally removes the previous hidden-fault world,
 actions, policies, controller, calibration, reports, general trace/replay
@@ -793,12 +806,15 @@ The rewrite is complete only when:
   `ProbabilityError`;
 - the CLI accepts every documented request, emits valid canonical JSON,
   represents infinity explicitly, and returns documented exit statuses;
-- the history CLI records only accepted pairs, distinguishes pair identity from
-  lineage identity, and detects corrupt or unreachable objects;
+- the history CLI records only accepted pairs as Git commits, distinguishes the
+  pair tree from commit lineage identity, rejects dirty or malformed histories,
+  and replays committed results during verification;
 - direct calls and CLI calls agree for the same inputs;
 - the core performs no filesystem or network access, does not modify input
   containers, and documents consumption of one-shot iterators;
-- the package has no runtime dependency;
+- the four measurement functions and ordinary `metering` CLI have no runtime
+  dependency, while the optional history command has no Python dependency and
+  requires the documented `git` executable;
 - no legacy world, policy, controller, agent, optimizer, benchmark, replay, or
   artifact implementation remains in the installed `metering` package;
 - repository-local applications use only public Metering boundaries, make
