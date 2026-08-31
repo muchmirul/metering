@@ -14,7 +14,7 @@ candidates without hiding them in `SKILL.md`:
 selected git-candidate-v1
     -> Mutator invokes one fixed agent Git proposer
     -> the external agent edits a disposable file-only workspace
-    -> visible validation and optional build/training command run
+    -> visible validation and optional build/output command run
     -> trusted bridge creates and publishes an immutable Git commit
     -> Candidate Runner invokes git_candidate_adapter.py for both candidates
     -> fixed executor verifies/runs each checkout under matched controls
@@ -35,9 +35,9 @@ A normalized candidate descriptor is:
   "outputs":[
     {
       "kind":"model_checkpoint",
-      "name":"qwen-candidate",
+      "name":"candidate-checkpoint",
       "sha256":"EXTERNAL_CONTENT_SHA256",
-      "uri":"artifact://models/qwen/candidate-17"
+      "uri":"artifact://checkpoints/candidate-17"
     }
   ],
   "repository":"PINNED_CALLER_APPROVED_REPOSITORY"
@@ -80,8 +80,8 @@ METERING_GIT_REF_PREFIX             append-only candidate branch prefix
 METERING_GIT_ALLOWED_PATHS_JSON     paths agent/building may change
 METERING_GIT_VALIDATE_COMMAND       visible validation command array
 METERING_GIT_VALIDATE_TIMEOUT       validation timeout
-METERING_GIT_BUILD_COMMAND          optional build/training command array
-METERING_GIT_BUILD_TIMEOUT          build/training timeout
+METERING_GIT_BUILD_COMMAND          optional build/output command array
+METERING_GIT_BUILD_TIMEOUT          build/output timeout
 METERING_PI_COMMAND                 pinned Pi command array
 METERING_PRIME_AGENT_COMMAND        pinned Prime Agent command array
 ```
@@ -96,10 +96,10 @@ The optional build command receives this JSON on standard input:
 }
 ```
 
-It returns exactly `{"outputs":[]}`. A real Unsloth worker can train a model,
-store the checkpoint outside Git, and return its immutable receipt here. The
-checked-in demo builder writes a tiny deterministic checkpoint; it proves the
-contract and digest binding, not model training quality.
+It returns exactly `{"outputs":[]}`. A caller-selected external builder may
+store an output outside Git and return its immutable receipt here. The checked-in
+demo builder writes a tiny deterministic checkpoint; it proves the contract and
+digest binding, not useful model production or quality.
 
 ## Runtime configuration
 
@@ -151,8 +151,8 @@ The expected Git diff is:
 
 The challenger passes one declared case, publishes an immutable candidate
 branch, and contains a verified demo `model_checkpoint` output. This proves the
-Git/output mechanism for that constructed run, not ARC-AGI-3 performance or a
-trained Qwen improvement.
+Git/output mechanism for that constructed run, not performance on an external
+benchmark or useful model improvement.
 
 ## Security and lifecycle boundary
 

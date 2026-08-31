@@ -585,8 +585,7 @@ live conformance path proves that both installed harnesses can invoke Metering a
 an internal tool for one request; deterministic tests prove both concrete
 translations against the proposer, text-runner, and Git-workspace protocols.
 This does not yet prove identical live end-to-end candidate improvement across
-providers. Connector conformance and adoption take priority over adding another
-environment-specific harness or training implementation.
+providers. Connector conformance and adoption remain the current priority.
 
 The goal is to let a concrete coding agent adopt this repository as an explicit
 tool, create or execute one candidate through a narrow role boundary, and invoke
@@ -741,14 +740,13 @@ supported or that autonomous self-modification is safe. Production
 full-context connectors still require a reviewed container or VM boundary and a
 separate explicit operation to install or deploy a selected artifact.
 
-## Environment harness and model evolution roadmap
+## Git source and external-output boundary
 
-**Status:** the general Git source/output substrate is implemented and tested;
-ARC-AGI-3 integration and real Unsloth/Qwen training remain parked. The Git
-bridge is source-only and adds no installed package dependency or improvement
-claim.
+**Status: implemented and tested.** The source-only `git-candidate-v1` bridge
+binds immutable Git source and externally stored output receipts without adding
+an installed package dependency or claiming candidate improvement.
 
-The intended general-purpose core remains the fixed evidence transition:
+The implemented evidence transition remains:
 
 ```text
 propose one content-identified candidate
@@ -758,104 +756,28 @@ propose one content-identified candidate
     -> persist the selected identity
 ```
 
+A candidate descriptor binds an immutable repository commit, Git tree, portable
+content SHA-256, entrypoint, and sorted external-output receipts. Branch names
+are mutable publication conveniences and never candidate identity. Output
+receipts bind caller-owned external artifacts by URI and SHA-256; Metering does
+not create, interpret, store, install, or deploy those artifacts.
+
 The trusted Controller, Observer, Forecast Assay, Selection Gate, and ledger
 must not rewrite themselves. Adaptation happens in versioned, untrusted
 artifacts at the edge. An external agent connected through a reviewed command
 may create those artifacts, but it may not access the protected scorer, approve
 its own candidate, install the winner, or alter the retention policy.
 
-### Phase 1: prove skill evolution in an interactive environment
+Executable candidates remain untrusted. Callers must run them in a reviewed
+container or VM boundary with no host credentials or evaluator mount, restricted
+network access, bounded writable storage and resources, and fixed matched
+execution controls. The repository's path allowlist, digest checks, and process
+timeouts are not a sandbox.
 
-Use the existing single-`SKILL.md` evolution unchanged against one concrete
-ARC-AGI-3 runner. The environment adapter and official scorer remain fixed and
-reviewed. Parent and challenger receive identical environment versions, seeds,
-action limits, model settings, and compute budgets. Each case records a complete
-trajectory; `passed` means the official environment was solved, while
-`safety_passed` means the run respected declared action, budget, and isolation
-constraints. A separately reserved final suite is required. This phase tests
-whether the current skill mechanism transfers beyond text without yet evolving
-executable harness code.
-
-### Phase 2: evolve an environment harness
-
-The additive `git-candidate-v1` descriptor and `artifacts/git/` bridge implement
-the smallest general source boundary without an environment registry. A
-candidate binds an immutable repository commit, Git tree, portable SHA-256 over
-paths/modes/blobs, entrypoint, and external output receipts. Branch names are
-publish/audit conveniences and never candidate identity. A fixed external-agent
-connector may receive the parent harness, public SDK documentation, public
-practice environments, and visible contract-test failures. It must not receive
-protected cases, scorer code, credentials, or retained outcomes beyond an
-approved aggregate. The deterministic and live demos prove Git adapter-source
-mutation, not ARC-AGI-3 performance.
-
-Executable harness candidates are untrusted. Run them only in disposable
-containers or VMs with no host credentials, evaluator mount, or network by
-default; read-only SDK inputs; bounded writable storage; CPU, memory, action,
-token, monetary, and wall-clock limits; and complete filesystem and action
-traces. Contract and isolation checks run before task evaluation. A failed,
-timed-out, malformed, or interrupted candidate never becomes the selected
-harness. Selection remains run-local until a separate explicit installation
-operation.
-
-Do not evolve the strategy skill and harness in the same initial generation.
-Freeze the skill while comparing harnesses, then freeze the selected harness
-while comparing skills. Changing one component at a time preserves causal
-attribution and makes evaluator gaming easier to detect.
-
-### Phase 3: evaluate an externally trained model candidate
-
-The Git proposal tool can invoke one caller-pinned external build/training
-worker that returns content-addressed output receipts. Metering contains no
-training policy or weight-update implementation. The deterministic worker proves
-only that a model-checkpoint receipt is bound into candidate identity and
-verified by a fixed executor; it does not train a useful model. After the
-environment boundary is proven, an external agent or training system may connect
-the same receipt contract to a GPU worker. The initial live implementation
-reference is the user-selected
-Unsloth Qwen training path documented at:
-
-- https://unsloth.ai/docs/models/qwen3.8/train
-
-This link is a candidate implementation reference, not a current dependency or
-validated protocol. Review and pin the exact model, Unsloth release, license,
-training API, and hardware requirements before implementation.
-
-A model candidate must bind at least the immutable base-model identifier,
-parent checkpoint or adapter identifier, tokenizer and chat template, exact
-training code and configuration, dataset-manifest hashes and licenses, random
-seeds, dependency lock, hardware/runtime description, and produced checkpoint
-hash. Large datasets and weights stay in an external artifact store; the
-Metering ledger records identities and evidence, not model files. Training
-workers receive no protected evaluator assets or deployment credentials.
-
-One generation changes one declared axis. Initially, freeze the environment
-harness and strategy skill while producing a challenger model from the parent
-checkpoint. Compare parent and challenger with identical inference settings,
-tasks, seeds where applicable, token limits, and compute budgets. Task and
-safety evidence continue to control retention; forecast entropy and surprisal
-remain calibration evidence only. Because training and inference are
-stochastic, predeclare seeds and repeat counts and report dispersion rather than
-promoting from one lucky run.
-
-The eventual composite execution identity is conceptually:
-
-```text
-candidate = (model_id, strategy_skill_id, environment_harness_id,
-             runner_configuration_id)
-```
-
-Do not add this abstraction to the protocol until the ARC harness and one model
-training experiment prove that all four identities are necessary. During early
-experiments, freeze three components and mutate only the fourth.
-
-Before either deferred phase is accepted, require a reviewed sandbox threat
-model, official environment or training interfaces, fixed baselines, matched
-budgets, data provenance, interruption-safe external artifact writes, rollback,
-deterministic protocol doubles, repeated live trials, and a one-use final
-evaluation. No externally generated harness or checkpoint may automatically
-replace a host adapter, installed agent skill, served model, or production
-deployment.
+Initially change one declared candidate axis per generation while freezing the
+others. This preserves attribution and makes evaluator gaming easier to detect.
+No environment-specific benchmark integration or model-training roadmap is part
+of the accepted Metering scope.
 
 ## Acceptance criteria
 
