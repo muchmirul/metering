@@ -1,8 +1,8 @@
 # Metering documentation
 
 [`PLAN.md`](../PLAN.md) is the normative scope and behavior contract. The
-remaining documents explain the implemented boundaries without expanding that
-contract:
+implemented-boundary documents below explain the current repository without
+expanding that contract:
 
 - [System foundations, design rationale, and hypotheses](foundations.md)
   connects the information theory, Bayesian observation model, proper scoring,
@@ -25,6 +25,21 @@ contract:
   harness conformance path.
 - [Example applications](../apps/README.md) indexes each non-packaged
   application and its local architecture, foundations, and protocol documents.
+
+## Non-normative design proposals
+
+These documents describe possible future work. They are not implemented, do not
+expand `PLAN.md`, and do not change any public or application contract:
+
+- [Pure Darwinian variant search framework](proposals/variant-search-framework.md)
+  specifies a developer-familiar Darwinian layer above the current generation
+  tools: Git-backed heritable variants, canonical JSON configurable state,
+  semantic change records, matched evaluation mathematics, a branching
+  candidate registry, a bounded active candidate pool, explicit differential
+  proposal allocation, behavior buckets, population-change attribution, and
+  phased acceptance criteria. Its theoretical basis is variation, heredity,
+  differential contribution, population dynamics, diversity, coevolution, and
+  evolvability.
 
 The installed Python API remains only `ProbabilityError` and the four named
 measures. The history command is a separate explicit filesystem boundary, and
