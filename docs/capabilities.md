@@ -81,6 +81,15 @@ consecutive-rejection, and wall-clock limits. It follows one selected head and
 stores a separate canonical JSONL run ledger. It does not use the measurement
 history as candidate lineage.
 
+The separate source-only Population Archive can record multiple normalized
+candidates, identified experiments and replicates, named development evidence,
+a bounded Pareto archive, and exact uniform parent allocations. Its SQLite index
+is derived from a canonical hash-linked ledger and is never selection authority.
+Typed recombination is implemented only for complete `agent-skill-v1` file loci.
+The first final run seals every later search transition. The application does
+not execute the allocated parent or automatically connect it to another
+generation.
+
 Implemented candidate forms are:
 
 - default-agent configuration;
@@ -96,18 +105,20 @@ candidate tree and then treat the resulting commit as the same candidate.
 
 Do not claim or infer these capabilities from the current repository:
 
-- Darwinian candidate populations or branching active pools;
-- differential parent allocation or reproductive weights;
-- Pareto-front or behavior-bucket retention;
+- autonomous population execution or recursive agent trees;
+- weighted reproductive scores or learned parent-allocation policy;
+- behavior-bucket retention beyond the implemented Pareto archive;
 - Price-equation attribution or proposal-yield evaluation;
-- recombination or evaluator/test coevolution;
+- arbitrary Git recombination or evaluator/test coevolution;
 - automatic candidate installation, deployment, or rollback;
 - a sandbox supplied by Metering;
 - model training or environment-specific benchmark integration;
 - full-context agent adoption or ambient agent memory.
 
-Any variant-search proposal or remote pull request is documentation, not runtime
-behavior, unless `PLAN.md`, tests, and implementation are updated together.
+Only the Population Archive mechanisms documented above are current runtime
+behavior. Adaptive mutation, co-evolution, and automatic population execution
+remain proposals unless `PLAN.md`, tests, and implementation are updated
+together.
 
 ## Agent and trust checklist
 

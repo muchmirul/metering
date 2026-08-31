@@ -3,7 +3,8 @@
 ## Status and claim boundary
 
 This document connects the mathematics, biology analogy, and engineering
-decisions used across Metering and its six repository-local applications. It
+decisions used across Metering, its six generation-stage applications, and its
+optional source-only outer controls. It
 explains why the pieces have their current boundaries; it does not expand the
 normative contract in [`PLAN.md`](../PLAN.md).
 
@@ -29,6 +30,7 @@ Likewise, a biological analogy does not make these programs organisms.
 | Assay | revealed targets -> empirical mean log loss | logarithmic proper scoring | Forecast Assay |
 | Retention | two aligned assay reports -> selected identity | strict pairwise elitist selection | Selection Gate |
 | One generation | variation -> expression -> reveal -> assay -> retention | directed-evolution-inspired composition | Evolution Controller |
+| Population archive | identified runs -> named evidence -> feasible Pareto set -> exact parent draw | multi-objective retention plus replayable finite allocation | Population Archive |
 | Integrity | canonical measurement files -> Git tree -> commit lineage | Git object model plus measurement replay | identities and `metering-history` |
 
 The [high-level system diagram](../README.md#system-at-a-glance) shows the data
@@ -309,7 +311,9 @@ The controller returns after one generation. This keeps mutation-policy updates,
 adapter isolation, non-time budgets, installation, and deployment outside the
 generation mechanism. The optional source-only Evolution Driver makes bounded
 repetition, persistent state, and stopping explicit in its request and ledger;
-it does not hide them inside Controller or the installed package. Unbounded or
+it does not hide them inside Controller or the installed package. The separate
+Population Archive records multiple externally evaluated candidates and returns
+one explicit allocation without running another generation. Unbounded or
 implicit iteration would combine mechanism with policy and create an optimizer
 this repository could not generally validate.
 

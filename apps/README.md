@@ -12,6 +12,16 @@ not installed as part of the `metering` package.
 | [Selection Gate](selection_gate/README.md) | Verified forecast or task/safety pairwise retention | [Pairwise selection, log-loss ratio, and hypotheses](selection_gate/docs/foundations.md) |
 | [Evolution Controller](controller/README.md) | One complete fixture or agent-artifact generation | [One-generation equations, biology boundary, and hypotheses](controller/docs/foundations.md) |
 
+Two source-only outer controls compose those stages without becoming additional
+semantic stages:
+
+- [Evolution Driver](evolution_driver/README.md) repeats one selected head under
+  explicit limits.
+- [Population Archive](population/README.md) records multiple candidate/run
+  identities, rebuilds a derived SQLite index, retains a development-only Pareto
+  archive, allocates a parent from an exact draw, and performs typed skill-file
+  recombination. It does not run an agent or replace Controller.
+
 The intended composition is documented in
 [`docs/evolution-kernel.md`](../docs/evolution-kernel.md). Evolution Controller
 owns candidate execution, candidate-ID binding, and one explicit retention
@@ -41,7 +51,9 @@ canonical JSON, one-shot/JSONL, and subprocess mechanics used by the composable
 stdin applications. Concrete Pi and Prime Agent CLI translations live under
 [`connectors/fixed/`](../connectors/fixed/README.md), outside every application
 owner. Application modules still own schemas, mathematics, ordering, and error
-policy. Observer's independently copyable fixture protocol remains self-contained
+policy. Population Archive reuses only normalized artifact and canonical-JSON
+helpers; its ledger, evidence, archive, allocation, and index schemas remain
+local. Observer's independently copyable fixture protocol remains self-contained
 where sharing would create the wrong dependency. Observer's task evaluator and
 Controller's schema-v2 orchestration are separate internal modules behind the
 unchanged commands. This keeps unrelated workflows readable without turning the
@@ -60,8 +72,10 @@ with final cases kept outside retention; its complete fake-Pi regression is
 
 The external [Git artifact bridge](../artifacts/git/README.md) demonstrates that
 the same boundaries can retain immutable adapter-source commits and external
-model-output receipts. It is candidate plumbing, not a seventh application or
-an installed Metering feature.
+model-output receipts. It is candidate plumbing, not another semantic stage or
+an installed Metering feature. Population Archive may index those descriptors,
+but resolution, execution, and external-output verification remain in the Git
+bridge and caller sandbox.
 
 The repository-wide [system foundations](../docs/foundations.md) separate
 mathematical identities, tested implementation hypotheses, and unproven

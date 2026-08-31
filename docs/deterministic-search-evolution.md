@@ -1,19 +1,23 @@
-# Deterministic search and evolution design proposal
+# Deterministic search and evolution design
 
 ## Status
 
-This document is a design proposal. It describes a direction that can be built
-from Metering's existing measurement, artifact, evaluation, and recurrence
-boundaries. It does not claim that the proposed population system, SQLite index,
-recombination policy, or resource scheduler is implemented. [`PLAN.md`](../PLAN.md)
-remains the normative contract until an implementation is separately specified,
-tested, and accepted.
+This document separates an implemented source-only population substrate from a
+larger unimplemented direction. [`apps/population`](../apps/population/README.md)
+implements canonical population records, a rebuildable SQLite index, one
+explicit Pareto archive, exact uniform parent allocation, named resource
+accounting, and typed skill-artifact recombination. It does not execute agents,
+adapt mutation policy, co-evolve evaluators, install candidates, or deploy them.
+
+The installed `metering` package remains only the four named finite-distribution
+measures. [`PLAN.md`](../PLAN.md) is the normative contract; later phases remain
+proposals until separately specified, tested, and accepted there.
 
 ## Core claim
 
-Metering should be a deterministic mathematical and evidential substrate that an
-external agent can use while searching and evolving. It should not become the
-agent, the world, or a universal optimizer.
+The Metering package should remain a deterministic mathematical substrate that
+source-only applications can use while external agents search and evolve. The
+package must not become the agent, the world, or a universal optimizer.
 
 The intended stack is:
 
@@ -27,9 +31,9 @@ The intended stack is:
 
 The important refinement is:
 
-> Metering can make search and evolution measurable, replayable, and composable
-> without owning the meaning of fitness or silently collapsing every objective
-> into one score.
+> Source-only applications can make search and evolution measurable, replayable,
+> and composable by using Metering's named measures without making the package
+> own fitness or silently collapse every objective into one score.
 
 This preserves the existing package boundary. The installed package continues
 to accept caller-supplied finite probability models and return self-information,
@@ -100,6 +104,24 @@ The design is general because each layer owns one kind of fact. Pi and Qwen are
 one concrete proposer and execution stack, but the data and mathematical
 boundaries do not depend on either one.
 
+### Repository ownership
+
+Directory placement does not erase trust boundaries. The implementation has four
+explicit owners:
+
+| Repository layer | Owned behavior | Behavior excluded from that layer |
+|---|---|---|
+| Installed `src/metering/` core | Validate caller-supplied finite probability models and compute four named measures | Population state, SQLite, policy, runners, recombination, deployment |
+| Trusted source-only `apps/` control plane | Canonical records, evidence composition, archive policy, allocation, recurrence, and typed transitions | Becoming a candidate, reading hidden cases through candidate code, installation or deployment |
+| Searchable candidate artifacts | Skills, external adapters, prompts, configurations, and model-output receipts approved for one experiment | Rewriting Metering, the six application stages, Population Archive, evaluator, ledger, or selection policy |
+| Caller infrastructure | Sandbox, secrets, artifact stores, final evaluation, approval, installation, deployment, and rollback | Inferring those decisions from a local development result |
+
+The population application is excluded from the wheel and uses only Metering's
+public API. The existing six applications remain the owners of variation,
+execution, evaluation, assay, pairwise retention, and one-generation ordering;
+the population application is an outer archive and allocation mechanism, not a
+replacement stage.
+
 ## Candidate, experiment, and evidence identity
 
 A population system becomes unreliable when it confuses a candidate with the
@@ -131,11 +153,13 @@ where:
 A run is then:
 
 $$
-r=(c,e,s),
+r=(c,e,k),
 $$
 
-where $`s`$ identifies the explicit random seed, draw, or replicate. Evidence
-belongs to the run, not to the candidate in isolation.
+where $`k`$ is a unique replicate occurrence identifier. A seed, model draw, or
+runtime setting is recorded separately and cannot substitute for $`k`$: a
+nondeterministic runtime may produce two distinct observations under the same
+seed. Evidence belongs to the run, not to the candidate in isolation.
 
 This distinction prevents several common errors:
 
@@ -190,7 +214,8 @@ records.
 This gives the consistency condition:
 
 $$
-\operatorname{Rebuild}(\text{Git records})=\text{SQLite index},
+\operatorname{Rebuild}(\text{Git artifacts},\text{canonical ledger})
+=\text{SQLite index},
 $$
 
 up to database ordering and implementation details that do not change the
@@ -206,15 +231,14 @@ intelligence score. A Darwinian control plane should preserve that principle.
 Different quantities answer different questions and should remain separately
 named.
 
-For a candidate $`c`$ evaluated under experiment $`e`$, define an evidence
-vector:
+For a candidate $`c`$ evaluated under one development experiment $`e_{dev}`$,
+define a selectable evidence vector:
 
 $$
-F(c;e)=
+F_{dev}(c;e_{dev})=
 \left(
 S,
 Q,
-G,
 L,
 N,
 I,
@@ -224,8 +248,9 @@ R
 $$
 
 The components are not all Metering package functions. They belong to the
-external evaluation and selection layer, while Metering computes only the named
-information-theoretic quantities for caller-declared models.
+source-only evaluation and selection layer, while Metering computes only the
+named information-theoretic quantities for caller-declared models. Protected
+final evidence is deliberately absent from $`F_{dev}`$.
 
 ### Survival and protected constraints
 
@@ -252,7 +277,8 @@ $$
 
 ### Task capability
 
-For binary task outcomes with declared task weights $`w_i`$:
+For binary task outcomes with declared non-negative task weights $`w_i`$ whose
+sum is positive:
 
 $$
 Q(c;e)=\frac{\sum_{i=1}^{n}w_i\,\operatorname{pass}_i(c;e)}
@@ -275,9 +301,13 @@ $$
 G(c)=Q(c;D_{final})-Q(c_0;D_{final}),
 $$
 
-where $`c_0`$ is the declared baseline. This value can support a final claim, but
-it must not be sent back into the same evolutionary run. Once final cases affect
-selection, they become development evidence and a new final set is required.
+where $`c_0`$ is the declared baseline. This value is a final report quantity,
+not a coordinate of $`F_{dev}`$. It must not be sent back into the same
+evolutionary run, exposed through a selectable archive, or used for parent
+allocation. Once final cases affect selection, they become development evidence
+and a new final set is required. The implemented population application rejects
+archive construction for experiments identified as final and seals all later
+search transitions when its first final run is recorded.
 
 ### Calibration through logarithmic loss
 
@@ -297,15 +327,18 @@ does not by itself establish task capability, safety, or semantic understanding.
 Novelty is meaningful only after the caller declares an aligned behavior space
 and constructs a probability distribution over it.
 
-For candidate behavior distribution $`P_c`$ and archive member distribution
-$`P_a`$, one possible directed novelty measurement is:
+For candidate behavior distribution $`P_c`$ and another feasible archive member
+distribution $`P_a`$, one possible directed novelty measurement is:
 
 $$
-N(c)=\min_{a\in\mathcal A}
+N(c)=\min_{a\in\mathcal A\setminus\{c\}}
 D_{\mathrm{KL}}(P_c\Vert P_a).
 $$
 
-This is not a generic distance and may be infinite when supports differ. A
+The reference archive must be an identified snapshot. The implemented
+application defines singleton novelty as zero; another policy must explicitly
+state its empty-reference convention. This is not a generic distance and may be
+infinite when supports differ. A
 symmetric or task-specific behavior measure may be more appropriate in another
 application. The selection layer must name that choice explicitly. Metering
 should only evaluate the declared KL inputs; it should not decide what counts as
@@ -320,10 +353,12 @@ $$
 I_t=H(B_t)-\mathbb E[H(B_{t+1})].
 $$
 
-This can preserve informative failures. A candidate that does not improve task
-performance may still reveal that an entire mutation family, tool policy, or
-world hypothesis is unlikely. Such evidence belongs in the archive even when
-the candidate is not promoted.
+This expected value can justify running an informative experiment, including one
+likely to produce a task failure. It is not the realized information supplied by
+a particular observed failure; that requires the separately recorded outcome
+and belief update. The implemented application verifies a coherent declared
+finite joint model and computes its mutual information, which equals this
+expected reduction under that model.
 
 The equation is valid only for the declared belief model and update rule. It is
 not a universal measure of scientific value.
@@ -336,6 +371,7 @@ interchangeable:
 $$
 C(c;e)=
 \left(
+C_{actions},
 C_{tokens},
 C_{wall},
 C_{gpu},
@@ -359,11 +395,13 @@ $$
 R(c;e)=\bar Q(c;e)-\kappa\,s_Q(c;e),
 $$
 
-where $`\kappa`$ is declared by the experiment. This prevents one lucky model
-run from being treated as stable capability. It remains a finite-sample policy,
-not a proof of future reliability.
+where $`\kappa`$ is declared by the experiment. The implemented policy uses
+sample standard deviation for at least two replicates and defines it as zero for
+exactly one replicate. This prevents one lucky model run from being presented as
+multiple-run stability. It remains a finite-sample heuristic, not a confidence
+bound or proof of future reliability.
 
-## Selection remains an explicit external policy
+## Selection remains explicit and external to the package
 
 The evidence vector does not choose a parent by itself. Selection is a policy
 applied to named evidence.
@@ -385,28 +423,22 @@ and strictly better in at least one}
 \right\}.
 $$
 
-If an application requires scalarization, it may declare normalized evidence
-$`\widetilde F`$ and a versioned weight vector $`w`$:
+The implemented application deliberately does not scalarize this vector. It
+retains a bounded Pareto set and uses one concrete uniform allocation policy.
+For $`n>0`$ retained candidates sorted by immutable candidate ID and an exact
+rational draw $`u=p/q\in[0,1)`$, it selects:
 
 $$
-J_w(c)=w^\top\widetilde F(c;e).
+i=\left\lfloor\frac{pn}{q}\right\rfloor.
 $$
 
-That value is an application-owned reproductive score, not a Metering measure
-and not a universal statement of candidate quality.
-
-A soft parent-allocation policy can preserve exploration:
-
-$$
-p_t(c)=
-\frac{\exp(\beta J_w(c))}
-{\sum_{d\in\mathcal P_t}\exp(\beta J_w(d))}.
-$$
-
-The selection pressure $`\beta`$ is explicit. A supplied draw $`u_t\in[0,1)`$
-then deterministically identifies the selected parent from the cumulative
-probabilities. Recording $`p_t`$, $`u_t`$, and the policy version makes the
-selection replayable without pretending that exploration is non-random.
+Every retained candidate has exact probability $`1/n`$. Recording the canonical
+candidate order, exact probability, rational draw, archive identity, and policy
+version makes allocation replayable without cumulative floating-point boundary
+ambiguity. An empty archive has no parent and fails explicitly. A future
+application-specific policy may use a different allocation rule only after it
+defines canonical ordering, finite/extended-real handling, tie behavior, and
+numeric replay; it must not become a generic Metering score.
 
 The archive update can be written generally as:
 
@@ -445,9 +477,10 @@ c'=K(c^{(1)},c^{(2)},\eta,u),
 $$
 
 where $`\eta`$ is the declared recombination policy and $`u`$ is an explicit
-draw or choice. The child must receive a fresh content identity. The database
-records both parent edges and the recombination receipt; Git stores the actual
-resulting artifact.
+draw or choice. The child must receive a fresh content identity. The canonical
+ledger records both parent edges, the recombination receipt, and normalized
+skill content; Git remains the artifact owner when the candidate form is
+Git-backed. SQLite only indexes those records.
 
 Blindly combining commits is likely to produce invalid candidates and obscure
 causal attribution. Recombination should initially operate only on explicit,
@@ -533,58 +566,67 @@ The searchable surface may include:
 - context and compaction policy;
 - memory organization;
 - verification loops;
-- harness source artifacts;
+- external candidate harness or adapter source artifacts;
 - model-output artifacts;
 - typed combinations of independently evaluable components.
 
-The boundary may move between experiments, but it must not disappear inside one
-experiment. If the candidate can rewrite both itself and the definition of
-success without an external reference, promotion becomes self-confirmation.
+The repository's trusted applications, shared protocol/transport code, ledger,
+index builder, evaluator, and selection policy are never included by “harness
+source artifacts.” The boundary may move between experiments, but it must not
+disappear inside one experiment. If the candidate can rewrite both itself and
+the definition of success without an external reference, promotion becomes
+self-confirmation.
 
-## Proposed implementation sequence
+## Implementation sequence
 
-This proposal intentionally separates design order from code ownership.
+The sequence separates implemented source-only mechanisms from unimplemented
+research directions.
 
-### Phase 1: canonical population record
+### Phase 1: canonical population record — implemented
 
-Specify candidate, experiment, run, evidence, policy, lineage, archive-event,
-and resource identities. Establish that a SQLite index can be rebuilt from Git
-artifacts and append-only records. Do not introduce new selection behavior yet.
+`apps/population` specifies candidate, experiment, run, evidence, policy,
+lineage, archive-event, resource, and unique replicate identities in a canonical
+hash-linked ledger. Git-backed candidate descriptors retain their existing
+immutable artifact identity.
 
-### Phase 2: read-only population index
+### Phase 2: read-only population index — implemented
 
-Add a source-only query layer that can answer lineage, metric, cost, replicate,
-and archive-membership questions without changing the installed package. Git
-and canonical ledgers remain authoritative.
+The source-only query layer answers summary, candidate, lineage, and archive
+questions without changing the installed package. The SQLite file can be
+deleted and rebuilt; `verify-index` compares every row with an independent
+in-memory rebuild. Archive and allocation never read SQLite.
 
-### Phase 3: explicit multi-objective archive
+### Phase 3: explicit multi-objective archive — implemented, bounded policy
 
-Replace one selected head as the only retained state with a bounded archive.
-Keep survival, task performance, calibration, novelty, information value, cost,
-and reliability separately named. Define Pareto or behavior-bucket retention in
-the application contract.
+The application retains a bounded development-only Pareto archive. Survival,
+task performance, forecast loss, novelty, optional information value, cost, and
+reliability remain separately named. The existing Evolution Driver remains a
+compatible simpler single-head mechanism; it is not silently replaced.
 
-### Phase 4: deterministic parent allocation
+### Phase 4: deterministic parent allocation — implemented, uniform policy
 
-Introduce versioned parent-allocation policies with explicit probability
-vectors and supplied draws. Record why each lineage received compute. Preserve
-single-head mode as a simpler policy, not as the only possible architecture.
+One exact uniform policy records the canonical candidate order, exact rational
+probability, caller-supplied rational draw, and selected identity. No weighted
+scalar score is implemented.
 
-### Phase 5: typed recombination
+### Phase 5: typed recombination — implemented for skill files only
 
-Allow recombination only across declared loci with compatibility checks,
-provenance, and independent tests. Do not treat arbitrary Git merge success as
-semantic validity.
+Recombination operates across complete declared `agent-skill-v1` file loci,
+requires meaningful contribution from both parents, records provenance, and
+reconstructs the child during replay. Arbitrary Git merge and Git-candidate
+recombination remain rejected because merge success is not semantic validity.
 
-### Phase 6: adaptive mutation policy
+### Phase 6: adaptive mutation policy — parked
 
+This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).
 Use accumulated evidence to modify $`\theta_t`$, the external proposal policy.
 Mutual information between declared mutation features and outcomes may be one
 analysis tool, but it does not establish causality by itself. Policy adaptation
 must remain versioned and reversible.
 
-### Phase 7: adversarial and co-evolving environments
+### Phase 7: adversarial and co-evolving environments — parked
 
+This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).
 Only after evaluator isolation and population replay are trustworthy should the
 system introduce competing populations, adversarial task generation, or
 evaluator co-evolution. These features increase strategic non-stationarity and
@@ -635,17 +677,18 @@ search efficiency, or final performance relative to an otherwise matched run.
 
 ## Non-goals
 
-This proposal does not make the installed Metering package an AI framework. It
-does not add a model SDK, hidden probability estimator, universal fitness
-function, generic semantic score, autonomous deployment system, or proof of
-recursive self-improvement.
+This design and its source-only implementation do not make the installed
+Metering package an AI framework. They do not add a model SDK, hidden
+probability estimator, universal fitness function, generic semantic score,
+autonomous deployment system, or proof of recursive self-improvement.
 
 It also does not claim that SQLite creates intelligence, that Git creates valid
 inheritance, or that information measures alone determine survival. Those tools
 supply different pieces:
 
 - Git supplies immutable content identity and inspectable lineage;
-- SQLite supplies derived population queries and scheduling state;
+- SQLite supplies derived population queries and no authoritative scheduling
+  state;
 - Metering supplies exact named information measurements;
 - evaluators supply domain evidence;
 - evolution policies supply explicit selection and resource allocation;

@@ -402,6 +402,82 @@ interrupted Controller call never appends a generation record. Selected skills
 remain run-local; the driver does not install, deploy, or claim general
 improvement.
 
+The `apps/population` outer control plane is a separate source-only schema
+version 1 application. It records normalized agent candidates, identified
+development/final experiments, unique replicate runs, immutable external
+evidence receipts, named evidence, archive events, and exact parent allocations
+in one canonical hash-linked JSONL ledger.
+It derives task rate, target self-information, optional finite-model mutual
+information, hard protected/safety/resource admission, replicate reliability,
+and directed behavior novelty through public Metering functions and explicit
+application policy. It never reads final-role evidence into an archive. The
+first final run seals that ledger against every later candidate, experiment,
+development-run, archive, allocation, or recombination transition while still
+allowing additional runs of already declared final experiments.
+
+Population Archive retains a bounded development-only Pareto set over separately
+named task, reliability, novelty, forecast-loss, optional information, and
+resource coordinates. It uses no weighted generic score. Its one parent policy
+orders immutable candidate IDs, gives each retained member exact probability
+`1/n`, and applies a caller-supplied rational draw with integer arithmetic. An
+empty, superseded, or evidence-stale archive cannot allocate a parent. Typed
+recombination is limited to complete `agent-skill-v1` file loci, requires a
+differing contribution from both identified parents, and is reconstructed on
+ledger replay. It does not merge Git candidates, invoke Controller, execute an
+allocated parent, adapt policy, install, or deploy.
+
+`population.sqlite` is a caller-local disposable index over the canonical
+ledger. Rebuild creates every row from replayed records; verification compares
+every indexed row with an independent in-memory rebuild. Archive and allocation
+decisions never read SQLite. The application uses Python's standard-library
+SQLite support, is excluded from the wheel, and adds no package dependency. Its
+source command surface is exactly `init`, `candidate`, `experiment`, `run`,
+`archive`, `allocate`, `recombine`, `rebuild`, `verify`, `verify-index`, and
+`query`, each followed by one caller-selected state directory. Request commands
+read one strict JSON object; success writes one canonical JSON object, and a
+request or population-state failure exits with status two and emits
+`invalid_request` or `population_error` respectively.
+
+### Parked population extensions
+
+**Status: parked.** The following work is recorded for future review but is not
+accepted runtime behavior, a schema promise, or authority granted to the
+installed package or current applications:
+
+1. **Automatic population execution.** A future source-only outer orchestrator
+   may connect an allocated parent to proposal and Controller only after it has
+   a strict versioned request, finite global proposal/evaluation/resource and
+   wall-clock budgets, explicit stopping and approval points, interruption-safe
+   replay, atomic failure behavior, and proof that final-role evidence cannot
+   re-enter search.
+2. **Adaptive mutation policy.** A future application may update one declared
+   mutation policy only after mutation features, finite belief/update semantics,
+   evidence alignment, policy identity, rollback, and falsifiers are concrete.
+   It must not infer causality from mutual information or introduce a generic
+   fitness, intelligence, or quality score.
+3. **Adversarial task generation or evaluator co-evolution.** This requires a
+   separately fixed and protected meta-evaluator, immutable evaluator lineage,
+   non-stationary experiment identities, fresh final evidence, and a rule that
+   no candidate or evolving evaluator can approve itself. The current trusted
+   evaluator remains frozen within every accepted experiment.
+4. **Enforced candidate sandbox profile.** Isolation remains caller
+   infrastructure until a reviewed container or VM profile can prove filesystem,
+   credential, process, network, device, and resource restrictions through
+   explicit receipts and adversarial conformance tests. Python path checks,
+   command separation, process-group cleanup, and timeouts are not a sandbox.
+5. **Installation, deployment, and rollback integration.** These remain
+   caller-approved external operations. Any future source-only adapter must keep
+   credentials outside candidate access, bind the exact selected artifact and
+   environment, require a separate approval action, emit immutable receipts,
+   and demonstrate an explicit rollback path. Selection alone must never trigger
+   installation or deployment.
+
+Activating any parked item requires an explicit `PLAN.md` status change, the
+narrowest new versioned schema, focused security and replay tests, full-suite and
+package-boundary validation, compatibility documentation, and evidence that the
+installed four-measure API and dependency surface remain unchanged. Do not add
+placeholder modules, plugin interfaces, or database fields for parked work.
+
 Application JSONL transports use standard input and output only. Recoverable
 line errors produce an aligned JSON response and leave later requests usable.
 They do not change Metering's installed one-request JSON command.
@@ -455,6 +531,7 @@ tests/
     test_evolution_kernel.py
     test_agent_evolution.py
     test_self_evolution.py
+    test_population.py
     test_signal_relay_acceptance.py
     test_git_artifact_evolution.py
     test_connectors.py
@@ -465,6 +542,7 @@ docs/
     history.md
     evolution-kernel.md
     agent-evolution.md
+    deterministic-search-evolution.md
 artifacts/
     git/              agent-neutral Git source/model-output candidate bridge
 connectors/
@@ -485,6 +563,7 @@ apps/
     selection_gate/   schema-specific forecast/task retention implementations
     controller/       fixture and agent-skill one-generation orchestrator
     evolution_driver/ bounded run-local recurrence over selected SKILL.md artifacts
+    population/       canonical multi-candidate ledger, Pareto archive, allocation, and derived index
 ```
 
 Historical Pi scripts under `apps/` and `artifacts/git/` are thin compatibility
@@ -504,8 +583,10 @@ response remains supported, and existing default/skill direct-challenger and
 proposal behavior is unchanged. `git-candidate-v1` and its adapter protocol
 version 2 are additional artifact/execution forms; default and skill adapters
 remain on protocol version 1. The Evolution Driver has a separate source-only
-schema version 1 and no
-earlier state format to migrate. Moving Pi translations to `connectors/fixed/pi`
+schema version 1 and no earlier state format to migrate. Population Archive also
+has a separate source-only schema version 1 and no earlier ledger or SQLite
+format to migrate; its generated index is disposable rather than a compatibility
+authority. Moving Pi translations to `connectors/fixed/pi`
 is source-path cleanup only: the former script paths remain compatibility
 launchers with the same standard-stream contracts. Prime Agent is an additive
 concrete connector over those existing contracts. These application and
@@ -582,10 +663,11 @@ target surprisal remain separately named calibration signals that may expose
 uncertainty or blind spots; they are not a capability score and cannot move the
 parent by themselves.
 
-The driver has no recursive agent tree, candidate population, learned mutation
-policy, database, event bus, plugin framework, automatic global skill
-installation, training loop, or production deployment. The six semantic
-boundaries remain separate. Schema-version-1 fixture behavior and
+The driver itself has no recursive agent tree, candidate population, learned
+mutation policy, database, event bus, plugin framework, automatic global skill
+installation, training loop, or production deployment. The separate Population
+Archive can retain and allocate among recorded candidates but does not execute
+that allocation or change the six semantic boundaries. Schema-version-1 fixture behavior and
 schema-version-2 direct challenger requests remain compatible; internal
 Controller and Observer modules are split by workflow only to keep unrelated
 mechanisms readable.
@@ -867,6 +949,20 @@ The rewrite is complete only when:
 - the evolution driver advances only from a completed Controller result, verifies
   its canonical hash-linked state before resume, stops at explicit limits, and
   never installs its selected head;
+- Population Archive verifies a canonical hash-linked candidate/experiment/run
+  ledger, requires unique replicate occurrence IDs, keeps final experiments out
+  of archives, seals search transitions after final evaluation starts,
+  recomputes named Metering evidence, and rejects stale archive allocations;
+- its bounded Pareto archive excludes infeasible candidates, computes novelty
+  against other feasible candidates rather than self, retains objectives
+  separately without a generic weighted score, and selects uniform parents from
+  canonical candidate order with an exact rational draw;
+- typed skill recombination names the source parent for every complete file
+  locus, requires meaningful contribution from both parents, reconstructs the
+  child identity on replay, and rejects arbitrary Git candidate merging;
+- deleting and rebuilding `population.sqlite` reproduces every indexed fact,
+  changed rows fail independent verification, and neither archive nor parent
+  allocation reads the database;
 - the constructed live-Pi acceptance loads its final cases only after the
   development generation, never feeds them back to the proposer, and fails
   unless the exact selected head passes the declared development and final

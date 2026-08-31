@@ -35,6 +35,7 @@ flowchart LR
 
     subgraph Applications["Repository-local applications (source only)"]
         Evolver["Evolution Driver<br/>bounded recurrence"]
+        Population["Population Archive<br/>multi-candidate records and allocation"]
         Controller["Evolution Controller<br/>one generation"]
         Observer["Observer<br/>observation boundary"]
         Mutator["Mutator<br/>one legal child"]
@@ -51,6 +52,7 @@ flowchart LR
 
     Caller -->|one generation| Controller
     Caller -. optional bounded run .-> Evolver
+    Caller -. record/query/allocate .-> Population
     Evolver -->|one request at a time| Controller
     Caller -->|direct Python measurement| API
     Caller -->|one JSON measurement| CLI
@@ -69,6 +71,7 @@ flowchart LR
     Controller -->|next parent| Caller
     Controller -->|completed generation| Evolver
     Evolver -->|selected run-local head| Caller
+    Population -->|selected candidate identity| Caller
 
     Observer --> CLI
     Observer -. optional history .-> History
@@ -76,6 +79,7 @@ flowchart LR
     Runner --> API
     Assay --> API
     Gate --> API
+    Population --> API
     CLI --> API
     History --> CLI
 ```
@@ -84,8 +88,11 @@ Solid arrows show explicit calls or returned data. Dashed arrows are opt-in
 measurement recording. Controller owns one generation. The optional source-only
 Evolution Driver repeats completed agent-artifact generations under explicit
 limits; the caller still owns configuration, final evaluation, installation,
-and deployment. Metering only validates caller-supplied probability models and
-evaluates named measures. The Evolution Driver
+and deployment. The separate Population Archive records caller-supplied
+candidate and development-run evidence, maintains a bounded Pareto archive, and
+returns one exact parent allocation without executing it. Its SQLite database is
+a disposable ledger-derived index. Metering only validates caller-supplied
+probability models and evaluates named measures. The Evolution Driver
 [README](apps/evolution_driver/README.md) includes a constructed live-Pi
 acceptance command that keeps its final cases outside retention and states the
 narrow evidence it can establish. The external
@@ -391,8 +398,9 @@ owns later requests, mutation-policy changes, budgets, persistence, and
 stopping. See the [controller contract](apps/controller/README.md) and complete
 integration tests in [`tests/test_controller.py`](tests/test_controller.py).
 
-[`apps/README.md`](apps/README.md) indexes the six repository-local stages and
-the optional outer Evolution Driver. None extends the installed Metering API.
+[`apps/README.md`](apps/README.md) indexes the six repository-local stages plus
+the optional Evolution Driver and Population Archive outer controls. None
+extends the installed Metering API.
 
 ## Agent-artifact generation
 
@@ -449,6 +457,30 @@ uv run python artifacts/git/demo.py --root /tmp/metering-git-live-$(date +%s)
 See the complete [agent-artifact evolution protocol](docs/agent-evolution.md)
 and [Git bridge contract](artifacts/git/README.md).
 
+## Deterministic population archive
+
+[`apps/population`](apps/population/README.md) is an optional source-only outer
+control plane for multiple candidate identities. It keeps a canonical
+hash-linked ledger of candidates, experiments, unique replicate runs, named
+evidence, development-only Pareto archives, exact uniform parent allocations,
+and typed skill-file recombination receipts.
+
+It does not run the allocated parent or replace Controller. A caller may feed
+that identity into a later explicit proposal/generation workflow. Final-role
+experiments cannot create an archive, their first run seals later search
+transitions, and no weighted generic fitness score is computed.
+
+The local SQLite index is disposable and never controls selection:
+
+```bash
+uv run python apps/population/population.py rebuild /tmp/metering-population
+uv run python apps/population/population.py verify-index /tmp/metering-population
+```
+
+See the [Population Archive contract](apps/population/README.md) for strict
+initialization, evidence, archive, allocation, recombination, and query request
+schemas.
+
 ## Definitions and edge cases
 
 For logarithm base `b > 1`:
@@ -500,10 +532,11 @@ uv build
 
 Application schema version 2 remains additive to the source-only applications;
 its direct-challenger request is unchanged and the proposer form is additional.
-The Evolution Driver has its own new source-only schema version 1 and state
-format. Schema version 1 fixture requests remain supported. None of these
-application boundaries changes Metering's Python API, installed commands, JSON
-measurement protocol, history format, or numerical semantics.
+The Evolution Driver and Population Archive each have separate source-only
+schema version 1 state formats. Population SQLite state is rebuildable and has
+no migration authority. Schema version 1 fixture requests remain supported.
+None of these application boundaries changes Metering's Python API, installed
+commands, JSON measurement protocol, history format, or numerical semantics.
 
 The current design is a deliberate breaking replacement of the earlier
 hidden-fault harness. Old policies, commands, manifests, traces, reports, and

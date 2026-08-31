@@ -1,9 +1,9 @@
 # Metering documentation
 
 [`PLAN.md`](../PLAN.md) is the normative scope and behavior contract. Most
-remaining documents explain the implemented boundaries without expanding that
-contract. Documents explicitly marked as proposals describe possible future
-composition and are not implementation claims.
+remaining documents explain implemented boundaries without expanding that
+contract. Documents with proposed later phases identify those phases separately
+from current implementation claims.
 
 - [Current capability map](capabilities.md) gives users and coding agents a
   concise implemented/not-implemented boundary and operational checklist.
@@ -23,12 +23,11 @@ composition and are not implementation claims.
   one-generation boundaries, plus the source-only bounded recurrence driver,
   constructed live-Pi acceptance, additive Git source/model-output artifact
   bridge, and persistence and isolation limits.
-- [Deterministic search and evolution design proposal](deterministic-search-evolution.md)
-  describes a non-normative population architecture built around immutable Git
-  artifacts, a rebuildable SQLite index, named mathematical evidence,
-  multi-objective retention, explicit parent allocation, recombination,
-  protected evaluation, and resource accounting. It contains no implementation
-  claim and does not change `PLAN.md`.
+- [Deterministic search and evolution design](deterministic-search-evolution.md)
+  separates the implemented source-only Population Archive—canonical records, a
+  rebuildable SQLite index, named evidence, Pareto retention, exact parent
+  allocation, and typed skill recombination—from unimplemented adaptive-policy
+  and co-evolution directions.
 - [Agent connectors](../connectors/README.md) documents the fixed Pi and Prime
   Agent translations, the shared internal Metering skill, and the explicit live
   harness conformance path.
@@ -36,6 +35,6 @@ composition and are not implementation claims.
   application and its local architecture, foundations, and protocol documents.
 
 The installed Python API remains only `ProbabilityError` and the four named
-measures. The history command is a separate explicit filesystem boundary, the
-applications are source-only examples excluded from the wheel package, and the
-design proposal does not alter current runtime behavior.
+measures. The history command is a separate explicit filesystem boundary, and
+all population behavior remains in source-only applications excluded from the
+wheel package.

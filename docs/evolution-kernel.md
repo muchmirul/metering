@@ -16,6 +16,7 @@ Forecast Assay   measures revealed-target probabilistic behavior
 Selection Gate   verifies two reports and chooses differential retention
 Controller       executes one generation and returns the selected next parent
 Evolution Driver optionally repeats completed artifact generations under limits
+Population Archive optionally records multiple runs and allocates one parent
 Caller           owns configuration, adapter budgets, final tests, and deployment
 ```
 
@@ -122,8 +123,11 @@ identical cases and budgets, keep environment-specific results separate, and
 reserve fresh final cases that are not repeatedly reused for selection.
 
 The six applications therefore remain auditable one-generation boundaries. The
-source-only Evolution Driver can repeat the unchanged schema-version-2 boundary,
-but installation, deployment, final evaluation, and every policy change remain
+source-only Evolution Driver can repeat the unchanged schema-version-2 boundary.
+The separate [Population Archive](../apps/population/README.md) can record
+multiple externally completed runs, rebuild a derived query index, and allocate
+one retained development candidate without invoking Controller. In both paths,
+installation, deployment, final evaluation, and every policy change remain
 explicit caller decisions. External adapters also own sandboxing, hidden-test
 isolation, model and tool settings, and token or monetary budgets they alone can
 observe.
