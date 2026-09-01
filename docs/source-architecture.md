@@ -23,8 +23,9 @@ The refactor preserves these boundaries:
   one-way disposable projection;
 - protected final evidence cannot enter proposal feedback, development archives,
   or later scheduling; and
-- candidate execution, tool-enabled proposal, installation, and deployment
-  remain caller-controlled operations requiring appropriate isolation.
+- typed harness candidate execution uses the reviewed source-only OCI profile;
+  legacy arbitrary Git execution, tool-enabled proposal, installation, and
+  deployment remain caller-controlled operations requiring appropriate isolation.
 
 The architecture intentionally has no plugin registry, event bus, ORM,
 dependency-injection container, universal dispatcher, or shared “fitness”
@@ -122,9 +123,52 @@ receipt still prevents another model call; evidence and partial Population
 ingestion still resume idempotently. No final-role result is accepted as an
 input to a subsequent action.
 
-## Executable Darwinian recurrence test
+## Evolutionary Harness machine
 
-`tests/test_darwinian_code_evolution.py` is the CI-safe end-to-end mechanism
+`apps/harness` is a concrete Candidate Runner phenotype implementation, not a
+seventh semantic owner. Its instruction split is:
+
+| Module | Responsibility |
+|---|---|
+| `protocol.py` | complete nine-locus candidate validation; no execution |
+| `runtime_manifest.py` | canonical model/image/limit/dependency identity |
+| `model_contract.py` | one provider-neutral model action call |
+| `runtime.py` | bounded context, compaction, tool, recursion, and completion state |
+| `kernel_contract.py` | boot/request/interrupt/restart/snapshot sequencer |
+| `kernel_server.py` | sandbox-side IPython effect process |
+| `resources.py` | external procfs and cgroup-v2 observations |
+| `receipts.py` | immutable content-addressed evidence |
+| `conformance.py` | fixed lifecycle assay |
+| `final_assay.py` | protected one-candidate evidence and Population seal |
+| `experiment.py` | thin reference composition and offline verification |
+
+Provider files do not enter this application owner. Pi and Prime Agent
+translations under `connectors/fixed/` return one strict action with tools,
+sessions, and discovery disabled. Generic clone/content/commit mechanics stay in
+`artifacts/git/`. Candidate bootstrap crosses into exactly `kernel_server.py`;
+validation and the model connector never import or execute it. In live mode that
+server is available only inside the immutable Docker image with no network,
+mount, credential, device, capability, or writable root.
+
+A model turn and an IPython execution are separate effects. The loop records
+model procfs observations and kernel cgroup-v2 observations, then binds them to
+the candidate manifest, runtime, task, transcript, and Population cost vector.
+A recursive delegate gets a fresh context and kernel. Finite depth, calls, turns,
+code, output, snapshot, model-call, process, memory, storage, CPU, and wall
+bounds are validated before or enforced during effects. The CI process profile
+uses the same ABI but is explicitly marked unsafe and cannot silently replace
+the OCI profile.
+
+The one-command sequencer first runs conformance, then Population Driver, then
+loads protected final tasks, records an exact final allocation, declares one
+one-use final experiment (which stops Driver recurrence before case execution),
+appends its single final run, and invokes existing Population replay. Offline verification
+also checks every Git checkout, typed manifest, dependency lock, run receipt,
+final bundle, ledger, and permanent seal.
+
+## Executable Darwinian recurrence tests
+
+`tests/test_darwinian_code_evolution.py` is the CI-safe minimal end-to-end mechanism
 test. It creates a real Git repository and a subtraction seed, then runs two
 bounded generations for the public task “return `left + right`”:
 
@@ -145,9 +189,13 @@ uv run pytest -q tests/test_darwinian_code_evolution.py
 
 `darwinian_code_adapter.py` is a deterministic trusted fixture. It executes only
 its fixed generated arithmetic programs and is not a sandbox or evidence of
-Qwen, Pi, or general problem-solving improvement. Live model mutation still
-requires a pinned connector and a caller-provided container or VM; withheld
-final evaluation remains separate.
+Qwen, Pi, or general problem-solving improvement. `tests/test_harness_evolution.py` additionally exercises the complete typed
+harness manifest, recursive subagent context, kernel lifecycle and recovery,
+resource receipts, tool-free mutation boundary, provider event translation,
+Population recurrence, protected final run, seal, and offline verification. Its
+host-process kernel is not a live sandbox. Live typed-harness mutation requires
+the checked-in Docker profile, a pinned image/model connector, cgroup-v2
+observations, and credentials; withheld final evaluation remains separate.
 
 ## Enforced dependency rules
 
@@ -160,7 +208,10 @@ final evaluation remains separate.
 - duplicate hash-linked journal ownership;
 - domain dependencies from shared mechanical support;
 - durable store instructions in Population Driver replay; and
-- imports from the source control plane into installed Metering core.
+- imports from the source control plane into installed Metering core;
+- provider imports from the harness application owner;
+- candidate `exec`/`eval` effects outside the sandbox-side kernel server; and
+- fixed mutator/evaluator/control files inside the reference candidate genome.
 
 These tests protect dependency direction. The documented Population Driver
 example additionally checks every authoritative schema-v1 state file against

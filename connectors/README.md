@@ -11,10 +11,11 @@ agent -> Metering       load connectors/tools/metering as an internal skill
 Metering -> agent       invoke a reviewed fixed proposer or candidate runner
 ```
 
-Metering remains the measurement, identity, evidence, retention, and ledger
-tool. Pi, Prime Agent, or another external harness proposes and executes
-candidate artifacts. A connector never receives protected evaluator state and
-never decides retention.
+Metering remains the installed measurement tool. Source-only applications own
+identity, evidence, retention, ledgers, and the concrete typed harness. Pi,
+Prime Agent, or another external model transport proposes candidate artifacts
+or returns one bounded action. A connector never receives protected evaluator
+state and never decides retention.
 
 ## Layout
 
@@ -22,8 +23,8 @@ never decides retention.
 connectors/
     tools/metering/          cross-harness Agent Skills tool
     fixed/
-        pi/                  concrete Pi proposer and runner translations
-        prime_agent/         concrete Prime Agent translations
+        pi/                  Pi artifact and typed-harness translations
+        prime_agent/         Prime Agent artifact and typed-harness translations
     full_context/            parked manifest-based profile
     live_agent_acceptance.py real-harness Metering tool acceptance
 ```
@@ -65,7 +66,10 @@ reliably or that a candidate improved.
 
 ## Trust boundary
 
-Connectors and agent commands execute with caller permissions. Tool-enabled Git
-proposers require an external container or VM. Keep protected evaluators,
-credentials, selected-parent state, and the frozen Metering control plane
+Connectors and agent commands execute with caller permissions. Historical
+tool-enabled Git proposers require an external container or VM. The typed
+Evolutionary Harness instead makes both provider calls tool-free and executes
+candidate Python only in its reviewed no-network OCI kernel; Docker, cgroup-v2,
+image preparation, and credentials remain platform prerequisites. Keep protected
+evaluators, selected-parent state, credentials, and the frozen control plane
 outside candidate access. Selection and installation remain separate.

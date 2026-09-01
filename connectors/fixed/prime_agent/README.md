@@ -7,12 +7,24 @@ These commands translate the same Metering protocols to the public
 uv run python connectors/fixed/prime_agent/skill_proposer.py
 uv run python connectors/fixed/prime_agent/text_runner.py
 uv run python connectors/fixed/prime_agent/git_proposer.py
+uv run python connectors/fixed/prime_agent/harness_proposer.py
+uv run python connectors/fixed/prime_agent/harness_model.py
+uv run python connectors/fixed/prime_agent/harness_runner.py
 ```
 
 The skill proposer and text runner disable tools, sessions, discovered resources,
-and context files, then inject only the verified candidate skill. The Git
-proposer permits Prime Agent's IPython tool inside a disposable file-only
+and context files, then inject only the verified candidate skill. The historical
+Git proposer permits Prime Agent's IPython tool inside a disposable file-only
 workspace and therefore requires an external sandbox.
+
+The typed harness proposer is tool-free and applies only declared whole-file
+locus edits. Its one-turn model transport also disables Prime Agent tools,
+sessions, autonomous mode, discovered resources, and continual state. The fixed
+runner verifies `prime-agent --version` plus the runtime provider/model/reasoning
+pins; [`apps/harness`](../../../apps/harness/README.md) owns bounded recursion,
+isolated IPython sessions, snapshots, compaction, and receipts. Prime Agent never
+runs candidate Python on the host and never receives final tasks or selection
+authority.
 
 Pin the command with a JSON array, for example:
 
@@ -30,3 +42,6 @@ The Git proposer does not copy `auth.json`; supply model authentication through
 a sandbox-scoped environment or command. Never point its reviewed configuration
 at a directory containing credentials accessible to candidate code. The
 connector never receives selection authority or protected evaluator data.
+Harness commands use `METERING_HARNESS_PROVIDER`, `METERING_HARNESS_MODEL`, and
+`METERING_HARNESS_REASONING`, which the reference experiment derives from the
+canonical runtime profile.

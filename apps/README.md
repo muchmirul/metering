@@ -12,6 +12,12 @@ not installed as part of the `metering` package.
 | [Selection Gate](selection_gate/README.md) | Verified forecast or task/safety pairwise retention | [Pairwise selection, log-loss ratio, and hypotheses](selection_gate/docs/foundations.md) |
 | [Evolution Controller](controller/README.md) | One complete fixture or agent-artifact generation | [One-generation equations, biology boundary, and hypotheses](controller/docs/foundations.md) |
 
+The [Evolutionary Harness](harness/README.md) is a concrete typed
+`git-candidate-v1` phenotype and reference composition, not another semantic
+stage. It supplies a provider-neutral recursive action loop, isolated IPython
+kernel ABI, OCI/resource profile, immutable receipts, protected final assay, and
+Pi/Prime Agent translations while reusing the owners above.
+
 Three source-only outer controls compose those stages without becoming
 additional semantic stages:
 
@@ -86,6 +92,10 @@ covered by [`tests/test_population_driver.py`](../tests/test_population_driver.p
 The executable-Git Darwinian recurrence—subtraction seed, retained addition
 mutation, rejected multiplication regression—is covered by
 [`tests/test_darwinian_code_evolution.py`](../tests/test_darwinian_code_evolution.py).
+The repository-complete typed-harness recurrence, including kernel lifecycle,
+recursive subagents, resource receipts, protected final sealing, and offline
+verification, is covered by
+[`tests/test_harness_evolution.py`](../tests/test_harness_evolution.py).
 
 The external [Git artifact bridge](../artifacts/git/README.md) demonstrates that
 the same boundaries can retain immutable adapter-source commits and external

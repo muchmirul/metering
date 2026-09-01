@@ -30,7 +30,7 @@ does not change Metering's four-measure Python API, CLI, lockfile, or wheel.
 | One mutation, matched execution/evaluation, pairwise report | Existing Controller and its six applications |
 | Candidate/run identities, named evidence, Pareto archive, exact allocation | Population Archive |
 | Round bounds, proposal-call approval, receipts, replay, composition | Population Driver |
-| Candidate resolution/execution isolation, credentials, physical resource enforcement | Caller-provided runner sandbox |
+| Candidate resolution/execution isolation, credentials, physical resource enforcement | Caller-provided runner, or the concrete typed `apps/harness` OCI profile |
 | Mutation implementation, such as fixed Pi/Qwen over a Git workspace | Caller-provided proposer connector |
 | Withheld final evaluation, installation, deployment, rollback | Caller |
 
@@ -74,9 +74,13 @@ uv run python apps/population_driver/population_driver.py \
 The checked-in `demo_adapter.py` is a non-executing protocol test double. It
 constructs Git-shaped immutable code descriptors and synthetic evidence; it is
 not a sandbox, a Git verifier, a model run, or empirical adaptation evidence.
-For real code evolution, use the reviewed
+For arbitrary code evolution, use the reviewed
 [Git artifact bridge](../../artifacts/git/README.md), a fixed Pi/Qwen proposer,
-and a caller-isolated runner/evaluator.
+and a caller-isolated runner/evaluator. For the repository-complete typed
+prompt/context/tool/subagent/IPython candidate, use the
+[Evolutionary Harness](../harness/README.md), which supplies the concrete Docker
+profile, receipts, final assay, and offline verifier behind this unchanged
+Driver contract.
 
 ## Executable Git recurrence test
 
@@ -215,8 +219,9 @@ retains it as infeasible evidence; software cannot retroactively prevent the
 already consumed resource. The driver will not schedule a later round whose
 preflight bound fails.
 
-An empty archive, any configured limit, or the first final-role run stops new
-rounds. Allocation draws are explicit request inputs; no hidden random-number
+An empty archive, any configured limit, or declaration of the first final-role
+experiment stops new rounds. Its first run activates the broader Population
+seal. Allocation draws are explicit request inputs; no hidden random-number
 generator or SQLite query affects scheduling.
 
 ## State and interruption recovery
@@ -280,9 +285,11 @@ so it returns a successful summary with `status: pending_round` instead.
 
 The driver creates and archives only one derived development experiment. A
 caller may later declare final experiments directly in
-`STATE/population/population.jsonl` through Population Archive. Recording the
-first final run permanently seals all candidate, development-run, archive,
-allocation, and recombination transitions. Subsequent `run` calls return
+`STATE/population/population.jsonl` through Population Archive. Declaring the
+first final experiment stops Driver recurrence immediately, before protected
+case execution; recording its first final run then activates Population's
+permanent seal over candidate, development-run, archive, allocation, and
+recombination transitions. Subsequent `run` calls return
 `final_evidence_sealed`; no final result is placed in proposer feedback or a
 search archive.
 

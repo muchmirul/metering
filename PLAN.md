@@ -15,13 +15,15 @@ model, world, controller, belief updater, or recommendation logic. A separate,
 explicit history command may retain accepted measurement requests and responses;
 it does not change or interpret them.
 
-Repository-local evolution applications and connectors are also tools around
-external agents, not a competing agent harness. External agents propose or
-execute harness, adapter, and model-output candidates. External trainers produce
-weights. Metering validates declared probability models, binds candidate and
-evidence identity, measures named quantities, applies explicit source-only
-retention rules, and records selected lineage. It never generates a refined
-harness or trains model weights itself.
+Repository-local evolution applications and connectors are source-only tools
+around external agents. They now include one concrete, mutation-only typed
+recursive harness under `apps/harness/`; that harness is not installed Metering
+and does not move provider translation, evaluation, selection, or deployment
+authority into the package. External agents propose harness, adapter, and
+model-output candidates. External trainers produce weights. Metering validates
+declared probability models and computes named quantities; source-only owners
+bind candidate/evidence identity, apply explicit retention, and record lineage.
+The installed package never generates a refined harness or trains model weights.
 
 ## Foundation
 
@@ -469,9 +471,43 @@ forecast, candidate, evaluator, and selection facts replay from Controller.
 Controller's pairwise `next_parent` is recorded but Population allocation chooses
 the next population parent. The driver creates only development experiments,
 checks the Population final seal before another round, and never exposes final
-evidence to proposal, archive, or allocation. It does not adapt mutation,
-recombine Git code, train weights, co-evolve evaluators, provide a sandbox,
-install, or deploy.
+evidence to proposal, archive, or allocation. By itself it does not adapt
+mutation, recombine Git code, train weights, co-evolve evaluators, provide a
+generic sandbox, install, or deploy.
+
+`apps/harness` supplies the accepted concrete executor for one typed Git
+candidate form. `evolutionary-harness-v1` binds exactly nine prompt, context,
+compaction, tool, subagent, IPython-bootstrap, snapshot, dependency-lock, and
+entrypoint loci. Host validation never imports or executes candidate Python. A
+fixed provider-neutral loop accepts only bounded `execute`, `delegate`, and
+`finish` actions. Each delegate receives an independent context and kernel;
+finite depth, calls, turns, code, output, snapshots, model calls, and runtime
+limits are mandatory. Pi and Prime Agent translations disable tools, sessions,
+discovered resources, and context; a tool-free fixed mutator can replace only
+declared complete locus files and never receives protected final tasks.
+
+The corresponding `evolutionary-harness-runtime-v1` identity binds the agent
+version, provider, model, reasoning, immutable OCI image, kernel command,
+dependency allowlist, kernel and model-call/output/timeout limits, required
+observations, and cost mode. Live candidate bootstrap and cells execute only in the reviewed Docker profile:
+no network or host mount, read-only root, non-root UID, all capabilities dropped,
+`no-new-privileges`, bounded tmpfs/CPU/memory/pids, fixed command, and external
+cgroup-v2 CPU/memory/process/storage/wall observations. Model connector
+subprocesses are observed through procfs. A process fixture uses the same ABI for
+deterministic CI but is explicitly unsafe and cannot silently replace live
+isolation.
+
+Content-addressed receipts bind candidate, task, manifest, runtime, transcript,
+model calls/tokens, kernel/model observations, and separately named Population
+costs. The reference sequencer runs kernel conformance, two bounded development
+mutations through Population Driver, one exact final allocation, declaration of
+a one-use final experiment that immediately stops Driver recurrence, a distinct
+protected final suite, the first final-role run, and offline Git/manifest/
+dependency/receipt/ledger verification. Final evidence never enters mutation,
+archive, or another allocation; Population's existing first-final-run seal is
+authority. Energy and GPU observations remain explicitly unavailable rather than
+estimated. This implementation does not train weights, adapt mutation,
+recombine Git candidates, co-evolve an evaluator, install, or deploy.
 
 ### Parked population extensions
 
@@ -489,11 +525,12 @@ granted to the installed package or current applications:
    non-stationary experiment identities, fresh final evidence, and a rule that
    no candidate or evolving evaluator can approve itself. The current trusted
    evaluator remains frozen within every accepted experiment.
-3. **Enforced candidate sandbox profile.** Isolation remains caller
-   infrastructure until a reviewed container or VM profile can prove filesystem,
-   credential, process, network, device, and resource restrictions through
-   explicit receipts and adversarial conformance tests. Python path checks,
-   command separation, process-group cleanup, and timeouts are not a sandbox.
+3. **Additional sandbox and transport profiles.** The typed harness has one
+   reviewed Docker/cgroup-v2 profile. Arbitrary Git executors, Podman,
+   Kubernetes, bubblewrap, remote kernels, and VM transports remain caller
+   infrastructure until each has a versioned fail-closed profile, explicit
+   receipts, and adversarial conformance tests. Python path checks, command
+   separation, process-group cleanup, and timeouts alone are not a sandbox.
 4. **Installation, deployment, and rollback integration.** These remain
    caller-approved external operations. Any future source-only adapter must keep
    credentials outside candidate access, bind the exact selected artifact and
@@ -563,6 +600,7 @@ tests/
     test_population.py
     test_population_driver.py
     test_darwinian_code_evolution.py
+    test_harness_evolution.py
     test_architecture.py
     test_signal_relay_acceptance.py
     test_git_artifact_evolution.py
@@ -599,6 +637,7 @@ apps/
     evolution_driver/ bounded run-local recurrence over selected SKILL.md artifacts
     population/       public contract, canonical ledger, Pareto archive, allocation, and derived index
     population_driver/ replay, planner, effects, store, and bounded Git recurrence runtime
+    harness/            typed recursive phenotype, OCI kernel, receipts, final assay, and reference composition
 ```
 
 Historical Pi scripts under `apps/` and `artifacts/git/` are thin compatibility
@@ -647,11 +686,12 @@ inside the new one and violate the one-purpose boundary.
 
 ## Agent-neutral metered evolution tools
 
-The implemented source-only driver has no model runtime. It invokes a
-caller-selected strict proposer command and uses the existing Metering
-applications as measurement, evidence, retention, and lineage tools. Concrete
-fixed connectors translate the same request for Pi and Prime Agent without
-making either a package dependency.
+Population Driver itself has no model runtime. It invokes caller-selected strict
+commands and uses the existing Metering applications as measurement, evidence,
+retention, and lineage tools. The concrete source-only Evolutionary Harness now
+implements one provider-neutral bounded recursive runtime behind that command
+boundary. Fixed connectors translate one model action for Pi and Prime Agent
+without making either a package dependency.
 
 The irreducible transition is one metered recurrence:
 
@@ -685,9 +725,10 @@ implementation:
 - requires an untouched final evaluation for any broader improvement claim.
 
 `connectors/fixed/pi/` and `connectors/fixed/prime_agent/` implement the same
-skill-proposer, text-runner, and Git-workspace roles. Deterministic tests use
-fake model commands to verify both translations through the same strict
-protocols. `connectors/live_agent_acceptance.py` separately launches the real Pi
+skill-proposer, text-runner, Git-workspace, tool-free typed-harness mutator, and
+one-action harness-model roles. Deterministic tests use fake model commands to
+verify the strict translations and complete harness runtime contract.
+`connectors/live_agent_acceptance.py` separately launches the real Pi
 and Prime Agent CLIs and requires each model to invoke Metering as an internal
 harness tool. That live check proves tool adoption for one request; it is not a
 full candidate-improvement claim.
@@ -710,8 +751,9 @@ population, learned mutation policy, database, event bus, plugin framework,
 automatic global skill installation, training loop, or production deployment.
 The separate Population Driver now composes Population allocation with bounded
 Controller calls for Git candidates while preserving all six semantic owners.
-It adds no learned policy, generic score, sandbox, installation, training, or
-deployment. Schema-version-1 fixture behavior and schema-version-2 direct
+It adds no learned policy, generic score, generic executor sandbox, installation,
+training, or deployment; the typed Evolutionary Harness supplies its own narrow
+OCI execution profile behind Candidate Runner. Schema-version-1 fixture behavior and schema-version-2 direct
 challenger requests remain compatible. Candidate Runner, Mutator, Forecast
 Assay, Selection Gate, Controller, and Observer split fixture-v1 and agent-v2
 workflow code behind unchanged thin dispatchers. Population Driver separately
@@ -728,12 +770,13 @@ it does not establish live-model or general task-solving improvement.
 ## Coding-agent connector status and roadmap
 
 **Status:** the least-privilege fixed profile is implemented for Pi and Prime
-Agent. The manifest-based full-context profile remains parked. The implemented
-live conformance path proves that both installed harnesses can invoke Metering as
-an internal tool for one request; deterministic tests prove both concrete
-translations against the proposer, text-runner, and Git-workspace protocols.
-This does not yet prove identical live end-to-end candidate improvement across
-providers. Connector conformance and adoption remain the current priority.
+Agent, including the typed-harness proposer/model/runner translations. The
+manifest-based full-context profile remains parked. The earlier live conformance
+path proves that both installed harnesses can invoke Metering as an internal tool
+for one request. Deterministic tests now additionally prove strict model-event
+translation and the complete typed recursive runtime through a fake model; they
+do not prove identical live end-to-end candidate improvement across providers.
+Live OCI acceptance remains configuration-specific.
 
 The goal is to let a concrete coding agent adopt this repository as an explicit
 tool, create or execute one candidate through a narrow role boundary, and invoke
@@ -785,23 +828,27 @@ commands are thin launchers rather than second implementations.
 ### Profile 1: fixed connector
 
 `fixed-connector-v1` is the implemented least-privilege profile. Pi and Prime
-Agent each expose a skill proposer, text-only candidate runner, and Git-workspace
-proposer over the existing protocol versions. A connector receives only the data
-required for one declared role and returns one strict protocol response. It has:
+Agent each expose a skill proposer, text-only candidate runner, Git-workspace
+proposer, typed-harness whole-file mutator, one-action model transport, and
+harness runner over the existing artifact boundary. A connector receives only
+the data required for one declared role and returns one strict protocol response. It has:
 
 - no implicit repository scan, discovered skills, context files, prior session,
   provider memory, or mutable global state;
-- one caller-pinned agent, model, tool policy, command, timeout, and budget;
+- one runtime-pinned agent version, provider, model, reasoning, tool policy,
+  command, timeout, image, and budget for typed harness runs;
 - an explicit candidate and public task/context payload;
 - canonical JSON input and strict, no-coercion output validation; and
 - no evaluator secrets, selection authority, installation, or deployment
   capability.
 
 Use this profile for reproducible comparisons and narrow production runners.
-Provider-specific code may translate the fixed request into another coding
-agent's public CLI boundary only after focused conformance tests; it must not
-change Metering's candidate, evidence, or retention semantics. SDK embedding is
-not part of the implemented profile.
+Typed harness runs additionally require the reviewed no-network OCI kernel and
+external observations; historical workspace roles do not gain that isolation
+implicitly. Provider-specific code may translate the fixed request into another
+coding agent's public CLI boundary only after focused conformance tests; it must
+not change Metering's candidate, evidence, or retention semantics. SDK embedding
+is not part of the implemented profile.
 
 ### Profile 2: full-context connector
 
@@ -917,11 +964,12 @@ artifacts at the edge. An external agent connected through a reviewed command
 may create those artifacts, but it may not access the protected scorer, approve
 its own candidate, install the winner, or alter the retention policy.
 
-Executable candidates remain untrusted. Callers must run them in a reviewed
-container or VM boundary with no host credentials or evaluator mount, restricted
-network access, bounded writable storage and resources, and fixed matched
-execution controls. The repository's path allowlist, digest checks, and process
-timeouts are not a sandbox.
+Executable candidates remain untrusted. The typed harness runs bootstrap and
+cells in its reviewed Docker profile with no host credentials or evaluator
+mount, no network, bounded writable storage/resources, and fixed matched
+controls. Callers must supply an equivalent reviewed container or VM for every
+other executable Git form. A path allowlist, digest checks, process cleanup, and
+timeouts alone are not a sandbox.
 
 Initially change one declared candidate axis per generation while freezing the
 others. This preserves attribution and makes evaluator gaming easier to detect.
@@ -1038,6 +1086,30 @@ The rewrite is complete only when:
   subtraction seed, uses exact archive allocation for recurrence, rejects a
   multiplication regression, and replays the resulting archive without treating
   the fixture as general model-improvement evidence;
+- `evolutionary-harness-v1` requires every one of its nine typed loci, canonical
+  policies, complete file coverage, safe paths, exact content digests, valid
+  bootstrap syntax, and a supported immutable dependency lock; host validation
+  never imports or executes candidate Python;
+- `evolutionary-harness-runtime-v1` derives one canonical identity from agent,
+  provider/model/reasoning, immutable OCI image, command, dependency allowlist,
+  limits, required observations, and cost semantics; Pi/Prime Agent version and
+  model pins cannot silently disagree with it;
+- kernel conformance proves boot, execute, interrupt, hard timeout, snapshot,
+  restore, cleanup, restart recovery, and shutdown through the same ABI used by
+  live runs; the unsafe process fixture is explicit and the live profile fails
+  closed without Docker/cgroup-v2 observations;
+- the fixed recursive loop enforces finite model, turn, execution, output,
+  snapshot, delegate-call, and depth bounds; delegates receive independent
+  contexts and kernels, provider tools remain disabled, and only the sandbox-side
+  kernel server calls candidate `exec`/`eval`;
+- content-addressed harness receipts bind candidate/task/manifest/runtime/
+  transcript identities, model usage, external model and kernel observations,
+  and separately named Population resource coordinates without inventing energy
+  or GPU readings;
+- the reference harness command performs mutation, isolated phenotype execution,
+  independent development evaluation, Population recurrence, exact final
+  allocation, protected final evaluation, permanent sealing, and offline
+  Git/manifest/receipt/ledger verification with no caller-written adapter;
 - the constructed live-Pi acceptance loads its final cases only after the
   development generation, never feeds them back to the proposer, and fails
   unless the exact selected head passes the declared development and final

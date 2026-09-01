@@ -208,6 +208,15 @@ digest verification. Its command and environment must be pinned by the caller;
 the general application kernel does not authenticate remote stores or runtime
 configuration.
 
+For `evolutionary-harness-v1`, the repository now supplies that executor at
+[`apps/harness/harness_runner.py`](../apps/harness/harness_runner.py). It verifies
+a complete nine-locus manifest and canonical runtime identity, obtains strict
+model actions through tool-free Pi or Prime Agent translations, executes
+candidate bootstrap/cells only in a reviewed no-network OCI kernel, and emits a
+content-addressed receipt. This is one concrete candidate form, not implicit
+sandboxing for arbitrary Git entrypoints. See the
+[typed harness contract](../apps/harness/README.md).
+
 The adapter must emit exactly:
 
 ```json

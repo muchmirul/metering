@@ -438,6 +438,15 @@ def test_final_evidence_seals_automatic_search(tmp_path: Path):
     )
     assert final_experiment.returncode == 0, final_experiment.stderr
     final_experiment_id = json.loads(final_experiment.stdout)["experiment_id"]
+
+    stopped_before_reveal = run_script(
+        DRIVER, request, "run", str(state), env=environment
+    )
+    assert stopped_before_reveal.returncode == 0, stopped_before_reveal.stderr
+    assert json.loads(stopped_before_reveal.stdout)["status"] == "final_evidence_sealed"
+    assert (tmp_path / "proposal-count").read_text() == "1"
+    assert (state / "driver.jsonl").read_bytes() == driver_before
+
     final_run = run_script(
         POPULATION,
         {

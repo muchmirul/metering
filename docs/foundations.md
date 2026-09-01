@@ -32,6 +32,7 @@ Likewise, a biological analogy does not make these programs organisms.
 | One generation | variation -> expression -> reveal -> assay -> retention | directed-evolution-inspired composition | Evolution Controller |
 | Population archive | identified runs -> named evidence -> feasible Pareto set -> exact parent draw | multi-objective retention plus replayable finite allocation | Population Archive |
 | Population recurrence | exact parent draw -> Controller evidence -> fresh archive | bounded mutation-only Darwinian code loop | Population Driver |
+| Harness phenotype | typed prompt/policy genome -> bounded model actions -> isolated IPython behavior | explicit operational semantics and resource confinement | Evolutionary Harness |
 | Integrity | canonical measurement files -> Git tree -> commit lineage | Git object model plus measurement replay | identities and `metering-history` |
 
 The [high-level system diagram](../README.md#system-at-a-glance) shows the data
@@ -187,6 +188,7 @@ Forecast Assay measures behavior on revealed evidence
 Selection Gate makes differential retention explicit
 Evolution Controller returns one selected child or parent
 explicit caller, Evolution Driver, or Population Driver repeats under fixed bounds
+typed Evolutionary Harness expresses one Git candidate without judging retention
 caller alone may approve a later mutation-policy change
 ```
 
@@ -321,6 +323,28 @@ rather than hiding them inside Controller or the installed package. Unbounded or
 implicit iteration would combine mechanism with policy and create an optimizer
 this repository could not generally validate.
 
+### Typed phenotype and fixed operational semantics
+
+A candidate harness is meaningful only relative to an interpreter and runtime.
+The implemented genome therefore names complete prompt, context, compaction,
+tool, subagent, bootstrap, snapshot, dependency, and entrypoint loci, while the
+fixed runner owns the action protocol and the runtime manifest owns model/image/
+resource identity. This is analogous to distinguishing inherited material from
+the environment in which a phenotype is expressed; it does not claim that
+software prompts are biological genomes.
+
+Candidate bootstrap and model-generated cells cross one explicit effect boundary:
+the sandbox-side kernel server. Recursive delegates get independent contexts and
+kernels, and every depth/call/turn/resource dimension is finite. Snapshot
+restoration makes interrupt and timeout behavior testable, not perfectly
+deterministic model inference. External receipts bind observed conditions so
+protocol decisions can replay even when model tokens or physical timing vary.
+
+Keeping the evaluator, final tasks, sandbox flags, resource monitor, and selection
+policy outside candidate loci prevents the simplest form of self-approval. It
+cannot prove semantic safety or generalization; it makes a concrete violation
+falsifiable and leaves installation/deployment caller-owned.
+
 ### Explicit draws and content IDs
 
 An explicit draw makes mutation replayable and testable. Canonical content IDs
@@ -398,7 +422,24 @@ history, or result inconsistent with Metering replay accepted by `verify`. This
 claim excludes authentication, rollback detection against an external
 checkpoint, and an attacker who consistently replaces the complete Git history.
 
-### H5: external adaptation experiment
+### H5: typed harness confinement and recurrence
+
+**Claim.** The accepted live phenotype executes candidate Python only in the
+identified no-network OCI kernel, records required external observations,
+stops Driver recurrence when its one-use final experiment is declared, and
+activates Population's permanent seal with the protected final run.
+
+**Falsifier.** Host validation or provider translation executes candidate code,
+a live completion lacks required CPU/memory/process/storage/wall evidence, final
+evidence appears in later proposal/allocation, or offline verification depends
+on mutable SQLite or another model call.
+
+**Current evidence.** Deterministic tests exercise manifest closure, recursive
+contexts, kernel interrupt/timeout/snapshot recovery, receipts, two-generation
+retention, final sealing, and offline replay through the unsafe fixture ABI.
+Live Docker/model acceptance remains required for claims about one concrete host.
+
+### H6: external adaptation experiment
 
 The repository's scientific hypothesis is deliberately external:
 

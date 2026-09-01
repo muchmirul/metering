@@ -30,8 +30,12 @@ from current implementation claims.
   covers the implemented source-only Population Archive and bounded Population
   Driver—canonical records, a rebuildable SQLite index, named evidence, Pareto
   retention, exact parent allocation, typed skill recombination, and bounded
-  Git-code mutation/evaluation recurrence—while separating parked adaptive-policy
-  and co-evolution directions.
+  Git-code mutation/evaluation recurrence plus the typed recursive harness,
+  reviewed OCI kernel, receipts, and protected final composition—while separating
+  parked adaptive-policy and co-evolution directions.
+- [Evolutionary Harness](../apps/harness/README.md) specifies the nine-locus
+  candidate, runtime identity, recursive action loop, kernel conformance,
+  resource receipts, one-command reference experiment, and offline verifier.
 - [Agent connectors](../connectors/README.md) documents the fixed Pi and Prime
   Agent translations, the shared internal Metering skill, and the explicit live
   harness conformance path.

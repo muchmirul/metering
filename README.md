@@ -40,6 +40,7 @@ flowchart LR
         Evolver["Evolution Driver<br/>bounded single-head recurrence"]
         PopDriver["Population Driver<br/>bounded archive/allocation recurrence"]
         Population["Population Archive<br/>multi-candidate records and allocation"]
+        Harness["Evolutionary Harness<br/>typed recursive Pi/IPython phenotype"]
         Controller["Evolution Controller<br/>one generation"]
         Observer["Observer<br/>observation boundary"]
         Mutator["Mutator<br/>one legal child"]
@@ -63,6 +64,9 @@ flowchart LR
     Controller -->|immutable round evidence| PopDriver
     PopDriver -->|candidate, runs, archive, draw| Population
     Population -->|exact next parent| PopDriver
+    PopDriver -->|verified Git phenotype| Harness
+    Harness <--> Sandbox
+    Harness -->|forecast, submission, receipt| Controller
     Caller -->|direct Python measurement| API
     Caller -->|one JSON measurement| CLI
     Caller -. optional record, log, or verify .-> History
@@ -99,7 +103,10 @@ Evolution Driver repeats completed agent-artifact generations under explicit
 limits; the caller still owns configuration, final evaluation, installation,
 and deployment. The separate Population Archive records caller-supplied
 candidate and development-run evidence, maintains a bounded Pareto archive, and returns one
-exact parent allocation without executing it. The bounded Population Driver can
+exact parent allocation without executing it. The concrete source-only
+Evolutionary Harness supplies a typed immutable prompt/context/compaction/tool/
+subagent/IPython genome, fixed recursive action loop, reviewed OCI kernel profile,
+external resource receipts, and protected final sealing. The bounded Population Driver can
 now feed that exact Git parent through one Controller generation, record both
 reports as Population replicates, refresh the archive, and repeat under explicit
 global limits. Its interruption-safe receipts never make SQLite or final
@@ -225,9 +232,24 @@ from Metering's trust boundary the agent remains an external proposer or runner
 without evaluator or retention authority.
 
 The fixed connectors translate the existing strict proposer and runner JSON
-protocols. They do not add either harness, a provider SDK, or model dependency to
-the installed package. The former Pi adapter paths under `apps/` and
-`artifacts/git/` remain thin compatibility launchers.
+protocols. They do not add either provider CLI, a provider SDK, or model
+dependency to the installed package. The former Pi adapter paths under `apps/`
+and `artifacts/git/` remain thin compatibility launchers.
+
+A repository-complete deterministic harness experiment is also available:
+
+```bash
+rm -rf /tmp/metering-harness-reference
+uv run python apps/harness/experiment.py fixture /tmp/metering-harness-reference
+uv run python apps/harness/experiment.py verify /tmp/metering-harness-reference
+```
+
+It runs the real typed manifest, recursive loop, persistent kernel ABI, receipts,
+Controller, Population recurrence, protected final assay, permanent final seal,
+and offline verifier with a fake model and an explicitly unsafe process fixture.
+For live Pi or Prime Agent, use the checked-in OCI profile and documented Docker/
+cgroup-v2 prerequisites; candidate Python never runs in the provider process.
+See the [Evolutionary Harness contract](apps/harness/README.md).
 
 Run the explicit live conformance path with a model available to both installed
 harnesses:
@@ -493,8 +515,10 @@ uv run python apps/population_driver/population_driver.py \
   < apps/population_driver/example-request.json
 ```
 
-The deterministic example uses non-executing adapters. Real Pi/Qwen proposal and
-candidate execution require a caller-reviewed sandbox. Final-role experiments
+The deterministic Population Driver example uses non-executing adapters.
+Arbitrary Pi/Qwen Git proposal and execution require a caller-reviewed sandbox;
+the typed [Evolutionary Harness](apps/harness/README.md) supplies one concrete
+reviewed Docker profile. Final-role experiments
 cannot create an archive, their first run seals later automatic search
 transitions, and no weighted generic fitness score is computed.
 

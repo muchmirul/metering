@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+# Supply a reviewed digest, for example:
+#   --build-arg PYTHON_IMAGE=python:3.12.8-slim-bookworm@sha256:<digest>
+ARG PYTHON_IMAGE
+FROM ${PYTHON_IMAGE}
+
+RUN python3 -m pip install \
+      --disable-pip-version-check \
+      --no-cache-dir \
+      "ipython==8.31.0" \
+    && python3 -c 'import IPython; assert IPython.__version__ == "8.31.0"' \
+    && rm -rf /root/.cache
+
+COPY --chmod=0555 apps/harness/kernel_server.py /opt/metering/kernel_server.py
+
+ENV HOME=/tmp \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+WORKDIR /tmp
+USER 65532:65532
+CMD ["python3", "/opt/metering/kernel_server.py", "--engine", "ipython"]

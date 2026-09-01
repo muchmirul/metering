@@ -13,6 +13,14 @@ ENTRYPOINTS = {
     ROOT / "apps/evolution_driver/signal_relay_acceptance.py",
     ROOT / "apps/evolution_driver/signal_relay_evaluator.py",
     ROOT / "apps/forecast_assay/forecast_assay.py",
+    ROOT / "apps/harness/conformance.py",
+    ROOT / "apps/harness/evidence_adapter.py",
+    ROOT / "apps/harness/experiment.py",
+    ROOT / "apps/harness/fixtures/arithmetic_evaluator.py",
+    ROOT / "apps/harness/fixtures/fixture_model.py",
+    ROOT / "apps/harness/fixtures/fixture_proposer.py",
+    ROOT / "apps/harness/harness_runner.py",
+    ROOT / "apps/harness/validate_candidate.py",
     ROOT / "apps/mutator/mutator.py",
     ROOT / "apps/mutator/pi_skill_proposer.py",
     ROOT / "apps/mutator/skill_artifact.py",
@@ -28,9 +36,15 @@ ENTRYPOINTS = {
     ROOT / "artifacts/git/pi_git_proposer.py",
     ROOT / "connectors/live_agent_acceptance.py",
     ROOT / "connectors/fixed/pi/git_proposer.py",
+    ROOT / "connectors/fixed/pi/harness_model.py",
+    ROOT / "connectors/fixed/pi/harness_proposer.py",
+    ROOT / "connectors/fixed/pi/harness_runner.py",
     ROOT / "connectors/fixed/pi/skill_proposer.py",
     ROOT / "connectors/fixed/pi/text_runner.py",
     ROOT / "connectors/fixed/prime_agent/git_proposer.py",
+    ROOT / "connectors/fixed/prime_agent/harness_model.py",
+    ROOT / "connectors/fixed/prime_agent/harness_proposer.py",
+    ROOT / "connectors/fixed/prime_agent/harness_runner.py",
     ROOT / "connectors/fixed/prime_agent/skill_proposer.py",
     ROOT / "connectors/fixed/prime_agent/text_runner.py",
 }
@@ -188,6 +202,56 @@ def test_hash_linked_source_ledgers_share_one_journal_mechanism():
             if isinstance(node, ast.ImportFrom)
         }
         assert "apps._support.journal" in modules
+
+
+def test_harness_application_is_provider_neutral():
+    offenders = []
+    for path in (ROOT / "apps/harness").rglob("*.py"):
+        for node in ast.walk(parsed(path)):
+            modules = []
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                modules = [node.module]
+            if any(module.startswith("connectors") for module in modules):
+                offenders.append((path.relative_to(ROOT).as_posix(), modules))
+    assert offenders == []
+
+
+def test_candidate_python_execution_is_confined_to_kernel_server():
+    offenders = []
+    for path in (ROOT / "apps/harness").rglob("*.py"):
+        if path.name == "kernel_server.py":
+            continue
+        for node in ast.walk(parsed(path)):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in {"eval", "exec"}
+            ):
+                offenders.append(path.relative_to(ROOT).as_posix())
+    assert offenders == []
+
+
+def test_reference_genome_excludes_fixed_evolution_authorities():
+    reference = ROOT / "apps/harness/reference"
+    files = {
+        path.relative_to(reference).as_posix()
+        for path in reference.rglob("*")
+        if path.is_file()
+    }
+    assert files == {
+        "compaction-policy.json",
+        "context-policy.json",
+        "dependencies.lock",
+        "entrypoint.json",
+        "harness.json",
+        "ipython-bootstrap.py",
+        "snapshot-policy.json",
+        "subagent-policy.json",
+        "system-prompt.txt",
+        "tool-policy.json",
+    }
 
 
 def test_installed_core_never_imports_source_control_plane():

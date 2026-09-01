@@ -86,7 +86,8 @@ candidates, identified experiments and replicates, named development evidence,
 a bounded Pareto archive, and exact uniform parent allocations. Its SQLite index
 is derived from a canonical hash-linked ledger and is never selection authority.
 Typed recombination is implemented only for complete `agent-skill-v1` file loci.
-The first final run seals every later search transition.
+A declared final experiment stops Population Driver recurrence before reveal;
+the first final run seals every later Population search transition.
 
 The bounded Population Driver now connects this archive to Controller for
 ordinary Git-code candidates. It evaluates the seed, uses each exact Population
@@ -101,6 +102,16 @@ stores, and a thin runtime while preserving schema version 1. A deterministic
 executable-Git test demonstrates subtraction -> retained addition -> rejected
 multiplication for one arithmetic fixture; this is mechanism validation, not a
 claim of general model improvement.
+
+The source-only [Evolutionary Harness](../apps/harness/README.md) now closes the
+generic executor gap for one mutation-only profile. It validates nine immutable
+typed loci, runs a model-call/output/timeout-bounded provider-neutral
+execute/delegate/finish loop, starts independent persistent IPython kernels in a reviewed no-network OCI profile,
+restores JSON-safe snapshots after interrupt/timeout, observes procfs/cgroup-v2
+resources, emits content-addressed receipts, and composes development recurrence
+with one protected final assay and Population's permanent seal. Pi and Prime
+Agent are concrete tool-free model transports. Deterministic CI uses the same
+wire contract through an explicitly unsafe host-process fixture.
 
 Implemented candidate forms are:
 
@@ -117,21 +128,24 @@ candidate tree and then treat the resulting commit as the same candidate.
 
 Do not claim or infer these capabilities from the current repository:
 
-- unbounded autonomous execution or recursive agent trees;
+- unbounded autonomous execution or unbounded recursive agent trees (only the
+  finite typed harness policy is implemented);
 - weighted reproductive scores or learned parent-allocation policy;
 - behavior-bucket retention beyond the implemented Pareto archive;
 - Price-equation attribution or proposal-yield evaluation;
 - arbitrary Git recombination or evaluator/test coevolution;
 - automatic candidate installation, deployment, or rollback;
-- a sandbox supplied by Metering;
+- a sandbox in the installed Metering package or for arbitrary legacy Git
+  executors (the source-only typed harness has one reviewed Docker/cgroup-v2
+  profile);
 - model training or environment-specific benchmark integration;
 - full-context agent adoption or ambient agent memory.
 
-Only the bounded mutation-only Population Driver composition documented above
-is current automatic population behavior. Adaptive mutation, code
-recombination, evaluator co-evolution, installation, deployment, and enforced
-sandbox profiles remain parked unless `PLAN.md`, tests, and implementation are
-updated together.
+Only the bounded mutation-only Population Driver and typed-harness composition
+documented above are current automatic population behavior. Adaptive mutation,
+code recombination, evaluator co-evolution, installation, deployment, and other
+sandbox/transport profiles remain parked unless `PLAN.md`, tests, and
+implementation are updated together.
 
 ## Agent and trust checklist
 
@@ -162,6 +176,8 @@ Before running an application workflow:
   bounded single-head recurrence.
 - [`../apps/population_driver/README.md`](../apps/population_driver/README.md):
   bounded archive-allocation-mutation/evaluation recurrence.
+- [`../apps/harness/README.md`](../apps/harness/README.md): typed recursive
+  phenotype, kernel isolation, receipts, final assay, and reference command.
 - [`../artifacts/git/README.md`](../artifacts/git/README.md): immutable Git
   candidates and external-output receipts.
 - [`../connectors/README.md`](../connectors/README.md): fixed connector and trust

@@ -39,6 +39,14 @@ def _resource_limit_status(context: dict[str, object]) -> str | None:
     return None
 
 
+def final_phase_started(state: PopulationState) -> bool:
+    """Return whether final work has begun, before or after its sealing run."""
+
+    return state.final_evaluation_started or any(
+        experiment["role"] == "final" for experiment in state.experiments.values()
+    )
+
+
 def stop_status(context: dict[str, object]) -> str | None:
     """Return the first deterministic stop reason, or ``None`` to continue."""
 
@@ -46,7 +54,7 @@ def stop_status(context: dict[str, object]) -> str | None:
     limits = cast(dict[str, object], config["limits"])
     state = cast(PopulationState, context["population"])
     rounds = cast(list[object], context["rounds"])
-    if state.final_evaluation_started:
+    if final_phase_started(state):
         return "final_evidence_sealed"
     if len(rounds) >= int(limits["max_rounds"]):
         return "round_limit"
@@ -76,7 +84,7 @@ def plan(context: dict[str, object], *, allow_controller: bool) -> DriverAction:
     pending = cast(dict[str, object] | None, context["pending"])
     if pending is not None:
         population = cast(PopulationState, context["population"])
-        if population.final_evaluation_started:
+        if final_phase_started(population):
             return DriverAction("stop", status="final_evidence_sealed")
         if (
             pending["stage"] in {"controller_pending", "controller_complete"}

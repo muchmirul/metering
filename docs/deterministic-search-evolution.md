@@ -10,8 +10,11 @@ parent allocation, named resource accounting, and typed skill-artifact
 recombination. The bounded
 [`apps/population_driver`](../apps/population_driver/README.md) composes exact
 allocation with one-generation Controller mutation/evaluation for Git-code
-candidates. Neither application adapts mutation policy, co-evolves evaluators,
-installs candidates, or deploys them.
+candidates. [`apps/harness`](../apps/harness/README.md) now supplies one concrete
+mutation-only typed phenotype, bounded recursive Pi/IPython loop, reviewed OCI
+kernel profile, external resource receipts, protected final assay, and reference
+composition. None adapts mutation policy, co-evolves evaluators, installs
+candidates, or deploys them.
 
 The installed `metering` package remains only the four named finite-distribution
 measures. [`PLAN.md`](../PLAN.md) is the normative contract; later phases remain
@@ -97,7 +100,7 @@ The useful distinction is:
 |---|---|---|
 | External agent and model | Propose, modify, or execute candidates | It must not judge its own retention or inspect protected evaluation material |
 | Git artifact layer | Provide immutable candidate identity, parentage, diffs, and portable content | Git identity must not be treated as correctness, authorship, or fitness |
-| Runner and sandbox | Execute a pinned candidate under a pinned environment and finite budget | It must not alter evaluator assets or the population record |
+| Runner and sandbox | Execute a pinned candidate under a pinned environment and finite budget; the typed harness uses the reviewed OCI profile | It must not alter evaluator assets or the population record |
 | Trusted evaluator | Produce task, safety, and resource evidence | It must not silently redefine the candidate or mutation policy |
 | Metering package | Validate declared finite probability models and compute named information measures | It must not estimate probabilities, invent semantics, or return a generic intelligence score |
 | Population index | Make candidates, lineages, runs, and metrics queryable | It must not become the sole source of truth or silently mutate evidence |
@@ -118,10 +121,10 @@ explicit owners:
 | Installed `src/metering/` core | Validate caller-supplied finite probability models and compute four named measures | Population state, SQLite, policy, runners, recombination, deployment |
 | Trusted source-only `apps/` control plane | Canonical records, evidence composition, archive policy, allocation, recurrence, and typed transitions | Becoming a candidate, reading hidden cases through candidate code, installation or deployment |
 | Searchable candidate artifacts | Skills, external adapters, prompts, configurations, and model-output receipts approved for one experiment | Rewriting Metering, the six application stages, Population Archive, evaluator, ledger, or selection policy |
-| Caller infrastructure | Sandbox, secrets, artifact stores, final evaluation, approval, installation, deployment, and rollback | Inferring those decisions from a local development result |
+| Caller infrastructure | Docker/cgroup-v2 or another reviewed platform, secrets, artifact stores, approval, installation, deployment, and rollback | Inferring those decisions from a local development result |
 
-The population applications are excluded from the wheel, and Population Archive
-uses only Metering's public API. The existing six applications remain the owners
+The population and harness applications are excluded from the wheel, and
+Population Archive uses only Metering's public API. The existing six applications remain the owners
 of variation, execution, evaluation, assay, pairwise retention, and
 one-generation ordering; Population Archive is an outer archive/allocation
 mechanism, and Population Driver is a bounded composition wrapper, not a
@@ -571,17 +574,11 @@ A reasonable initial protected core includes:
 - final-evaluation separation;
 - caller authority over installation, deployment, and rollback.
 
-The searchable surface may include:
-
-- complete `SKILL.md` artifacts;
-- prompts and system instructions;
-- tool descriptions and routing;
-- context and compaction policy;
-- memory organization;
-- verification loops;
-- external candidate harness or adapter source artifacts;
-- model-output artifacts;
-- typed combinations of independently evaluable components.
+The implemented first harness surface is exactly the typed prompt, context,
+compaction, tool, subagent, IPython bootstrap, snapshot, dependency-lock, and
+entrypoint loci. Complete `SKILL.md`, other external adapters, model-output
+artifacts, and typed combinations remain valid candidate forms in their own
+experiments, but they do not enlarge this genome implicitly.
 
 The repository's trusted applications, shared protocol/transport code, ledger,
 index builder, evaluator, and selection policy are never included by “harness
@@ -650,7 +647,27 @@ and rejecting the regression for one declared task. See
 [source-only control-plane architecture](source-architecture.md); this mechanism
 test is not a general capability result.
 
-### Phase 7: adaptive mutation policy — parked
+### Phase 7: typed recursive harness and protected final composition — implemented
+
+`apps/harness` validates a complete nine-locus immutable genome and canonical
+runtime identity. A fixed provider-neutral loop obtains strict execute, delegate,
+or finish actions from tool-free Pi/Prime Agent transports; only a supervised
+persistent kernel can execute candidate bootstrap or cells. The reviewed live
+profile enforces no network or host mounts, read-only root, non-root UID, dropped
+capabilities, no-new-privileges, bounded tmpfs/CPU/memory/pids, deadlines, and
+required cgroup-v2 observations. JSON-safe snapshots restore after interrupt or
+hard timeout. Content-addressed receipts bind candidate, task, transcript, model
+usage, kernel/model resources, and separately named Population costs.
+
+The reference command composes two development mutations through Population
+Driver, records an exact final allocation, declares a one-use final experiment
+that stops Driver recurrence before execution, loads a distinct protected suite,
+appends one final run, activates the permanent search seal, and verifies Git,
+manifests, dependency compatibility, receipts, and both ledgers offline. The
+fixture model and host kernel establish deterministic mechanism behavior only;
+live acceptance requires the immutable OCI image and reviewed credentials.
+
+### Phase 8: adaptive mutation policy — parked
 
 This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).
 Use accumulated evidence to modify $`\theta_t`$, the external proposal policy.
@@ -658,7 +675,7 @@ Mutual information between declared mutation features and outcomes may be one
 analysis tool, but it does not establish causality by itself. Policy adaptation
 must remain versioned and reversible.
 
-### Phase 8: adversarial and co-evolving environments — parked
+### Phase 9: adversarial and co-evolving environments — parked
 
 This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).
 Only after evaluator isolation and population replay are trustworthy should the
@@ -710,7 +727,18 @@ untouched final set reduces the gap between development score and final score.
 **Falsifier.** Controlled experiments show no reduction in that gap, or show that
 the restriction only hides rather than prevents evaluator exploitation.
 
-### H5: structured failures reduce repeated waste
+### H5: harness isolation and replay
+
+**Claim.** In the typed live profile, candidate Python can execute only in the
+identified no-network OCI kernel; every accepted completion binds model and
+kernel resource observations, and offline verification reconstructs the exact
+candidate/runtime/final seal without model calls or SQLite.
+
+**Falsifier.** Candidate bootstrap or cells execute in the host connector, a live
+run succeeds without required observations, protected final evidence enters a
+later search transition, or verification requires mutable SQLite/provider state.
+
+### H6: structured failures reduce repeated waste
 
 **Claim.** Recording failed mutations, their context, and their evidence reduces
 repeated equivalent failures or improves parent allocation under a fixed budget.

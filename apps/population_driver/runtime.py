@@ -26,7 +26,7 @@ from apps.population_driver.machine import (
     update_pending,
 )
 from apps.population_driver.paths import population_root
-from apps.population_driver.planner import plan
+from apps.population_driver.planner import final_phase_started, plan
 from apps.population_driver.population_driver_protocol import (
     DRIVER_SCHEMA_VERSION,
     PopulationDriverError,
@@ -240,7 +240,7 @@ def retry_population_driver(source: str, state_root: Path) -> dict[str, object]:
             )
         config = cast(dict[str, object], context["config"])
         population_state = cast(PopulationState, context["population"])
-        if population_state.final_evaluation_started:
+        if final_phase_started(population_state):
             raise PopulationDriverError("final evidence seals the pending retry")
         if population_state.head_id != pending["population_start_record_id"]:
             raise PopulationDriverError(
