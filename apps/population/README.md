@@ -17,8 +17,11 @@ It implements a bounded subset of the deterministic-search proposal:
 - named task, safety, forecast-surprisal, novelty, information, reliability, and
   resource evidence without a generic fitness score.
 
-Adaptive mutation, model execution, evaluator co-evolution, final-result
-feedback, deployment, and automatic recurrence are not implemented.
+This application itself does not invoke a model. The separate bounded
+[Population Driver](../population_driver/README.md) now composes its exact
+allocation with Controller mutation/evaluation for Git candidates. Adaptive
+mutation, evaluator co-evolution, final-result feedback, deployment, and
+unbounded recurrence remain unimplemented.
 
 ## Ownership boundary
 
@@ -311,4 +314,4 @@ index against a fresh ledger-derived reconstruction first.
 See [foundations](docs/foundations.md) for equations, hypotheses, and falsifiers,
 and the repository-wide
 [deterministic search design](../../docs/deterministic-search-evolution.md) for
-the larger unimplemented direction.
+the implemented bounded composition and larger parked directions.

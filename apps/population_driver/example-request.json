@@ -1,0 +1,113 @@
+{
+  "allocation_draws": [
+    {
+      "denominator": 1,
+      "numerator": 0
+    },
+    {
+      "denominator": 1,
+      "numerator": 0
+    }
+  ],
+  "evidence_adapter": {
+    "command": [
+      "python3",
+      "apps/population_driver/demo_adapter.py",
+      "evidence"
+    ],
+    "timeout_seconds": 10
+  },
+  "generation": {
+    "evaluation": "population-driver/protocol-demo-v1",
+    "evaluator": {
+      "command": [
+        "python3",
+        "apps/population_driver/demo_adapter.py",
+        "evaluator"
+      ],
+      "timeout_seconds": 10
+    },
+    "runner": {
+      "command": [
+        "python3",
+        "apps/population_driver/demo_adapter.py",
+        "runner"
+      ],
+      "timeout_seconds": 10
+    },
+    "selection_policy": {
+      "minimum_pass_improvement": 1,
+      "reject_safety_regression": true,
+      "type": "task-pass-count-v1"
+    },
+    "tasks": [
+      {
+        "case_id": "protocol-demo-case",
+        "input": {
+          "required_behavior": "adapted"
+        }
+      }
+    ]
+  },
+  "initial_parent_artifact": {
+    "artifact_schema": "git-candidate-v1",
+    "commit": "0000000000000000000000000000000000000000",
+    "content_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "entrypoint": "solver.py",
+    "git_tree": "0000000000000000000000000000000000000000",
+    "outputs": [],
+    "repository": "demo://population-driver-protocol"
+  },
+  "limits": {
+    "max_proposal_calls": 3,
+    "max_rounds": 3,
+    "max_total_candidate_cost": {
+      "actions": 100,
+      "energy_millijoules": 100,
+      "gpu_milliseconds": 100,
+      "memory_bytes": 100,
+      "storage_bytes": 100,
+      "tokens": 100,
+      "wall_milliseconds": 100
+    },
+    "max_wall_seconds": 1000
+  },
+  "population": {
+    "configuration": {
+      "archive_policy": {
+        "capacity": 16,
+        "reliability_kappa": 0,
+        "type": "pareto-uniform-v1"
+      },
+      "name": "population-driver-protocol-demo"
+    },
+    "development": {
+      "behavior_space": [
+        "fail",
+        "pass"
+      ],
+      "budget": {
+        "actions": 10,
+        "energy_millijoules": 10,
+        "gpu_milliseconds": 10,
+        "memory_bytes": 10,
+        "storage_bytes": 10,
+        "tokens": 10,
+        "wall_milliseconds": 10
+      },
+      "runtime_id": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  },
+  "proposal": {
+    "command": [
+      "python3",
+      "apps/population_driver/demo_adapter.py",
+      "proposal"
+    ],
+    "context": {
+      "objective": "Produce one bounded ordinary-code mutation."
+    },
+    "timeout_seconds": 10
+  },
+  "schema_version": 1
+}

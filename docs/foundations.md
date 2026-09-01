@@ -31,6 +31,7 @@ Likewise, a biological analogy does not make these programs organisms.
 | Retention | two aligned assay reports -> selected identity | strict pairwise elitist selection | Selection Gate |
 | One generation | variation -> expression -> reveal -> assay -> retention | directed-evolution-inspired composition | Evolution Controller |
 | Population archive | identified runs -> named evidence -> feasible Pareto set -> exact parent draw | multi-objective retention plus replayable finite allocation | Population Archive |
+| Population recurrence | exact parent draw -> Controller evidence -> fresh archive | bounded mutation-only Darwinian code loop | Population Driver |
 | Integrity | canonical measurement files -> Git tree -> commit lineage | Git object model plus measurement replay | identities and `metering-history` |
 
 The [high-level system diagram](../README.md#system-at-a-glance) shows the data
@@ -185,7 +186,8 @@ Candidate Runner expresses a genome as forecasts
 Forecast Assay measures behavior on revealed evidence
 Selection Gate makes differential retention explicit
 Evolution Controller returns one selected child or parent
-external caller repeats generations and may adapt mutation policy
+explicit caller, Evolution Driver, or Population Driver repeats under fixed bounds
+caller alone may approve a later mutation-policy change
 ```
 
 This is a directed-evolution-inspired software decomposition. The apps do not
@@ -221,8 +223,9 @@ $+\infty-(+\infty)$.
 The Mutator request supplies both the finite support of $Q$ and the draw, so
 it evaluates one declared mutation event without owning randomness. Selection
 Gate owns the strict threshold rule; only the controller turns that decision
-into `next_parent`. Updating $\theta_t$, repeating the transition, and
-stopping remain caller-owned policy.
+into `next_parent`. Updating $\theta_t$ remains caller-owned policy. Repetition and stopping are
+either direct caller actions or the behavior of one explicitly configured,
+bounded source-only driver.
 
 The Price equation provides a useful conceptual reason not to merge variation
 and selection:
@@ -305,15 +308,16 @@ and Selection Gate recomputes rather than trusting reported aggregates. These
 separations make identity swapping, evidence mismatch, target leakage, and
 calibration-versus-capability confusion testable.
 
-### One generation, not an autonomous loop
+### One generation remains the semantic boundary
 
 The controller returns after one generation. This keeps mutation-policy updates,
-adapter isolation, non-time budgets, installation, and deployment outside the
+adapter isolation, physical budgets, installation, and deployment outside the
 generation mechanism. The optional source-only Evolution Driver makes bounded
-repetition, persistent state, and stopping explicit in its request and ledger;
-it does not hide them inside Controller or the installed package. The separate
-Population Archive records multiple externally evaluated candidates and returns
-one explicit allocation without running another generation. Unbounded or
+single-head repetition explicit. Population Archive records multiple evaluated
+candidates and exact allocations; Population Driver now composes those
+allocations with bounded Controller calls for Git candidates. Both drivers keep
+persistence, retry, and stopping explicit in versioned requests and ledgers
+rather than hiding them inside Controller or the installed package. Unbounded or
 implicit iteration would combine mechanism with policy and create an optimizer
 this repository could not generally validate.
 

@@ -86,9 +86,16 @@ candidates, identified experiments and replicates, named development evidence,
 a bounded Pareto archive, and exact uniform parent allocations. Its SQLite index
 is derived from a canonical hash-linked ledger and is never selection authority.
 Typed recombination is implemented only for complete `agent-skill-v1` file loci.
-The first final run seals every later search transition. The application does
-not execute the allocated parent or automatically connect it to another
-generation.
+The first final run seals every later search transition.
+
+The bounded Population Driver now connects this archive to Controller for
+ordinary Git-code candidates. It evaluates the seed, uses each exact Population
+allocation as the next Controller parent, records matched parent/child reports as
+replicates, refreshes the archive, and stops at global round, proposal-call,
+timeout-reservation, resource, empty-archive, or final-evidence limits. A pending
+model call requires explicit retry approval; durable Controller evidence resumes
+without another model call. Its driver and Population ledgers plus immutable
+receipts are authoritative, and it never reads SQLite for recurrence.
 
 Implemented candidate forms are:
 
@@ -105,7 +112,7 @@ candidate tree and then treat the resulting commit as the same candidate.
 
 Do not claim or infer these capabilities from the current repository:
 
-- autonomous population execution or recursive agent trees;
+- unbounded autonomous execution or recursive agent trees;
 - weighted reproductive scores or learned parent-allocation policy;
 - behavior-bucket retention beyond the implemented Pareto archive;
 - Price-equation attribution or proposal-yield evaluation;
@@ -115,10 +122,11 @@ Do not claim or infer these capabilities from the current repository:
 - model training or environment-specific benchmark integration;
 - full-context agent adoption or ambient agent memory.
 
-Only the Population Archive mechanisms documented above are current runtime
-behavior. Adaptive mutation, co-evolution, and automatic population execution
-remain proposals unless `PLAN.md`, tests, and implementation are updated
-together.
+Only the bounded mutation-only Population Driver composition documented above
+is current automatic population behavior. Adaptive mutation, code
+recombination, evaluator co-evolution, installation, deployment, and enforced
+sandbox profiles remain parked unless `PLAN.md`, tests, and implementation are
+updated together.
 
 ## Agent and trust checklist
 
@@ -145,6 +153,8 @@ Before running an application workflow:
   protocol.
 - [`../apps/evolution_driver/README.md`](../apps/evolution_driver/README.md):
   bounded single-head recurrence.
+- [`../apps/population_driver/README.md`](../apps/population_driver/README.md):
+  bounded archive-allocation-mutation/evaluation recurrence.
 - [`../artifacts/git/README.md`](../artifacts/git/README.md): immutable Git
   candidates and external-output receipts.
 - [`../connectors/README.md`](../connectors/README.md): fixed connector and trust

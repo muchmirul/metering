@@ -34,7 +34,8 @@ flowchart LR
     Sandbox["Versioned sandbox"]
 
     subgraph Applications["Repository-local applications (source only)"]
-        Evolver["Evolution Driver<br/>bounded recurrence"]
+        Evolver["Evolution Driver<br/>bounded single-head recurrence"]
+        PopDriver["Population Driver<br/>bounded archive/allocation recurrence"]
         Population["Population Archive<br/>multi-candidate records and allocation"]
         Controller["Evolution Controller<br/>one generation"]
         Observer["Observer<br/>observation boundary"]
@@ -51,9 +52,14 @@ flowchart LR
     end
 
     Caller -->|one generation| Controller
-    Caller -. optional bounded run .-> Evolver
+    Caller -. optional bounded single-head run .-> Evolver
     Caller -. record/query/allocate .-> Population
+    Caller -. optional bounded population run .-> PopDriver
     Evolver -->|one request at a time| Controller
+    PopDriver -->|allocated Git parent| Controller
+    Controller -->|immutable round evidence| PopDriver
+    PopDriver -->|candidate, runs, archive, draw| Population
+    Population -->|exact next parent| PopDriver
     Caller -->|direct Python measurement| API
     Caller -->|one JSON measurement| CLI
     Caller -. optional record, log, or verify .-> History
@@ -89,9 +95,13 @@ measurement recording. Controller owns one generation. The optional source-only
 Evolution Driver repeats completed agent-artifact generations under explicit
 limits; the caller still owns configuration, final evaluation, installation,
 and deployment. The separate Population Archive records caller-supplied
-candidate and development-run evidence, maintains a bounded Pareto archive, and
-returns one exact parent allocation without executing it. Its SQLite database is
-a disposable ledger-derived index. Metering only validates caller-supplied
+candidate and development-run evidence, maintains a bounded Pareto archive, and returns one
+exact parent allocation without executing it. The bounded Population Driver can
+now feed that exact Git parent through one Controller generation, record both
+reports as Population replicates, refresh the archive, and repeat under explicit
+global limits. Its interruption-safe receipts never make SQLite or final
+evidence recurrence authority. Population's SQLite database remains a disposable
+ledger-derived index. Metering only validates caller-supplied
 probability models and evaluates named measures. The Evolution Driver
 [README](apps/evolution_driver/README.md) includes a constructed live-Pi
 acceptance command that keeps its final cases outside retention and states the
@@ -399,8 +409,8 @@ stopping. See the [controller contract](apps/controller/README.md) and complete
 integration tests in [`tests/test_controller.py`](tests/test_controller.py).
 
 [`apps/README.md`](apps/README.md) indexes the six repository-local stages plus
-the optional Evolution Driver and Population Archive outer controls. None
-extends the installed Metering API.
+the optional Evolution Driver, Population Archive, and Population Driver outer
+controls. None extends the installed Metering API.
 
 ## Agent-artifact generation
 
@@ -465,9 +475,21 @@ hash-linked ledger of candidates, experiments, unique replicate runs, named
 evidence, development-only Pareto archives, exact uniform parent allocations,
 and typed skill-file recombination receipts.
 
-It does not run the allocated parent or replace Controller. A caller may feed
-that identity into a later explicit proposal/generation workflow. Final-role
-experiments cannot create an archive, their first run seals later search
+Population Archive itself does not run the allocated parent or replace
+Controller. The separate bounded
+[Population Driver](apps/population_driver/README.md) performs that explicit
+composition for ordinary Git-code candidates:
+
+```bash
+rm -rf /tmp/metering-population-driver /tmp/metering-population-driver.lock
+uv run python apps/population_driver/population_driver.py \
+  run /tmp/metering-population-driver \
+  < apps/population_driver/example-request.json
+```
+
+The deterministic example uses non-executing adapters. Real Pi/Qwen proposal and
+candidate execution require a caller-reviewed sandbox. Final-role experiments
+cannot create an archive, their first run seals later automatic search
 transitions, and no weighted generic fitness score is computed.
 
 The local SQLite index is disposable and never controls selection:
@@ -532,8 +554,8 @@ uv build
 
 Application schema version 2 remains additive to the source-only applications;
 its direct-challenger request is unchanged and the proposer form is additional.
-The Evolution Driver and Population Archive each have separate source-only
-schema version 1 state formats. Population SQLite state is rebuildable and has
+Evolution Driver, Population Archive, and Population Driver each have separate
+source-only schema version 1 state formats. Population SQLite state is rebuildable and has
 no migration authority. Schema version 1 fixture requests remain supported.
 None of these application boundaries changes Metering's Python API, installed
 commands, JSON measurement protocol, history format, or numerical semantics.

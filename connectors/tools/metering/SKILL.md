@@ -61,13 +61,16 @@ applies the explicit task and safety gate, and records selected identity. A
 selected candidate remains run-local until a separate caller-approved
 installation or deployment.
 
-The generation path compares one parent and one child, and the bounded driver
-follows one selected head. The separate source-only `apps/population` command can
-record multiple externally evaluated candidates, retain a development-only
-Pareto archive, and return one exact uniform parent allocation. It does not run
-that parent, expose final evidence to selection, learn allocation policy,
-co-evolve evaluators, or deploy automatically. Read
-`apps/population/README.md` before using that optional boundary.
+The generation path compares one parent and one child, and Evolution Driver
+follows one selected head. The separate source-only `apps/population` command
+records multiple evaluated candidates, retains a development-only Pareto
+archive, and returns one exact uniform parent allocation. Bounded
+`apps/population_driver` can feed that exact Git parent through Controller,
+record matched replicates, refresh the archive, and repeat under fixed global
+limits. It never reads SQLite or final evidence as scheduling authority and does
+not learn mutation/allocation policy, co-evolve evaluators, install, or deploy.
+Read `apps/population/README.md` and `apps/population_driver/README.md` before
+using those optional boundaries.
 
 Use only a reviewed fixed connector under `connectors/fixed/`. Keep candidate
 processes away from protected evaluator data and the frozen Metering control

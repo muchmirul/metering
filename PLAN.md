@@ -386,10 +386,10 @@ after its concrete connector passes the same protocol and evidence tests.
 
 Both controller versions invoke every component through documented JSON
 standard streams. Neither owns a persistent lineage, automatic policy update,
-repetition, installation, deployment, rollback, or stopping rule. A caller or
-the explicit source-only evolution driver must submit another request to advance
-another generation. Installation of `next_parent` always remains a separate
-caller-approved operation.
+repetition, installation, deployment, rollback, or stopping rule. A caller, the
+explicit single-head Evolution Driver, or the bounded Population Driver must
+submit another request to advance another generation. Installation of
+`next_parent` always remains a separate caller-approved operation.
 
 The `apps/evolution_driver` wrapper owns only bounded recurrence between
 completed schema-version-2 generations. It keeps one append-only, hash-linked,
@@ -438,34 +438,63 @@ read one strict JSON object; success writes one canonical JSON object, and a
 request or population-state failure exits with status two and emits
 `invalid_request` or `population_error` respectively.
 
+The `apps/population_driver` outer orchestrator activates bounded automatic
+population execution as a separate source-only schema version 1 application.
+It accepts exactly one normalized Git seed, fixed proposal/runner/evaluator and
+trusted evidence-adapter commands, one derived development experiment, exactly
+`max_rounds - 1` rational allocation draws, and finite global round,
+proposal-call, candidate-resource, and timeout-reservation limits. The seed is
+the first Controller parent. Every later parent must be the exact candidate in
+the preceding Population allocation record. Controller still owns one matched
+parent/child generation; Population still owns named run evidence, Pareto
+retention, and exact allocation.
+
+Before a Controller attempt, Population Driver atomically records a canonical
+round intent. A valid Controller result is written as an immutable receipt
+before evidence adaptation or Population ingestion. A pending attempt without a
+valid Controller receipt cannot be repeated by ordinary resume; one matching
+`retry` request, explicit reason, remaining proposal call, and remaining timeout
+reservation are required. Once the Controller receipt exists, evidence
+adaptation and prefix-checked Population records resume without another model
+call. Completed rounds form a separate canonical hash-linked driver ledger and
+cross-reference exact Population candidate, run, archive, and allocation
+records. Driver and Population ledgers, immutable receipts, and a pending intent
+are authority; Population Driver never reads SQLite.
+
+This first driver schema is mutation-only and Git-code-only. A fixed external
+model such as Qwen may mutate ordinary code through Pi while model weights remain
+unchanged. The trusted evidence adapter may add only behavior distribution,
+protected admission, resource observations, and seed metadata; task, safety,
+forecast, candidate, evaluator, and selection facts replay from Controller.
+Controller's pairwise `next_parent` is recorded but Population allocation chooses
+the next population parent. The driver creates only development experiments,
+checks the Population final seal before another round, and never exposes final
+evidence to proposal, archive, or allocation. It does not adapt mutation,
+recombine Git code, train weights, co-evolve evaluators, provide a sandbox,
+install, or deploy.
+
 ### Parked population extensions
 
-**Status: parked.** The following work is recorded for future review but is not
-accepted runtime behavior, a schema promise, or authority granted to the
-installed package or current applications:
+**Status: automatic population execution is implemented; all items below remain
+parked.** They are not accepted runtime behavior, schema promises, or authority
+granted to the installed package or current applications:
 
-1. **Automatic population execution.** A future source-only outer orchestrator
-   may connect an allocated parent to proposal and Controller only after it has
-   a strict versioned request, finite global proposal/evaluation/resource and
-   wall-clock budgets, explicit stopping and approval points, interruption-safe
-   replay, atomic failure behavior, and proof that final-role evidence cannot
-   re-enter search.
-2. **Adaptive mutation policy.** A future application may update one declared
+1. **Adaptive mutation policy.** A future application may update one declared
    mutation policy only after mutation features, finite belief/update semantics,
    evidence alignment, policy identity, rollback, and falsifiers are concrete.
    It must not infer causality from mutual information or introduce a generic
    fitness, intelligence, or quality score.
-3. **Adversarial task generation or evaluator co-evolution.** This requires a
+2. **Adversarial task generation or evaluator co-evolution.** This requires a
    separately fixed and protected meta-evaluator, immutable evaluator lineage,
    non-stationary experiment identities, fresh final evidence, and a rule that
    no candidate or evolving evaluator can approve itself. The current trusted
    evaluator remains frozen within every accepted experiment.
-4. **Enforced candidate sandbox profile.** Isolation remains caller
+3. **Enforced candidate sandbox profile.** Isolation remains caller
    infrastructure until a reviewed container or VM profile can prove filesystem,
    credential, process, network, device, and resource restrictions through
    explicit receipts and adversarial conformance tests. Python path checks,
    command separation, process-group cleanup, and timeouts are not a sandbox.
-5. **Installation, deployment, and rollback integration.** These remain
+4. **Installation, deployment, and rollback integration.** These remain
    caller-approved external operations. Any future source-only adapter must keep
    credentials outside candidate access, bind the exact selected artifact and
    environment, require a separate approval action, emit immutable receipts,
@@ -532,6 +561,7 @@ tests/
     test_agent_evolution.py
     test_self_evolution.py
     test_population.py
+    test_population_driver.py
     test_signal_relay_acceptance.py
     test_git_artifact_evolution.py
     test_connectors.py
@@ -564,6 +594,7 @@ apps/
     controller/       fixture and agent-skill one-generation orchestrator
     evolution_driver/ bounded run-local recurrence over selected SKILL.md artifacts
     population/       canonical multi-candidate ledger, Pareto archive, allocation, and derived index
+    population_driver/ bounded archive-allocation-Controller recurrence for Git candidates
 ```
 
 Historical Pi scripts under `apps/` and `artifacts/git/` are thin compatibility
@@ -586,7 +617,10 @@ remain on protocol version 1. The Evolution Driver has a separate source-only
 schema version 1 and no earlier state format to migrate. Population Archive also
 has a separate source-only schema version 1 and no earlier ledger or SQLite
 format to migrate; its generated index is disposable rather than a compatibility
-authority. Moving Pi translations to `connectors/fixed/pi`
+authority. Population Driver has its own additive source-only schema version 1,
+canonical driver ledger, pending-intent format, and immutable receipt format; it
+reads the unchanged Population schema and never treats its SQLite index as
+state authority. Moving Pi translations to `connectors/fixed/pi`
 is source-path cleanup only: the former script paths remain compatibility
 launchers with the same standard-stream contracts. Prime Agent is an additive
 concrete connector over those existing contracts. These application and
@@ -663,12 +697,14 @@ target surprisal remain separately named calibration signals that may expose
 uncertainty or blind spots; they are not a capability score and cannot move the
 parent by themselves.
 
-The driver itself has no recursive agent tree, candidate population, learned
-mutation policy, database, event bus, plugin framework, automatic global skill
-installation, training loop, or production deployment. The separate Population
-Archive can retain and allocate among recorded candidates but does not execute
-that allocation or change the six semantic boundaries. Schema-version-1 fixture behavior and
-schema-version-2 direct challenger requests remain compatible; internal
+The single-head Evolution Driver itself has no recursive agent tree, candidate
+population, learned mutation policy, database, event bus, plugin framework,
+automatic global skill installation, training loop, or production deployment.
+The separate Population Driver now composes Population allocation with bounded
+Controller calls for Git candidates while preserving all six semantic owners.
+It adds no learned policy, generic score, sandbox, installation, training, or
+deployment. Schema-version-1 fixture behavior and schema-version-2 direct
+challenger requests remain compatible; internal
 Controller and Observer modules are split by workflow only to keep unrelated
 mechanisms readable.
 
@@ -961,8 +997,20 @@ The rewrite is complete only when:
   locus, requires meaningful contribution from both parents, reconstructs the
   child identity on replay, and rejects arbitrary Git candidate merging;
 - deleting and rebuilding `population.sqlite` reproduces every indexed fact,
-  changed rows fail independent verification, and neither archive nor parent
-  allocation reads the database;
+  changed rows fail independent verification, and archive, parent allocation,
+  and Population Driver recurrence never read the database;
+- Population Driver starts from the declared Git seed, uses each preceding exact
+  Population allocation as the next Controller parent, records matched
+  incumbent/challenger evidence and fresh archives, and stops at explicit round,
+  proposal-call, resource, timeout-reservation, empty-archive, or final-seal
+  limits without a generic score;
+- a pending Population Driver intent without a valid Controller receipt never
+  repeats an indeterminate model call through ordinary resume, explicit retries
+  consume durable call/time reservations, and post-Controller adapter or partial
+  Population recovery completes without another proposal call;
+- Population Driver verification cross-checks canonical driver and Population
+  ledgers plus immutable receipts, remains independent of SQLite, rejects receipt
+  tampering, and cannot continue search after the first final-role run;
 - the constructed live-Pi acceptance loads its final cases only after the
   development generation, never feeds them back to the proposer, and fails
   unless the exact selected head passes the declared development and final

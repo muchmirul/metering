@@ -2,12 +2,16 @@
 
 ## Status
 
-This document separates an implemented source-only population substrate from a
-larger unimplemented direction. [`apps/population`](../apps/population/README.md)
-implements canonical population records, a rebuildable SQLite index, one
-explicit Pareto archive, exact uniform parent allocation, named resource
-accounting, and typed skill-artifact recombination. It does not execute agents,
-adapt mutation policy, co-evolve evaluators, install candidates, or deploy them.
+This document separates an implemented source-only population substrate and
+bounded execution loop from larger parked directions.
+[`apps/population`](../apps/population/README.md) implements canonical population
+records, a rebuildable SQLite index, one explicit Pareto archive, exact uniform
+parent allocation, named resource accounting, and typed skill-artifact
+recombination. The bounded
+[`apps/population_driver`](../apps/population_driver/README.md) composes exact
+allocation with one-generation Controller mutation/evaluation for Git-code
+candidates. Neither application adapts mutation policy, co-evolves evaluators,
+installs candidates, or deploys them.
 
 The installed `metering` package remains only the four named finite-distribution
 measures. [`PLAN.md`](../PLAN.md) is the normative contract; later phases remain
@@ -116,10 +120,11 @@ explicit owners:
 | Searchable candidate artifacts | Skills, external adapters, prompts, configurations, and model-output receipts approved for one experiment | Rewriting Metering, the six application stages, Population Archive, evaluator, ledger, or selection policy |
 | Caller infrastructure | Sandbox, secrets, artifact stores, final evaluation, approval, installation, deployment, and rollback | Inferring those decisions from a local development result |
 
-The population application is excluded from the wheel and uses only Metering's
-public API. The existing six applications remain the owners of variation,
-execution, evaluation, assay, pairwise retention, and one-generation ordering;
-the population application is an outer archive and allocation mechanism, not a
+The population applications are excluded from the wheel, and Population Archive
+uses only Metering's public API. The existing six applications remain the owners
+of variation, execution, evaluation, assay, pairwise retention, and
+one-generation ordering; Population Archive is an outer archive/allocation
+mechanism, and Population Driver is a bounded composition wrapper, not a
 replacement stage.
 
 ## Candidate, experiment, and evidence identity
@@ -488,8 +493,8 @@ typed, independently testable loci.
 
 ## Population architecture
 
-The proposed population control plane adds six responsibilities around the
-existing one-generation kernel:
+The implemented substrate and bounded driver exercise a narrow subset of six
+responsibilities around the existing one-generation kernel:
 
 1. **Archive:** retain multiple viable and informative candidates rather than
    only one current head.
@@ -504,14 +509,16 @@ existing one-generation kernel:
 6. **Protected evaluation:** keep evaluator assets, final holdouts, and promotion
    authority outside candidate access.
 
-The end-to-end relation is:
+The implemented bounded relation is:
 
 $$
+\text{explicit parent allocation}
+\rightarrow
 \text{external proposer}
 \rightarrow
-\text{immutable candidate}
+\text{immutable Git candidate}
 \rightarrow
-\text{bounded execution}
+\text{bounded matched execution}
 \rightarrow
 \text{trusted evidence}
 \rightarrow
@@ -519,8 +526,14 @@ $$
 \rightarrow
 \text{archive update}
 \rightarrow
-\text{explicit parent allocation}.
+\text{next explicit allocation}.
 $$
+
+The seed is the first parent. Later parents come from the preceding exact
+Population allocation, not from SQLite or Controller's pairwise `next_parent`.
+The driver stores a durable intent before Controller, requires explicit retry
+approval when a model call is indeterminate, and resumes post-Controller work
+from immutable receipts without another proposal call.
 
 Metering's role is concentrated in the middle: it makes assumptions, candidate
 identity, evidence alignment, and mathematical measurements explicit. It does
@@ -579,8 +592,8 @@ self-confirmation.
 
 ## Implementation sequence
 
-The sequence separates implemented source-only mechanisms from unimplemented
-research directions.
+The sequence separates implemented source-only mechanisms from parked research
+directions.
 
 ### Phase 1: canonical population record — implemented
 
@@ -616,7 +629,18 @@ requires meaningful contribution from both parents, records provenance, and
 reconstructs the child during replay. Arbitrary Git merge and Git-candidate
 recombination remain rejected because merge success is not semantic validity.
 
-### Phase 6: adaptive mutation policy — parked
+### Phase 6: bounded automatic population execution — implemented
+
+`apps/population_driver` accepts one fixed development experiment, Git seed,
+proposal/runner/evaluator/evidence commands, exact allocation draws, and finite
+global limits. Each round runs one Controller generation, validates immutable
+receipts, records incumbent and challenger replicates in Population Archive,
+constructs a fresh Pareto archive, and records the next exact allocation. Its
+canonical driver and Population ledgers are recurrence authority; SQLite is
+never read. The first final run seals later rounds. This is mutation-only code
+evolution: fixed model weights produce Git variation.
+
+### Phase 7: adaptive mutation policy — parked
 
 This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).
 Use accumulated evidence to modify $`\theta_t`$, the external proposal policy.
@@ -624,7 +648,7 @@ Mutual information between declared mutation features and outcomes may be one
 analysis tool, but it does not establish causality by itself. Policy adaptation
 must remain versioned and reversible.
 
-### Phase 7: adversarial and co-evolving environments — parked
+### Phase 8: adversarial and co-evolving environments — parked
 
 This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).
 Only after evaluator isolation and population replay are trustworthy should the
@@ -633,6 +657,15 @@ evaluator co-evolution. These features increase strategic non-stationarity and
 can corrupt the reference used to define improvement.
 
 ## Falsifiable design hypotheses
+
+### H0: bounded recurrence replay
+
+**Claim.** Every parent after the seed is the candidate in the preceding exact
+allocation record, completed resume is call-free, and a pending indeterminate
+Controller attempt cannot repeat without a matching explicit retry.
+
+**Falsifier.** A valid completed chain uses another parent, depends on SQLite, or
+ordinary resume causes an unapproved proposal call.
 
 ### H1: index reconstruction
 

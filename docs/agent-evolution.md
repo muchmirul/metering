@@ -21,9 +21,13 @@ parent candidate + direct or proposer-produced challenger
 
 The controller performs one generation. It does not repeat generations,
 install the selected skill, or claim improvement outside the declared cases.
-The optional Evolution Driver repeats this same transition under persistent
-generation and rejection limits plus a per-invocation wall-clock limit, without
-changing Controller semantics.
+The optional Evolution Driver repeats this same transition along one selected
+head under persistent generation and rejection limits plus a per-invocation
+wall-clock limit. The separate bounded
+[Population Driver](../apps/population_driver/README.md) uses Population
+Archive's exact allocations as successive Git parents, records both Controller
+reports as development replicates, and refreshes the Pareto archive. Neither
+changes Controller semantics.
 
 ## Behavior-preserving decomposition
 
@@ -435,9 +439,11 @@ For serious evaluations:
 - retain the complete generation report outside the candidate workspace; and
 - require explicit approval before installing `next_parent`.
 
-The Evolution Driver's hashes detect accidental state modification but do not
-authenticate its writer. Repeated selection adapts to the generation suite, so
-that suite is no longer an untouched test after the first retained decision.
+Evolution Driver and Population Driver hashes detect accidental state
+modification but do not authenticate their writers. Repeated selection adapts
+to the development suite, so that suite is no longer an untouched test after
+the first retained decision. Population Driver additionally treats the first
+final Population run as a permanent search seal.
 
 A selected challenger is better only under the declared evaluator, cases,
 policy, and execution controls. The protocol cannot prove broader

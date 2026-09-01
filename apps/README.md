@@ -12,8 +12,8 @@ not installed as part of the `metering` package.
 | [Selection Gate](selection_gate/README.md) | Verified forecast or task/safety pairwise retention | [Pairwise selection, log-loss ratio, and hypotheses](selection_gate/docs/foundations.md) |
 | [Evolution Controller](controller/README.md) | One complete fixture or agent-artifact generation | [One-generation equations, biology boundary, and hypotheses](controller/docs/foundations.md) |
 
-Two source-only outer controls compose those stages without becoming additional
-semantic stages:
+Three source-only outer controls compose those stages without becoming
+additional semantic stages:
 
 - [Evolution Driver](evolution_driver/README.md) repeats one selected head under
   explicit limits.
@@ -21,12 +21,17 @@ semantic stages:
   identities, rebuilds a derived SQLite index, retains a development-only Pareto
   archive, allocates a parent from an exact draw, and performs typed skill-file
   recombination. It does not run an agent or replace Controller.
+- [Population Driver](population_driver/README.md) performs bounded Git-code
+  recurrence across Population allocation and one-generation Controller calls.
+  It uses immutable receipts and an interruption-safe round intent, and never
+  reads SQLite or final evidence into search.
 
 The intended composition is documented in
 [`docs/evolution-kernel.md`](../docs/evolution-kernel.md). Evolution Controller
 owns candidate execution, candidate-ID binding, and one explicit retention
-transition. An external caller or the optional bounded Evolution Driver owns
-repetition and stopping; adapters own non-time budgets. The controller carries
+transition. An external caller, the optional single-head Evolution Driver, or
+the bounded Population Driver owns repetition and stopping; adapters own physical resource
+budgets. The controller carries
 Mutator content IDs into
 Forecast Assay reports for the exact candidates Candidate Runner executed; an
 opaque report label alone remains insufficient proof.
@@ -69,6 +74,14 @@ exercised by [`tests/test_self_evolution.py`](../tests/test_self_evolution.py).
 The driver's constructed Signal Relay command adds a real-Pi acceptance path
 with final cases kept outside retention; its complete fake-Pi regression is
 [`tests/test_signal_relay_acceptance.py`](../tests/test_signal_relay_acceptance.py).
+
+[`population_driver/population_driver.py`](population_driver/README.md) is the
+multi-candidate outer wrapper. It starts with the seed and then uses each exact
+Population allocation as Controller's next Git parent, records matched
+incumbent/challenger reports as Population replicates, and refreshes the Pareto
+archive. Its global round, proposal-call, timeout-reservation, and resource
+bounds include explicit retry approval; its canonical receipts and ledgers are
+covered by [`tests/test_population_driver.py`](../tests/test_population_driver.py).
 
 The external [Git artifact bridge](../artifacts/git/README.md) demonstrates that
 the same boundaries can retain immutable adapter-source commits and external

@@ -156,7 +156,10 @@ agents, database, learned mutation policy, automatic installation, production
 deployment, or rollback command. The separate source-only
 [Population Archive](../population/README.md) can index externally completed
 candidate runs and allocate one parent without changing this driver's recurrence
-semantics. See the [Git artifact bridge](../../artifacts/git/README.md) for
+semantics. The separate [Population Driver](../population_driver/README.md)
+performs bounded archive/allocation recurrence for Git candidates; it does not
+silently replace this simpler single-head driver. See the
+[Git artifact bridge](../../artifacts/git/README.md) for
 adapter source and external model-output evolution.
 The proposer receives a fixed aggregate of the previous selection, not case
 submissions or evaluator evidence. Protected evaluator assets must still be

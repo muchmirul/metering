@@ -24,9 +24,10 @@ from current implementation claims.
   constructed live-Pi acceptance, additive Git source/model-output artifact
   bridge, and persistence and isolation limits.
 - [Deterministic search and evolution design](deterministic-search-evolution.md)
-  separates the implemented source-only Population Archive—canonical records, a
-  rebuildable SQLite index, named evidence, Pareto retention, exact parent
-  allocation, and typed skill recombination—from unimplemented adaptive-policy
+  covers the implemented source-only Population Archive and bounded Population
+  Driver—canonical records, a rebuildable SQLite index, named evidence, Pareto
+  retention, exact parent allocation, typed skill recombination, and bounded
+  Git-code mutation/evaluation recurrence—while separating parked adaptive-policy
   and co-evolution directions.
 - [Agent connectors](../connectors/README.md) documents the fixed Pi and Prime
   Agent translations, the shared internal Metering skill, and the explicit live

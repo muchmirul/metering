@@ -15,9 +15,10 @@ Candidate Runner turns one fixed genome into pre-reveal Observer forecasts
 Forecast Assay   measures revealed-target probabilistic behavior
 Selection Gate   verifies two reports and chooses differential retention
 Controller       executes one generation and returns the selected next parent
-Evolution Driver optionally repeats completed artifact generations under limits
-Population Archive optionally records multiple runs and allocates one parent
-Caller           owns configuration, adapter budgets, final tests, and deployment
+Evolution Driver optionally repeats one selected head under limits
+Population Archive records multiple runs and allocates one exact parent
+Population Driver optionally repeats allocation -> Controller -> archive under limits
+Caller           owns configuration, sandbox budgets, final tests, and deployment
 ```
 
 ## Two loops
@@ -40,6 +41,13 @@ parent
   -> Selection Gate
   -> controller returns the selected next parent
   -> caller or bounded Evolution Driver may submit another generation
+
+population recurrence:
+  Population Archive exact allocation
+  -> Population Driver supplies the Git parent to Controller
+  -> Controller returns matched parent/child evidence
+  -> Population Driver records both replicates and refreshes the archive
+  -> the next exact allocation supplies another parent, while limits permit
 ```
 
 These loops may interact, but their state transitions must remain named. An
@@ -60,7 +68,10 @@ evidence. See the [agent-artifact evolution protocol](agent-evolution.md).
 process, [`tests/test_agent_evolution.py`](../tests/test_agent_evolution.py)
 verifies the agent-artifact process,
 [`tests/test_self_evolution.py`](../tests/test_self_evolution.py) verifies bounded
-recurrence and resume,
+single-head recurrence and resume,
+[`tests/test_population_driver.py`](../tests/test_population_driver.py) verifies
+bounded allocated recurrence, interruption recovery, final sealing, and SQLite
+independence,
 [`tests/test_git_artifact_evolution.py`](../tests/test_git_artifact_evolution.py)
 verifies immutable Git source/model-output candidates through the same stages,
 and [`tests/test_evolution_kernel.py`](../tests/test_evolution_kernel.py) retains the
@@ -126,9 +137,11 @@ The six applications therefore remain auditable one-generation boundaries. The
 source-only Evolution Driver can repeat the unchanged schema-version-2 boundary.
 The separate [Population Archive](../apps/population/README.md) can record
 multiple externally completed runs, rebuild a derived query index, and allocate
-one retained development candidate without invoking Controller. In both paths,
-installation, deployment, final evaluation, and every policy change remain
-explicit caller decisions. External adapters also own sandboxing, hidden-test
+one retained development candidate without invoking Controller. The bounded
+[Population Driver](../apps/population_driver/README.md) now composes that exact
+allocation with Controller for ordinary Git candidates while preserving both
+owners and never consulting SQLite. In every path, installation, deployment,
+final evaluation, and every policy change remain explicit caller decisions. External adapters also own sandboxing, hidden-test
 isolation, model and tool settings, and token or monetary budgets they alone can
 observe.
 
