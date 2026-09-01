@@ -35,11 +35,13 @@ unbounded recurrence remain unimplemented.
 
 The population application is trusted control-plane code. It is not a candidate
 and must not be mounted writable inside a candidate workspace. `population.py`
-owns the command surface, `population_protocol.py` owns identities and evidence
+owns the command surface, `contract.py` exposes the narrow public operations
+used by outer controls, `population_protocol.py` owns identities and evidence
 validation, `population_policy.py` owns Pareto/allocation mathematics,
 `population_state.py` owns canonical persistence and replay, and
-`population_index.py` owns only derived SQLite facts. SQLite and the ledger use
-Python standard-library modules only and add no package dependency.
+`population_index.py` owns only derived SQLite facts. Callers do not import the
+private policy/state helpers. SQLite and the ledger use Python standard-library
+modules only and add no package dependency.
 
 ## State
 

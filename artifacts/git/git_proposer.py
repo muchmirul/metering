@@ -15,14 +15,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-HERE = Path(__file__).resolve().parent
-for import_root in (APPS_ROOT, HERE):
-    if str(import_root) not in sys.path:
-        sys.path.insert(0, str(import_root))
-
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (
     ADAPTER_PROTOCOL_VERSION,
     GIT_ARTIFACT_SCHEMA,
     ProtocolError,
@@ -31,9 +24,9 @@ from agent_protocol import (  # noqa: E402
     normalize_json_value,
     require_exact_keys,
 )
-from stdio_connector import canonical_json, decode_json_object  # noqa: E402
+from apps.stdio_connector import canonical_json, decode_json_object
 
-from git_repository import (  # noqa: E402
+from artifacts.git.git_repository import (
     GitCandidateError,
     changed_paths,
     clone_verified,
@@ -43,6 +36,8 @@ from git_repository import (  # noqa: E402
     run_git,
     validate_workspace,
 )
+
+ROOT = Path(__file__).resolve().parents[2]
 
 WorkspaceEditor = Callable[[Path, str], None]
 
@@ -55,9 +50,7 @@ def _json_string_array(name: str, *, required: bool) -> list[str] | None:
     source = os.environ.get(name)
     if source is None:
         if required:
-            raise ProposerError(
-                f"{name} must contain a non-empty JSON string array"
-            )
+            raise ProposerError(f"{name} must contain a non-empty JSON string array")
         return None
     if not source.strip():
         raise ProposerError(f"{name} must contain a non-empty JSON string array")
@@ -65,8 +58,10 @@ def _json_string_array(name: str, *, required: bool) -> list[str] | None:
         value = json.loads(source)
     except json.JSONDecodeError as exc:
         raise ProposerError(f"{name} is invalid JSON: {exc}") from exc
-    if type(value) is not list or not value or any(
-        type(item) is not str or not item or "\x00" in item for item in value
+    if (
+        type(value) is not list
+        or not value
+        or any(type(item) is not str or not item or "\x00" in item for item in value)
     ):
         raise ProposerError(f"{name} must contain a non-empty JSON string array")
     return value

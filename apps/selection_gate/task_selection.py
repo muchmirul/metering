@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from metering import self_information
 
-from agent_protocol import (
+from apps.agent_protocol import (
     AGENT_SCHEMA_VERSION,
     ProtocolError,
     normalize_json_value,
@@ -17,14 +17,14 @@ from agent_protocol import (
     require_schema_version,
     require_sha256,
 )
-from report_validation import (
+from apps.selection_gate.report_validation import (
     RequestError,
     nonnegative_number,
     number_as_float,
     probability,
     same_number,
 )
-from stdio_connector import canonical_digest
+from apps.stdio_connector import canonical_digest
 
 
 @dataclass(frozen=True)

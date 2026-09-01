@@ -640,6 +640,16 @@ canonical driver and Population ledgers are recurrence authority; SQLite is
 never read. The first final run seals later rounds. This is mutation-only code
 evolution: fixed model weights produce Git variation.
 
+Internally, the source-only control plane now uses package namespaces, narrow
+wire/process/journal/durable support, public Controller and Population owner
+contracts, and a Population Driver split into read-only replay, pure planning,
+explicit effects, durable stores, and a thin sequencer. Existing schema-version-1
+states and command paths remain unchanged. The deterministic executable-Git test
+covers a subtraction -> addition -> multiplication lineage, retaining addition
+and rejecting the regression for one declared task. See
+[source-only control-plane architecture](source-architecture.md); this mechanism
+test is not a general capability result.
+
 ### Phase 7: adaptive mutation policy — parked
 
 This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).

@@ -7,19 +7,20 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-POPULATION_ROOT = APPS_ROOT / "population"
-for import_root in (APPS_ROOT, POPULATION_ROOT):
-    if str(import_root) not in sys.path:
-        sys.path.insert(0, str(import_root))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import ProtocolError  # noqa: E402
-from population_index import query_index, rebuild_index, verify_index  # noqa: E402
-from population_policy import (  # noqa: E402
+from apps.agent_protocol import ProtocolError  # noqa: E402
+from apps.population.population_index import (  # noqa: E402
+    query_index,
+    rebuild_index,
+    verify_index,
+)
+from apps.population.population_policy import (  # noqa: E402
     decode_allocation_request,
     decode_archive_request,
 )
-from population_protocol import (  # noqa: E402
+from apps.population.population_protocol import (  # noqa: E402
     PopulationError,
     RequestError,
     decode_candidate_request,
@@ -28,14 +29,14 @@ from population_protocol import (  # noqa: E402
     decode_recombination_request,
     decode_run_request,
 )
-from population_state import (  # noqa: E402
+from apps.population.population_state import (  # noqa: E402
     append_validated_record,
     initialize,
     load_state,
     locked_state,
     verify_summary,
 )
-from stdio_connector import (  # noqa: E402
+from apps.stdio_connector import (  # noqa: E402
     decode_json_object,
     error_document,
     write_document,

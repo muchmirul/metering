@@ -562,6 +562,8 @@ tests/
     test_self_evolution.py
     test_population.py
     test_population_driver.py
+    test_darwinian_code_evolution.py
+    test_architecture.py
     test_signal_relay_acceptance.py
     test_git_artifact_evolution.py
     test_connectors.py
@@ -573,6 +575,7 @@ docs/
     evolution-kernel.md
     agent-evolution.md
     deterministic-search-evolution.md
+    source-architecture.md
 artifacts/
     git/              agent-neutral Git source/model-output candidate bridge
 connectors/
@@ -584,8 +587,9 @@ connectors/
     full_context/     parked manifest-based repository-adoption profile
 apps/
     README.md         application index and composition boundary
+    _support/         narrow wire, process, stdio, journal, and durable mechanics
     agent_protocol.py shared source-only agent artifact and adapter validation
-    stdio_connector.py shared strict JSON decoding, stdio, and subprocess mechanics
+    stdio_connector.py compatibility facade over shared transport mechanics
     observer/         fixture observer and trusted task-evaluator boundary
     forecast_assay/   forecast and task-evidence assay
     mutator/          schema-v1 genome mutation plus schema-v2 artifact mutation
@@ -593,8 +597,8 @@ apps/
     selection_gate/   schema-specific forecast/task retention implementations
     controller/       fixture and agent-skill one-generation orchestrator
     evolution_driver/ bounded run-local recurrence over selected SKILL.md artifacts
-    population/       canonical multi-candidate ledger, Pareto archive, allocation, and derived index
-    population_driver/ bounded archive-allocation-Controller recurrence for Git candidates
+    population/       public contract, canonical ledger, Pareto archive, allocation, and derived index
+    population_driver/ replay, planner, effects, store, and bounded Git recurrence runtime
 ```
 
 Historical Pi scripts under `apps/` and `artifacts/git/` are thin compatibility
@@ -620,7 +624,11 @@ format to migrate; its generated index is disposable rather than a compatibility
 authority. Population Driver has its own additive source-only schema version 1,
 canonical driver ledger, pending-intent format, and immutable receipt format; it
 reads the unchanged Population schema and never treats its SQLite index as
-state authority. Moving Pi translations to `connectors/fixed/pi`
+state authority. The source-only namespace and instruction refactor is internal:
+public Controller/Population contracts, shared journal/transport mechanics, and
+Population Driver replay/planner/effect/store modules preserve existing script
+paths, canonical bytes, identities, ledgers, receipts, and process boundaries;
+no state migration is introduced. Moving Pi translations to `connectors/fixed/pi`
 is source-path cleanup only: the former script paths remain compatibility
 launchers with the same standard-stream contracts. Prime Agent is an additive
 concrete connector over those existing contracts. These application and
@@ -704,9 +712,18 @@ The separate Population Driver now composes Population allocation with bounded
 Controller calls for Git candidates while preserving all six semantic owners.
 It adds no learned policy, generic score, sandbox, installation, training, or
 deployment. Schema-version-1 fixture behavior and schema-version-2 direct
-challenger requests remain compatible; internal
-Controller and Observer modules are split by workflow only to keep unrelated
-mechanisms readable.
+challenger requests remain compatible. Candidate Runner, Mutator, Forecast
+Assay, Selection Gate, Controller, and Observer split fixture-v1 and agent-v2
+workflow code behind unchanged thin dispatchers. Population Driver separately
+loads and verifies, plans one action, executes one effect, and stores through
+explicit owner APIs. These are readability and dependency-direction changes,
+not new semantic stages.
+
+A CI-safe executable-Git recurrence test now creates a subtraction seed,
+retains an addition descendant, allocates it as the next parent, rejects a
+multiplication descendant, and verifies the resulting fresh archive and replay.
+It establishes that exact deterministic mechanism for one trusted fixture only;
+it does not establish live-model or general task-solving improvement.
 
 ## Coding-agent connector status and roadmap
 
@@ -757,12 +774,13 @@ Git clone, validation, build, identity, commit, and publication mechanics remain
 under `artifacts/git/`; application schemas remain under `apps/`; mutation,
 evaluation, measurement, selection, and recurrence did not move.
 
-`apps/stdio_connector.py` retains its name because it owns generic transport
-mechanics used by the source applications, not agent translation. Renaming it
-would churn every application without clarifying the new top-level connector
-boundary. It remains the single owner for canonical JSON, standard streams,
-subprocess timeouts, and process-group cleanup. Historical source commands are
-thin launchers rather than second implementations.
+`apps/stdio_connector.py` retains its name as the compatibility facade used by
+source applications, not agent translation. Its canonical wire, standard-stream,
+and subprocess operations delegate to the orthogonal modules under
+`apps/_support/`; hash-linked source journals additionally share
+`apps/_support/journal.py`. Renaming the facade would churn application-facing
+source APIs without clarifying the connector boundary. Historical source
+commands are thin launchers rather than second implementations.
 
 ### Profile 1: fixed connector
 
@@ -942,6 +960,11 @@ The rewrite is complete only when:
   subprocess mechanics in the composable stdin apps have one shared source
   owner, while app-specific schemas, independently copyable examples,
   mathematics, and error policy remain local;
+- shared support imports no domain owner, cross-application imports use public
+  contracts rather than private symbols, only compatibility entry points mutate
+  `sys.path`, read-only Population Driver replay imports no durable stores, and
+  installed Metering imports no source control-plane module; the documented
+  Population Driver example matches its pre-refactor schema-v1 state manifest;
 - the Mutator changes exactly one legal locus, uses an explicit caller-owned
   draw, and reports Metering entropy and selected-mutation self-information;
 - Forecast Assay rejects unsupported schema versions and Selection Gate requires
@@ -1011,6 +1034,10 @@ The rewrite is complete only when:
 - Population Driver verification cross-checks canonical driver and Population
   ledgers plus immutable receipts, remains independent of SQLite, rejects receipt
   tampering, and cannot continue search after the first final-role run;
+- the executable-Git Darwinian test promotes a real addition descendant from a
+  subtraction seed, uses exact archive allocation for recurrence, rejects a
+  multiplication regression, and replays the resulting archive without treating
+  the fixture as general model-improvement evidence;
 - the constructed live-Pi acceptance loads its final cases only after the
   development generation, never feeds them back to the proposer, and fails
   unless the exact selected head passes the declared development and final

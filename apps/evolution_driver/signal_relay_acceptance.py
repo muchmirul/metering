@@ -14,12 +14,10 @@ from pathlib import Path
 from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-for import_root in (ROOT, APPS_ROOT):
-    if str(import_root) not in sys.path:
-        sys.path.insert(0, str(import_root))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (  # noqa: E402
     AGENT_SCHEMA_VERSION,
     ProtocolError,
     decode_candidate,
@@ -28,7 +26,7 @@ from agent_protocol import (  # noqa: E402
     require_nonempty_string,
 )
 from connectors.fixed.command import command_prefix  # noqa: E402
-from stdio_connector import (  # noqa: E402
+from apps.stdio_connector import (  # noqa: E402
     JsonProcessError,
     canonical_json,
     decode_json_object,
@@ -39,12 +37,8 @@ from stdio_connector import (  # noqa: E402
 
 EVOLVER = ROOT / "apps" / "evolution_driver" / "evolver.py"
 CONTROLLER = ROOT / "apps" / "controller" / "controller.py"
-LIVE_REQUEST = (
-    ROOT / "apps" / "evolution_driver" / "signal-relay-live-request.json"
-)
-FINAL_TASKS = (
-    ROOT / "apps" / "evolution_driver" / "signal-relay-final-tasks.json"
-)
+LIVE_REQUEST = ROOT / "apps" / "evolution_driver" / "signal-relay-live-request.json"
+FINAL_TASKS = ROOT / "apps" / "evolution_driver" / "signal-relay-final-tasks.json"
 SUMMARY_KEYS = {
     "completed_generations",
     "consecutive_rejections",
@@ -103,9 +97,7 @@ def _run(
     return _decode_process_response(source, location)
 
 
-def _component_timeout(
-    component: dict[str, object], location: str
-) -> int:
+def _component_timeout(component: dict[str, object], location: str) -> int:
     timeout = component.get("timeout_seconds")
     if type(timeout) is not int or timeout < 1:
         raise AcceptanceError(f"{location}.timeout_seconds is invalid")

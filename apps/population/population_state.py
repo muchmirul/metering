@@ -2,39 +2,44 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import cast
 
-from agent_protocol import ProtocolError, require_exact_keys, require_sha256
-from stdio_connector import canonical_digest, canonical_json, decode_json_object
+from apps._support.journal import (
+    append_fsynced,
+    content_record,
+    decode_canonical_records,
+    read_complete_lines,
+    validate_content_record,
+)
+from apps.agent_protocol import ProtocolError, require_exact_keys, require_sha256
+from apps.stdio_connector import canonical_json
 
-from population_policy import _allocation_body, _archive_body
-from population_protocol import (
+from apps.population.population_policy import (
+    normalize_allocation_body,
+    normalize_archive_body,
+)
+from apps.population.population_protocol import (
     POPULATION_SCHEMA_VERSION,
     PopulationError,
     PopulationState,
-    _candidate_body,
-    _configuration,
-    _experiment_body,
-    _run_body,
-    _schema,
+    normalize_candidate_body,
+    normalize_configuration,
+    normalize_experiment_body,
+    normalize_run_body,
+    require_population_schema,
     state_paths,
 )
 
 
 def _with_record_id(payload: dict[str, object]) -> dict[str, object]:
-    return {**payload, "record_id": canonical_digest(payload)}
+    return content_record(payload, PopulationError)
 
 
 def _record_id(record: dict[str, object], location: str) -> str:
-    supplied = require_sha256(record.get("record_id"), f"{location}.record_id")
-    payload = {key: value for key, value in record.items() if key != "record_id"}
-    if canonical_digest(payload) != supplied:
-        raise PopulationError(f"{location}.record_id does not match its content")
-    return supplied
+    return validate_content_record(record, PopulationError, location)
 
 
 def _new_state(header: dict[str, object]) -> PopulationState:
@@ -45,10 +50,12 @@ def _new_state(header: dict[str, object]) -> PopulationState:
     )
     if header["kind"] != "population":
         raise ProtocolError("population header.kind must be population")
-    _schema(header["schema_version"], "population header.schema_version")
+    require_population_schema(
+        header["schema_version"], "population header.schema_version"
+    )
     if header["sequence"] != 0 or type(header["sequence"]) is not int:
         raise ProtocolError("population header.sequence must be 0")
-    configuration = _configuration(
+    configuration = normalize_configuration(
         header["configuration"], "population header.configuration"
     )
     normalized = _with_record_id(
@@ -61,7 +68,11 @@ def _new_state(header: dict[str, object]) -> PopulationState:
     )
     if canonical_json(header) != canonical_json(normalized):
         raise ProtocolError("population header does not match its normalized content")
-    return PopulationState(configuration=configuration, records=[header])
+    return PopulationState(
+        configuration=configuration,
+        records=[header],
+        records_by_id={str(header["record_id"]): header},
+    )
 
 
 def _apply_record(
@@ -79,7 +90,9 @@ def _apply_record(
         },
         f"population record {index}",
     )
-    _schema(record["schema_version"], f"population record {index}.schema_version")
+    require_population_schema(
+        record["schema_version"], f"population record {index}.schema_version"
+    )
     if record["sequence"] != index or type(record["sequence"]) is not int:
         raise PopulationError(f"population record {index} is out of sequence")
     if record["parent_record_id"] != state.head_id:
@@ -97,7 +110,7 @@ def _apply_record(
             "population search is sealed after final evaluation starts"
         )
     if kind == "candidate":
-        normalized = _candidate_body(body, state)
+        normalized = normalize_candidate_body(body, state)
         candidate = cast(dict[str, object], normalized["candidate"])
         candidate_id = str(candidate["candidate_id"])
         if candidate_id in state.candidates:
@@ -106,7 +119,7 @@ def _apply_record(
         state.candidate_record_ids[candidate_id] = record_id
         state.candidate_parents[candidate_id] = cast(list[str], normalized["parents"])
     elif kind == "experiment":
-        normalized = _experiment_body(body)
+        normalized = normalize_experiment_body(body)
         experiment_id = str(normalized["experiment_id"])
         if experiment_id in state.experiments:
             raise PopulationError(f"duplicate experiment: {experiment_id}")
@@ -115,7 +128,7 @@ def _apply_record(
         )
         state.experiment_record_ids[experiment_id] = record_id
     elif kind == "run":
-        normalized = _run_body(body, state)
+        normalized = normalize_run_body(body, state)
         run = cast(dict[str, object], normalized["run"])
         key = (
             str(run["candidate_id"]),
@@ -147,14 +160,14 @@ def _apply_record(
         experiment_id = require_sha256(
             body["experiment_id"], "archive body.experiment_id"
         )
-        normalized = _archive_body(experiment_id, state)
+        normalized = normalize_archive_body(experiment_id, state)
         if canonical_json(body) != canonical_json(normalized):
             raise PopulationError("archive record does not replay from prior evidence")
         state.archives[record_id] = normalized
         state.archive_sequences[record_id] = index
         state.latest_archive_by_experiment[experiment_id] = record_id
     elif kind == "allocation":
-        normalized = _allocation_body(body, state)
+        normalized = normalize_allocation_body(body, state)
         state.allocations.append((record_id, normalized))
     else:
         raise ProtocolError(
@@ -163,32 +176,16 @@ def _apply_record(
     if canonical_json(body) != canonical_json(normalized):
         raise ProtocolError(f"population record {index}.body is not normalized")
     state.records.append(record)
+    state.records_by_id[record_id] = record
 
 
 def _read_records(ledger: Path) -> list[dict[str, object]]:
-    if ledger.is_symlink():
-        raise PopulationError(f"population ledger may not be a symlink: {ledger}")
-    if not ledger.is_file():
-        raise PopulationError(f"population ledger does not exist: {ledger}")
-    try:
-        text = ledger.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        raise PopulationError(f"cannot read population ledger: {exc}") from exc
-    if not text or not text.endswith("\n"):
-        raise PopulationError(
-            "population ledger must contain complete newline-terminated records"
-        )
-    records: list[dict[str, object]] = []
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        if not line:
-            raise PopulationError(f"population ledger line {line_number} is empty")
-        record = decode_json_object(line, PopulationError)
-        if canonical_json(record) != line:
-            raise PopulationError(
-                f"population ledger line {line_number} is not canonical JSON"
-            )
-        records.append(record)
-    return records
+    lines = read_complete_lines(
+        ledger,
+        PopulationError,
+        label="population ledger",
+    )
+    return decode_canonical_records(lines, PopulationError, label="population ledger")
 
 
 def load_state(root: Path) -> PopulationState:
@@ -208,15 +205,8 @@ def load_state(root: Path) -> PopulationState:
 
 
 def _append(ledger: Path, record: dict[str, object]) -> None:
-    flags = os.O_WRONLY | os.O_APPEND
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
     try:
-        descriptor = os.open(ledger, flags)
-        with os.fdopen(descriptor, "a", encoding="utf-8", newline="\n") as stream:
-            stream.write(canonical_json(record) + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        append_fsynced(ledger, record)
     except OSError as exc:
         raise PopulationError(f"cannot append population ledger: {exc}") from exc
 
@@ -277,15 +267,8 @@ def initialize(root: Path, configuration: dict[str, object]) -> dict[str, object
             }
         )
         ledger, _ = state_paths(root)
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        if hasattr(os, "O_NOFOLLOW"):
-            flags |= os.O_NOFOLLOW
         try:
-            descriptor = os.open(ledger, flags, 0o600)
-            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
-                stream.write(canonical_json(header) + "\n")
-                stream.flush()
-                os.fsync(stream.fileno())
+            append_fsynced(ledger, header, create=True)
         except OSError as exc:
             raise PopulationError(
                 f"cannot initialize population ledger: {exc}"

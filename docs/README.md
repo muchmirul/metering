@@ -15,6 +15,9 @@ from current implementation claims.
   information measures and records their numerical conventions.
 - [Measurement history](history.md) specifies the opt-in Git-backed
   `metering-history` command, committed schema, replay checks, and limitations.
+- [Source-only control-plane architecture](source-architecture.md) documents
+  the package namespaces, narrow shared mechanics, public owner contracts,
+  read-only replay/pure planning split, thin sequencers, and dependency tests.
 - [Minimal information-guided evolution kernel](evolution-kernel.md) explains
   how the six repository-local applications execute one generation and how the
   optional source-only driver performs explicit bounded recurrence.

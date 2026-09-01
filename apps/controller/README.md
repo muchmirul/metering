@@ -136,10 +136,12 @@ that both candidates used identical evidence.
 
 The applications are invoked as subprocesses through their documented JSON
 standard-stream boundaries. Controller does not import their private modules.
-Internally, `controller.py` keeps fixture orchestration while
-`agent_generation.py` owns schema-v2 orchestration and `component_runtime.py`
-owns only shared subprocess mechanics. The public command and outputs are
-unchanged.
+Internally, `controller.py` is the thin schema dispatcher,
+`fixture_generation.py` owns schema-v1 orchestration,
+`agent_generation.py` owns schema-v2 orchestration, and `component_runtime.py`
+owns only Controller-specific subprocess composition. `contract.py` exposes
+read-only schema-v2 result/receipt replay for outer controls. The public command,
+process boundaries, and outputs are unchanged.
 
 ## Output
 

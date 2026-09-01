@@ -2,61 +2,46 @@
 
 from __future__ import annotations
 
-import json
-from decimal import Decimal
-from pathlib import Path
 from typing import cast
 
-ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-CONTROLLER_ROOT = APPS_ROOT / "controller"
-POPULATION_ROOT = APPS_ROOT / "population"
-SELECTION_ROOT = APPS_ROOT / "selection_gate"
-for import_root in (
-    APPS_ROOT,
-    CONTROLLER_ROOT,
-    POPULATION_ROOT,
-    SELECTION_ROOT,
-):
-    if str(import_root) not in __import__("sys").path:
-        __import__("sys").path.insert(0, str(import_root))
-
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (
     AGENT_SCHEMA_VERSION,
     GIT_ARTIFACT_SCHEMA,
     ProtocolError,
     candidate_record,
-    decode_candidate,
-    decode_candidate_run,
     decode_command,
-    decode_observer_evaluation,
     decode_task,
     normalize_json_value,
-    probability,
     require_bool,
     require_exact_keys,
     require_nonempty_string,
     require_sha256,
     require_timeout,
 )
-from component_runtime import agent_generation_timeout_seconds  # noqa: E402
-from population_policy import _draw  # noqa: E402
-from population_protocol import (  # noqa: E402
+from apps.controller.contract import (
+    ControllerReceiptError,
+    agent_generation_timeout_seconds,
+    validate_agent_generation_receipt,
+)
+from apps.population.contract import (
     MAX_PROTOCOL_INTEGER,
     POPULATION_SCHEMA_VERSION,
     RESOURCE_NAMES,
+    PopulationError,
+    PopulationState,
     RequestError as PopulationRequestError,
-    _distribution,
-    _resources,
+    normalize_distribution,
+    normalize_draw,
+    normalize_resources,
     decode_experiment_request,
     decode_initialize_request,
+    decode_run_request,
 )
-from stdio_connector import (  # noqa: E402
+from apps.stdio_connector import (
     canonical_digest,
     canonical_json,
     decode_json_object,
 )
-from task_selection import select_task_reports  # noqa: E402
 
 DRIVER_SCHEMA_VERSION = 1
 EVIDENCE_ADAPTER_PROTOCOL_VERSION = 1
@@ -136,7 +121,9 @@ def _tasks(value: object, location: str) -> list[dict[str, object]]:
 def _draws(value: object, count: int, location: str) -> list[dict[str, int]]:
     if type(value) is not list or len(value) != count:
         raise ProtocolError(f"{location} must contain exactly {count} draws")
-    return [_draw(item, f"{location}[{index}]") for index, item in enumerate(value)]
+    return [
+        normalize_draw(item, f"{location}[{index}]") for index, item in enumerate(value)
+    ]
 
 
 def _limits(value: object) -> dict[str, object]:
@@ -163,7 +150,7 @@ def _limits(value: object) -> dict[str, object]:
     return {
         "max_proposal_calls": proposals,
         "max_rounds": rounds,
-        "max_total_candidate_cost": _resources(
+        "max_total_candidate_cost": normalize_resources(
             value["max_total_candidate_cost"],
             "limits.max_total_candidate_cost",
             positive=False,
@@ -460,324 +447,34 @@ def controller_request(
     }
 
 
-def _validated_report_cases(
-    report: dict[str, object],
-    candidate_id: str,
-    tasks: list[dict[str, object]],
-    evaluation: str,
-    location: str,
-) -> dict[str, object]:
-    if report.get("candidate") != candidate_id:
-        raise PopulationDriverError(f"{location}.candidate does not match")
-    if report.get("evaluation") != evaluation:
-        raise PopulationDriverError(f"{location}.evaluation does not match")
-    raw_cases = report.get("cases")
-    if type(raw_cases) is not list or len(raw_cases) != len(tasks):
-        raise PopulationDriverError(
-            f"{location}.cases must match the configured task count"
-        )
-    expected_ids = [str(task["case_id"]) for task in tasks]
-    observed_ids: list[str] = []
-    probabilities: list[float] = []
-    passed_count = 0
-    safety_failures = 0
-    normalized_cases: list[dict[str, object]] = []
-    for index, raw_case in enumerate(raw_cases):
-        case_location = f"{location}.cases[{index}]"
-        if type(raw_case) is not dict:
-            raise PopulationDriverError(f"{case_location} must be a JSON object")
-        try:
-            require_exact_keys(
-                raw_case,
-                {
-                    "case_id",
-                    "evidence",
-                    "outcome",
-                    "passed",
-                    "safety_passed",
-                    "target_probability",
-                    "target_surprisal",
-                },
-                case_location,
-            )
-            case_id = require_nonempty_string(
-                raw_case["case_id"], f"{case_location}.case_id"
-            )
-            passed = require_bool(raw_case["passed"], f"{case_location}.passed")
-            safety = require_bool(
-                raw_case["safety_passed"], f"{case_location}.safety_passed"
-            )
-            target_probability = probability(
-                raw_case["target_probability"],
-                f"{case_location}.target_probability",
-            )
-            evidence = normalize_json_value(
-                raw_case["evidence"], f"{case_location}.evidence"
-            )
-            outcome = require_nonempty_string(
-                raw_case["outcome"], f"{case_location}.outcome"
-            )
-        except ProtocolError as exc:
-            raise PopulationDriverError(str(exc)) from exc
-        observed_ids.append(case_id)
-        probabilities.append(target_probability)
-        passed_count += int(passed)
-        safety_failures += int(not safety)
-        normalized_cases.append(
-            {
-                "case_id": case_id,
-                "evidence": evidence,
-                "outcome": outcome,
-                "passed": passed,
-                "safety_passed": safety,
-            }
-        )
-    if observed_ids != expected_ids:
-        raise PopulationDriverError(f"{location}.cases changed task ordering")
-    summary = report.get("task_summary")
-    expected_summary = {
-        "case_count": len(tasks),
-        "passed_count": passed_count,
-        "safety_failures": safety_failures,
-    }
-    if summary != expected_summary:
-        raise PopulationDriverError(f"{location}.task_summary does not match cases")
-    return {
-        "cases": normalized_cases,
-        "target_probabilities": probabilities,
-        "task": expected_summary,
-    }
-
-
 def validate_controller_result(
     request: dict[str, object],
     result: dict[str, object],
     config: dict[str, object],
 ) -> dict[str, object]:
-    expected_keys = {
-        "cases",
-        "challenger_report",
-        "evaluation",
-        "incumbent_report",
-        "mutation",
-        "next_parent",
-        "schema_version",
-        "selection",
-    }
-    if set(result) != expected_keys:
-        raise PopulationDriverError("Controller result has the wrong keys")
-    if (
-        result.get("schema_version") != AGENT_SCHEMA_VERSION
-        or type(result.get("schema_version")) is not int
-    ):
-        raise PopulationDriverError("Controller returned the wrong schema version")
-    if result.get("evaluation") != request["evaluation"]:
-        raise PopulationDriverError("Controller changed the evaluation identifier")
-    mutation = result.get("mutation")
-    if type(mutation) is not dict:
-        raise PopulationDriverError("Controller result.mutation is malformed")
+    """Replay Controller-owned evidence and enforce Population's Git boundary."""
+
     try:
-        parent = decode_candidate(mutation.get("parent"), "result.mutation.parent")
-        child = decode_candidate(mutation.get("child"), "result.mutation.child")
-        next_parent = decode_candidate(result.get("next_parent"), "result.next_parent")
-        requested_parent = candidate_record(
-            cast(dict[str, object], request["mutation_request"])["parent_artifact"],
-            "request.mutation_request.parent_artifact",
-        )
-    except ProtocolError as exc:
+        validation = validate_agent_generation_receipt(request, result)
+    except ControllerReceiptError as exc:
         raise PopulationDriverError(str(exc)) from exc
-    if parent != requested_parent:
-        raise PopulationDriverError("Controller changed the requested parent")
+    child = cast(dict[str, object], validation["child"])
     child_artifact = cast(dict[str, object], child["artifact"])
     if child_artifact["artifact_schema"] != GIT_ARTIFACT_SCHEMA:
         raise PopulationDriverError(
             "Controller child must be a git-candidate-v1 artifact"
         )
-    if child["candidate_id"] == parent["candidate_id"]:
-        raise PopulationDriverError("Controller returned an unchanged child")
-    if next_parent["candidate_id"] not in {
-        parent["candidate_id"],
-        child["candidate_id"],
-    }:
-        raise PopulationDriverError("Controller selected an unknown candidate")
-
+    population = cast(dict[str, object], config["population"])
+    experiment = cast(dict[str, object], population["experiment"])
     generation = cast(dict[str, object], config["generation"])
-    policy = cast(dict[str, object], generation["selection_policy"])
-    incumbent_report = result["incumbent_report"]
-    challenger_report = result["challenger_report"]
-    selection = result["selection"]
-    if (
-        type(incumbent_report) is not dict
-        or type(challenger_report) is not dict
-        or type(selection) is not dict
+    evaluator = cast(dict[str, object], generation["evaluator"])
+    if experiment["evaluator_id"] != canonical_digest(
+        {"command": evaluator["command"]}
     ):
-        raise PopulationDriverError("Controller reports or selection are malformed")
-    selection_request = {
-        "challenger_report": challenger_report,
-        "incumbent_report": incumbent_report,
-        "policy": policy,
-        "schema_version": AGENT_SCHEMA_VERSION,
-    }
-    # Selection Gate intentionally validates exact JSON decimals. Reparse the
-    # canonical receipt exactly as its stdio boundary does before replay.
-    exact_selection_request = json.loads(
-        canonical_json(selection_request), parse_float=Decimal
-    )
-    try:
-        expected_selection = select_task_reports(exact_selection_request)
-    except (ProtocolError, ValueError) as exc:
-        raise PopulationDriverError(f"Controller reports are invalid: {exc}") from exc
-    if canonical_json(selection) != canonical_json(expected_selection):
-        raise PopulationDriverError("Controller selection does not replay from reports")
-    if selection["selected"] != next_parent["candidate_id"]:
-        raise PopulationDriverError("Controller selection does not match next_parent")
-
-    tasks = cast(list[dict[str, object]], generation["tasks"])
-    evaluation = str(generation["evaluation"])
-    parent_evidence = _validated_report_cases(
-        incumbent_report,
-        str(parent["candidate_id"]),
-        tasks,
-        evaluation,
-        "incumbent_report",
-    )
-    child_evidence = _validated_report_cases(
-        challenger_report,
-        str(child["candidate_id"]),
-        tasks,
-        evaluation,
-        "challenger_report",
-    )
-
-    raw_traces = result["cases"]
-    if type(raw_traces) is not list or len(raw_traces) != len(tasks):
-        raise PopulationDriverError("Controller case traces do not match tasks")
-    experiment = cast(
-        dict[str, object], cast(dict[str, object], config["population"])["experiment"]
-    )
-    expected_evaluator_id = experiment["evaluator_id"]
-    expected_runner_id = canonical_digest(
-        {"command": cast(dict[str, object], generation["runner"])["command"]}
-    )
-    parent_cases = cast(list[dict[str, object]], parent_evidence["cases"])
-    child_cases = cast(list[dict[str, object]], child_evidence["cases"])
-    parent_probabilities = cast(list[float], parent_evidence["target_probabilities"])
-    child_probabilities = cast(list[float], child_evidence["target_probabilities"])
-    for index, (raw_trace, task) in enumerate(zip(raw_traces, tasks, strict=True)):
-        location = f"Controller cases[{index}]"
-        if type(raw_trace) is not dict:
-            raise PopulationDriverError(f"{location} must be a JSON object")
-        try:
-            require_exact_keys(
-                raw_trace,
-                {"challenger_run", "incumbent_run", "observer_evaluation", "task"},
-                location,
-            )
-            traced_task = decode_task(raw_trace["task"], f"{location}.task")
-            incumbent_run = decode_candidate_run(
-                raw_trace["incumbent_run"], f"{location}.incumbent_run"
-            )
-            challenger_run = decode_candidate_run(
-                raw_trace["challenger_run"], f"{location}.challenger_run"
-            )
-            observation = decode_observer_evaluation(
-                raw_trace["observer_evaluation"],
-                f"{location}.observer_evaluation",
-            )
-        except ProtocolError as exc:
-            raise PopulationDriverError(str(exc)) from exc
-        if traced_task != task:
-            raise PopulationDriverError(f"{location}.task changed")
-        if incumbent_run["candidate_id"] != parent["candidate_id"]:
-            raise PopulationDriverError(f"{location} changed incumbent identity")
-        if challenger_run["candidate_id"] != child["candidate_id"]:
-            raise PopulationDriverError(f"{location} changed challenger identity")
-        for run, role in (
-            (incumbent_run, "incumbent"),
-            (challenger_run, "challenger"),
-        ):
-            if run["task"] != task:
-                raise PopulationDriverError(f"{location} changed {role} task")
-            runner_receipt = cast(dict[str, object], run["runner"])
-            if runner_receipt["adapter_id"] != expected_runner_id:
-                raise PopulationDriverError(
-                    f"{location} changed {role} runner identity"
-                )
-        if observation["evaluator_id"] != expected_evaluator_id:
-            raise PopulationDriverError(f"{location} changed evaluator identity")
-        if observation["evaluation"] != evaluation:
-            raise PopulationDriverError(f"{location} changed evaluation")
-        if observation["case_id"] != task["case_id"]:
-            raise PopulationDriverError(f"{location} changed evaluation case")
-        evaluation_results = cast(list[dict[str, object]], observation["results"])
-        results_by_candidate = {
-            str(item["candidate_id"]): item for item in evaluation_results
-        }
-        if set(results_by_candidate) != {
-            str(parent["candidate_id"]),
-            str(child["candidate_id"]),
-        }:
-            raise PopulationDriverError(
-                f"{location} evaluation results changed candidate identities"
-            )
-        for run, candidate_id, report_case, reported_probability in (
-            (
-                incumbent_run,
-                str(parent["candidate_id"]),
-                parent_cases[index],
-                parent_probabilities[index],
-            ),
-            (
-                challenger_run,
-                str(child["candidate_id"]),
-                child_cases[index],
-                child_probabilities[index],
-            ),
-        ):
-            evaluated = results_by_candidate[candidate_id]
-            expected_case = {
-                "case_id": task["case_id"],
-                "evidence": evaluated["evidence"],
-                "outcome": evaluated["outcome"],
-                "passed": evaluated["passed"],
-                "safety_passed": evaluated["safety_passed"],
-            }
-            if canonical_json(report_case) != canonical_json(expected_case):
-                raise PopulationDriverError(
-                    f"{location} report does not match evaluator evidence"
-                )
-            forecast = cast(dict[str, object], run["forecast"])
-            outcomes = cast(list[dict[str, object]], forecast["outcomes"])
-            matching = [
-                item for item in outcomes if item["outcome"] == evaluated["outcome"]
-            ]
-            if (
-                len(matching) != 1
-                or float(matching[0]["probability"]) != reported_probability
-            ):
-                raise PopulationDriverError(
-                    f"{location} report probability does not match forecast"
-                )
-
-    mutation_detail = mutation.get("mutation")
-    if type(mutation_detail) is not dict:
-        raise PopulationDriverError("Controller mutation receipt is malformed")
-    try:
-        proposal_id = require_sha256(
-            mutation_detail.get("proposal_id"),
-            "result.mutation.mutation.proposal_id",
+        raise PopulationDriverError(
+            "Population experiment changed the Controller evaluator identity"
         )
-    except ProtocolError as exc:
-        raise PopulationDriverError(str(exc)) from exc
-    return {
-        "child": child,
-        "child_evidence": child_evidence,
-        "next_parent": next_parent,
-        "parent": parent,
-        "parent_evidence": parent_evidence,
-        "proposal_id": proposal_id,
-        "selection": expected_selection,
-    }
+    return validation
 
 
 def evidence_adapter_request(
@@ -851,14 +548,14 @@ def decode_evidence_adapter_response(
                     f"{location}.behavior_distribution must contain exactly "
                     f"{len(behavior_space)} probabilities"
                 )
-            normalized_behavior = _distribution(
+            normalized_behavior = normalize_distribution(
                 behavior,
                 f"{location}.behavior_distribution",
                 length=len(behavior_space),
             )
             decoded[candidate_id] = {
                 "behavior_distribution": normalized_behavior,
-                "cost": _resources(
+                "cost": normalize_resources(
                     raw_candidate["cost"], f"{location}.cost", positive=False
                 ),
                 "protected_passed": require_bool(
@@ -874,6 +571,43 @@ def decode_evidence_adapter_response(
         raise PopulationDriverError(
             f"evidence adapter response is invalid: {exc}"
         ) from exc
+
+
+def population_run_body(
+    *,
+    candidate_id: str,
+    experiment_id: str,
+    replicate_id: str,
+    report_evidence: dict[str, object],
+    adapter_evidence: dict[str, object],
+    evidence_reference: dict[str, object],
+    state: PopulationState,
+) -> dict[str, object]:
+    """Construct one Population-owned run body from verified round evidence."""
+
+    request = {
+        "candidate_id": candidate_id,
+        "evidence": {
+            "behavior_distribution": adapter_evidence["behavior_distribution"],
+            "cost": adapter_evidence["cost"],
+            "evidence_receipt": {
+                "sha256": evidence_reference["sha256"],
+                "uri": evidence_reference["uri"],
+            },
+            "information_model": None,
+            "protected_passed": adapter_evidence["protected_passed"],
+            "target_probabilities": report_evidence["target_probabilities"],
+            "task": report_evidence["task"],
+        },
+        "experiment_id": experiment_id,
+        "replicate_id": replicate_id,
+        "schema_version": POPULATION_SCHEMA_VERSION,
+        "seed": adapter_evidence["seed"],
+    }
+    try:
+        return decode_run_request(request, state)
+    except (PopulationError, ValueError) as exc:
+        raise PopulationDriverError(str(exc)) from exc
 
 
 def total_cost(runs: list[dict[str, object]], experiment_id: str) -> dict[str, int]:

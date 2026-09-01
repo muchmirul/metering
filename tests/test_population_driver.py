@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -13,6 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DRIVER = ROOT / "apps" / "population_driver" / "population_driver.py"
 POPULATION = ROOT / "apps" / "population" / "population.py"
 EXAMPLE = ROOT / "apps" / "population_driver" / "example-request.json"
+V1_STATE_MANIFEST = (
+    ROOT / "tests" / "fixtures" / "population-driver-v1-state.sha256.json"
+)
 RESOURCE_NAMES = (
     "actions",
     "energy_millijoules",
@@ -327,13 +331,14 @@ def test_partial_population_ingestion_resumes_without_another_model_call(
     assert spec is not None and spec.loader is not None
     driver_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(driver_module)
-    real_append = driver_module.append_driver_record
+    driver_machine = importlib.import_module("apps.population_driver.machine")
+    real_append = driver_machine.append_driver_record
 
     def interrupt_after_population(*_args, **_kwargs):
         raise OSError("simulated interruption before driver append")
 
     monkeypatch.setattr(
-        driver_module, "append_driver_record", interrupt_after_population
+        driver_machine, "append_driver_record", interrupt_after_population
     )
     with pytest.raises(OSError, match="simulated interruption"):
         driver_module.run_population_driver(encode(request), state)
@@ -345,7 +350,7 @@ def test_partial_population_ingestion_resumes_without_another_model_call(
     pending = json.loads((state / "pending" / "round-intent.json").read_text())
     assert pending["stage"] == "evidence_complete"
 
-    monkeypatch.setattr(driver_module, "append_driver_record", real_append)
+    monkeypatch.setattr(driver_machine, "append_driver_record", real_append)
     resumed = driver_module.run_population_driver(encode(request), state)
 
     assert resumed["status"] == "round_limit"
@@ -500,3 +505,12 @@ def test_documented_population_driver_example(tmp_path: Path):
     assert summary["completed_rounds"] == 3
     assert summary["candidate_count"] == 4
     assert not (state / "population" / "population.sqlite").exists()
+    expected_manifest = json.loads(V1_STATE_MANIFEST.read_text())
+    actual_manifest = {
+        path.relative_to(state).as_posix(): hashlib.sha256(
+            path.read_bytes()
+        ).hexdigest()
+        for path in sorted(state.rglob("*"))
+        if path.is_file()
+    }
+    assert actual_manifest == expected_manifest

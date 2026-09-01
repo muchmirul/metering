@@ -6,15 +6,9 @@ import hashlib
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
-
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (
     GIT_ARTIFACT_SCHEMA,
     ProtocolError,
     decode_agent_artifact,

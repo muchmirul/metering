@@ -14,7 +14,7 @@ from metering import (
     self_information,
 )
 
-from agent_protocol import (
+from apps.agent_protocol import (
     SKILL_ARTIFACT_SCHEMA,
     ProtocolError,
     candidate_record,
@@ -27,7 +27,7 @@ from agent_protocol import (
     require_nonempty_string,
     require_sha256,
 )
-from stdio_connector import canonical_digest, canonical_json
+from apps.stdio_connector import canonical_digest, canonical_json
 
 POPULATION_SCHEMA_VERSION = 1
 EXPERIMENT_SCHEMA = "population-experiment-v1"
@@ -61,6 +61,7 @@ class PopulationError(RuntimeError):
 class PopulationState:
     configuration: dict[str, object]
     records: list[dict[str, object]]
+    records_by_id: dict[str, dict[str, object]] = field(default_factory=dict)
     candidates: dict[str, dict[str, object]] = field(default_factory=dict)
     candidate_record_ids: dict[str, str] = field(default_factory=dict)
     candidate_parents: dict[str, list[str]] = field(default_factory=dict)
@@ -79,6 +80,11 @@ class PopulationState:
     @property
     def head_id(self) -> str:
         return str(self.records[-1]["record_id"])
+
+    def record(self, record_id: str) -> dict[str, object] | None:
+        """Return one verified canonical record by content identity."""
+
+        return self.records_by_id.get(record_id)
 
 
 def state_paths(root: Path) -> tuple[Path, Path]:
@@ -787,3 +793,17 @@ def decode_recombination_request(
         raise PopulationError(f"missing recombination locus: {exc.args[0]}") from exc
     except ProtocolError as exc:
         raise RequestError(str(exc)) from exc
+
+
+# Public owner-contract names used by Population replay and outer sequencers.
+# The schema remains local to Population; callers do not import private helpers.
+normalize_candidate_body = _candidate_body
+normalize_configuration = _configuration
+normalize_distribution = _distribution
+normalize_experiment_body = _experiment_body
+normalize_resources = _resources
+normalize_run_body = _run_body
+require_population_schema = _schema
+finite_or_infinite = _finite_or_infinite
+nonnegative_integer = _nonnegative_integer
+positive_integer = _positive_integer

@@ -8,10 +8,10 @@ import tempfile
 from pathlib import Path
 from typing import cast
 
-from agent_protocol import ProtocolError, require_exact_keys, require_sha256
-from stdio_connector import canonical_digest, canonical_json
+from apps.agent_protocol import ProtocolError, require_exact_keys, require_sha256
+from apps.stdio_connector import canonical_digest, canonical_json
 
-from population_protocol import (
+from apps.population.population_protocol import (
     INDEX_NAME,
     POPULATION_SCHEMA_VERSION,
     RESOURCE_NAMES,

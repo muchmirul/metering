@@ -24,7 +24,10 @@ short implemented/not-implemented boundary. The
 format, application composition boundary, and app-local protocols.
 The [system foundations](docs/foundations.md) state the equations, biological
 analogy, design reasoning, hypotheses, falsifiers, and primary research sources
-behind the complete composition.
+behind the complete composition. The
+[source-only architecture](docs/source-architecture.md) documents the narrow
+shared mechanics, public owner contracts, read-only replay, pure planning, thin
+sequencers, and enforced dependency direction.
 
 ## System at a glance
 
@@ -101,7 +104,10 @@ now feed that exact Git parent through one Controller generation, record both
 reports as Population replicates, refresh the archive, and repeat under explicit
 global limits. Its interruption-safe receipts never make SQLite or final
 evidence recurrence authority. Population's SQLite database remains a disposable
-ledger-derived index. Metering only validates caller-supplied
+ledger-derived index. A deterministic executable-Git integration test evolves a
+subtraction program into an addition program, rejects a later multiplication
+regression, and verifies exact archive recurrence; it is mechanism evidence, not
+a broad model-improvement claim. Metering only validates caller-supplied
 probability models and evaluates named measures. The Evolution Driver
 [README](apps/evolution_driver/README.md) includes a constructed live-Pi
 acceptance command that keeps its final cases outside retention and states the

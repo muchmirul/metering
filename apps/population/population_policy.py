@@ -9,24 +9,24 @@ from typing import cast
 
 from metering import ProbabilityError, entropy, kl_divergence
 
-from agent_protocol import (
+from apps.agent_protocol import (
     ProtocolError,
     normalize_json_value,
     require_exact_keys,
     require_sha256,
 )
-from stdio_connector import canonical_json
+from apps.stdio_connector import canonical_json
 
-from population_protocol import (
+from apps.population.population_protocol import (
     ALLOCATION_POLICY,
     RESOURCE_NAMES,
     PopulationError,
     PopulationState,
     RequestError,
-    _finite_or_infinite,
-    _nonnegative_integer,
-    _positive_integer,
-    _schema,
+    finite_or_infinite,
+    nonnegative_integer,
+    positive_integer,
+    require_population_schema,
 )
 
 
@@ -108,7 +108,7 @@ def _candidate_aggregate(
         "candidate_id": candidate_id,
         "cost": costs,
         "information_value_bits": information,
-        "mean_target_surprisal_bits": _finite_or_infinite(mean_surprisal),
+        "mean_target_surprisal_bits": finite_or_infinite(mean_surprisal),
         "novelty_bits": {"infinite": False, "value": 0.0},
         "reliability": reliability,
         "replicate_count": replicate_count,
@@ -235,7 +235,7 @@ def _archive_body(experiment_id: str, state: PopulationState) -> dict[str, objec
                     f"cannot compare behavior distributions: {exc}"
                 ) from exc
         novelty = min(distances) if distances else 0.0
-        metric["novelty_bits"] = _finite_or_infinite(novelty)
+        metric["novelty_bits"] = finite_or_infinite(novelty)
 
     include_information = experiment["information_objective"] is True
     if include_information and any(
@@ -303,7 +303,7 @@ def decode_archive_request(
 ) -> dict[str, object]:
     try:
         require_exact_keys(value, {"experiment_id", "schema_version"}, "request")
-        _schema(value["schema_version"])
+        require_population_schema(value["schema_version"])
         experiment_id = require_sha256(value["experiment_id"], "request.experiment_id")
     except ProtocolError as exc:
         raise RequestError(str(exc)) from exc
@@ -314,8 +314,8 @@ def _draw(value: object, location: str = "draw") -> dict[str, int]:
     if type(value) is not dict:
         raise ProtocolError(f"{location} must be a JSON object")
     require_exact_keys(value, {"denominator", "numerator"}, location)
-    denominator = _positive_integer(value["denominator"], f"{location}.denominator")
-    numerator = _nonnegative_integer(value["numerator"], f"{location}.numerator")
+    denominator = positive_integer(value["denominator"], f"{location}.denominator")
+    numerator = nonnegative_integer(value["numerator"], f"{location}.numerator")
     if numerator >= denominator:
         raise ProtocolError(f"{location}.numerator must be less than denominator")
     return {"denominator": denominator, "numerator": numerator}
@@ -377,7 +377,7 @@ def decode_allocation_request(
         require_exact_keys(
             value, {"archive_record_id", "draw", "schema_version"}, "request"
         )
-        _schema(value["schema_version"])
+        require_population_schema(value["schema_version"])
         archive_id = require_sha256(
             value["archive_record_id"], "request.archive_record_id"
         )
@@ -406,3 +406,9 @@ def decode_allocation_request(
         )
     except ProtocolError as exc:
         raise RequestError(str(exc)) from exc
+
+
+# Public owner-contract names used by replay and bounded outer sequencers.
+normalize_allocation_body = _allocation_body
+normalize_archive_body = _archive_body
+normalize_draw = _draw

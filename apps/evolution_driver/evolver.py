@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 import time
 from collections.abc import Iterator
@@ -11,19 +10,22 @@ from pathlib import Path
 from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-CONTROLLER_ROOT = APPS_ROOT / "controller"
-for import_root in (APPS_ROOT, CONTROLLER_ROOT):
-    if str(import_root) not in sys.path:
-        sys.path.insert(0, str(import_root))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import (  # noqa: E402
+from apps._support.journal import (  # noqa: E402
+    append_fsynced,
+    content_record,
+    decode_canonical_records,
+    read_complete_lines,
+    validate_content_record,
+)
+from apps.agent_protocol import (  # noqa: E402
     AGENT_SCHEMA_VERSION,
     DEFAULT_ARTIFACT_SCHEMA,
     GIT_ARTIFACT_SCHEMA,
     ProtocolError,
     candidate_record,
-    decode_candidate,
     decode_command,
     decode_task,
     normalize_json_value,
@@ -32,8 +34,12 @@ from agent_protocol import (  # noqa: E402
     require_nonempty_string,
     require_timeout,
 )
-from component_runtime import agent_generation_timeout_seconds  # noqa: E402
-from stdio_connector import (  # noqa: E402
+from apps.controller.contract import (  # noqa: E402
+    ControllerReceiptError,
+    agent_generation_timeout_seconds,
+    validate_agent_generation_receipt,
+)
+from apps.stdio_connector import (  # noqa: E402
     JsonProcessError,
     canonical_digest,
     canonical_json,
@@ -122,9 +128,7 @@ def decode_request(source: str) -> dict[str, object]:
             type(request["schema_version"]) is not int
             or request["schema_version"] != DRIVER_SCHEMA_VERSION
         ):
-            raise ProtocolError(
-                f"schema_version must be {DRIVER_SCHEMA_VERSION}"
-            )
+            raise ProtocolError(f"schema_version must be {DRIVER_SCHEMA_VERSION}")
         initial_parent = _evolution_candidate(
             request["initial_parent_artifact"], "initial_parent_artifact"
         )
@@ -236,57 +240,26 @@ def decode_request(source: str) -> dict[str, object]:
 
 
 def _with_record_id(payload: dict[str, object]) -> dict[str, object]:
-    return {**payload, "record_id": canonical_digest(payload)}
+    return content_record(payload, EvolutionError)
 
 
 def _validate_record_id(record: dict[str, object], location: str) -> None:
-    supplied = record.get("record_id")
-    if (
-        type(supplied) is not str
-        or len(supplied) != 64
-        or any(character not in "0123456789abcdef" for character in supplied)
-    ):
-        raise EvolutionError(f"{location}.record_id is invalid")
-    payload = {key: value for key, value in record.items() if key != "record_id"}
-    if canonical_digest(payload) != supplied:
-        raise EvolutionError(f"{location}.record_id does not match its content")
+    validate_content_record(record, EvolutionError, location)
 
 
 def _read_records(path: Path) -> list[dict[str, object]]:
-    if path.is_symlink():
-        raise EvolutionError(f"state path may not be a symlink: {path}")
-    if not path.exists():
-        return []
-    if not path.is_file():
-        raise EvolutionError(f"state path is not a file: {path}")
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        raise EvolutionError(f"cannot read state: {exc}") from exc
-    if not text or not text.endswith("\n"):
-        raise EvolutionError("state must contain complete newline-terminated records")
-
-    records: list[dict[str, object]] = []
-    for index, line in enumerate(text.splitlines(), start=1):
-        if not line:
-            raise EvolutionError(f"state line {index} is empty")
-        record = decode_json_object(line, EvolutionError)
-        if line != canonical_json(record):
-            raise EvolutionError(f"state line {index} is not canonical JSON")
-        records.append(record)
-    return records
+    lines = read_complete_lines(
+        path,
+        EvolutionError,
+        label="state",
+        allow_missing=True,
+    )
+    return decode_canonical_records(lines, EvolutionError, label="state")
 
 
 def _append_record(path: Path, record: dict[str, object]) -> None:
-    flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
     try:
-        descriptor = os.open(path, flags, 0o600)
-        with os.fdopen(descriptor, "a", encoding="utf-8", newline="\n") as stream:
-            stream.write(canonical_json(record) + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
+        append_fsynced(path, record, create_if_missing=True)
     except OSError as exc:
         raise EvolutionError(f"cannot append state: {exc}") from exc
 
@@ -367,49 +340,11 @@ def _controller_request(
 def _validate_controller_result(
     request: dict[str, object], result: dict[str, object]
 ) -> dict[str, object]:
-    if result.get("schema_version") != AGENT_SCHEMA_VERSION or type(
-        result.get("schema_version")
-    ) is not int:
-        raise EvolutionError("Controller returned the wrong schema version")
-    mutation = result.get("mutation")
-    if type(mutation) is not dict:
-        raise EvolutionError("Controller result.mutation must be a JSON object")
     try:
-        parent = decode_candidate(mutation.get("parent"), "result.mutation.parent")
-        challenger = decode_candidate(
-            mutation.get("child"), "result.mutation.child"
-        )
-        next_parent = decode_candidate(result.get("next_parent"), "result.next_parent")
-        expected_parent = candidate_record(
-            cast(dict[str, object], request["mutation_request"])["parent_artifact"],
-            "request.mutation_request.parent_artifact",
-        )
-    except ProtocolError as exc:
+        validation = validate_agent_generation_receipt(request, result)
+    except ControllerReceiptError as exc:
         raise EvolutionError(str(exc)) from exc
-    if parent != expected_parent:
-        raise EvolutionError("Controller changed the requested parent")
-    if parent["candidate_id"] == challenger["candidate_id"]:
-        raise EvolutionError("Controller returned identical parent and challenger")
-    if next_parent["candidate_id"] not in {
-        parent["candidate_id"],
-        challenger["candidate_id"],
-    }:
-        raise EvolutionError("Controller selected an unknown candidate")
-    selection = result.get("selection")
-    if type(selection) is not dict or selection.get("selected") != next_parent[
-        "candidate_id"
-    ]:
-        raise EvolutionError("Controller selection does not match next_parent")
-    expected_decision = (
-        "promote_challenger"
-        if next_parent["candidate_id"] == challenger["candidate_id"]
-        else "retain_incumbent"
-    )
-    if selection.get("decision") != expected_decision:
-        raise EvolutionError("Controller decision does not match next_parent")
-    if result.get("evaluation") != request["evaluation"]:
-        raise EvolutionError("Controller changed the evaluation identifier")
-    return next_parent
+    return cast(dict[str, object], validation["next_parent"])
 
 
 def _verify_ledger(
@@ -420,9 +355,10 @@ def _verify_ledger(
     header = records[0]
     if set(header) != HEADER_KEYS or header.get("kind") != "run":
         raise EvolutionError("state header has the wrong shape")
-    if header.get("schema_version") != DRIVER_SCHEMA_VERSION or type(
-        header.get("schema_version")
-    ) is not int:
+    if (
+        header.get("schema_version") != DRIVER_SCHEMA_VERSION
+        or type(header.get("schema_version")) is not int
+    ):
         raise EvolutionError("state header has the wrong schema version")
     if header.get("config_id") != config_id:
         raise EvolutionError("state belongs to a different evolution request")
@@ -437,18 +373,20 @@ def _verify_ledger(
         location = f"state generation {index}"
         if set(record) != GENERATION_KEYS or record.get("kind") != "generation":
             raise EvolutionError(f"{location} has the wrong shape")
-        if record.get("schema_version") != DRIVER_SCHEMA_VERSION or type(
-            record.get("schema_version")
-        ) is not int:
+        if (
+            record.get("schema_version") != DRIVER_SCHEMA_VERSION
+            or type(record.get("schema_version")) is not int
+        ):
             raise EvolutionError(f"{location} has the wrong schema version")
-        if record.get("generation") != index or type(record.get("generation")) is not int:
+        if (
+            record.get("generation") != index
+            or type(record.get("generation")) is not int
+        ):
             raise EvolutionError(f"{location} is out of sequence")
         if record.get("parent_record_id") != previous_id:
             raise EvolutionError(f"{location} has a broken parent link")
         _validate_record_id(record, location)
-        expected_request = _controller_request(
-            config, parent, index, previous_feedback
-        )
+        expected_request = _controller_request(config, parent, index, previous_feedback)
         if record.get("controller_request") != expected_request:
             raise EvolutionError(f"{location} request does not match recurrence")
         result = record.get("controller_result")
@@ -549,9 +487,7 @@ def evolve(config: dict[str, object], state_path: Path) -> dict[str, object]:
                 generation_number,
                 previous_feedback,
             )
-            controller_result = _run_controller(
-                controller_request, controller_timeout
-            )
+            controller_result = _run_controller(controller_request, controller_timeout)
             next_parent = _validate_controller_result(
                 controller_request, controller_result
             )

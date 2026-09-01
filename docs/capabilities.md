@@ -95,7 +95,12 @@ replicates, refreshes the archive, and stops at global round, proposal-call,
 timeout-reservation, resource, empty-archive, or final-evidence limits. A pending
 model call requires explicit retry approval; durable Controller evidence resumes
 without another model call. Its driver and Population ledgers plus immutable
-receipts are authoritative, and it never reads SQLite for recurrence.
+receipts are authoritative, and it never reads SQLite for recurrence. Its
+implementation now separates read-only replay, pure planning, effects, durable
+stores, and a thin runtime while preserving schema version 1. A deterministic
+executable-Git test demonstrates subtraction -> retained addition -> rejected
+multiplication for one arithmetic fixture; this is mechanism validation, not a
+claim of general model improvement.
 
 Implemented candidate forms are:
 
@@ -149,6 +154,8 @@ Before running an application workflow:
 - [`PLAN.md`](../PLAN.md): normative scope and acceptance behavior.
 - [`theory.md`](theory.md): four measurement definitions and numerical rules.
 - [`history.md`](history.md): Git history schema and replay verification.
+- [`source-architecture.md`](source-architecture.md): source-only dependency and
+  load/plan/effect/store architecture.
 - [`agent-evolution.md`](agent-evolution.md): current one-generation artifact
   protocol.
 - [`../apps/evolution_driver/README.md`](../apps/evolution_driver/README.md):

@@ -167,6 +167,22 @@ replay compared with an unsupervised mutation loop.
 its declared bounds. Higher task capability is a separate empirical hypothesis;
 the architecture alone cannot establish it.
 
+## Executable mechanism witness
+
+The deterministic integration test realizes this recurrence over a real Git
+lineage for the identified task $`f(l,r)=l+r`$. Its seed computes subtraction,
+the first mutation computes addition, and the second mutation computes
+multiplication. Matched development evidence retains addition, exact allocation
+uses it as the second parent, and the fresh archive excludes both incorrect
+programs as dominated. This witnesses H1--H4 for one executable fixture while
+making no claim about an external model's mutation distribution or protected
+final performance. See
+[`tests/test_darwinian_code_evolution.py`](../../../tests/test_darwinian_code_evolution.py).
+
+The implementation's load/verify, plan, effect, and store split is documented in
+the [source-only architecture](../../../docs/source-architecture.md). It changes
+neither these equations nor the schema-version-1 state identities.
+
 ## Security non-claim
 
 Canonical JSON, SHA-256 links, Git object identities, subprocess argument

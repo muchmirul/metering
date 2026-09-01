@@ -40,6 +40,24 @@ both Controller reports become Population runs, Population Archive recomputes
 the multi-objective Pareto set and its exact allocation record chooses the next
 parent. No scalar fitness or intelligence score is introduced.
 
+## Instruction architecture
+
+The schema-version-1 files and CLI are unchanged, but implementation ownership
+is explicit: `replay.py` performs read-only ledger/receipt verification,
+`planner.py` returns one pure next action, `machine.py` owns external effects and
+Population transitions, `population_driver_state.py` owns durable stores, and
+`runtime.py` is the bounded load-plan-effect-store sequencer.
+`population_driver.py` is now only the historical `run|retry|verify` dispatcher.
+Population access goes through `apps.population.contract`; no driver module
+imports Population policy, state, allocation, or SQLite internals.
+
+The durable progression is intent -> Controller receipt -> evidence receipt ->
+Population records -> committed round. Existing pending-stage strings and all
+canonical identities remain schema version 1. A stale checkpoint left after a
+committed round is recognized without a verifier write and removed explicitly
+by the runtime under the driver lock. See the repository
+[source-only architecture](../../docs/source-architecture.md).
+
 ## Deterministic protocol demonstration
 
 From the repository root:
@@ -59,6 +77,22 @@ not a sandbox, a Git verifier, a model run, or empirical adaptation evidence.
 For real code evolution, use the reviewed
 [Git artifact bridge](../../artifacts/git/README.md), a fixed Pi/Qwen proposer,
 and a caller-isolated runner/evaluator.
+
+## Executable Git recurrence test
+
+The deterministic end-to-end test uses real immutable Git commits and executes a
+specific arithmetic candidate task:
+
+```bash
+uv run pytest -q tests/test_darwinian_code_evolution.py
+```
+
+It begins with a subtraction solver, retains a child implementing addition,
+uses that archived child as the next exact Population parent, rejects a
+multiplication regression, and verifies the final archive and all ledgers. The
+checked-in `darwinian_code_adapter.py` generates only those trusted fixture
+programs. This proves the mutation/evaluation/allocation recurrence for that
+case; it is neither a sandbox nor evidence of general agent or Qwen improvement.
 
 ## Run request
 

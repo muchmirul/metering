@@ -14,13 +14,10 @@ from pathlib import Path
 from typing import cast
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-HERE = Path(__file__).resolve().parent
-for import_root in (APPS_ROOT, HERE):
-    if str(import_root) not in sys.path:
-        sys.path.insert(0, str(import_root))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (  # noqa: E402
     GIT_ADAPTER_PROTOCOL_VERSION,
     GIT_ARTIFACT_SCHEMA,
     ProtocolError,
@@ -29,9 +26,12 @@ from agent_protocol import (  # noqa: E402
     require_exact_keys,
     run_adapter,
 )
-from stdio_connector import canonical_json, decode_json_object  # noqa: E402
+from apps.stdio_connector import canonical_json, decode_json_object  # noqa: E402
 
-from git_repository import GitCandidateError, clone_verified  # noqa: E402
+from artifacts.git.git_repository import (  # noqa: E402
+    GitCandidateError,
+    clone_verified,
+)
 
 
 class AdapterError(RuntimeError):
@@ -48,8 +48,10 @@ def _command() -> list[str]:
         raise AdapterError(
             f"METERING_GIT_EXECUTOR_COMMAND is invalid JSON: {exc}"
         ) from exc
-    if type(value) is not list or not value or any(
-        type(item) is not str or not item or "\x00" in item for item in value
+    if (
+        type(value) is not list
+        or not value
+        or any(type(item) is not str or not item or "\x00" in item for item in value)
     ):
         raise AdapterError(
             "METERING_GIT_EXECUTOR_COMMAND must be a non-empty string array"
@@ -73,7 +75,9 @@ def _decode_request(
 ) -> tuple[dict[str, object], dict[str, object]]:
     request = decode_json_object(source, AdapterError)
     try:
-        require_exact_keys(request, {"candidate", "protocol_version", "task"}, "request")
+        require_exact_keys(
+            request, {"candidate", "protocol_version", "task"}, "request"
+        )
         if (
             type(request["protocol_version"]) is not int
             or request["protocol_version"] != GIT_ADAPTER_PROTOCOL_VERSION

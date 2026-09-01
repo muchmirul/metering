@@ -7,12 +7,9 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
+from apps.stdio_connector import canonical_json, decode_json_object
 
-from stdio_connector import canonical_json, decode_json_object  # noqa: E402
+ROOT = Path(__file__).resolve().parents[2]
 
 CommandBuilder = Callable[[str | None, str], list[str]]
 

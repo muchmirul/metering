@@ -51,18 +51,19 @@ selected artifact. See the [agent-artifact protocol](../docs/agent-evolution.md)
 and [`tests/test_agent_evolution.py`](../tests/test_agent_evolution.py).
 
 Shared source support is deliberately narrow. `agent_protocol.py` owns schema
-version 2 artifact and wire validation; `stdio_connector.py` owns the common
-canonical JSON, one-shot/JSONL, and subprocess mechanics used by the composable
-stdin applications. Concrete Pi and Prime Agent CLI translations live under
+version 2 artifact validation. `apps/_support/` owns only byte-identical wire,
+process, stdio, journal, lock/checkpoint, and fsync mechanics;
+`stdio_connector.py` preserves its historical application-facing API over those
+small operations. Concrete Pi and Prime Agent CLI translations live under
 [`connectors/fixed/`](../connectors/fixed/README.md), outside every application
 owner. Application modules still own schemas, mathematics, ordering, and error
-policy. Population Archive reuses only normalized artifact and canonical-JSON
-helpers; its ledger, evidence, archive, allocation, and index schemas remain
-local. Observer's independently copyable fixture protocol remains self-contained
-where sharing would create the wrong dependency. Observer's task evaluator and
-Controller's schema-v2 orchestration are separate internal modules behind the
-unchanged commands. This keeps unrelated workflows readable without turning the
-six boundaries into one framework.
+policy. Population and Controller expose explicit public owner contracts rather
+than requiring outer controls to import private policy or state helpers.
+Observer's independently copyable fixture protocol remains self-contained where
+sharing would create the wrong dependency. Schema-v1 fixture and schema-v2 agent
+implementations live in separate modules behind unchanged thin dispatchers. This
+keeps unrelated workflows readable without turning the six boundaries into one
+framework. See the [source-only architecture](../docs/source-architecture.md).
 
 [`evolution_driver/evolver.py`](evolution_driver/README.md) is an outer wrapper,
 not a seventh semantic stage. It repeats only completed schema-v2 generations,
@@ -82,6 +83,9 @@ incumbent/challenger reports as Population replicates, and refreshes the Pareto
 archive. Its global round, proposal-call, timeout-reservation, and resource
 bounds include explicit retry approval; its canonical receipts and ledgers are
 covered by [`tests/test_population_driver.py`](../tests/test_population_driver.py).
+The executable-Git Darwinian recurrence—subtraction seed, retained addition
+mutation, rejected multiplication regression—is covered by
+[`tests/test_darwinian_code_evolution.py`](../tests/test_darwinian_code_evolution.py).
 
 The external [Git artifact bridge](../artifacts/git/README.md) demonstrates that
 the same boundaries can retain immutable adapter-source commits and external

@@ -5,19 +5,29 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import stat
 import time
-import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 from urllib.parse import quote, unquote, urlparse
 
-from population_driver_protocol import (
+from apps._support.durable import (
+    atomic_write,
+    fsync_directory,
+    reject_symlink,
+)
+from apps._support.journal import (
+    append_fsynced,
+    content_record,
+    decode_canonical_records,
+    read_complete_lines,
+    validate_content_record,
+)
+from apps.population_driver.population_driver_protocol import (
     DRIVER_SCHEMA_VERSION,
     PopulationDriverError,
 )
-from stdio_connector import canonical_digest, canonical_json
+from apps.stdio_connector import canonical_digest, canonical_json
 
 DRIVER_LEDGER = "driver.jsonl"
 PENDING_FILE = "pending/round-intent.json"
@@ -26,23 +36,7 @@ LOCK_SUFFIX = ".lock"
 
 
 def _reject_symlink(path: Path, location: str) -> None:
-    try:
-        mode = path.lstat().st_mode
-    except FileNotFoundError:
-        return
-    if stat.S_ISLNK(mode):
-        raise PopulationDriverError(f"{location} must not be a symbolic link")
-
-
-def _fsync_directory(path: Path) -> None:
-    try:
-        descriptor = os.open(path, os.O_RDONLY)
-    except OSError:
-        return
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
+    reject_symlink(path, location, PopulationDriverError)
 
 
 @contextmanager
@@ -79,9 +73,7 @@ def locked_driver(state_root: Path) -> Iterator[None]:
 def _record_with_id(body: dict[str, object]) -> dict[str, object]:
     if "record_id" in body:
         raise PopulationDriverError("driver record body must not contain record_id")
-    record = dict(body)
-    record["record_id"] = canonical_digest(body)
-    return record
+    return content_record(body, PopulationDriverError)
 
 
 def create_driver_ledger(
@@ -90,11 +82,8 @@ def create_driver_ledger(
     state_root.mkdir(parents=True, exist_ok=True)
     ledger = state_root / DRIVER_LEDGER
     record = _record_with_id(header)
-    with ledger.open("x", encoding="utf-8", newline="\n") as stream:
-        stream.write(canonical_json(record) + "\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-    _fsync_directory(state_root)
+    append_fsynced(ledger, record, create=True)
+    fsync_directory(state_root)
     return record
 
 
@@ -104,57 +93,33 @@ def append_driver_record(
     ledger = state_root / DRIVER_LEDGER
     _reject_symlink(ledger, "driver ledger")
     record = _record_with_id(body)
-    with ledger.open("a", encoding="utf-8", newline="\n") as stream:
-        stream.write(canonical_json(record) + "\n")
-        stream.flush()
-        os.fsync(stream.fileno())
+    append_fsynced(ledger, record)
     return record
 
 
 def read_driver_records(state_root: Path) -> list[dict[str, object]]:
     ledger = state_root / DRIVER_LEDGER
-    _reject_symlink(ledger, "driver ledger")
-    if not ledger.is_file():
-        raise PopulationDriverError(f"driver ledger does not exist: {ledger}")
-    records: list[dict[str, object]] = []
-    try:
-        with ledger.open("r", encoding="utf-8", newline="") as stream:
-            for line_number, line in enumerate(stream, start=1):
-                if not line.endswith("\n"):
-                    raise PopulationDriverError(
-                        f"driver ledger line {line_number} is not newline-terminated"
-                    )
-                source = line[:-1]
-                document = json.loads(
-                    source,
-                    object_pairs_hook=lambda pairs: _unique_object(
-                        pairs, f"driver ledger line {line_number}"
-                    ),
-                    parse_constant=lambda token: _non_finite(
-                        token, f"driver ledger line {line_number}"
-                    ),
-                )
-                if type(document) is not dict:
-                    raise PopulationDriverError(
-                        f"driver ledger line {line_number} must be a JSON object"
-                    )
-                if canonical_json(document) != source:
-                    raise PopulationDriverError(
-                        f"driver ledger line {line_number} is not canonical JSON"
-                    )
-                record_id = document.get("record_id")
-                body = {
-                    key: value for key, value in document.items() if key != "record_id"
-                }
-                if type(record_id) is not str or record_id != canonical_digest(body):
-                    raise PopulationDriverError(
-                        f"driver ledger line {line_number} has an invalid record_id"
-                    )
-                records.append(document)
-    except (OSError, UnicodeError, json.JSONDecodeError, RecursionError) as exc:
-        if isinstance(exc, PopulationDriverError):
-            raise
-        raise PopulationDriverError(f"cannot read driver ledger: {exc}") from exc
+    lines = read_complete_lines(
+        ledger,
+        PopulationDriverError,
+        label="driver ledger",
+    )
+    records = decode_canonical_records(
+        lines,
+        PopulationDriverError,
+        label="driver ledger",
+    )
+    for line_number, record in enumerate(records, start=1):
+        try:
+            validate_content_record(
+                record,
+                PopulationDriverError,
+                f"driver ledger line {line_number}",
+            )
+        except PopulationDriverError as exc:
+            raise PopulationDriverError(
+                f"driver ledger line {line_number} has an invalid record_id"
+            ) from exc
     if not records:
         raise PopulationDriverError("driver ledger must contain a header")
     return records
@@ -174,28 +139,8 @@ def _non_finite(token: str, location: str) -> object:
 
 
 def _atomic_write(path: Path, payload: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     _reject_symlink(path, str(path))
-    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    descriptor = -1
-    try:
-        descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        view = memoryview(payload)
-        while view:
-            written = os.write(descriptor, view)
-            view = view[written:]
-        os.fsync(descriptor)
-        os.close(descriptor)
-        descriptor = -1
-        os.replace(temporary, path)
-        _fsync_directory(path.parent)
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+    atomic_write(path, payload)
 
 
 def _pending_with_id(body: dict[str, object]) -> dict[str, object]:
@@ -259,7 +204,7 @@ def remove_pending(state_root: Path) -> None:
         path.unlink()
     except FileNotFoundError:
         return
-    _fsync_directory(path.parent)
+    fsync_directory(path.parent)
 
 
 def _receipt_uri(name: str) -> str:

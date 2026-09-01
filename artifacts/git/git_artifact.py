@@ -7,22 +7,19 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-HERE = Path(__file__).resolve().parent
-for import_root in (APPS_ROOT, HERE):
-    if str(import_root) not in sys.path:
-        sys.path.insert(0, str(import_root))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (  # noqa: E402
     GIT_ARTIFACT_SCHEMA,
     ProtocolError,
     decode_agent_artifact,
     require_exact_keys,
     require_nonempty_string,
 )
-from stdio_connector import canonical_json, decode_json_object  # noqa: E402
+from apps.stdio_connector import canonical_json, decode_json_object  # noqa: E402
 
-from git_repository import (  # noqa: E402
+from artifacts.git.git_repository import (  # noqa: E402
     GitCandidateError,
     clone_commit,
     clone_verified,
@@ -69,7 +66,13 @@ def create_artifact(source: str) -> dict[str, object]:
 def main() -> int:
     try:
         artifact = create_artifact(sys.stdin.read())
-    except (ArtifactError, GitCandidateError, ProtocolError, TypeError, ValueError) as exc:
+    except (
+        ArtifactError,
+        GitCandidateError,
+        ProtocolError,
+        TypeError,
+        ValueError,
+    ) as exc:
         print(str(exc) or type(exc).__name__, file=sys.stderr)
         return 2
     print(canonical_json(artifact))
