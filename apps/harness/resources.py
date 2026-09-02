@@ -141,7 +141,6 @@ def _io_writes(path: Path) -> int | None:
     except (OSError, UnicodeDecodeError):
         return None
     total = 0
-    found = False
     for line in lines:
         for field in line.split()[1:]:
             if field.startswith("wbytes="):
@@ -149,8 +148,9 @@ def _io_writes(path: Path) -> int | None:
                     total += int(field.split("=", 1)[1])
                 except ValueError:
                     return None
-                found = True
-    return total if found else None
+    # A readable empty io.stat is the cgroup-v2 observation for zero physical
+    # block writes, which is expected when all writable storage is tmpfs.
+    return total
 
 
 def _cgroup_metrics(

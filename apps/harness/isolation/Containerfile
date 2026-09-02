@@ -11,7 +11,8 @@ RUN python3 -m pip install \
     && python3 -c 'import IPython; assert IPython.__version__ == "8.31.0"' \
     && rm -rf /root/.cache
 
-COPY --chmod=0555 apps/harness/kernel_server.py /opt/metering/kernel_server.py
+COPY apps/harness/kernel_server.py /opt/metering/kernel_server.py
+RUN chmod 0555 /opt/metering/kernel_server.py
 
 ENV HOME=/tmp \
     PYTHONDONTWRITEBYTECODE=1 \

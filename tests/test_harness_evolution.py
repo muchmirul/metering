@@ -35,6 +35,7 @@ from apps.harness.receipts import (  # noqa: E402
     completion_result_digest,
     load_receipt,
 )
+from apps.harness.resources import _io_writes  # noqa: E402
 from apps.harness.runtime_manifest import load_runtime_manifest  # noqa: E402
 from apps.population.contract import load_state  # noqa: E402
 from apps.population_driver.paths import population_root  # noqa: E402
@@ -84,6 +85,17 @@ def test_typed_harness_manifest_covers_every_file_and_refreshes_digests(
         load_candidate(checkout)
 
 
+def test_empty_cgroup_io_stat_is_observed_zero_physical_writes(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "io.stat").write_text("", encoding="ascii")
+    assert _io_writes(tmp_path) == 0
+    (tmp_path / "io.stat").write_text(
+        "8:0 rbytes=12 wbytes=7 rios=1 wios=1\n", encoding="ascii"
+    )
+    assert _io_writes(tmp_path) == 7
+
+
 def test_fixture_kernel_conformance_covers_lifecycle_and_resource_receipts() -> None:
     report = run_conformance(FIXTURE_RUNTIME, REFERENCE, allow_fixture=True)
     assert report["checks"] == [
@@ -104,6 +116,10 @@ def test_fixture_kernel_conformance_covers_lifecycle_and_resource_receipts() -> 
 
 def test_reviewed_oci_profile_has_immutable_image_and_fail_closed_flags() -> None:
     runtime = load_runtime_manifest(OCI_RUNTIME)
+    assert runtime.max_output_bytes == 4_194_304
+    containerfile = (OCI_RUNTIME.parent / "Containerfile").read_text(encoding="utf-8")
+    assert "COPY --chmod" not in containerfile
+    assert "RUN chmod 0555 /opt/metering/kernel_server.py" in containerfile
     command = _docker_command(runtime, "test-container")
     assert runtime.image is not None and "@sha256:" in runtime.image
     assert command[1:4] == ["run", "--name", "test-container"]
