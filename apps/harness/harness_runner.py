@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -42,6 +43,7 @@ from apps.harness.runtime_manifest import (  # noqa: E402
 )
 
 EVIDENCE_KEY = "_metering_harness"
+WORKSPACE_KEY = "_metering_coding_workspace"
 
 
 class HarnessRunnerError(RuntimeError):
@@ -176,8 +178,12 @@ def execute(
     if type(completion.submission) is not dict:
         raise HarnessRunnerError("harness finish submission must be a JSON object")
     submission = cast(dict[str, object], completion.submission)
-    if EVIDENCE_KEY in submission:
-        raise HarnessRunnerError(f"harness submission reserves key {EVIDENCE_KEY}")
+    for reserved in (EVIDENCE_KEY, WORKSPACE_KEY):
+        if reserved in submission:
+            raise HarnessRunnerError(f"harness submission reserves key {reserved}")
+    if completion.workspace is not None:
+        submission = {**submission, WORKSPACE_KEY: completion.workspace}
+        completion = replace(completion, submission=submission)
     receipt = receipt_document(
         candidate_id=candidate_id,
         case_id=str(task["case_id"]),

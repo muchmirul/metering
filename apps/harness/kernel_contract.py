@@ -17,9 +17,15 @@ from typing import cast
 from apps._support.wire import canonical_json
 from apps.harness.resources import ResourceObservation, ResourceObserver, cgroup_for_pid
 from apps.harness.runtime_manifest import RuntimeManifest
+from apps.harness.workspace import (
+    WorkspaceError,
+    decode_export,
+    decode_files,
+    normalize_policy,
+)
 
 KERNEL_PROTOCOL = "harness-kernel-wire-v1"
-MAX_KERNEL_RESPONSE_BYTES = 2_097_152
+MAX_KERNEL_RESPONSE_BYTES = 16_777_216
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -231,6 +237,8 @@ def _docker_command(runtime: RuntimeManifest, name: str) -> list[str]:
     return [
         binary,
         "run",
+        "--pull",
+        "never",
         "--name",
         name,
         "--interactive",
@@ -250,6 +258,8 @@ def _docker_command(runtime: RuntimeManifest, name: str) -> list[str]:
         "--ulimit",
         "nofile=256:256",
         "--memory",
+        str(limits.memory_bytes),
+        "--memory-swap",
         str(limits.memory_bytes),
         "--cpus",
         cpus,
@@ -326,6 +336,8 @@ class KernelSession:
         self._observer: ResourceObserver | None = None
         self._observations: list[ResourceObservation] = []
         self._latest_snapshot: dict[str, object] | None = None
+        self._workspace_policy: dict[str, object] | None = None
+        self._latest_workspace_files: list[dict[str, object]] | None = None
         self._closed = False
         self._start()
 
@@ -371,6 +383,13 @@ class KernelSession:
                 self._request(
                     {"operation": "restore", "snapshot": self._latest_snapshot},
                     timeout_ms=self.runtime.limits.wall_milliseconds,
+                )
+            if (
+                self._workspace_policy is not None
+                and self._latest_workspace_files is not None
+            ):
+                self._initialize_workspace_request(
+                    self._latest_workspace_files, self._workspace_policy
                 )
         except BaseException:
             self._stop_wire()
@@ -500,6 +519,98 @@ class KernelSession:
             None,
         )
 
+    def _initialize_workspace_request(
+        self,
+        files: list[dict[str, object]],
+        policy: dict[str, object],
+    ) -> dict[str, object]:
+        result = self._request(
+            {"files": files, "operation": "workspace_init", "policy": policy},
+            timeout_ms=self.runtime.limits.wall_milliseconds,
+        )
+        if type(result) is not dict or set(result) != {
+            "file_count",
+            "sha256",
+            "total_bytes",
+        }:
+            raise KernelContractError("kernel workspace initialization is malformed")
+        if (
+            type(result["file_count"]) is not int
+            or result["file_count"] != len(files)
+            or type(result["total_bytes"]) is not int
+            or result["total_bytes"] < 0
+            or type(result["sha256"]) is not str
+            or len(result["sha256"]) != 64
+        ):
+            raise KernelContractError("kernel workspace initialization is inconsistent")
+        return result
+
+    def initialize_workspace(self, files: object, policy: object) -> dict[str, object]:
+        if self._closed:
+            raise KernelContractError("kernel session is closed")
+        try:
+            normalized_policy = normalize_policy(policy)
+            normalized_files = decode_files(
+                files,
+                max_files=int(normalized_policy["max_files"]),
+                max_bytes=int(normalized_policy["max_bytes"]),
+            )
+        except WorkspaceError as exc:
+            raise KernelContractError(str(exc)) from exc
+        result = self._initialize_workspace_request(normalized_files, normalized_policy)
+        self._workspace_policy = normalized_policy
+        self._latest_workspace_files = normalized_files
+        return result
+
+    def export_workspace(self) -> dict[str, object]:
+        if self._workspace_policy is None:
+            raise KernelContractError("kernel workspace is not initialized")
+        result = self._request(
+            {"operation": "workspace_export"},
+            timeout_ms=self.runtime.limits.wall_milliseconds,
+        )
+        try:
+            normalized = decode_export(result, self._workspace_policy)
+        except WorkspaceError as exc:
+            raise KernelContractError(str(exc)) from exc
+        self._latest_workspace_files = cast(
+            list[dict[str, object]], normalized["files"]
+        )
+        return normalized
+
+    def run_workspace_command(
+        self, argv: list[str], *, timeout_ms: int
+    ) -> dict[str, object]:
+        if self._workspace_policy is None:
+            raise KernelContractError("kernel workspace is not initialized")
+        maximum = int(self._workspace_policy["command_timeout_ms"])
+        if (
+            not argv
+            or any(type(item) is not str or not item or "\x00" in item for item in argv)
+            or type(timeout_ms) is not int
+            or not 1 <= timeout_ms <= maximum
+        ):
+            raise KernelContractError("kernel workspace command is malformed")
+        result = self._request(
+            {"argv": argv, "operation": "workspace_run", "timeout_ms": timeout_ms},
+            timeout_ms=min(timeout_ms + 5_000, self.runtime.limits.wall_milliseconds),
+        )
+        if type(result) is not dict or set(result) != {
+            "returncode",
+            "stderr",
+            "stdout",
+            "timed_out",
+        }:
+            raise KernelContractError("kernel workspace command response is malformed")
+        if (
+            (result["returncode"] is not None and type(result["returncode"]) is not int)
+            or type(result["stderr"]) is not str
+            or type(result["stdout"]) is not str
+            or type(result["timed_out"]) is not bool
+        ):
+            raise KernelContractError("kernel workspace command response is malformed")
+        return result
+
     def snapshot(self) -> dict[str, object]:
         result = self._request(
             {"operation": "snapshot"},
@@ -523,6 +634,8 @@ class KernelSession:
             timeout_ms=self.runtime.limits.wall_milliseconds,
         )
         self._latest_snapshot = None
+        self._workspace_policy = None
+        self._latest_workspace_files = None
 
     def ping(self) -> dict[str, object]:
         result = self._request(

@@ -8,6 +8,13 @@ ENTRYPOINTS = {
     ROOT / "apps/candidate_runner/candidate_runner.py",
     ROOT / "apps/candidate_runner/pi_text_adapter.py",
     ROOT / "apps/controller/controller.py",
+    ROOT / "apps/coding_agent/candidate_runner.py",
+    ROOT / "apps/coding_agent/evaluator.py",
+    ROOT / "apps/coding_agent/evidence_adapter.py",
+    ROOT / "apps/coding_agent/fixtures/fixture_solution_proposer.py",
+    ROOT / "apps/coding_agent/solution_evaluator.py",
+    ROOT / "apps/coding_agent/solution_experiment.py",
+    ROOT / "apps/coding_agent/validate_solution.py",
     ROOT / "apps/evolution_driver/demo_proposer.py",
     ROOT / "apps/evolution_driver/evolver.py",
     ROOT / "apps/evolution_driver/signal_relay_acceptance.py",
@@ -35,6 +42,7 @@ ENTRYPOINTS = {
     ROOT / "artifacts/git/git_candidate_adapter.py",
     ROOT / "artifacts/git/pi_git_proposer.py",
     ROOT / "connectors/live_agent_acceptance.py",
+    ROOT / "connectors/fixed/pi/coding_proposer.py",
     ROOT / "connectors/fixed/pi/git_proposer.py",
     ROOT / "connectors/fixed/pi/harness_model.py",
     ROOT / "connectors/fixed/pi/harness_proposer.py",
@@ -228,13 +236,40 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     implementation = (
         ROOT / "connectors/fixed/pi/population_evolution_extension.ts"
     ).read_text(encoding="utf-8")
-    for command in ('"evolve"', '"evolve-status"', '"evolve-verify"'):
+    for command in (
+        '"evolve"',
+        '"evolve-status"',
+        '"evolve-verify"',
+        '"evolve-harness"',
+        '"evolve-harness-resume"',
+        '"evolve-harness-retry"',
+        '"evolve-code"',
+        '"evolve-code-resume"',
+        '"evolve-code-retry"',
+        '"evolve-code-status"',
+        '"evolve-code-verify"',
+    ):
         assert f"pi.registerCommand({command}" in implementation
     assert 'name: "population_evolution"' in implementation
+    assert 'name: "darwinian_coding"' in implementation
     assert 'await pi.exec("uv", args' in implementation
     assert "final-tasks.json" not in implementation
     assert "development-tasks.json" not in implementation
     assert "execSync" not in implementation
+
+
+def test_coding_agent_application_is_provider_neutral():
+    offenders = []
+    for path in (ROOT / "apps/coding_agent").rglob("*.py"):
+        for node in ast.walk(parsed(path)):
+            modules = []
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                modules = [node.module]
+            if any(module.startswith("connectors") for module in modules):
+                offenders.append((path.relative_to(ROOT).as_posix(), modules))
+    assert offenders == []
 
 
 def test_candidate_python_execution_is_confined_to_kernel_server():

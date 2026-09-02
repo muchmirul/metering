@@ -17,7 +17,8 @@ it does not change or interpret them.
 
 Repository-local evolution applications and connectors are source-only tools
 around external agents. They now include one concrete, mutation-only typed
-recursive harness under `apps/harness/`; that harness is not installed Metering
+recursive harness under `apps/harness/` and one profile-bound two-level coding
+composition under `apps/coding_agent/`; neither is installed Metering
 and does not move provider translation, evaluation, selection, or deployment
 authority into the package. External agents propose harness, adapter, and
 model-output candidates. External trainers produce weights. Metering validates
@@ -509,6 +510,94 @@ authority. Energy and GPU observations remain explicitly unavailable rather than
 estimated. This implementation does not train weights, adapt mutation,
 recombine Git candidates, co-evolve an evaluator, install, or deploy.
 
+`apps/coding_agent` is the accepted narrow coding executor over that same typed
+harness and Docker profile. It does not activate arbitrary legacy Git execution.
+Its canonical `darwinian-coding-task-v1` profile binds one absolute
+operator-approved repository, exact base commit and entrypoint, sorted allowed
+write paths, non-empty development checks as argv arrays, a normalized absolute
+path plus SHA-256 for a separately permissioned protected-final profile,
+per-check timeouts, exact recurrence and final tie draws, a bounded goal, and
+finite round/proposal/wall limits. Fixed code opens the protected profile only
+after development stops. A model cannot supply or alter either profile. The
+task identity is the SHA-256 of its normalized canonical form.
+
+Coding mutation is archive-in/archive-out. Fixed host code resolves the exact
+base/parent commit, serializes only sorted regular files, excludes `.git`, and
+rejects symlinks, devices, path traversal, duplicate paths, more than 2,000
+files, or more than 8 MiB. The archive enters the reviewed OCI kernel through
+stdin, never a host mount. Fixed Docker-side helpers expose bounded
+list/read/write/delete/search and shell-free argv execution; persisted writes
+must match caller-approved path prefixes. The candidate has no network, host
+Git checkout, `.git`, Docker socket, credentials, evaluator assets, host tools,
+or writable root. Fixed host code validates the complete exported snapshot and
+changed paths, then creates the immutable first-parent child commit itself.
+There is no live-to-host fallback. The unsafe process fixture remains CI-only.
+
+Development and final checks execute from fresh candidate archives in new OCI
+kernel sessions rather than the mutation session. Their commands are the
+profile's reviewed argv arrays, never model-generated shell strings. Execution
+receipts bind candidate/content, task, runtime, command, return code, timeout,
+output digests, workspace digest, isolation, cgroup observations, and separately
+named Population resources. Candidate-written tests have no authority unless an
+operator profile invokes them. The selected source repository is never modified.
+
+Level 1 evolves solution commits under one frozen selected harness, model/runtime,
+task profile, evaluator, and Population policy. Level 2 separately evolves the
+nine typed harness loci on fixed coding workspaces through the same Controller,
+Population recurrence, fresh independent evaluator, protected final suite, and
+seal; it emits a canonical `selected-evolutionary-harness-v2` descriptor whose
+provenance binds the assay, development experiment, final allocation, final
+receipt/run/counts, and sealed Population head. Before use, Level 1 verifies the
+complete source Level-2 run, preserves the candidate's original artifact
+identity while localizing Git objects, and records a replayed provenance
+receipt. A Level-2 descriptor is an explicit immutable input to a later Level-1 run.
+Solution and harness genomes never mutate in the same experiment. A Pi session,
+transcript, IPython namespace, and unexported temporary state are phenotype, not
+heredity; only a validated Git child is inherited.
+
+Population still owns development archive membership and reproductive parent
+allocation. For user-facing code selection, the coding final assay uses one
+explicit lexicographic policy rather than uniform selection across resource
+tradeoffs: maximize development task rate, then maximize replicate reliability,
+then consume the profile's exact rational draw among canonical candidate-ID
+ties. Fixed code derives and records the exact Population allocation draw that
+selects that candidate. Both draws and the policy identifier replay offline; no
+weighted fitness/intelligence score is introduced.
+
+Protected final checks are not included in mutation prompts, Controller
+development requests, archives, or ancestry views. They are loaded only after
+development stops and the final allocation is committed. Declaring the one-use
+final experiment stops Driver recurrence; its first run permanently seals
+Population. Final failure cannot trigger another mutation or replacement assay
+inside that run. Output is an immutable selected commit/descriptor, a
+replay-derived patch, and evidence. Applying, merging, installing, or deploying
+it is always a separate caller action.
+
+The reviewed project-local Pi extension exposes `/evolve-harness`,
+`/evolve-harness-resume`, `/evolve-harness-retry`, `/evolve-code`,
+`/evolve-code-resume`, `/evolve-code-retry`, `/evolve-code-status`, and
+`/evolve-code-verify` only after an explicit
+invocation. Resume cannot repeat an indeterminate model call; retry requires an
+operator reason and a predeclared call/time reservation. The model-facing
+`darwinian_coding` tool accepts only a
+fixed action enum and uses the operator-configured absolute profile; it accepts
+no task, command, evaluator, candidate, or output path. Pi is mutation transport
+and UI, never evaluator, selector, ledger authority, or sandbox boundary.
+
+Offline verification replays Driver and Population without SQLite, validates
+profile/runtime/harness bindings and kernel conformance, re-clones every exact
+harness and solution candidate, checks first-parent ancestry and allowed paths,
+closes mutation/evaluation/final receipt sets, recomputes capability-first final
+allocation, requires complete development and exactly one final run, confirms
+the permanent seal, and regenerates the selected Git patch byte-for-byte.
+
+This two-level mechanism does not guarantee universal or monotonic improvement.
+A live result applies only to its exact model, runtime, task profile, checks, and
+receipts. A saturated Level-2 suite can prove compatible retained harness
+evolution without proving increased capability. Broader improvement evidence
+requires matched one-shot, continual, and Darwinian treatments under equal
+model, tools, evaluator, task set, tokens/calls/wall budget, and protected cases.
+
 ### Parked population extensions
 
 **Status: automatic population execution is implemented; all items below remain
@@ -525,8 +614,9 @@ granted to the installed package or current applications:
    non-stationary experiment identities, fresh final evidence, and a rule that
    no candidate or evolving evaluator can approve itself. The current trusted
    evaluator remains frozen within every accepted experiment.
-3. **Additional sandbox and transport profiles.** The typed harness has one
-   reviewed Docker/cgroup-v2 profile. Arbitrary Git executors, Podman,
+3. **Additional sandbox and transport profiles.** The typed harness and bounded
+   coding workspace share one reviewed Docker/cgroup-v2 profile. Git execution
+   outside the accepted archive-in/archive-out coding profile, Podman,
    Kubernetes, bubblewrap, remote kernels, and VM transports remain caller
    infrastructure until each has a versioned fail-closed profile, explicit
    receipts, and adversarial conformance tests. Python path checks, command
@@ -601,6 +691,7 @@ tests/
     test_population_driver.py
     test_darwinian_code_evolution.py
     test_harness_evolution.py
+    test_coding_agent.py
     test_architecture.py
     test_signal_relay_acceptance.py
     test_git_artifact_evolution.py
@@ -614,6 +705,7 @@ docs/
     agent-evolution.md
     deterministic-search-evolution.md
     source-architecture.md
+    darwinian-coding-agent.md
 artifacts/
     git/              agent-neutral Git source/model-output candidate bridge
 connectors/
@@ -637,7 +729,8 @@ apps/
     evolution_driver/ bounded run-local recurrence over selected SKILL.md artifacts
     population/       public contract, canonical ledger, Pareto archive, allocation, and derived index
     population_driver/ replay, planner, effects, store, and bounded Git recurrence runtime
-    harness/            typed recursive phenotype, OCI kernel, receipts, final assay, and reference composition
+    harness/            typed recursive phenotype, coding workspace, OCI kernel, receipts, final assay, and reference composition
+    coding_agent/       immutable solution evolution, independent checks, selected patch, and offline replay
 ```
 
 Historical Pi scripts under `apps/` and `artifacts/git/` are thin compatibility
@@ -1110,6 +1203,26 @@ The rewrite is complete only when:
   independent development evaluation, Population recurrence, exact final
   allocation, protected final evaluation, permanent sealing, and offline
   Git/manifest/receipt/ledger verification with no caller-written adapter;
+- the kernel coding-workspace ABI imports and exports only bounded canonical
+  regular-file archives, rejects `.git`, traversal, symlinks, devices,
+  disallowed writes, oversized state/output, timeout, and missing isolation, and
+  never mounts or falls back to a host checkout;
+- the Level-2 coding assay evolves real nine-locus harness descendants, evaluates
+  returned workspaces in fresh kernels, records retained/rejected Population
+  evidence, final-seals one selected harness, and replays its exact descriptor;
+- `darwinian-coding-task-v1` binds immutable repository/base, allowed paths,
+  reviewed development/protected argv checks, rational draws, and finite budgets;
+  Level 1 creates only first-parent solution commits in run-local Git storage;
+- every solution/check pair runs in a fresh OCI kernel, immutable mutation and
+  execution receipts close exactly over candidate ancestry and authenticated
+  Population runs, and protected cases remain absent until final allocation;
+- coding final selection maximizes development task rate then reliability and
+  uses the caller's exact draw only for canonical-ID ties, records the derived
+  Population draw without a scalar score, and cannot recur after final reveal;
+- a complete coding fixture returns a non-empty selected patch from an improved
+  child while leaving the source repository unchanged, passes the protected
+  suite, permanently seals Population, verifies with SQLite deleted, and rejects
+  receipt, ancestry, path, selection, or patch tampering;
 - the constructed live-Pi acceptance loads its final cases only after the
   development generation, never feeds them back to the proposer, and fails
   unless the exact selected head passes the declared development and final

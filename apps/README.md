@@ -18,6 +18,15 @@ stage. It supplies a provider-neutral recursive action loop, isolated IPython
 kernel ABI, OCI/resource profile, immutable receipts, protected final assay, and
 Pi/Prime Agent translations while reusing the owners above.
 
+The [Darwinian Coding Agent](coding_agent/README.md) composes that typed harness
+with an archive-in/archive-out solution workspace. It evolves immutable solution
+commits under caller-owned development and protected-final argv checks, runs
+each check in a fresh OCI kernel, applies a deterministic capability-first final
+allocation, emits a selected patch, and verifies the entire sealed run offline.
+Its separate Level-2 mode evolves the nine harness loci on fixed coding assays
+before the selected harness is supplied to Level 1. It neither modifies the
+source repository nor installs the result.
+
 Three source-only outer controls compose those stages without becoming
 additional semantic stages:
 
@@ -96,6 +105,10 @@ The repository-complete typed-harness recurrence, including kernel lifecycle,
 recursive subagents, resource receipts, protected final sealing, and offline
 verification, is covered by
 [`tests/test_harness_evolution.py`](../tests/test_harness_evolution.py).
+The two-level coding composition, immutable solution branches, independent
+fresh-container checks, capability-first final selection, selected patch, and
+SQLite-free replay are covered by
+[`tests/test_coding_agent.py`](../tests/test_coding_agent.py).
 
 The external [Git artifact bridge](../artifacts/git/README.md) demonstrates that
 the same boundaries can retain immutable adapter-source commits and external

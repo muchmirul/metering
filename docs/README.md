@@ -35,7 +35,13 @@ from current implementation claims.
   parked adaptive-policy and co-evolution directions.
 - [Evolutionary Harness](../apps/harness/README.md) specifies the nine-locus
   candidate, runtime identity, recursive action loop, kernel conformance,
-  resource receipts, one-command reference experiment, and offline verifier.
+  resource receipts, coding workspace ABI, one-command reference experiment,
+  and offline verifier.
+- [Darwinian coding agent architecture and threat model](darwinian-coding-agent.md)
+  specifies separate Level-1 solution and Level-2 harness evolution,
+  archive-in/archive-out Docker workspaces, evidence visibility, immutable Git
+  heredity, capability-first final allocation, protected sealing, trust zones,
+  residual risks, and bounded improvement claims.
 - [Agent connectors](../connectors/README.md) documents the fixed Pi and Prime
   Agent translations, the shared internal Metering skill, and the explicit live
   harness conformance path.

@@ -113,11 +113,28 @@ with one protected final assay and Population's permanent seal. Pi and Prime
 Agent are concrete tool-free model transports. Deterministic CI uses the same
 wire contract through an explicitly unsafe host-process fixture.
 
+The source-only [Darwinian coding agent](../apps/coding_agent/README.md) is also
+implemented through Level 2. The harness can receive bounded coding archives
+inside the OCI kernel; a fixed coding assay evolves and seals the nine-locus Pi
+harness. A separate Level-1 run then imports one operator-approved repository
+commit without `.git`, lets the exact selected harness produce immutable
+solution descendants, evaluates every candidate/check pair in a fresh
+container, uses Population recurrence, chooses a final candidate by development
+task rate then reliability with an exact tie draw, runs protected checks after
+allocation, permanently seals search, and emits a replay-checked patch without
+changing the source repository. Its strict `darwinian-coding-task-v1` profile
+owns allowed paths, argv checks, draws, and budgets. Plain Pi exposes
+`/evolve-harness`, explicit `/evolve-harness-resume` or operator-reasoned
+`/evolve-harness-retry`, `/evolve-code`, explicit `/evolve-code-resume` or
+operator-reasoned `/evolve-code-retry`, `/evolve-code-status`, and
+`/evolve-code-verify` only after explicit invocation.
+
 Implemented candidate forms are:
 
 - default-agent configuration;
 - one complete `SKILL.md` artifact; and
-- immutable `git-candidate-v1` trees with optional external-output receipts.
+- immutable `git-candidate-v1` trees with optional external-output receipts,
+  including typed harness and operator-approved solution commits.
 
 A Git candidate may be configuration-only when its fixed external executor
 interprets the configured entrypoint. Candidate identity must bind configuration
@@ -138,11 +155,14 @@ Do not claim or infer these capabilities from the current repository:
 - a sandbox in the installed Metering package or for arbitrary legacy Git
   executors (the source-only typed harness has one reviewed Docker/cgroup-v2
   profile);
-- model training or environment-specific benchmark integration;
-- full-context agent adoption or ambient agent memory.
+- model training, arbitrary external benchmark integration, or a claim that the
+  fixed coding suites establish universal improvement;
+- full-context host adoption, ambient agent memory, or inheritance of Pi/IPython
+  session state outside an explicit genome.
 
-Only the bounded mutation-only Population Driver and typed-harness composition
-documented above are current automatic population behavior. Adaptive mutation,
+Only the bounded mutation-only Population Driver, typed-harness composition,
+and profile-bound two-level coding composition documented above are current
+automatic population behavior. Adaptive mutation,
 code recombination, evaluator co-evolution, installation, deployment, and other
 sandbox/transport profiles remain parked unless `PLAN.md`, tests, and
 implementation are updated together.
@@ -177,7 +197,12 @@ Before running an application workflow:
 - [`../apps/population_driver/README.md`](../apps/population_driver/README.md):
   bounded archive-allocation-mutation/evaluation recurrence.
 - [`../apps/harness/README.md`](../apps/harness/README.md): typed recursive
-  phenotype, kernel isolation, receipts, final assay, and reference command.
+  phenotype, coding workspace, kernel isolation, receipts, final assay, and
+  reference command.
+- [`darwinian-coding-agent.md`](darwinian-coding-agent.md): two-level coding
+  architecture, threat model, evidence visibility, and improvement claims.
+- [`../apps/coding_agent/README.md`](../apps/coding_agent/README.md): task schema,
+  commands, artifacts, final policy, and verifier.
 - [`../artifacts/git/README.md`](../artifacts/git/README.md): immutable Git
   candidates and external-output receipts.
 - [`../connectors/README.md`](../connectors/README.md): fixed connector and trust

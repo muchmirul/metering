@@ -23,7 +23,7 @@ state and never decides retention.
 connectors/
     tools/metering/          cross-harness Agent Skills tool
     fixed/
-        pi/                  Pi artifact and typed-harness translations
+        pi/                  Pi artifact, typed-harness, and isolated coding translations
         prime_agent/         Prime Agent artifact and typed-harness translations
     full_context/            parked manifest-based profile
     live_agent_acceptance.py real-harness Metering tool acceptance
@@ -69,7 +69,11 @@ reliably or that a candidate improved.
 Connectors and agent commands execute with caller permissions. Historical
 tool-enabled Git proposers require an external container or VM. The typed
 Evolutionary Harness instead makes both provider calls tool-free and executes
-candidate Python only in its reviewed no-network OCI kernel; Docker, cgroup-v2,
+candidate Python only in its reviewed no-network OCI kernel. The Darwinian
+coding connector also keeps Pi tool-free on the host: only fixed helpers inside
+that kernel can inspect or edit the archive, and fresh kernels run caller-owned
+checks. The interactive project extension is reviewed host code and accepts no
+model-supplied evaluator or task command. Docker, cgroup-v2,
 image preparation, and credentials remain platform prerequisites. Keep protected
 evaluators, selected-parent state, credentials, and the frozen control plane
 outside candidate access. Selection and installation remain separate.

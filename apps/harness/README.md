@@ -144,6 +144,49 @@ Population owns archive membership and exact allocation. There is no generic
 fitness or intelligence score. Task, safety, reliability, novelty, forecast,
 information, and resource coordinates stay separately named.
 
+## Coding workspace and Level 2
+
+The kernel ABI also supports a bounded archive-in/archive-out coding workspace.
+A task may add `workspace.files` and a fixed policy to the ordinary prompt and
+outcomes. The host validates at most 2,000 sorted regular files/8 MiB, excludes
+`.git`, rejects symlinks and traversal, and transfers the archive over stdin—no
+host mount. Fixed kernel helpers expose list/read/write/delete/search and
+shell-free argv execution. The Docker boundary and resource limits are the same
+as for generated IPython cells; persisted writes are restricted to declared
+paths. Finish returns a complete content-addressed snapshot, and a fresh
+container—not the mutation container—runs each trusted assay.
+
+`coding-fixture` and `coding-pi` use these workspaces to evolve the complete
+nine-locus Pi harness on fixed development coding cases, then run a separate
+protected final suite and write `selected-harness.json`:
+
+```bash
+uv run python apps/harness/experiment.py \
+  coding-fixture /tmp/metering-coding-harness
+uv run python apps/harness/experiment.py \
+  verify /tmp/metering-coding-harness
+
+uv run python apps/harness/experiment.py \
+  coding-pi /tmp/metering-coding-harness-live \
+  /absolute/path/runtime.pi.json
+
+# Resume only replayable effects, or explicitly spend one reserved retry.
+uv run python apps/harness/experiment.py resume /tmp/metering-coding-harness-live
+uv run python apps/harness/experiment.py retry \
+  /tmp/metering-coding-harness-live 'operator-reviewed reason'
+```
+
+A retry first seals the existing content-addressed run receipts under
+`state/retry-effects/` and includes its digest in the next hash-derived attempt
+identity. Offline replay treats otherwise-unbound entries as non-selecting
+residue and preserves exact receipt-set closure.
+
+That selected descriptor is the frozen policy input to the separate
+[Level-1 Darwinian coding agent](../coding_agent/README.md), which evolves
+solution commits. Harness and solution genomes never mutate in the same
+experiment. A Level-2 descendant selected from a saturated suite is evidence of
+mechanism and retained compatibility, not necessarily higher coding capability.
+
 ## Live Pi or Prime Agent
 
 After preparing an immutable OCI runtime profile, run:
@@ -158,7 +201,9 @@ uv run python apps/harness/experiment.py \
 
 A trusted source checkout also exposes the same Pi composition as project-local
 **Population Evolution Mode**. Run `pi` from the repository root, approve the
-project once, and use `/evolve`, `/evolve-status`, or `/evolve-verify`. This is a
+project once, and use `/evolve`, `/evolve-status`, or `/evolve-verify`. For coding, use
+`/evolve-harness`, then `/evolve-code /absolute/task.json`,
+`/evolve-code-status`, or `/evolve-code-verify`. This is a
 thin fixed-connector UI: opening Pi does not start a run, nested model calls do
 not inherit the interactive session or extension, and selected candidates are
 not automatically installed. See the [Pi connector](../../connectors/fixed/pi/README.md#interactive-population-evolution-mode).
@@ -182,7 +227,8 @@ the exact profile, model, tasks, evaluator, and receipts.
 |---|---|
 | `protocol.py` | typed candidate genome and refresh validation |
 | `runtime_manifest.py` | canonical runtime identity and compatibility |
-| `kernel_server.py` | sandbox-side IPython/fixture wire server |
+| `workspace.py` | canonical archive/path/policy validation and host materialization |
+| `kernel_server.py` | sandbox-side IPython/fixture wire server and coding helpers |
 | `kernel_contract.py` | host supervisor, restarts, OCI flags |
 | `resources.py` | external procfs/cgroup-v2 observations |
 | `model_contract.py` | provider-neutral one-shot model protocol |

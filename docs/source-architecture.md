@@ -169,6 +169,50 @@ appends its single final run, and invokes existing Population replay. Offline ve
 also checks every Git checkout, typed manifest, dependency lock, run receipt,
 final bundle, ledger, and permanent seal.
 
+## Darwinian Coding machine
+
+`apps/coding_agent` is a narrow outer composition, not an installed Metering
+feature or a replacement for Controller/Population. It adds these instructions:
+
+| Module | Responsibility |
+|---|---|
+| `protocol.py` | pure canonical `darwinian-coding-task-v1` normalization |
+| `harness_workspace_editor.py` | selected-harness checkout and one isolated solution mutation |
+| `candidate_runner.py` | fresh-container execution of one immutable solution/check pair |
+| `solution_evaluator.py` | immutable execution-receipt loading and replay |
+| `evaluator.py` | fresh-container evaluation of Level-2 returned workspaces |
+| `evidence_adapter.py` | authenticated Controller traces to Population evidence |
+| `final_assay.py` | lexicographic development selection and protected one-use assay |
+| `solution_experiment.py` | bounded effects, Git publication, final sealing, and offline replay |
+
+Generic snapshot/path primitives belong to `apps/harness/workspace.py`; generic
+clone/content/commit operations remain in `artifacts/git`. Provider invocation
+stays in `connectors/fixed/pi/coding_proposer.py`. The coding owner does not
+import connectors, and the installed package does not import any source-control
+plane.
+
+The mutation effect is archive-in/archive-out. Host code resolves the approved
+commit into regular-file records and never mounts its checkout or `.git` in the
+kernel. The selected typed harness gets only fixed Docker-side workspace
+helpers. The host validates the complete returned archive and creates the child
+commit. Independent checks import that commit into new containers using fixed
+argv from the caller profile. Solution and harness evolution are separate runs;
+the exact sealed harness descriptor is a frozen Level-1 runtime input.
+
+Population continues to own reproductive allocations. The coding final assay
+adds one explicit outer deployment-choice policy because Pareto-uniform
+allocation may preserve lower-cost failing candidates: maximize development
+task rate, then reliability, then consume the caller's rational draw among
+canonical-ID ties. It derives a rational Population allocation for that chosen
+candidate, records both draws, and replays them offline before any protected
+case evidence is accepted. No weighted score or protected evidence participates.
+
+The Pi project extension is trusted host UI only. Its model-facing coding tool
+accepts a fixed action enum and uses only an operator-configured absolute task
+profile; no task text, evaluator argv, candidate, or output path comes from the
+outer model. Candidate actions remain confined to the separately launched OCI
+kernel.
+
 ## Executable Darwinian recurrence tests
 
 `tests/test_darwinian_code_evolution.py` is the CI-safe minimal end-to-end mechanism
@@ -196,7 +240,11 @@ Qwen, Pi, or general problem-solving improvement. `tests/test_harness_evolution.
 harness manifest, recursive subagent context, kernel lifecycle and recovery,
 resource receipts, tool-free mutation boundary, provider event translation,
 Population recurrence, protected final run, seal, and offline verification. Its
-host-process kernel is not a live sandbox. Live typed-harness mutation requires
+host-process kernel is not a live sandbox. `tests/test_coding_agent.py` additionally evolves and seals a harness
+on coding workspaces, creates real immutable solution descendants, retains and
+rejects variants under independent checks, selects a development-capable
+candidate, performs a protected final assay, emits a patch without modifying the
+source, deletes SQLite, and replays every identity. Live typed-harness mutation requires
 the checked-in Docker profile, a pinned image/model connector, cgroup-v2
 observations, and credentials; withheld final evaluation remains separate.
 
@@ -212,7 +260,7 @@ observations, and credentials; withheld final evaluation remains separate.
 - domain dependencies from shared mechanical support;
 - durable store instructions in Population Driver replay; and
 - imports from the source control plane into installed Metering core;
-- provider imports from the harness application owner;
+- provider imports from the harness or coding-agent application owners;
 - candidate `exec`/`eval` effects outside the sandbox-side kernel server; and
 - fixed mutator/evaluator/control files inside the reference candidate genome.
 

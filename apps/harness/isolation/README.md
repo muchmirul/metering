@@ -40,18 +40,21 @@ requirements, or limits creates another runtime identity.
 The host supervisor constructs the Docker command. Candidates cannot add flags
 or mounts. The fixed profile uses:
 
-- `--network none`;
+- `--pull never` and `--network none`;
 - `--read-only`, a size-bounded `/tmp` tmpfs, and no shared IPC namespace;
 - `--cap-drop ALL` and `no-new-privileges`;
 - numeric non-root UID/GID `65532:65532`;
-- explicit pids, memory, CPU, file-descriptor, and core-dump limits;
+- explicit pids, memory-plus-swap, CPU, file-descriptor, and core-dump limits;
 - no host path, Docker socket, device, credential, or evaluator mount; and
 - a fixed kernel-server command from the immutable image.
 
-Candidate bootstrap and model-generated cells enter over stdin only. Model
-credentials remain in the tool-free host connector and are never passed into the
-container. Candidate policy cannot enable network, host tools, Pi extensions, or
-another command.
+Candidate bootstrap, model-generated cells, and optional canonical coding
+archives enter over stdin only. Coding archives contain sorted regular files and
+never `.git`; no checkout is mounted. Fixed workspace commands run only inside
+the same container, and only a bounded validated snapshot can return over
+stdout. Model credentials remain in the tool-free host connector and are never
+passed into the container. Candidate policy cannot enable network, host tools,
+Pi extensions, Docker, or another container command.
 
 On Linux/cgroup v2, the host resolves the container PID through `docker inspect`
 and reads `cpu.stat`, `memory.peak`, `pids.peak`/`pids.current`, and `io.stat`.
@@ -74,6 +77,10 @@ against the exact image and candidate bootstrap. A standalone command is:
 uv run python apps/harness/conformance.py \
   /absolute/path/runtime.pi.json apps/harness/reference
 ```
+
+Any change to `kernel_server.py`, including its coding-workspace ABI, requires a
+new image build/push digest and therefore a new reviewed runtime identity before
+conformance or live execution.
 
 Then run the bounded experiment:
 

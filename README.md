@@ -258,6 +258,19 @@ root, approve project trust once, and use `/evolve`. The automatically loaded
 entrypoint is thin, while implementation and isolation remain under the fixed
 [Pi connector](connectors/fixed/pi/README.md#interactive-population-evolution-mode).
 
+The source checkout also includes an opt-in two-level
+[Darwinian coding agent](apps/coding_agent/README.md). `/evolve-harness` evolves
+and final-seals the nine-locus Pi harness against fixed coding workspaces;
+`/evolve-code /absolute/task.json` then uses that exact selected harness to
+create immutable solution commits for an operator-approved repository and
+independently evaluates them in fresh Docker containers. `/evolve-code-status`
+shows the selected patch path and `/evolve-code-verify` replays all Git,
+receipt, Driver, Population, allocation, and final-seal evidence without SQLite.
+The source repository is never edited, and no selected patch is merged or
+deployed automatically. The coding task profile—not the model—owns allowed
+paths, development and protected-final argv checks, exact draws, and budgets.
+See the [architecture and threat model](docs/darwinian-coding-agent.md).
+
 Run the explicit live conformance path with a model available to both installed
 harnesses:
 

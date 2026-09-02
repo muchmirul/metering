@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -17,7 +19,13 @@ if str(ROOT) not in sys.path:
 
 from apps._support.wire import canonical_json  # noqa: E402
 from apps.harness.conformance import run_conformance  # noqa: E402
-from apps.harness.experiment import run_experiment, verify_experiment  # noqa: E402
+import apps.harness.experiment as harness_experiment_module  # noqa: E402
+from apps.harness.experiment import (  # noqa: E402
+    ExperimentError,
+    continue_experiment,
+    run_experiment,
+    verify_experiment,
+)
 from apps.harness.harness_runner import execute  # noqa: E402
 from apps.harness.kernel_contract import (  # noqa: E402
     KernelContractError,
@@ -37,6 +45,11 @@ from apps.harness.receipts import (  # noqa: E402
 )
 from apps.harness.resources import _io_writes  # noqa: E402
 from apps.harness.runtime_manifest import load_runtime_manifest  # noqa: E402
+from apps.harness.workspace import (  # noqa: E402
+    WorkspaceError,
+    decode_files,
+    snapshot_directory,
+)
 from apps.population.contract import load_state  # noqa: E402
 from apps.population_driver.paths import population_root  # noqa: E402
 from connectors.fixed.harness_model_runtime import (  # noqa: E402
@@ -96,6 +109,87 @@ def test_empty_cgroup_io_stat_is_observed_zero_physical_writes(
     assert _io_writes(tmp_path) == 7
 
 
+def test_kernel_workspace_routes_edits_and_commands_through_isolation(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "solver.py").write_text("print('old')\n", encoding="utf-8")
+    files = snapshot_directory(source)
+    policy = {
+        "allowed_write_paths": ["solver.py"],
+        "command_timeout_ms": 5_000,
+        "max_bytes": 65_536,
+        "max_files": 8,
+        "max_output_characters": 4_096,
+    }
+    runtime = load_runtime_manifest(FIXTURE_RUNTIME)
+    snapshot_policy = load_candidate(REFERENCE).policy("snapshot_policy")
+    with KernelSession(
+        runtime, "x = 1\n", snapshot_policy, allow_fixture=True
+    ) as session:
+        initialized = session.initialize_workspace(files, policy)
+        assert initialized["file_count"] == 1
+        execution = session.execute(
+            "write_file('solver.py', \"print('new')\\n\")",
+            timeout_ms=5_000,
+        )
+        assert execution.status == "ok"
+        result = session.run_workspace_command(
+            [sys.executable, "solver.py"], timeout_ms=5_000
+        )
+        assert result == {
+            "returncode": 0,
+            "stderr": "",
+            "stdout": "new\n",
+            "timed_out": False,
+        }
+        exported = session.export_workspace()
+        assert exported["changed_paths"] == ["solver.py"]
+        rejected = session.execute(
+            "write_file('forbidden.py', 'bad')", timeout_ms=5_000
+        )
+        assert rejected.status == "error"
+        assert "not writable" in str(rejected.error)
+        timed_out = session.run_workspace_command(
+            [sys.executable, "-c", "import time; time.sleep(1)"], timeout_ms=10
+        )
+        assert timed_out["timed_out"] is True
+        bypass = session.execute(
+            "from pathlib import Path; "
+            "Path(workspace_root, 'forbidden.py').write_text('bad')",
+            timeout_ms=5_000,
+        )
+        assert bypass.status == "ok"
+        with pytest.raises(KernelContractError, match="changed disallowed path"):
+            session.export_workspace()
+
+
+def test_workspace_archive_rejects_traversal_links_and_non_regular_entries(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(WorkspaceError, match="normalized relative POSIX"):
+        decode_files(
+            [
+                {
+                    "content_base64": "eA==",
+                    "executable": False,
+                    "path": "../escape.py",
+                }
+            ]
+        )
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "file.py").write_text("pass\n", encoding="utf-8")
+    (source / "link.py").symlink_to("file.py")
+    with pytest.raises(WorkspaceError, match="symlink"):
+        snapshot_directory(source)
+    (source / "link.py").unlink()
+    os.mkfifo(source / "pipe")
+    with pytest.raises(WorkspaceError, match="non-regular"):
+        snapshot_directory(source)
+
+
 def test_fixture_kernel_conformance_covers_lifecycle_and_resource_receipts() -> None:
     report = run_conformance(FIXTURE_RUNTIME, REFERENCE, allow_fixture=True)
     assert report["checks"] == [
@@ -122,7 +216,13 @@ def test_reviewed_oci_profile_has_immutable_image_and_fail_closed_flags() -> Non
     assert "RUN chmod 0555 /opt/metering/kernel_server.py" in containerfile
     command = _docker_command(runtime, "test-container")
     assert runtime.image is not None and "@sha256:" in runtime.image
-    assert command[1:4] == ["run", "--name", "test-container"]
+    assert command[1:6] == [
+        "run",
+        "--pull",
+        "never",
+        "--name",
+        "test-container",
+    ]
     assert ["--network", "none"] == command[
         command.index("--network") : command.index("--network") + 2
     ]
@@ -133,6 +233,10 @@ def test_reviewed_oci_profile_has_immutable_image_and_fail_closed_flags() -> Non
     assert "no-new-privileges" in command
     assert "--pids-limit" in command
     assert "--memory" in command
+    assert "--memory-swap" in command
+    assert command[command.index("--memory-swap") + 1] == str(
+        runtime.limits.memory_bytes
+    )
     assert "--cpus" in command
     assert "--tmpfs" in command
     assert ["--ipc", "none"] == command[
@@ -189,6 +293,22 @@ def test_tool_free_proposer_applies_only_declared_locus_edits(tmp_path: Path) ->
         ),
     )
     assert "ARITHMETIC_POLICY=ADD" in load_candidate(checkout).text("system_prompt")
+    with pytest.raises(ProposerError, match="exactly one locus"):
+        _apply_response(
+            checkout,
+            canonical_json(
+                {
+                    "edits": [
+                        {"content": replacement, "path": path},
+                        {
+                            "content": candidate.text("context_policy"),
+                            "path": candidate.paths["context_policy"],
+                        },
+                    ],
+                    "reason": "too broad",
+                }
+            ),
+        )
     with pytest.raises(ProposerError, match="declared locus"):
         _apply_response(
             checkout,
@@ -199,6 +319,63 @@ def test_tool_free_proposer_applies_only_declared_locus_edits(tmp_path: Path) ->
                 }
             ),
         )
+
+
+def test_harness_resume_does_not_repeat_model_call_and_reserved_retry_completes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    counter = tmp_path / "calls.txt"
+    wrapper = tmp_path / "fail-once.py"
+    original = harness_experiment_module.FIXTURE_PROPOSER
+    wrapper.write_text(
+        "import os,sys\n"
+        "from pathlib import Path\n"
+        "counter=Path(os.environ['HARNESS_TEST_CALL_COUNTER'])\n"
+        "counter.write_text(counter.read_text()+'x' if counter.exists() else 'x')\n"
+        "marker=Path(os.environ['METERING_GIT_REPOSITORY']).parent/'proposal.attempt'\n"
+        "if marker.exists():\n"
+        " os.execv(sys.executable,[sys.executable,os.environ['HARNESS_TEST_PROPOSER']])\n"
+        "marker.write_text('failed-once')\n"
+        "sys.stdin.read()\n"
+        "raise SystemExit(17)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HARNESS_TEST_CALL_COUNTER", str(counter))
+    monkeypatch.setenv("HARNESS_TEST_PROPOSER", str(original))
+    monkeypatch.setattr(harness_experiment_module, "FIXTURE_PROPOSER", wrapper)
+    root = tmp_path / "interrupted"
+    with pytest.raises(ExperimentError, match="explicit pending intent"):
+        run_experiment("fixture", root, None, assay="coding-agent-v1")
+    assert counter.read_text() == "x"
+    assert not (root / "assay.json").exists()
+    with pytest.raises(ExperimentError, match="explicit pending intent"):
+        continue_experiment(root)
+    assert counter.read_text() == "x"
+    report = continue_experiment(root, retry_reason="reviewed fixture failure")
+    assert counter.read_text() == "xxx"
+    retry_receipts = list((root / "state" / "retry-effects").glob("*.json"))
+    assert len(retry_receipts) == 1
+    retry_document = json.loads(retry_receipts[0].read_text(encoding="ascii"))
+    assert (
+        retry_document["retry_effects_schema"]
+        == "evolutionary-harness-retry-effects-v2"
+    )
+    retry_id = hashlib.sha256(retry_receipts[0].read_bytes()).hexdigest()
+    driver_round = json.loads(
+        (root / "state" / "driver.jsonl").read_text(encoding="ascii").splitlines()[1]
+    )
+    assert driver_round["attempts"][1]["reason"].endswith(
+        f"\nretry-effects-sha256:{retry_id}"
+    )
+    assert cast(dict[str, object], report["final"])["passed_count"] == 3
+    assert verify_experiment(root)["status"] == "verified"
+    assert continue_experiment(root) == report
+    retry_document["retry_effects_schema"] = "evolutionary-harness-retry-effects-v1"
+    retry_receipts[0].write_text(
+        canonical_json(retry_document) + "\n", encoding="ascii", newline=""
+    )
+    with pytest.raises(ExperimentError, match="schema was downgraded"):
+        verify_experiment(root)
 
 
 def test_real_harness_loop_supports_isolated_recursive_subagent(

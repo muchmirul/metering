@@ -58,8 +58,10 @@ def _apply_response(workspace: Path, source: str) -> None:
     if type(reason) is not str or not reason or "\x00" in reason:
         raise ProposerError("harness mutation response.reason must be non-empty text")
     raw_edits = response["edits"]
-    if type(raw_edits) is not list or not raw_edits:
-        raise ProposerError("harness mutation response.edits must be non-empty")
+    if type(raw_edits) is not list or len(raw_edits) != 1:
+        raise ProposerError(
+            "harness mutation response.edits must contain exactly one locus"
+        )
     candidate = load_candidate(workspace)
     allowed = set(candidate.paths.values())
     seen: set[str] = set()

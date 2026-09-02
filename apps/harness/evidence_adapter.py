@@ -24,6 +24,11 @@ from apps.harness.runtime_manifest import (  # noqa: E402
     RuntimeManifestError,
     load_runtime_manifest,
 )
+from apps.population.contract import (  # noqa: E402
+    RESOURCE_NAMES,
+    RequestError,
+    normalize_resources,
+)
 
 
 class EvidenceAdapterError(RuntimeError):
@@ -52,12 +57,13 @@ def _candidate_receipts(
     candidate_id: str,
     receipt_root: Path,
     runtime: RuntimeManifest,
-) -> tuple[list[dict[str, object]], list[str]]:
+) -> tuple[list[dict[str, object]], list[str], list[dict[str, int]]]:
     traces = result.get("cases")
     if type(traces) is not list:
         raise EvidenceAdapterError("Controller result.cases must be an array")
     receipts: list[dict[str, object]] = []
     digests: list[str] = []
+    evaluation_costs: list[dict[str, int]] = []
     for trace in traces:
         if type(trace) is not dict:
             raise EvidenceAdapterError("Controller case trace is malformed")
@@ -102,6 +108,31 @@ def _candidate_receipts(
             case_id = task.get("case_id")
             if type(task_input) is not dict or type(case_id) is not str:
                 raise EvidenceAdapterError("Controller harness task is malformed")
+            observer = trace.get("observer_evaluation")
+            if type(observer) is not dict or type(observer.get("results")) is not list:
+                raise EvidenceAdapterError("Controller evaluator result is malformed")
+            matches = [
+                item
+                for item in observer["results"]
+                if type(item) is dict and item.get("candidate_id") == candidate_id
+            ]
+            if len(matches) != 1 or type(matches[0].get("evidence")) is not dict:
+                raise EvidenceAdapterError("Controller evaluator candidate is absent")
+            evaluator_evidence = matches[0]["evidence"]
+            assert type(evaluator_evidence) is dict
+            if "workspace" in task_input:
+                try:
+                    evaluation_costs.append(
+                        normalize_resources(
+                            evaluator_evidence.get("cost"),
+                            "coding evaluator evidence.cost",
+                            positive=False,
+                        )
+                    )
+                except (RequestError, ValueError) as exc:
+                    raise EvidenceAdapterError(str(exc)) from exc
+            else:
+                evaluation_costs.append({name: 0 for name in RESOURCE_NAMES})
             clean_submission = {
                 name: value
                 for name, value in submission.items()
@@ -138,7 +169,7 @@ def _candidate_receipts(
             raise EvidenceAdapterError(
                 f"Controller trace omitted candidate run {candidate_id}"
             )
-    return receipts, digests
+    return receipts, digests, evaluation_costs
 
 
 def adapt(request: dict[str, object]) -> dict[str, object]:
@@ -181,7 +212,7 @@ def adapt(request: dict[str, object]) -> dict[str, object]:
             raise EvidenceAdapterError(
                 f"Controller {report_name} task summary is malformed"
             )
-        receipts, digests = _candidate_receipts(
+        receipts, digests, evaluation_costs = _candidate_receipts(
             result, candidate_id, receipt_root, runtime
         )
         if len(receipts) != count:
@@ -189,11 +220,15 @@ def adapt(request: dict[str, object]) -> dict[str, object]:
                 "harness receipt count does not match task assay"
             )
         rate = passed / count
+        cost = aggregate_cost(receipts)
+        for evaluation_cost in evaluation_costs:
+            for name in RESOURCE_NAMES:
+                cost[name] += evaluation_cost[name]
         candidates.append(
             {
                 "behavior_distribution": [1.0 - rate, rate],
                 "candidate_id": candidate_id,
-                "cost": aggregate_cost(receipts),
+                "cost": cost,
                 "protected_passed": safety == 0,
                 "seed": {
                     "receipt_sha256": sorted(digests),

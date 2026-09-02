@@ -667,7 +667,25 @@ manifests, dependency compatibility, receipts, and both ledgers offline. The
 fixture model and host kernel establish deterministic mechanism behavior only;
 live acceptance requires the immutable OCI image and reviewed credentials.
 
-### Phase 8: adaptive mutation policy — parked
+### Phase 8: two-level Darwinian coding — implemented
+
+The kernel ABI accepts bounded regular-file coding archives and fixed workspace
+policy without a host mount. `apps/harness/experiment.py coding-fixture|coding-pi`
+evolves the nine-locus harness against fixed development workspaces, evaluates
+returned snapshots in fresh kernels, runs a distinct protected suite, seals
+Population, and writes an exact selected-harness descriptor.
+
+`apps/coding_agent` then freezes that descriptor for one
+`darwinian-coding-task-v1`, evolves only caller-approved solution paths as
+first-parent commits, evaluates each candidate/check in a fresh OCI kernel,
+records Population evidence and exact recurrence, and chooses the user-facing
+candidate by maximum development task rate, then reliability, then an exact tie
+draw. It commits the allocation before loading protected checks, permanently
+seals final evidence, returns a Git-derived patch without touching the source,
+and replays all identities without SQLite. See the
+[architecture and threat model](darwinian-coding-agent.md).
+
+### Phase 9: adaptive mutation policy — parked
 
 This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).
 Use accumulated evidence to modify $`\theta_t`$, the external proposal policy.
@@ -675,7 +693,7 @@ Mutual information between declared mutation features and outcomes may be one
 analysis tool, but it does not establish causality by itself. Policy adaptation
 must remain versioned and reversible.
 
-### Phase 9: adversarial and co-evolving environments — parked
+### Phase 10: adversarial and co-evolving environments — parked
 
 This phase is parked by [`PLAN.md`](../PLAN.md#parked-population-extensions).
 Only after evaluator isolation and population replay are trustworthy should the
@@ -738,7 +756,19 @@ candidate/runtime/final seal without model calls or SQLite.
 run succeeds without required observations, protected final evidence enters a
 later search transition, or verification requires mutable SQLite/provider state.
 
-### H6: structured failures reduce repeated waste
+### H6: archive-only coding isolation and replay
+
+**Claim.** A valid live coding run exposes no host checkout, `.git`, credential,
+network, Docker authority, or evaluator asset to candidate tools; every child is
+host-created from a validated export, every check uses a fresh container, and
+offline verification reconstructs the selected patch and pre-final allocation.
+
+**Falsifier.** Candidate code reads host-only data, persists a disallowed path,
+causes a host fallback, reuses mutation state for authoritative evaluation,
+receives protected evidence before sealing, or a modified patch/selection passes
+verification.
+
+### H7: structured failures reduce repeated waste
 
 **Claim.** Recording failed mutations, their context, and their evidence reduces
 repeated equivalent failures or improves parent allocation under a fixed budget.

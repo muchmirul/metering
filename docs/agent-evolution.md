@@ -256,9 +256,12 @@ tool-free connector registers the candidate skill and injects the complete,
 verified materialized `SKILL.md` into Pi's system prompt. Referenced scripts and
 assets are not exposed. Pin the complete Pi command through
 `METERING_PI_COMMAND`. Prime Agent's fixed text runner accepts the same request
-under `connectors/fixed/prime_agent/`. Neither can evaluate tool-using coding
-tasks; those need a separately reviewed connector with isolated workspaces and
-explicit tool and budget controls.
+under `connectors/fixed/prime_agent/`. Neither text-only connector evaluates
+tool-using coding tasks. The separately reviewed
+[`apps/coding_agent`](../apps/coding_agent/README.md) path supplies bounded
+archive-in/archive-out workspaces, fixed Docker-side tools, caller-owned argv
+checks, explicit budgets, and fresh evaluator containers without changing this
+text protocol.
 
 ## Evaluator adapter
 
