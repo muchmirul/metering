@@ -43,3 +43,41 @@ to candidate tools. The connector does not infer a model or retain a session. Ha
 `METERING_HARNESS_PROVIDER`, `METERING_HARNESS_MODEL`, and
 `METERING_HARNESS_REASONING`; `experiment.py` derives these values from the
 canonical runtime profile and rejects disagreement.
+
+## Interactive Population Evolution Mode
+
+From a trusted source checkout, plain `pi` auto-loads the thin project entrypoint
+at `.pi/extensions/population-evolution.ts`. The implementation remains owned by
+this connector. On the first invocation, approve Pi's normal project-trust
+prompt; later invocations need no flags:
+
+```bash
+cd /path/to/metering
+pi
+```
+
+The footer shows `population: ready`. Use:
+
+```text
+/evolve          start one new fixed two-generation live experiment
+/evolve-status   show the latest sealed result without a model call
+/evolve-verify   replay the latest run with the offline verifier
+```
+
+The active `population_evolution` tool also lets an outer interactive Pi handle
+an explicit request such as “run Population evolution.” It accepts only
+`run`, `status`, or `verify`; it accepts no command, task, candidate, evaluator,
+or output path from the model. `/evolve` is the deterministic route and does not
+require an outer model turn.
+
+The default reviewed runtime is
+`~/.config/metering/harness/runtime.pi.local.json`, and completed runs are kept
+under the checkout's sibling `metering-live-runs/` directory. Override those
+locations only with caller-reviewed absolute paths through
+`METERING_EVOLUTION_RUNTIME_MANIFEST` and `METERING_EVOLUTION_RUNS_DIR`.
+Opening Pi activates the control mode but does not automatically spend model
+resources or start an experiment. The extension invokes the same fixed
+`apps/harness/experiment.py` composition documented elsewhere; nested Pi model
+calls still receive isolated configuration roots and do not load the project
+extension recursively. A selected candidate is recorded and sealed, not
+silently installed or deployed as the interactive Pi agent.

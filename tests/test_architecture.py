@@ -218,6 +218,25 @@ def test_harness_application_is_provider_neutral():
     assert offenders == []
 
 
+def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
+    entrypoint = ROOT / ".pi/extensions/population-evolution.ts"
+    assert entrypoint.read_text(encoding="utf-8") == (
+        "export { default } from "
+        '"../../connectors/fixed/pi/population_evolution_extension.ts";\n'
+    )
+
+    implementation = (
+        ROOT / "connectors/fixed/pi/population_evolution_extension.ts"
+    ).read_text(encoding="utf-8")
+    for command in ('"evolve"', '"evolve-status"', '"evolve-verify"'):
+        assert f"pi.registerCommand({command}" in implementation
+    assert 'name: "population_evolution"' in implementation
+    assert 'await pi.exec("uv", args' in implementation
+    assert "final-tasks.json" not in implementation
+    assert "development-tasks.json" not in implementation
+    assert "execSync" not in implementation
+
+
 def test_candidate_python_execution_is_confined_to_kernel_server():
     offenders = []
     for path in (ROOT / "apps/harness").rglob("*.py"):

@@ -251,6 +251,13 @@ For live Pi or Prime Agent, use the checked-in OCI profile and documented Docker
 cgroup-v2 prerequisites; candidate Python never runs in the provider process.
 See the [Evolutionary Harness contract](apps/harness/README.md).
 
+For a Pi-native source-checkout interface, run only `pi` from the repository
+root, approve project trust once, and use `/evolve`. The automatically loaded
+**Population Evolution Mode** also provides `/evolve-status` and
+`/evolve-verify`; opening Pi alone never starts a costly run. The project
+entrypoint is thin, while implementation and isolation remain under the fixed
+[Pi connector](connectors/fixed/pi/README.md#interactive-population-evolution-mode).
+
 Run the explicit live conformance path with a model available to both installed
 harnesses:
 

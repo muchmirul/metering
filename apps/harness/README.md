@@ -156,6 +156,13 @@ uv run python apps/harness/experiment.py \
   prime-agent /tmp/metering-harness-prime /absolute/path/runtime.prime.json
 ```
 
+A trusted source checkout also exposes the same Pi composition as project-local
+**Population Evolution Mode**. Run `pi` from the repository root, approve the
+project once, and use `/evolve`, `/evolve-status`, or `/evolve-verify`. This is a
+thin fixed-connector UI: opening Pi does not start a run, nested model calls do
+not inherit the interactive session or extension, and selected candidates are
+not automatically installed. See the [Pi connector](../../connectors/fixed/pi/README.md#interactive-population-evolution-mode).
+
 The runtime profile, not ambient settings, pins provider, model, reasoning, and
 agent version. `METERING_PI_COMMAND` or `METERING_PRIME_AGENT_COMMAND` may name
 a reviewed JSON command prefix. The connectors use isolated configuration roots and empty temporary model

@@ -144,7 +144,10 @@ seventh semantic owner. Its instruction split is:
 
 Provider files do not enter this application owner. Pi and Prime Agent
 translations under `connectors/fixed/` return one strict action with tools,
-sessions, and discovery disabled. Generic clone/content/commit mechanics stay in
+sessions, and discovery disabled. The project-local `.pi/extensions/` entrypoint
+only re-exports the fixed Pi connector's Population Evolution Mode; it does not
+move recurrence, evaluation, final tasks, or selection authority into Pi.
+Generic clone/content/commit mechanics stay in
 `artifacts/git/`. Candidate bootstrap crosses into exactly `kernel_server.py`;
 validation and the model connector never import or execute it. In live mode that
 server is available only inside the immutable Docker image with no network,
