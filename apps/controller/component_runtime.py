@@ -8,11 +8,10 @@ import sys
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-APPS_ROOT = Path(__file__).resolve().parents[1]
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
-
-from stdio_connector import (  # noqa: E402
+from apps.controller.contract import (
+    agent_generation_timeout_seconds as _agent_generation_timeout_seconds,
+)
+from apps.stdio_connector import (
     JsonProcessError,
     decode_json_object,
     run_json_process,
@@ -20,34 +19,12 @@ from stdio_connector import (  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPONENT_TIMEOUT_SECONDS = 10
+agent_generation_timeout_seconds = _agent_generation_timeout_seconds
 CANDIDATE_RUNNER = "apps/candidate_runner/candidate_runner.py"
 FORECAST_ASSAY = "apps/forecast_assay/forecast_assay.py"
 MUTATOR = "apps/mutator/mutator.py"
 OBSERVER = "apps/observer/observer.py"
 SELECTION_GATE = "apps/selection_gate/selection_gate.py"
-
-
-def agent_generation_timeout_seconds(
-    *,
-    proposer_timeout_seconds: int,
-    runner_timeout_seconds: int,
-    evaluator_timeout_seconds: int,
-    task_count: int,
-) -> int:
-    """Return the outer timeout for one sequential schema-v2 generation."""
-
-    margin = COMPONENT_TIMEOUT_SECONDS
-    return (
-        proposer_timeout_seconds
-        + margin
-        + task_count
-        * (
-            2 * (runner_timeout_seconds + margin)
-            + evaluator_timeout_seconds
-            + margin
-        )
-        + 4 * margin
-    )
 
 
 class RequestError(ValueError):
@@ -66,9 +43,7 @@ def _parse_json_number(token: str) -> float:
         raise RequestError("JSON number exceeds supported numeric limits") from exc
     if not math.isfinite(converted):
         raise RequestError("JSON number is outside the finite double range")
-    if (converted == 0.0 and exact != 0) or (
-        converted == 1.0 and exact != 1
-    ):
+    if (converted == 0.0 and exact != 0) or (converted == 1.0 and exact != 1):
         raise RequestError(
             "JSON number would change whether its value is zero or one "
             "in double precision"
@@ -184,9 +159,7 @@ def _run_component(
     return _decode_component_output(name, source)
 
 
-def _require_component_object(
-    value: object, location: str
-) -> dict[str, object]:
+def _require_component_object(value: object, location: str) -> dict[str, object]:
     if type(value) is not dict:
         raise ControllerError(f"{location} must be a JSON object")
     return value

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agent_protocol import (
+from apps.agent_protocol import (
     ADAPTER_PROTOCOL_VERSION,
     AGENT_SCHEMA_VERSION,
     CANDIDATE_SCHEMA,
@@ -21,7 +21,7 @@ from agent_protocol import (
     require_timeout,
     run_adapter,
 )
-from stdio_connector import canonical_digest
+from apps.stdio_connector import canonical_digest
 
 ROOT = Path(__file__).resolve().parents[2]
 

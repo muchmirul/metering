@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import cast
 
-APPS_ROOT = Path(__file__).resolve().parents[1]
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
-
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (
     AGENT_SCHEMA_VERSION,
     ProtocolError,
     decode_candidate,
@@ -25,7 +19,7 @@ from agent_protocol import (  # noqa: E402
     require_schema_version,
     require_timeout,
 )
-from component_runtime import (  # noqa: E402
+from apps.controller.component_runtime import (
     CANDIDATE_RUNNER,
     COMPONENT_TIMEOUT_SECONDS,
     FORECAST_ASSAY,

@@ -7,13 +7,30 @@ the public `pi` CLI.
 uv run python connectors/fixed/pi/skill_proposer.py
 uv run python connectors/fixed/pi/text_runner.py
 uv run python connectors/fixed/pi/git_proposer.py
+uv run python connectors/fixed/pi/harness_proposer.py
+uv run python connectors/fixed/pi/harness_model.py
+uv run python connectors/fixed/pi/harness_runner.py
+uv run python connectors/fixed/pi/coding_proposer.py
 ```
 
 The skill proposer and text runner disable tools, sessions, discovered resources,
 and context files. They inject the complete verified `SKILL.md` because normal
-Pi progressive disclosure needs a read tool. The Git proposer leaves Pi's normal
-workspace tools enabled inside a file-only candidate workspace; it must run in a
-reviewed external sandbox.
+Pi progressive disclosure needs a read tool. The historical Git proposer leaves
+Pi's normal workspace tools enabled inside a file-only candidate workspace; it
+must run in a reviewed external sandbox.
+
+The typed harness path is stricter. `harness_proposer.py` supplies bounded
+candidate locus text to a tool-free Pi call and applies only declared whole-file
+edits. `harness_model.py` translates one provider-neutral turn with every Pi tool
+and ambient resource disabled. `harness_runner.py` verifies Pi `--version` and
+the runtime's provider/model/reasoning pins, then delegates recurrence, IPython,
+subagents, snapshots, compaction, and receipts to fixed code under
+[`apps/harness`](../../../apps/harness/README.md). Candidate Python runs only in
+the required OCI kernel. `coding_proposer.py` is the fixed Level-1 mutation
+transport: it materializes the exact selected harness, keeps the Pi call
+tool-free, and lets only the Docker kernel expose bounded workspace tools. It
+never gives Pi the host repository, `.git`, evaluator profile, or protected
+checks.
 
 Pin the command with a JSON array, for example:
 
@@ -27,4 +44,69 @@ does not copy settings, sessions, packages, or other ambient resources. Set
 `METERING_PI_CONFIG_DIR` to an existing absolute caller-reviewed directory when
 needed. The Git proposer does not copy `auth.json`; provide sandbox-scoped model
 authentication through the environment or command, and never expose credentials
-to candidate tools. The connector does not infer a model or retain a session.
+to candidate tools. The connector does not infer a model or retain a session. Harness commands use
+`METERING_HARNESS_PROVIDER`, `METERING_HARNESS_MODEL`, and
+`METERING_HARNESS_REASONING`; `experiment.py` derives these values from the
+canonical runtime profile and rejects disagreement.
+
+## Interactive Population Evolution Mode
+
+From a trusted source checkout, plain `pi` auto-loads the thin project entrypoint
+at `.pi/extensions/population-evolution.ts`. The implementation remains owned by
+this connector. On the first invocation, approve Pi's normal project-trust
+prompt; later invocations need no flags:
+
+```bash
+cd /path/to/metering
+pi
+```
+
+The footer shows `population: ready`. Use:
+
+```text
+/evolve          start one new fixed two-generation live experiment
+/evolve-status   show the latest sealed result without a model call
+/evolve-verify   replay the latest run with the offline verifier
+```
+
+The two-level coding commands are:
+
+```text
+/evolve-harness                    evolve/final-seal the Pi harness on coding assays
+/evolve-harness-resume             resume replayable harness effects without a model retry
+/evolve-harness-retry REASON       explicitly authorize one reserved harness retry
+/evolve-code /absolute/task.json  evolve immutable solution commits
+/evolve-code-resume               resume committed effects without a model retry
+/evolve-code-retry REASON         explicitly authorize one bounded retry
+/evolve-code-status               show the selected commit and patch path
+/evolve-code-verify               replay the latest coding run offline
+```
+
+`/evolve-code` uses the newest completed coding-harness run. The profile path
+must be absolute and operator-reviewed; alternatively set
+`METERING_EVOLUTION_TASK_PROFILE`. The profile, not Pi, supplies repository/base
+identity, allowed paths, development checks, the digest-bound external protected
+profile, exact draws, and budgets.
+The `darwinian_coding` tool exposes only `harness_run`, `solution_run`,
+`solution_status`, and `solution_verify`, and accepts no model-supplied task,
+command, candidate, evaluator, profile path, or output path. Selected code is
+written as an immutable commit and `selected.patch`; it is never applied to the
+source repository.
+
+The active `population_evolution` tool also lets an outer interactive Pi handle
+an explicit request such as “run Population evolution.” It accepts only
+`run`, `status`, or `verify`; it accepts no command, task, candidate, evaluator,
+or output path from the model. `/evolve` is the deterministic route and does not
+require an outer model turn.
+
+The default reviewed runtime is
+`~/.config/metering/harness/runtime.pi.local.json`, and completed runs are kept
+under the checkout's sibling `metering-live-runs/` directory. Override those
+locations only with caller-reviewed absolute paths through
+`METERING_EVOLUTION_RUNTIME_MANIFEST` and `METERING_EVOLUTION_RUNS_DIR`.
+Opening Pi activates the control mode but does not automatically spend model
+resources or start an experiment. The extension invokes the same fixed
+`apps/harness/experiment.py` composition documented elsewhere; nested Pi model
+calls still receive isolated configuration roots and do not load the project
+extension recursively. A selected candidate is recorded and sealed, not
+silently installed or deployed as the interactive Pi agent.

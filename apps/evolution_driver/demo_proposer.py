@@ -6,11 +6,11 @@ import sys
 from pathlib import Path
 from typing import cast
 
-APPS_ROOT = Path(__file__).resolve().parents[1]
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (  # noqa: E402
     ADAPTER_PROTOCOL_VERSION,
     DEFAULT_ARTIFACT_SCHEMA,
     ProtocolError,
@@ -19,7 +19,7 @@ from agent_protocol import (  # noqa: E402
     require_exact_keys,
     require_nonempty_string,
 )
-from stdio_connector import canonical_json, decode_json_object  # noqa: E402
+from apps.stdio_connector import canonical_json, decode_json_object  # noqa: E402
 
 
 class ProposalError(ValueError):
@@ -28,10 +28,13 @@ class ProposalError(ValueError):
 
 def propose(request: dict[str, object]) -> dict[str, object]:
     try:
-        require_exact_keys(request, {"context", "parent", "protocol_version"}, "request")
-        if request["protocol_version"] != ADAPTER_PROTOCOL_VERSION or type(
-            request["protocol_version"]
-        ) is not int:
+        require_exact_keys(
+            request, {"context", "parent", "protocol_version"}, "request"
+        )
+        if (
+            request["protocol_version"] != ADAPTER_PROTOCOL_VERSION
+            or type(request["protocol_version"]) is not int
+        ):
             raise ProtocolError("unsupported proposal adapter protocol")
         parent = decode_candidate(request["parent"], "parent")
         context = normalize_json_value(request["context"], "context")

@@ -5,11 +5,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-APPS_ROOT = Path(__file__).resolve().parents[1]
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (  # noqa: E402
     ADAPTER_PROTOCOL_VERSION,
     AGENT_SCHEMA_VERSION,
     ProtocolError,
@@ -24,7 +24,7 @@ from agent_protocol import (  # noqa: E402
     require_timeout,
     run_adapter,
 )
-from stdio_connector import (  # noqa: E402
+from apps.stdio_connector import (  # noqa: E402
     decode_json_object,
     run_stdio_application,
 )

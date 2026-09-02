@@ -7,11 +7,11 @@ import sys
 from pathlib import Path
 from typing import cast
 
-APPS_ROOT = Path(__file__).resolve().parents[1]
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (  # noqa: E402
     ADAPTER_PROTOCOL_VERSION,
     ProtocolError,
     decode_task,
@@ -20,7 +20,7 @@ from agent_protocol import (  # noqa: E402
     require_nonempty_string,
     require_sha256,
 )
-from stdio_connector import (  # noqa: E402
+from apps.stdio_connector import (  # noqa: E402
     canonical_json,
     decode_json_object,
 )
@@ -61,7 +61,7 @@ def _decode_request(source: str) -> tuple[dict[str, object], list[dict[str, obje
             raise ProtocolError("case.input must be a JSON object")
         require_exact_keys(task_input, {"outcomes", "prompt"}, "case.input")
         if task_input["outcomes"] != ["fail", "pass"]:
-            raise ProtocolError("case.input.outcomes must be [\"fail\",\"pass\"]")
+            raise ProtocolError('case.input.outcomes must be ["fail","pass"]')
         prompt = require_nonempty_string(task_input["prompt"], "case.input.prompt")
         if PROMPT_PATTERN.fullmatch(prompt) is None:
             raise ProtocolError("case.input.prompt is not a Signal Relay v1 task")
@@ -75,9 +75,7 @@ def _decode_request(source: str) -> tuple[dict[str, object], list[dict[str, obje
             location = f"submissions[{index}]"
             if type(raw_submission) is not dict:
                 raise ProtocolError(f"{location} must be a JSON object")
-            require_exact_keys(
-                raw_submission, {"candidate_id", "submission"}, location
-            )
+            require_exact_keys(raw_submission, {"candidate_id", "submission"}, location)
             candidate_id = require_sha256(
                 raw_submission["candidate_id"], f"{location}.candidate_id"
             )

@@ -151,11 +151,16 @@ cannot infer provider usage from arbitrary commands.
 
 This recurrence evolves one normalized artifact and one challenger at a time.
 The checked-in proposal commands support either one `SKILL.md` or one immutable
-Git source/output descriptor. It has no candidate population, recursive agents,
-database, learned mutation policy, automatic installation, production
-deployment, or rollback command. See the
-[Git artifact bridge](../../artifacts/git/README.md) for adapter source and
-external model-output evolution without changing these recurrence semantics.
+Git source/output descriptor. This driver has no candidate population, recursive
+agents, database, learned mutation policy, automatic installation, production
+deployment, or rollback command. The separate source-only
+[Population Archive](../population/README.md) can index externally completed
+candidate runs and allocate one parent without changing this driver's recurrence
+semantics. The separate [Population Driver](../population_driver/README.md)
+performs bounded archive/allocation recurrence for Git candidates; it does not
+silently replace this simpler single-head driver. See the
+[Git artifact bridge](../../artifacts/git/README.md) for
+adapter source and external model-output evolution.
 The proposer receives a fixed aggregate of the previous selection, not case
 submissions or evaluator evidence. Protected evaluator assets must still be
 isolated by the caller. Reserve an untouched final evaluation before making any

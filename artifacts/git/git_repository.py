@@ -6,15 +6,9 @@ import hashlib
 import os
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
-if str(APPS_ROOT) not in sys.path:
-    sys.path.insert(0, str(APPS_ROOT))
-
-from agent_protocol import (  # noqa: E402
+from apps.agent_protocol import (
     GIT_ARTIFACT_SCHEMA,
     ProtocolError,
     decode_agent_artifact,
@@ -29,6 +23,22 @@ class GitCandidateError(RuntimeError):
     """Raised when a Git candidate cannot be resolved or verified."""
 
 
+def _safe_git_environment(
+    environment: dict[str, str] | None = None,
+) -> dict[str, str]:
+    result = dict(os.environ if environment is None else environment)
+    result.update(
+        {
+            "GIT_ATTR_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_TERMINAL_PROMPT": "0",
+        }
+    )
+    return result
+
+
 def run_git(
     arguments: list[str],
     *,
@@ -38,6 +48,7 @@ def run_git(
     timeout_seconds: int = GIT_TIMEOUT_SECONDS,
 ) -> str:
     command = ["git", "-c", "core.hooksPath=/dev/null", *arguments]
+    process_environment = _safe_git_environment(environment)
     try:
         completed = subprocess.run(
             command,
@@ -46,7 +57,7 @@ def run_git(
             capture_output=True,
             text=True,
             check=False,
-            env=environment,
+            env=process_environment,
             timeout=timeout_seconds,
         )
     except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
@@ -98,6 +109,7 @@ def content_sha256(repository: Path, commit: str) -> str:
                 cwd=repository,
                 capture_output=True,
                 check=False,
+                env=_safe_git_environment(),
                 timeout=GIT_TIMEOUT_SECONDS,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
@@ -214,7 +226,15 @@ def replace_worktree(repository: Path, source: Path) -> None:
 
 def changed_paths(repository: Path) -> list[str]:
     source = run_git(
-        ["diff", "--cached", "--name-only", "--diff-filter=ACDMRTUXB", "-z"],
+        [
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--cached",
+            "--name-only",
+            "--diff-filter=ACDMRTUXB",
+            "-z",
+        ],
         cwd=repository,
     )
     return sorted(path for path in source.split("\x00") if path)

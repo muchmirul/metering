@@ -3,7 +3,8 @@
 ## Status and claim boundary
 
 This document connects the mathematics, biology analogy, and engineering
-decisions used across Metering and its six repository-local applications. It
+decisions used across Metering, its six generation-stage applications, and its
+optional source-only outer controls. It
 explains why the pieces have their current boundaries; it does not expand the
 normative contract in [`PLAN.md`](../PLAN.md).
 
@@ -29,6 +30,9 @@ Likewise, a biological analogy does not make these programs organisms.
 | Assay | revealed targets -> empirical mean log loss | logarithmic proper scoring | Forecast Assay |
 | Retention | two aligned assay reports -> selected identity | strict pairwise elitist selection | Selection Gate |
 | One generation | variation -> expression -> reveal -> assay -> retention | directed-evolution-inspired composition | Evolution Controller |
+| Population archive | identified runs -> named evidence -> feasible Pareto set -> exact parent draw | multi-objective retention plus replayable finite allocation | Population Archive |
+| Population recurrence | exact parent draw -> Controller evidence -> fresh archive | bounded mutation-only Darwinian code loop | Population Driver |
+| Harness phenotype | typed prompt/policy genome -> bounded model actions -> isolated IPython behavior | explicit operational semantics and resource confinement | Evolutionary Harness |
 | Integrity | canonical measurement files -> Git tree -> commit lineage | Git object model plus measurement replay | identities and `metering-history` |
 
 The [high-level system diagram](../README.md#system-at-a-glance) shows the data
@@ -183,7 +187,9 @@ Candidate Runner expresses a genome as forecasts
 Forecast Assay measures behavior on revealed evidence
 Selection Gate makes differential retention explicit
 Evolution Controller returns one selected child or parent
-external caller repeats generations and may adapt mutation policy
+explicit caller, Evolution Driver, or Population Driver repeats under fixed bounds
+typed Evolutionary Harness expresses one Git candidate without judging retention
+caller alone may approve a later mutation-policy change
 ```
 
 This is a directed-evolution-inspired software decomposition. The apps do not
@@ -219,8 +225,9 @@ $+\infty-(+\infty)$.
 The Mutator request supplies both the finite support of $Q$ and the draw, so
 it evaluates one declared mutation event without owning randomness. Selection
 Gate owns the strict threshold rule; only the controller turns that decision
-into `next_parent`. Updating $\theta_t$, repeating the transition, and
-stopping remain caller-owned policy.
+into `next_parent`. Updating $\theta_t$ remains caller-owned policy. Repetition and stopping are
+either direct caller actions or the behavior of one explicitly configured,
+bounded source-only driver.
 
 The Price equation provides a useful conceptual reason not to merge variation
 and selection:
@@ -303,15 +310,40 @@ and Selection Gate recomputes rather than trusting reported aggregates. These
 separations make identity swapping, evidence mismatch, target leakage, and
 calibration-versus-capability confusion testable.
 
-### One generation, not an autonomous loop
+### One generation remains the semantic boundary
 
 The controller returns after one generation. This keeps mutation-policy updates,
-adapter isolation, non-time budgets, installation, and deployment outside the
+adapter isolation, physical budgets, installation, and deployment outside the
 generation mechanism. The optional source-only Evolution Driver makes bounded
-repetition, persistent state, and stopping explicit in its request and ledger;
-it does not hide them inside Controller or the installed package. Unbounded or
+single-head repetition explicit. Population Archive records multiple evaluated
+candidates and exact allocations; Population Driver now composes those
+allocations with bounded Controller calls for Git candidates. Both drivers keep
+persistence, retry, and stopping explicit in versioned requests and ledgers
+rather than hiding them inside Controller or the installed package. Unbounded or
 implicit iteration would combine mechanism with policy and create an optimizer
 this repository could not generally validate.
+
+### Typed phenotype and fixed operational semantics
+
+A candidate harness is meaningful only relative to an interpreter and runtime.
+The implemented genome therefore names complete prompt, context, compaction,
+tool, subagent, bootstrap, snapshot, dependency, and entrypoint loci, while the
+fixed runner owns the action protocol and the runtime manifest owns model/image/
+resource identity. This is analogous to distinguishing inherited material from
+the environment in which a phenotype is expressed; it does not claim that
+software prompts are biological genomes.
+
+Candidate bootstrap and model-generated cells cross one explicit effect boundary:
+the sandbox-side kernel server. Recursive delegates get independent contexts and
+kernels, and every depth/call/turn/resource dimension is finite. Snapshot
+restoration makes interrupt and timeout behavior testable, not perfectly
+deterministic model inference. External receipts bind observed conditions so
+protocol decisions can replay even when model tokens or physical timing vary.
+
+Keeping the evaluator, final tasks, sandbox flags, resource monitor, and selection
+policy outside candidate loci prevents the simplest form of self-approval. It
+cannot prove semantic safety or generalization; it makes a concrete violation
+falsifiable and leaves installation/deployment caller-owned.
 
 ### Explicit draws and content IDs
 
@@ -390,7 +422,24 @@ history, or result inconsistent with Metering replay accepted by `verify`. This
 claim excludes authentication, rollback detection against an external
 checkpoint, and an attacker who consistently replaces the complete Git history.
 
-### H5: external adaptation experiment
+### H5: typed harness confinement and recurrence
+
+**Claim.** The accepted live phenotype executes candidate Python only in the
+identified no-network OCI kernel, records required external observations,
+stops Driver recurrence when its one-use final experiment is declared, and
+activates Population's permanent seal with the protected final run.
+
+**Falsifier.** Host validation or provider translation executes candidate code,
+a live completion lacks required CPU/memory/process/storage/wall evidence, final
+evidence appears in later proposal/allocation, or offline verification depends
+on mutable SQLite or another model call.
+
+**Current evidence.** Deterministic tests exercise manifest closure, recursive
+contexts, kernel interrupt/timeout/snapshot recovery, receipts, two-generation
+retention, final sealing, and offline replay through the unsafe fixture ABI.
+Live Docker/model acceptance remains required for claims about one concrete host.
+
+### H6: external adaptation experiment
 
 The repository's scientific hypothesis is deliberately external:
 

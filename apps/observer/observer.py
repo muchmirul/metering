@@ -299,14 +299,10 @@ def call_metering(
 def entropy(
     probabilities: list[float], *, history: Path | None = None
 ) -> dict[str, object]:
-    return call_metering(
-        "entropy", probabilities=probabilities, history=history
-    )
+    return call_metering("entropy", probabilities=probabilities, history=history)
 
 
-def uniform_entropy(
-    count: int, *, history: Path | None = None
-) -> dict[str, object]:
+def uniform_entropy(count: int, *, history: Path | None = None) -> dict[str, object]:
     return entropy([1.0 / count] * count, history=history)
 
 
@@ -549,9 +545,7 @@ def run_agent_session(
                     raise AgentRequestError(
                         "probe is not in the immutable observation catalogue"
                     )
-                probe = Probe(
-                    probe_document["operation"], probe_document.get("path")
-                )
+                probe = Probe(probe_document["operation"], probe_document.get("path"))
                 entropy_before = _measurement_response(
                     uniform_entropy(len(candidates), history=history)
                 )
@@ -563,9 +557,7 @@ def run_agent_session(
                     if canonical_json(observe(version.root, probe)) == result_key
                 )
                 if not matching:
-                    raise ObserverError(
-                        "sandbox result matches no candidate version"
-                    )
+                    raise ObserverError("sandbox result matches no candidate version")
                 probability = len(matching) / len(candidates)
                 entropy_after = _measurement_response(
                     uniform_entropy(len(matching), history=history)
@@ -706,10 +698,10 @@ def _report_main_error(message: str, *, jsonl: bool) -> int:
 def main(argv: list[str] | None = None) -> int:
     raw_arguments = list(sys.argv[1:] if argv is None else argv)
     if raw_arguments == ["--evaluate"]:
-        observer_root = str(Path(__file__).resolve().parent)
-        if observer_root not in sys.path:
-            sys.path.insert(0, observer_root)
-        from agent_evaluator import main as evaluator_main
+        repository_root = str(Path(__file__).resolve().parents[2])
+        if repository_root not in sys.path:
+            sys.path.insert(0, repository_root)
+        from apps.observer.agent_evaluator import main as evaluator_main
 
         return evaluator_main([])
 

@@ -24,7 +24,10 @@ short implemented/not-implemented boundary. The
 format, application composition boundary, and app-local protocols.
 The [system foundations](docs/foundations.md) state the equations, biological
 analogy, design reasoning, hypotheses, falsifiers, and primary research sources
-behind the complete composition.
+behind the complete composition. The
+[source-only architecture](docs/source-architecture.md) documents the narrow
+shared mechanics, public owner contracts, read-only replay, pure planning, thin
+sequencers, and enforced dependency direction.
 
 ## System at a glance
 
@@ -34,7 +37,10 @@ flowchart LR
     Sandbox["Versioned sandbox"]
 
     subgraph Applications["Repository-local applications (source only)"]
-        Evolver["Evolution Driver<br/>bounded recurrence"]
+        Evolver["Evolution Driver<br/>bounded single-head recurrence"]
+        PopDriver["Population Driver<br/>bounded archive/allocation recurrence"]
+        Population["Population Archive<br/>multi-candidate records and allocation"]
+        Harness["Evolutionary Harness<br/>typed recursive Pi/IPython phenotype"]
         Controller["Evolution Controller<br/>one generation"]
         Observer["Observer<br/>observation boundary"]
         Mutator["Mutator<br/>one legal child"]
@@ -50,8 +56,17 @@ flowchart LR
     end
 
     Caller -->|one generation| Controller
-    Caller -. optional bounded run .-> Evolver
+    Caller -. optional bounded single-head run .-> Evolver
+    Caller -. record/query/allocate .-> Population
+    Caller -. optional bounded population run .-> PopDriver
     Evolver -->|one request at a time| Controller
+    PopDriver -->|allocated Git parent| Controller
+    Controller -->|immutable round evidence| PopDriver
+    PopDriver -->|candidate, runs, archive, draw| Population
+    Population -->|exact next parent| PopDriver
+    PopDriver -->|verified Git phenotype| Harness
+    Harness <--> Sandbox
+    Harness -->|forecast, submission, receipt| Controller
     Caller -->|direct Python measurement| API
     Caller -->|one JSON measurement| CLI
     Caller -. optional record, log, or verify .-> History
@@ -69,6 +84,7 @@ flowchart LR
     Controller -->|next parent| Caller
     Controller -->|completed generation| Evolver
     Evolver -->|selected run-local head| Caller
+    Population -->|selected candidate identity| Caller
 
     Observer --> CLI
     Observer -. optional history .-> History
@@ -76,6 +92,7 @@ flowchart LR
     Runner --> API
     Assay --> API
     Gate --> API
+    Population --> API
     CLI --> API
     History --> CLI
 ```
@@ -84,8 +101,21 @@ Solid arrows show explicit calls or returned data. Dashed arrows are opt-in
 measurement recording. Controller owns one generation. The optional source-only
 Evolution Driver repeats completed agent-artifact generations under explicit
 limits; the caller still owns configuration, final evaluation, installation,
-and deployment. Metering only validates caller-supplied probability models and
-evaluates named measures. The Evolution Driver
+and deployment. The separate Population Archive records caller-supplied
+candidate and development-run evidence, maintains a bounded Pareto archive, and returns one
+exact parent allocation without executing it. The concrete source-only
+Evolutionary Harness supplies a typed immutable prompt/context/compaction/tool/
+subagent/IPython genome, fixed recursive action loop, reviewed OCI kernel profile,
+external resource receipts, and protected final sealing. The bounded Population Driver can
+now feed that exact Git parent through one Controller generation, record both
+reports as Population replicates, refresh the archive, and repeat under explicit
+global limits. Its interruption-safe receipts never make SQLite or final
+evidence recurrence authority. Population's SQLite database remains a disposable
+ledger-derived index. A deterministic executable-Git integration test evolves a
+subtraction program into an addition program, rejects a later multiplication
+regression, and verifies exact archive recurrence; it is mechanism evidence, not
+a broad model-improvement claim. Metering only validates caller-supplied
+probability models and evaluates named measures. The Evolution Driver
 [README](apps/evolution_driver/README.md) includes a constructed live-Pi
 acceptance command that keeps its final cases outside retention and states the
 narrow evidence it can establish. The external
@@ -202,9 +232,44 @@ from Metering's trust boundary the agent remains an external proposer or runner
 without evaluator or retention authority.
 
 The fixed connectors translate the existing strict proposer and runner JSON
-protocols. They do not add either harness, a provider SDK, or model dependency to
-the installed package. The former Pi adapter paths under `apps/` and
-`artifacts/git/` remain thin compatibility launchers.
+protocols. They do not add either provider CLI, a provider SDK, or model
+dependency to the installed package. The former Pi adapter paths under `apps/`
+and `artifacts/git/` remain thin compatibility launchers.
+
+A repository-complete deterministic harness experiment is also available:
+
+```bash
+rm -rf /tmp/metering-harness-reference
+uv run python apps/harness/experiment.py fixture /tmp/metering-harness-reference
+uv run python apps/harness/experiment.py verify /tmp/metering-harness-reference
+```
+
+It runs the real typed manifest, recursive loop, persistent kernel ABI, receipts,
+Controller, Population recurrence, protected final assay, permanent final seal,
+and offline verifier with a fake model and an explicitly unsafe process fixture.
+For live Pi or Prime Agent, use the checked-in OCI profile and documented Docker/
+cgroup-v2 prerequisites; candidate Python never runs in the provider process.
+See the [Evolutionary Harness contract](apps/harness/README.md).
+
+For a Pi-native source-checkout interface, run only `pi` from the repository
+root, approve project trust once, and use `/evolve`. The automatically loaded
+**Population Evolution Mode** also provides `/evolve-status` and
+`/evolve-verify`; opening Pi alone never starts a costly run. The project
+entrypoint is thin, while implementation and isolation remain under the fixed
+[Pi connector](connectors/fixed/pi/README.md#interactive-population-evolution-mode).
+
+The source checkout also includes an opt-in two-level
+[Darwinian coding agent](apps/coding_agent/README.md). `/evolve-harness` evolves
+and final-seals the nine-locus Pi harness against fixed coding workspaces;
+`/evolve-code /absolute/task.json` then uses that exact selected harness to
+create immutable solution commits for an operator-approved repository and
+independently evaluates them in fresh Docker containers. `/evolve-code-status`
+shows the selected patch path and `/evolve-code-verify` replays all Git,
+receipt, Driver, Population, allocation, and final-seal evidence without SQLite.
+The source repository is never edited, and no selected patch is merged or
+deployed automatically. The coding task profile—not the model—owns allowed
+paths, development and protected-final argv checks, exact draws, and budgets.
+See the [architecture and threat model](docs/darwinian-coding-agent.md).
 
 Run the explicit live conformance path with a model available to both installed
 harnesses:
@@ -391,8 +456,9 @@ owns later requests, mutation-policy changes, budgets, persistence, and
 stopping. See the [controller contract](apps/controller/README.md) and complete
 integration tests in [`tests/test_controller.py`](tests/test_controller.py).
 
-[`apps/README.md`](apps/README.md) indexes the six repository-local stages and
-the optional outer Evolution Driver. None extends the installed Metering API.
+[`apps/README.md`](apps/README.md) indexes the six repository-local stages plus
+the optional Evolution Driver, Population Archive, and Population Driver outer
+controls. None extends the installed Metering API.
 
 ## Agent-artifact generation
 
@@ -449,6 +515,44 @@ uv run python artifacts/git/demo.py --root /tmp/metering-git-live-$(date +%s)
 See the complete [agent-artifact evolution protocol](docs/agent-evolution.md)
 and [Git bridge contract](artifacts/git/README.md).
 
+## Deterministic population archive
+
+[`apps/population`](apps/population/README.md) is an optional source-only outer
+control plane for multiple candidate identities. It keeps a canonical
+hash-linked ledger of candidates, experiments, unique replicate runs, named
+evidence, development-only Pareto archives, exact uniform parent allocations,
+and typed skill-file recombination receipts.
+
+Population Archive itself does not run the allocated parent or replace
+Controller. The separate bounded
+[Population Driver](apps/population_driver/README.md) performs that explicit
+composition for ordinary Git-code candidates:
+
+```bash
+rm -rf /tmp/metering-population-driver /tmp/metering-population-driver.lock
+uv run python apps/population_driver/population_driver.py \
+  run /tmp/metering-population-driver \
+  < apps/population_driver/example-request.json
+```
+
+The deterministic Population Driver example uses non-executing adapters.
+Arbitrary Pi/Qwen Git proposal and execution require a caller-reviewed sandbox;
+the typed [Evolutionary Harness](apps/harness/README.md) supplies one concrete
+reviewed Docker profile. Final-role experiments
+cannot create an archive, their first run seals later automatic search
+transitions, and no weighted generic fitness score is computed.
+
+The local SQLite index is disposable and never controls selection:
+
+```bash
+uv run python apps/population/population.py rebuild /tmp/metering-population
+uv run python apps/population/population.py verify-index /tmp/metering-population
+```
+
+See the [Population Archive contract](apps/population/README.md) for strict
+initialization, evidence, archive, allocation, recombination, and query request
+schemas.
+
 ## Definitions and edge cases
 
 For logarithm base `b > 1`:
@@ -500,10 +604,11 @@ uv build
 
 Application schema version 2 remains additive to the source-only applications;
 its direct-challenger request is unchanged and the proposer form is additional.
-The Evolution Driver has its own new source-only schema version 1 and state
-format. Schema version 1 fixture requests remain supported. None of these
-application boundaries changes Metering's Python API, installed commands, JSON
-measurement protocol, history format, or numerical semantics.
+Evolution Driver, Population Archive, and Population Driver each have separate
+source-only schema version 1 state formats. Population SQLite state is rebuildable and has
+no migration authority. Schema version 1 fixture requests remain supported.
+None of these application boundaries changes Metering's Python API, installed
+commands, JSON measurement protocol, history format, or numerical semantics.
 
 The current design is a deliberate breaking replacement of the earlier
 hidden-fault harness. Old policies, commands, manifests, traces, reports, and

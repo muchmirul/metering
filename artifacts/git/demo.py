@@ -7,21 +7,22 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-APPS_ROOT = ROOT / "apps"
 HERE = Path(__file__).resolve().parent
-for import_root in (APPS_ROOT, HERE):
-    if str(import_root) not in sys.path:
-        sys.path.insert(0, str(import_root))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-from agent_protocol import GIT_ARTIFACT_SCHEMA, decode_agent_artifact  # noqa: E402
-from stdio_connector import (  # noqa: E402
+from apps.agent_protocol import (  # noqa: E402
+    GIT_ARTIFACT_SCHEMA,
+    decode_agent_artifact,
+)
+from apps.stdio_connector import (  # noqa: E402
     JsonProcessError,
     canonical_json,
     decode_json_object,
     run_json_process,
 )
 
-from git_repository import content_sha256, run_git  # noqa: E402
+from artifacts.git.git_repository import content_sha256, run_git  # noqa: E402
 
 EVOLVER = ROOT / "apps" / "evolution_driver" / "evolver.py"
 PROPOSER = ROOT / "connectors" / "fixed" / "pi" / "git_proposer.py"
@@ -111,8 +112,7 @@ def _request(parent: dict[str, object]) -> dict[str, object]:
             "command": [sys.executable, str(PROPOSER)],
             "context": {
                 "objective": (
-                    "Edit only adapter.py so it contains exactly "
-                    "ANSWER = \"ADAPTED\"."
+                    'Edit only adapter.py so it contains exactly ANSWER = "ADAPTED".'
                 )
             },
             "timeout_seconds": 600,

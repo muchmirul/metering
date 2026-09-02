@@ -81,11 +81,60 @@ consecutive-rejection, and wall-clock limits. It follows one selected head and
 stores a separate canonical JSONL run ledger. It does not use the measurement
 history as candidate lineage.
 
+The separate source-only Population Archive can record multiple normalized
+candidates, identified experiments and replicates, named development evidence,
+a bounded Pareto archive, and exact uniform parent allocations. Its SQLite index
+is derived from a canonical hash-linked ledger and is never selection authority.
+Typed recombination is implemented only for complete `agent-skill-v1` file loci.
+A declared final experiment stops Population Driver recurrence before reveal;
+the first final run seals every later Population search transition.
+
+The bounded Population Driver now connects this archive to Controller for
+ordinary Git-code candidates. It evaluates the seed, uses each exact Population
+allocation as the next Controller parent, records matched parent/child reports as
+replicates, refreshes the archive, and stops at global round, proposal-call,
+timeout-reservation, resource, empty-archive, or final-evidence limits. A pending
+model call requires explicit retry approval; durable Controller evidence resumes
+without another model call. Its driver and Population ledgers plus immutable
+receipts are authoritative, and it never reads SQLite for recurrence. Its
+implementation now separates read-only replay, pure planning, effects, durable
+stores, and a thin runtime while preserving schema version 1. A deterministic
+executable-Git test demonstrates subtraction -> retained addition -> rejected
+multiplication for one arithmetic fixture; this is mechanism validation, not a
+claim of general model improvement.
+
+The source-only [Evolutionary Harness](../apps/harness/README.md) now closes the
+generic executor gap for one mutation-only profile. It validates nine immutable
+typed loci, runs a model-call/output/timeout-bounded provider-neutral
+execute/delegate/finish loop, starts independent persistent IPython kernels in a reviewed no-network OCI profile,
+restores JSON-safe snapshots after interrupt/timeout, observes procfs/cgroup-v2
+resources, emits content-addressed receipts, and composes development recurrence
+with one protected final assay and Population's permanent seal. Pi and Prime
+Agent are concrete tool-free model transports. Deterministic CI uses the same
+wire contract through an explicitly unsafe host-process fixture.
+
+The source-only [Darwinian coding agent](../apps/coding_agent/README.md) is also
+implemented through Level 2. The harness can receive bounded coding archives
+inside the OCI kernel; a fixed coding assay evolves and seals the nine-locus Pi
+harness. A separate Level-1 run then imports one operator-approved repository
+commit without `.git`, lets the exact selected harness produce immutable
+solution descendants, evaluates every candidate/check pair in a fresh
+container, uses Population recurrence, chooses a final candidate by development
+task rate then reliability with an exact tie draw, runs protected checks after
+allocation, permanently seals search, and emits a replay-checked patch without
+changing the source repository. Its strict `darwinian-coding-task-v1` profile
+owns allowed paths, argv checks, draws, and budgets. Plain Pi exposes
+`/evolve-harness`, explicit `/evolve-harness-resume` or operator-reasoned
+`/evolve-harness-retry`, `/evolve-code`, explicit `/evolve-code-resume` or
+operator-reasoned `/evolve-code-retry`, `/evolve-code-status`, and
+`/evolve-code-verify` only after explicit invocation.
+
 Implemented candidate forms are:
 
 - default-agent configuration;
 - one complete `SKILL.md` artifact; and
-- immutable `git-candidate-v1` trees with optional external-output receipts.
+- immutable `git-candidate-v1` trees with optional external-output receipts,
+  including typed harness and operator-approved solution commits.
 
 A Git candidate may be configuration-only when its fixed external executor
 interprets the configured entrypoint. Candidate identity must bind configuration
@@ -96,18 +145,27 @@ candidate tree and then treat the resulting commit as the same candidate.
 
 Do not claim or infer these capabilities from the current repository:
 
-- Darwinian candidate populations or branching active pools;
-- differential parent allocation or reproductive weights;
-- Pareto-front or behavior-bucket retention;
+- unbounded autonomous execution or unbounded recursive agent trees (only the
+  finite typed harness policy is implemented);
+- weighted reproductive scores or learned parent-allocation policy;
+- behavior-bucket retention beyond the implemented Pareto archive;
 - Price-equation attribution or proposal-yield evaluation;
-- recombination or evaluator/test coevolution;
+- arbitrary Git recombination or evaluator/test coevolution;
 - automatic candidate installation, deployment, or rollback;
-- a sandbox supplied by Metering;
-- model training or environment-specific benchmark integration;
-- full-context agent adoption or ambient agent memory.
+- a sandbox in the installed Metering package or for arbitrary legacy Git
+  executors (the source-only typed harness has one reviewed Docker/cgroup-v2
+  profile);
+- model training, arbitrary external benchmark integration, or a claim that the
+  fixed coding suites establish universal improvement;
+- full-context host adoption, ambient agent memory, or inheritance of Pi/IPython
+  session state outside an explicit genome.
 
-Any variant-search proposal or remote pull request is documentation, not runtime
-behavior, unless `PLAN.md`, tests, and implementation are updated together.
+Only the bounded mutation-only Population Driver, typed-harness composition,
+and profile-bound two-level coding composition documented above are current
+automatic population behavior. Adaptive mutation,
+code recombination, evaluator co-evolution, installation, deployment, and other
+sandbox/transport profiles remain parked unless `PLAN.md`, tests, and
+implementation are updated together.
 
 ## Agent and trust checklist
 
@@ -130,10 +188,21 @@ Before running an application workflow:
 - [`PLAN.md`](../PLAN.md): normative scope and acceptance behavior.
 - [`theory.md`](theory.md): four measurement definitions and numerical rules.
 - [`history.md`](history.md): Git history schema and replay verification.
+- [`source-architecture.md`](source-architecture.md): source-only dependency and
+  load/plan/effect/store architecture.
 - [`agent-evolution.md`](agent-evolution.md): current one-generation artifact
   protocol.
 - [`../apps/evolution_driver/README.md`](../apps/evolution_driver/README.md):
   bounded single-head recurrence.
+- [`../apps/population_driver/README.md`](../apps/population_driver/README.md):
+  bounded archive-allocation-mutation/evaluation recurrence.
+- [`../apps/harness/README.md`](../apps/harness/README.md): typed recursive
+  phenotype, coding workspace, kernel isolation, receipts, final assay, and
+  reference command.
+- [`darwinian-coding-agent.md`](darwinian-coding-agent.md): two-level coding
+  architecture, threat model, evidence visibility, and improvement claims.
+- [`../apps/coding_agent/README.md`](../apps/coding_agent/README.md): task schema,
+  commands, artifacts, final policy, and verifier.
 - [`../artifacts/git/README.md`](../artifacts/git/README.md): immutable Git
   candidates and external-output receipts.
 - [`../connectors/README.md`](../connectors/README.md): fixed connector and trust

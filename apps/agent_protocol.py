@@ -13,7 +13,7 @@ from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from typing import TypedDict, cast
 
-from stdio_connector import (
+from apps.stdio_connector import (
     JsonProcessError,
     canonical_digest,
     canonical_json,
@@ -144,9 +144,7 @@ def _decode_git_output(value: object, location: str) -> dict[str, object]:
     }
 
 
-def _decode_git_artifact(
-    value: dict[str, object], location: str
-) -> dict[str, object]:
+def _decode_git_artifact(value: dict[str, object], location: str) -> dict[str, object]:
     require_exact_keys(
         value,
         {
@@ -267,9 +265,7 @@ def _artifact_file_map(
 ) -> dict[str, tuple[object, object]]:
     artifact = cast(dict[str, object], candidate["artifact"])
     files = cast(list[ArtifactFile], artifact.get("files", []))
-    return {
-        item["path"]: (item["content"], item["executable"]) for item in files
-    }
+    return {item["path"]: (item["content"], item["executable"]) for item in files}
 
 
 def changed_artifact_paths(

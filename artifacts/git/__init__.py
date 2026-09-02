@@ -1,0 +1,1 @@
+"""Source-only git namespace."""

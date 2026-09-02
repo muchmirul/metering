@@ -21,9 +21,13 @@ parent candidate + direct or proposer-produced challenger
 
 The controller performs one generation. It does not repeat generations,
 install the selected skill, or claim improvement outside the declared cases.
-The optional Evolution Driver repeats this same transition under persistent
-generation and rejection limits plus a per-invocation wall-clock limit, without
-changing Controller semantics.
+The optional Evolution Driver repeats this same transition along one selected
+head under persistent generation and rejection limits plus a per-invocation
+wall-clock limit. The separate bounded
+[Population Driver](../apps/population_driver/README.md) uses Population
+Archive's exact allocations as successive Git parents, records both Controller
+reports as development replicates, and refreshes the Pareto archive. Neither
+changes Controller semantics.
 
 ## Behavior-preserving decomposition
 
@@ -204,6 +208,15 @@ digest verification. Its command and environment must be pinned by the caller;
 the general application kernel does not authenticate remote stores or runtime
 configuration.
 
+For `evolutionary-harness-v1`, the repository now supplies that executor at
+[`apps/harness/harness_runner.py`](../apps/harness/harness_runner.py). It verifies
+a complete nine-locus manifest and canonical runtime identity, obtains strict
+model actions through tool-free Pi or Prime Agent translations, executes
+candidate bootstrap/cells only in a reviewed no-network OCI kernel, and emits a
+content-addressed receipt. This is one concrete candidate form, not implicit
+sandboxing for arbitrary Git entrypoints. See the
+[typed harness contract](../apps/harness/README.md).
+
 The adapter must emit exactly:
 
 ```json
@@ -243,9 +256,12 @@ tool-free connector registers the candidate skill and injects the complete,
 verified materialized `SKILL.md` into Pi's system prompt. Referenced scripts and
 assets are not exposed. Pin the complete Pi command through
 `METERING_PI_COMMAND`. Prime Agent's fixed text runner accepts the same request
-under `connectors/fixed/prime_agent/`. Neither can evaluate tool-using coding
-tasks; those need a separately reviewed connector with isolated workspaces and
-explicit tool and budget controls.
+under `connectors/fixed/prime_agent/`. Neither text-only connector evaluates
+tool-using coding tasks. The separately reviewed
+[`apps/coding_agent`](../apps/coding_agent/README.md) path supplies bounded
+archive-in/archive-out workspaces, fixed Docker-side tools, caller-owned argv
+checks, explicit budgets, and fresh evaluator containers without changing this
+text protocol.
 
 ## Evaluator adapter
 
@@ -435,9 +451,11 @@ For serious evaluations:
 - retain the complete generation report outside the candidate workspace; and
 - require explicit approval before installing `next_parent`.
 
-The Evolution Driver's hashes detect accidental state modification but do not
-authenticate its writer. Repeated selection adapts to the generation suite, so
-that suite is no longer an untouched test after the first retained decision.
+Evolution Driver and Population Driver hashes detect accidental state
+modification but do not authenticate their writers. Repeated selection adapts
+to the development suite, so that suite is no longer an untouched test after
+the first retained decision. Population Driver additionally treats the first
+final Population run as a permanent search seal.
 
 A selected challenger is better only under the declared evaluator, cases,
 policy, and execution controls. The protocol cannot prove broader

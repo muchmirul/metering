@@ -1,0 +1,1 @@
+{"checks":[{"argv":["python","-c","from src.example import solve; assert solve(2) == 4"],"case_id":"protected-edge","timeout_ms":20000}],"final_schema":"darwinian-coding-final-v1","schema_version":1}
