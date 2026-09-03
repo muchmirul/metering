@@ -149,10 +149,12 @@ A completed solution run produces:
 The source repository is never changed automatically. Applying, merging,
 installing, or deploying the patch is a separate operator decision.
 
-Read the [six-stage user guide](docs/coding-process.md) for the short workflow,
-the [coding-agent guide](apps/coding_agent/README.md) for commands and task
-profiles, and the [architecture and threat model](docs/darwinian-coding-agent.md)
-for evidence and security details.
+Read the dedicated [coding-agent guide](docs/coding-agent/README.md), including
+the [simple architecture](docs/coding-agent/how-it-works.md),
+[six-stage workflow](docs/coding-agent/workflow.md),
+[operations](docs/coding-agent/operations.md),
+[task-profile reference](docs/coding-agent/task-profile.md), and
+[architecture and threat model](docs/coding-agent/architecture.md).
 
 ## Architecture boundary
 

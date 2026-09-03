@@ -683,7 +683,7 @@ candidate by maximum development task rate, then reliability, then an exact tie
 draw. It commits the allocation before loading protected checks, permanently
 seals final evidence, returns a Git-derived patch without touching the source,
 and replays all identities without SQLite. See the
-[architecture and threat model](darwinian-coding-agent.md).
+[architecture and threat model](coding-agent/architecture.md).
 
 ### Phase 9: adaptive mutation policy — parked
 

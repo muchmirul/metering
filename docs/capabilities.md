@@ -199,10 +199,11 @@ Before running an application workflow:
 - [`../apps/harness/README.md`](../apps/harness/README.md): typed recursive
   phenotype, coding workspace, kernel isolation, receipts, final assay, and
   reference command.
-- [`darwinian-coding-agent.md`](darwinian-coding-agent.md): two-level coding
-  architecture, threat model, evidence visibility, and improvement claims.
-- [`../apps/coding_agent/README.md`](../apps/coding_agent/README.md): task schema,
-  commands, artifacts, final policy, and verifier.
+- [Dedicated coding-agent documentation](coding-agent/README.md): simple
+  architecture, workflow, task profiles, operations, verification, and threat
+  model.
+- [`../apps/coding_agent/README.md`](../apps/coding_agent/README.md): concise
+  implementation module map.
 - [`../artifacts/git/README.md`](../artifacts/git/README.md): immutable Git
   candidates and external-output receipts.
 - [`../connectors/README.md`](../connectors/README.md): fixed connector and trust

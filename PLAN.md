@@ -714,7 +714,7 @@ docs/
     agent-evolution.md
     deterministic-search-evolution.md
     source-architecture.md
-    darwinian-coding-agent.md
+    coding-agent/       workflow, operations, task profile, architecture, and threat model
 artifacts/
     git/              agent-neutral Git source/model-output candidate bridge
 connectors/

@@ -79,6 +79,6 @@ or tracker-free run is derived from existing run markers.
 - `[6/6]` means output is ready for review, not that it was automatically
   applied, merged, installed, or deployed.
 
-For task-profile details and complete commands, see the
-[operational coding-agent README](../apps/coding_agent/README.md). For trust and
-evidence semantics, see the [architecture and threat model](darwinian-coding-agent.md).
+For configuration and commands, see the [task-profile reference](task-profile.md)
+and [operations guide](operations.md). For trust and evidence semantics, see the
+[architecture and threat model](architecture.md).
