@@ -555,6 +555,15 @@ Solution and harness genomes never mutate in the same experiment. A Pi session,
 transcript, IPython namespace, and unexported temporary state are phenotype, not
 heredity; only a validated Git child is inherited.
 
+The operator-facing coding workflow uses one six-stage vocabulary: `[1/6] Task
+and runtime configured`, `[2/6] Evolving harness`, `[3/6] Harness sealed`,
+`[4/6] Evolving solution`, `[5/6] Protected final assay`, and `[6/6] Result
+ready for review`. New run roots expose a canonical, monotonic
+`process-status.json`, and Pi polls that file for status/widget updates. This
+file is explicitly a disposable projection: it cannot authorize calls,
+allocation, final access, selection, or replay, all of which remain controlled
+by the existing hash-linked ledgers and receipts.
+
 Population still owns development archive membership and reproductive parent
 allocation. For user-facing code selection, the coding final assay uses one
 explicit lexicographic policy rather than uniform selection across resource

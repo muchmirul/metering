@@ -72,23 +72,29 @@ The footer shows `population: ready`. Use:
 The two-level coding commands are:
 
 ```text
-/evolve-harness                    evolve/final-seal the Pi harness on coding assays
+/evolve-harness                    [2/6] evolve/final-seal the Pi harness on coding assays
+/evolve-harness-status             show the latest harness process stage
 /evolve-harness-resume             resume replayable harness effects without a model retry
 /evolve-harness-retry REASON       explicitly authorize one reserved harness retry
-/evolve-code /absolute/task.json  evolve immutable solution commits
+/evolve-code /absolute/task.json  [4/6] evolve immutable solution commits
 /evolve-code-resume               resume committed effects without a model retry
 /evolve-code-retry REASON         explicitly authorize one bounded retry
-/evolve-code-status               show the selected commit and patch path
+/evolve-code-status               show the current stage, selected commit, and patch path
 /evolve-code-verify               replay the latest coding run offline
 ```
+
+The extension displays a stable `[n/6]` tracker from task configuration through
+result readiness for review and polls projection-only `process-status.json` while
+a run is active. The tracker cannot authorize model calls, final access, or
+selection.
 
 `/evolve-code` uses the newest completed coding-harness run. The profile path
 must be absolute and operator-reviewed; alternatively set
 `METERING_EVOLUTION_TASK_PROFILE`. The profile, not Pi, supplies repository/base
 identity, allowed paths, development checks, the digest-bound external protected
 profile, exact draws, and budgets.
-The `darwinian_coding` tool exposes only `harness_run`, `solution_run`,
-`solution_status`, and `solution_verify`, and accepts no model-supplied task,
+The `darwinian_coding` tool exposes only `harness_run`, `harness_status`,
+`solution_run`, `solution_status`, and `solution_verify`, and accepts no model-supplied task,
 command, candidate, evaluator, profile path, or output path. Selected code is
 written as an immutable commit and `selected.patch`; it is never applied to the
 source repository.

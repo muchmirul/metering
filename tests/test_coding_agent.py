@@ -19,18 +19,28 @@ if str(ROOT) not in sys.path:
 from apps._support.wire import canonical_json  # noqa: E402
 import apps.coding_agent.solution_experiment as solution_module  # noqa: E402
 from apps.coding_agent.evaluator import evaluate  # noqa: E402
+from apps.coding_agent.process_tracker import (  # noqa: E402
+    ProcessTrackerError,
+    advance_process_status,
+    load_process_status,
+)
 from apps.coding_agent.protocol import (  # noqa: E402
     CodingTaskError,
     load_final_checks,
     load_task_profile,
 )
-from apps.harness.experiment import run_experiment, verify_experiment  # noqa: E402
+from apps.harness.experiment import (  # noqa: E402
+    harness_process_status,
+    run_experiment,
+    verify_experiment,
+)
 from apps.harness.harness_runner import execute  # noqa: E402
 from apps.harness.protocol import load_candidate, refresh_manifest  # noqa: E402
 from apps.coding_agent.solution_experiment import (  # noqa: E402
     SolutionExperimentError,
     continue_experiment as continue_solution_experiment,
     run_experiment as run_solution_experiment,
+    solution_process_status,
     verify_experiment as verify_solution_experiment,
 )
 from apps.population_driver.runtime import PopulationDriverError  # noqa: E402
@@ -115,6 +125,34 @@ def _run(
             }
         )
     )
+
+
+def test_six_stage_process_projection_is_canonical_and_monotonic(
+    tmp_path: Path,
+) -> None:
+    harness_root = tmp_path / "harness-process"
+    harness_root.mkdir()
+    stage_one = advance_process_status(harness_root, stage=1, run_kind="harness")
+    assert stage_one["display"] == "[1/6] Task and runtime configured"
+    assert (
+        advance_process_status(harness_root, stage=2, run_kind="harness")["display"]
+        == "[2/6] Evolving harness"
+    )
+
+    root = tmp_path / "process"
+    root.mkdir()
+    stage_four = advance_process_status(root, stage=4, run_kind="solution")
+    assert stage_four["display"] == "[4/6] Evolving solution"
+    stage_five = advance_process_status(root, stage=5, run_kind="solution")
+    assert stage_five["display"] == "[5/6] Protected final assay"
+    assert advance_process_status(root, stage=4, run_kind="solution") == stage_five
+    assert load_process_status(root, expected_run_kind="solution") == stage_five
+    path = root / "process-status.json"
+    document = json.loads(path.read_text(encoding="ascii"))
+    document["stage_label"] = "forged"
+    path.write_text(canonical_json(document) + "\n", encoding="ascii", newline="")
+    with pytest.raises(ProcessTrackerError, match="does not replay"):
+        load_process_status(root)
 
 
 def test_harness_edits_repository_in_kernel_and_evaluator_runs_fresh_copy(
@@ -210,6 +248,7 @@ def test_level_two_fixture_evolves_harness_on_coding_tasks_and_seals_final(
     verified = verify_experiment(root)
     assert verified["assay"] == "coding-agent-v1"
     assert verified["status"] == "verified"
+    assert harness_process_status(root)["display"] == "[3/6] Harness sealed"
 
 
 def _write_solution_profile(
@@ -441,7 +480,16 @@ def test_selected_harness_evolves_solution_commits_and_returns_verified_patch(
     verified = verify_solution_experiment(solution_root)
     assert verified["status"] == "verified"
     assert verified["mutation_receipt_count"] == 2
+    assert solution_process_status(solution_root)["display"] == (
+        "[6/6] Result ready for review"
+    )
+    (solution_root / "process-status.json").unlink()
+    assert verify_solution_experiment(solution_root)["status"] == "verified"
+    assert solution_process_status(solution_root)["display"] == (
+        "[6/6] Result ready for review"
+    )
     assert continue_solution_experiment(solution_root) == report
+    assert (solution_root / "process-status.json").is_file()
     hidden_fragment = "solve(41, -9)"
     assert hidden_fragment not in (solution_root / "state" / "driver.jsonl").read_text(
         encoding="utf-8"
@@ -508,6 +556,9 @@ def test_solution_resume_never_repeats_call_and_retry_requires_reserved_budget(
             harness_root / "selected-harness.json",
         )
     assert counter.read_text() == "x"
+    assert solution_process_status(exhausted_root)["display"] == (
+        "[4/6] Evolving solution"
+    )
     with pytest.raises(SolutionExperimentError, match="explicit retry required"):
         continue_solution_experiment(exhausted_root)
     assert counter.read_text() == "x"

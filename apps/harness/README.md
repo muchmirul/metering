@@ -170,11 +170,19 @@ uv run python apps/harness/experiment.py \
   coding-pi /tmp/metering-coding-harness-live \
   /absolute/path/runtime.pi.json
 
+# Inspect [2/6] harness evolution or [3/6] harness sealing.
+uv run python apps/harness/experiment.py status /tmp/metering-coding-harness-live
+
 # Resume only replayable effects, or explicitly spend one reserved retry.
 uv run python apps/harness/experiment.py resume /tmp/metering-coding-harness-live
 uv run python apps/harness/experiment.py retry \
   /tmp/metering-coding-harness-live 'operator-reviewed reason'
 ```
+
+New coding-harness roots write projection-only `process-status.json`: stage
+`[2/6] Evolving harness` advances monotonically to `[3/6] Harness sealed`.
+The tracker improves operator visibility but has no selection or replay authority;
+see the [six-stage coding process](../../docs/darwinian-coding-agent.md#six-stage-user-process).
 
 A retry first seals the existing content-addressed run receipts under
 `state/retry-effects/` and includes its digest in the next hash-derived attempt
@@ -202,8 +210,9 @@ uv run python apps/harness/experiment.py \
 A trusted source checkout also exposes the same Pi composition as project-local
 **Population Evolution Mode**. Run `pi` from the repository root, approve the
 project once, and use `/evolve`, `/evolve-status`, or `/evolve-verify`. For coding, use
-`/evolve-harness`, then `/evolve-code /absolute/task.json`,
-`/evolve-code-status`, or `/evolve-code-verify`. This is a
+`/evolve-harness`, `/evolve-harness-status`, then
+`/evolve-code /absolute/task.json`, `/evolve-code-status`, or
+`/evolve-code-verify`. This is a
 thin fixed-connector UI: opening Pi does not start a run, nested model calls do
 not inherit the interactive session or extension, and selected candidates are
 not automatically installed. See the [Pi connector](../../connectors/fixed/pi/README.md#interactive-population-evolution-mode).

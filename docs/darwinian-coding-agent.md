@@ -36,6 +36,25 @@ objects locally, and records `harness-provenance.json`. Later resume and replay
 recheck that source evidence. A Level-1 result never changes harness policy.
 This preserves attribution.
 
+## Six-stage user process
+
+Every coding workflow presents the same coarse progress vocabulary:
+
+| Tracker | Meaning | Completion evidence |
+|---|---|---|
+| **[1/6] Task and runtime configured** | The pinned runtime and applicable fixed or operator-approved task contracts validate | canonical task/runtime inputs |
+| **[2/6] Evolving harness** | Level 2 is proposing and independently evaluating one-locus harness descendants | development Driver/Population records |
+| **[3/6] Harness sealed** | A harness was allocated, passed its protected assay, and cannot resume search | `selected-harness.json` and final seal |
+| **[4/6] Evolving solution** | Level 1 is proposing immutable repository descendants and running development checks | solution Driver/Population records |
+| **[5/6] Protected final assay** | Development has stopped, final allocation is committed, and protected checks are running | final-role Population experiment |
+| **[6/6] Result ready for review** | The selected commit, patch, and replayable receipts are sealed for operator verification and review | `selected-solution.json` and `selected.patch` |
+
+New coding run roots expose the current label in canonical
+`process-status.json`. This file is explicitly a monotonic, projection-only UI
+tracker: it cannot authorize model calls, selection, final access, or replay.
+The underlying Git, JSONL, allocation, and receipt evidence remains authoritative,
+and status for older runs is derived from those existing markers.
+
 ## Evidence visibility
 
 Three classes are distinct:

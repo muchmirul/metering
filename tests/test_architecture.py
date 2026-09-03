@@ -241,6 +241,7 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
         '"evolve-status"',
         '"evolve-verify"',
         '"evolve-harness"',
+        '"evolve-harness-status"',
         '"evolve-harness-resume"',
         '"evolve-harness-retry"',
         '"evolve-code"',

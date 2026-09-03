@@ -23,6 +23,7 @@ import apps.harness.experiment as harness_experiment_module  # noqa: E402
 from apps.harness.experiment import (  # noqa: E402
     ExperimentError,
     continue_experiment,
+    harness_process_status,
     run_experiment,
     verify_experiment,
 )
@@ -348,6 +349,7 @@ def test_harness_resume_does_not_repeat_model_call_and_reserved_retry_completes(
         run_experiment("fixture", root, None, assay="coding-agent-v1")
     assert counter.read_text() == "x"
     assert not (root / "assay.json").exists()
+    assert harness_process_status(root)["display"] == "[2/6] Evolving harness"
     with pytest.raises(ExperimentError, match="explicit pending intent"):
         continue_experiment(root)
     assert counter.read_text() == "x"

@@ -33,6 +33,29 @@ Level 1: one caller repository base commit
 This is mutation-only. Model weights, evaluator profiles, Population policy,
 Docker policy, and the two evolutionary levels do not mutate together.
 
+## Six-stage process tracker
+
+Users see one stable end-to-end process rather than internal component names:
+
+```text
+[1/6] Task and runtime configured
+[2/6] Evolving harness
+[3/6] Harness sealed
+[4/6] Evolving solution
+[5/6] Protected final assay
+[6/6] Result ready for review
+```
+
+`process-status.json` records the current stage in each new harness or solution
+run root. It is canonical and monotonic but explicitly `projection-only`; it is
+never recurrence, selection, or final-evidence authority. Inspect it directly or
+use the status commands:
+
+```bash
+uv run python apps/harness/experiment.py status HARNESS_RUN_ROOT
+uv run python apps/coding_agent/solution_experiment.py status SOLUTION_RUN_ROOT
+```
+
 ## Operator workflow
 
 Prerequisites are the same reviewed, digest-pinned Docker/cgroup-v2 profile used
@@ -98,8 +121,9 @@ source repository untouched and writes:
 - `mutation-receipts/`, `evaluation-receipts/`, and `final-receipts/`;
 - copied `task.json`, post-development `protected-final.json`, `runtime.json`,
   the identity-preserving `selected-harness.json`, localized harness Git objects,
-  `harness-provenance.json`, and kernel conformance evidence; and
-- a convenience `experiment-report.json` that is not recurrence authority.
+  `harness-provenance.json`, and kernel conformance evidence;
+- a convenience `experiment-report.json` that is not recurrence authority; and
+- projection-only `process-status.json`, showing the current `[n/6]` stage.
 
 The selected commit is never merged or deployed automatically. Review
 `selected.patch` and its evidence, then apply it through a separate operator
@@ -254,10 +278,11 @@ the database is only a rebuildable projection.
 From a trusted checkout, plain `pi` exposes:
 
 ```text
-/evolve-harness                    evolve and seal a Level-2 coding harness
+/evolve-harness                    [2/6] evolve and seal a Level-2 coding harness
+/evolve-harness-status             show the latest harness process stage
 /evolve-harness-resume             finish replayable Level-2 effects without a model call
 /evolve-harness-retry REASON       explicitly retry one reserved Level-2 model attempt
-/evolve-code /absolute/task.json  evolve Level-1 solution commits
+/evolve-code /absolute/task.json  [4/6] evolve Level-1 solution commits
 /evolve-code-resume               finish committed effects without a new model call
 /evolve-code-retry OPERATOR_REASON explicitly retry one indeterminate model attempt
 /evolve-code-status               show the selected solution and patch path
@@ -266,8 +291,8 @@ From a trusted checkout, plain `pi` exposes:
 
 Set `METERING_EVOLUTION_TASK_PROFILE` to an operator-reviewed absolute profile
 if `/evolve-code` is invoked without an argument. The model-facing
-`darwinian_coding` tool accepts only `harness_run`, `solution_run`,
-`solution_status`, or `solution_verify`; it cannot authorize retry or supply
+`darwinian_coding` tool accepts only `harness_run`, `harness_status`,
+`solution_run`, `solution_status`, or `solution_verify`; it cannot authorize retry or supply
 goal text, commands,
 checks, candidates, output locations, or profile paths. Merely opening Pi starts
 no run.
@@ -293,6 +318,7 @@ weights.
 
 | Module | Responsibility |
 |---|---|
+| `process_tracker.py` | projection-only canonical `[n/6]` operator status |
 | `protocol.py` | canonical caller-owned task profile and task identities |
 | `harness_workspace_editor.py` | selected-harness materialization and isolated solution mutation |
 | `candidate_runner.py` | fresh-container execution of immutable solution commits |

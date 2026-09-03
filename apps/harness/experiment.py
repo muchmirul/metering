@@ -28,6 +28,12 @@ from apps.agent_protocol import (  # noqa: E402
     decode_agent_artifact,
 )
 from apps.coding_agent.evaluator import evaluation_cost  # noqa: E402
+from apps.coding_agent.process_tracker import (  # noqa: E402
+    ProcessTrackerError,
+    advance_process_status,
+    load_process_status,
+    process_document,
+)
 from apps.harness.conformance import run_conformance  # noqa: E402
 from apps.harness.final_assay import FinalAssayError, run_final_assay  # noqa: E402
 from apps.harness.harness_runner import EVIDENCE_KEY  # noqa: E402
@@ -516,6 +522,8 @@ def _finish_experiment(
         root / "experiment-report.json",
         (canonical_json(report) + "\n").encode("ascii"),
     )
+    if assay == "coding-agent-v1":
+        advance_process_status(root, stage=3, run_kind="harness")
     return report
 
 
@@ -537,6 +545,8 @@ def run_experiment(
     if runtime.model["connector"] != _expected_connector(agent):
         raise ExperimentError("runtime model connector does not match selected agent")
     root.mkdir(parents=True)
+    if assay == "coding-agent-v1":
+        advance_process_status(root, stage=1, run_kind="harness")
     runtime_path = root / "runtime.json"
     atomic_write(
         runtime_path, (canonical_json(runtime.document) + "\n").encode("ascii")
@@ -582,6 +592,8 @@ def run_experiment(
         population_name=population_name,
     )
     candidate_paths = ["harness.json", *sorted(candidate.paths.values())]
+    if assay == "coding-agent-v1":
+        advance_process_status(root, stage=2, run_kind="harness")
     with _configured_environment(
         agent=agent,
         runtime_path=runtime_path,
@@ -649,6 +661,8 @@ def continue_experiment(
         if source != canonical_json(report) + "\n":
             raise ExperimentError("harness experiment report is not canonical")
         verify_experiment(root)
+        if report.get("assay") == "coding-agent-v1":
+            advance_process_status(root, stage=3, run_kind="harness")
         return report
     runtime_path = root / "runtime.json"
     runtime = load_runtime_manifest(runtime_path)
@@ -685,6 +699,7 @@ def continue_experiment(
     if evaluation == "evolutionary-harness/development-coding-agent-v1":
         assay = "coding-agent-v1"
         evaluator_path = CODING_EVALUATOR
+        advance_process_status(root, stage=2, run_kind="harness")
     elif evaluation == "evolutionary-harness/development-addition-v1":
         assay = "arithmetic-v1"
         evaluator_path = EVALUATOR
@@ -1635,11 +1650,39 @@ def verify_experiment(root: Path) -> dict[str, object]:
     }
 
 
+def harness_process_status(root: Path) -> dict[str, object]:
+    root = root.expanduser().absolute()
+    if root.is_symlink() or not root.is_dir():
+        raise ExperimentError(f"experiment root is absent or unsafe: {root}")
+    status = load_process_status(root, expected_run_kind="harness")
+    if status is not None:
+        return status
+    if (root / "selected-harness.json").is_file():
+        return process_document(3, "harness")
+    driver_path = root / "state" / "driver.jsonl"
+    if driver_path.is_file():
+        lines = driver_path.read_text(encoding="ascii").splitlines()
+        header = decode_json_object(lines[0] if lines else "", ExperimentError)
+        configuration = header.get("configuration")
+        generation = (
+            configuration.get("generation") if type(configuration) is dict else None
+        )
+        if (
+            type(generation) is dict
+            and generation.get("evaluation")
+            == "evolutionary-harness/development-coding-agent-v1"
+        ):
+            return process_document(2, "harness")
+    raise ExperimentError("coding harness process has not started")
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     try:
         if len(arguments) == 2 and arguments[0] == "verify":
             result = verify_experiment(Path(arguments[1]))
+        elif len(arguments) == 2 and arguments[0] == "status":
+            result = harness_process_status(Path(arguments[1]))
         elif len(arguments) == 2 and arguments[0] == "resume":
             result = continue_experiment(Path(arguments[1]))
         elif len(arguments) == 3 and arguments[0] == "retry":
@@ -1676,7 +1719,8 @@ def main(argv: list[str] | None = None) -> int:
             raise ExperimentError(
                 "usage: experiment.py {fixture|coding-fixture} NEW_ROOT | "
                 "{pi|prime-agent|coding-pi|coding-prime-agent} NEW_ROOT "
-                "RUNTIME.json | resume ROOT | retry ROOT REASON | verify ROOT"
+                "RUNTIME.json | status ROOT | resume ROOT | retry ROOT REASON | "
+                "verify ROOT"
             )
     except (
         ExperimentError,
@@ -1685,6 +1729,7 @@ def main(argv: list[str] | None = None) -> int:
         HarnessProtocolError,
         HarnessReceiptError,
         OSError,
+        ProcessTrackerError,
         PopulationDriverError,
         RuntimeManifestError,
         TypeError,

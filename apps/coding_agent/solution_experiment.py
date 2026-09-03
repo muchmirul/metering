@@ -38,6 +38,12 @@ from apps.coding_agent.harness_workspace_editor import (  # noqa: E402
     load_harness_descriptor,
     materialize_selected_harness,
 )
+from apps.coding_agent.process_tracker import (  # noqa: E402
+    ProcessTrackerError,
+    advance_process_status,
+    load_process_status,
+    process_document,
+)
 from apps.coding_agent.protocol import (  # noqa: E402
     CodingTaskError,
     load_final_profile,
@@ -526,6 +532,7 @@ def _experiment_report(
         root / "experiment-report.json",
         (canonical_json(report) + "\n").encode("ascii"),
     )
+    advance_process_status(root, stage=6, run_kind="solution")
     return report
 
 
@@ -547,6 +554,7 @@ def run_experiment(
     if runtime.model["connector"] != expected_connector:
         raise SolutionExperimentError("runtime connector does not match selected agent")
     root.mkdir(parents=True)
+    advance_process_status(root, stage=4, run_kind="solution")
     profile_path = root / "task.json"
     runtime_path = root / "runtime.json"
     _copy_canonical(profile_source, profile_path)
@@ -592,6 +600,7 @@ def run_experiment(
                 "coding development has a pending model intent; explicit retry required "
                 f"for intent {pending['intent_id']}"
             )
+        advance_process_status(root, stage=5, run_kind="solution")
         final_tasks = _protected_final_tasks(root, profile, copy_if_absent=True)
         final = run_final_assay(
             population_root(state_root),
@@ -700,6 +709,7 @@ def continue_experiment(
             )
         report = _canonical_document(report_path, "coding experiment report")
         verify_experiment(root)
+        advance_process_status(root, stage=6, run_kind="solution")
         return report
     profile = load_task_profile(root / "task.json", allow_legacy_inline_final=True)
     runtime = load_runtime_manifest(root / "runtime.json")
@@ -712,6 +722,7 @@ def continue_experiment(
     if connector not in {"fixture-v1", "pi-v1"}:
         raise SolutionExperimentError("coding runtime connector is unsupported")
     agent = "fixture" if connector == "fixture-v1" else "pi"
+    advance_process_status(root, stage=4, run_kind="solution")
     state_root = root / "state"
     population_state = load_state(population_root(state_root))
     seeds = [
@@ -785,6 +796,7 @@ def continue_experiment(
                     "protected coding final evaluation started without a complete run; "
                     "it is sealed and cannot be retried"
                 )
+            advance_process_status(root, stage=5, run_kind="solution")
             final_tasks = _protected_final_tasks(root, profile, copy_if_absent=True)
             final = run_final_assay(
                 population_root(state_root),
@@ -1672,11 +1684,29 @@ def verify_experiment(root: Path) -> dict[str, object]:
     }
 
 
+def solution_process_status(root: Path) -> dict[str, object]:
+    root = root.expanduser().absolute()
+    if root.is_symlink() or not root.is_dir():
+        raise SolutionExperimentError(f"experiment root is absent or unsafe: {root}")
+    status = load_process_status(root, expected_run_kind="solution")
+    if status is not None:
+        return status
+    if (root / "selected-solution.json").is_file():
+        return process_document(6, "solution")
+    if (root / "protected-final.json").is_file():
+        return process_document(5, "solution")
+    if (root / "state" / "driver.jsonl").is_file():
+        return process_document(4, "solution")
+    raise SolutionExperimentError("coding solution process has not started")
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     try:
         if len(arguments) == 2 and arguments[0] == "verify":
             result = verify_experiment(Path(arguments[1]))
+        elif len(arguments) == 2 and arguments[0] == "status":
+            result = solution_process_status(Path(arguments[1]))
         elif len(arguments) == 2 and arguments[0] == "resume":
             result = continue_experiment(Path(arguments[1]))
         elif len(arguments) == 3 and arguments[0] == "retry":
@@ -1692,7 +1722,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             raise SolutionExperimentError(
                 "usage: solution_experiment.py {fixture|pi} TASK.json NEW_ROOT "
-                "RUNTIME.json SELECTED-HARNESS.json | resume ROOT | "
+                "RUNTIME.json SELECTED-HARNESS.json | status ROOT | resume ROOT | "
                 "retry ROOT REASON | verify ROOT"
             )
     except (
@@ -1703,6 +1733,7 @@ def main(argv: list[str] | None = None) -> int:
         HarnessProtocolError,
         OSError,
         PopulationDriverError,
+        ProcessTrackerError,
         RuntimeManifestError,
         SolutionExperimentError,
         TypeError,

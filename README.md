@@ -263,8 +263,10 @@ The source checkout also includes an opt-in two-level
 and final-seals the nine-locus Pi harness against fixed coding workspaces;
 `/evolve-code /absolute/task.json` then uses that exact selected harness to
 create immutable solution commits for an operator-approved repository and
-independently evaluates them in fresh Docker containers. `/evolve-code-status`
-shows the selected patch path and `/evolve-code-verify` replays all Git,
+independently evaluates them in fresh Docker containers. A projection-only
+six-stage tracker reports `[1/6] Task and runtime configured` through `[6/6] Result ready
+for review`; use `/evolve-harness-status` or `/evolve-code-status` to inspect it.
+`/evolve-code-verify` replays all Git,
 receipt, Driver, Population, allocation, and final-seal evidence without SQLite.
 The source repository is never edited, and no selected patch is merged or
 deployed automatically. The coding task profile—not the model—owns allowed

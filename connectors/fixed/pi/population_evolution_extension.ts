@@ -19,6 +19,19 @@ const WIDGET_KEY = "population-evolution";
 const RUN_NAME = /^pi-\d{8}T\d{6}(?:\d{3})?Z$/;
 const COMMAND_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const MAX_DIAGNOSTIC_CHARS = 4000;
+const PROCESS_LABELS: Record<number, string> = {
+	1: "Task and runtime configured",
+	2: "Evolving harness",
+	3: "Harness sealed",
+	4: "Evolving solution",
+	5: "Protected final assay",
+	6: "Result ready for review",
+};
+
+interface ProcessProjection {
+	display: string;
+	stage: number;
+}
 
 interface ModeSummary {
 	action: "run" | "status" | "verify";
@@ -27,6 +40,7 @@ interface ModeSummary {
 	finalTasks?: number;
 	kind?: "arithmetic" | "coding-harness" | "coding-solution";
 	patchPath?: string;
+	process?: string;
 	runRoot: string;
 	runtimeId?: string;
 	status: string;
@@ -95,7 +109,9 @@ async function latestCodingRoot(kind: "harness" | "solution", requireCompleted =
 			.filter((entry) => entry.isDirectory() && pattern.test(entry.name))
 			.map((entry) => join(runsDirectory(), entry.name))
 			.filter((root) =>
-				requireCompleted ? existsSync(join(root, marker)) : existsSync(join(root, "state", "driver.jsonl")),
+				requireCompleted
+					? existsSync(join(root, marker))
+					: existsSync(join(root, "process-status.json")) || existsSync(join(root, "state", "driver.jsonl")),
 			)
 			.sort()
 			.reverse()[0];
@@ -112,6 +128,41 @@ function configuredTaskProfile(argument: string): string {
 	if (!isAbsolute(supplied)) throw new Error("coding task profile must be an absolute path");
 	if (!existsSync(supplied)) throw new Error(`coding task profile is unavailable: ${supplied}`);
 	return supplied;
+}
+
+function processProjection(stage: number): ProcessProjection {
+	const label = PROCESS_LABELS[stage];
+	if (!label) throw new Error(`unsupported Darwinian coding process stage: ${stage}`);
+	return { display: `[${stage}/6] ${label}`, stage };
+}
+
+async function readProcessProjection(
+	runRoot: string,
+	runKind: "harness" | "solution",
+	fallbackStage: number,
+): Promise<ProcessProjection> {
+	const path = join(runRoot, "process-status.json");
+	if (!existsSync(path)) return processProjection(fallbackStage);
+	const value: unknown = JSON.parse(await readFile(path, "utf8"));
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		throw new Error("coding process status is malformed");
+	}
+	const document = value as Record<string, unknown>;
+	const stage = integer(document.stage);
+	if (
+		document.authority !== "projection-only" ||
+		document.process_schema !== "darwinian-coding-process-v1" ||
+		document.run_kind !== runKind ||
+		document.total_stages !== 6 ||
+		stage === undefined
+	) {
+		throw new Error("coding process status has an unexpected identity");
+	}
+	const expected = processProjection(stage);
+	if (document.display !== expected.display || document.stage_label !== PROCESS_LABELS[stage]) {
+		throw new Error("coding process status does not replay");
+	}
+	return expected;
 }
 
 function boundedDiagnostic(value: string): string {
@@ -238,17 +289,18 @@ async function statusSummary(): Promise<ModeSummary> {
 	return { ...summary, action: "status" };
 }
 
-function setModeStatus(ctx: ExtensionContext, state: "failed" | "ready" | "running"): void {
+function setModeStatus(ctx: ExtensionContext, state: "failed" | "ready" | "running", process?: string): void {
 	const color = state === "failed" ? "error" : state === "running" ? "warning" : "accent";
-	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(color, `population: ${state}`));
+	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(color, `population: ${process ?? state}`));
 }
 
 function setModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
 	const lines = [
 		ctx.ui.theme.fg("accent", `🧬 ${MODE_NAME}`) +
-			ctx.ui.theme.fg("dim", " · /evolve-harness · /evolve-harness-resume · /evolve-code · /evolve-code-verify"),
+			ctx.ui.theme.fg("dim", " · /evolve-harness · /evolve-harness-status · /evolve-code · /evolve-code-status"),
 	];
 	if (summary) {
+		if (summary.process) lines.push(ctx.ui.theme.fg("accent", summary.process));
 		const assay =
 			summary.finalPassed === undefined || summary.finalTasks === undefined
 				? summary.status
@@ -259,7 +311,9 @@ function setModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
 }
 
 function humanSummary(summary: ModeSummary): string {
-	const fields = [`${MODE_NAME}: ${summary.status}`, `run: ${summary.runRoot}`];
+	const fields = [`${MODE_NAME}: ${summary.status}`];
+	if (summary.process) fields.push(`process: ${summary.process}`);
+	fields.push(`run: ${summary.runRoot}`);
 	if (summary.finalPassed !== undefined && summary.finalTasks !== undefined) {
 		fields.push(`protected final assay: ${summary.finalPassed}/${summary.finalTasks}`);
 	}
@@ -313,11 +367,38 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	async function codingStatus(kind: "harness" | "solution"): Promise<ModeSummary> {
+		const root = await latestCodingRoot(kind, false);
+		if (!root) throw new Error(`no coding ${kind} runs exist under ${runsDirectory()}`);
+		const completed = existsSync(join(root, "experiment-report.json"));
+		const fallbackStage = kind === "harness" ? (completed ? 3 : 2) : completed ? 6 : 4;
+		const process = await readProcessProjection(root, kind, fallbackStage);
+		if (!completed) {
+			return {
+				action: "status",
+				kind: kind === "harness" ? "coding-harness" : "coding-solution",
+				process: process.display,
+				runRoot: root,
+				status: "in progress",
+			};
+		}
+		const value: unknown = JSON.parse(await readFile(join(root, "experiment-report.json"), "utf8"));
+		if (typeof value !== "object" || value === null || Array.isArray(value)) {
+			throw new Error(`latest coding ${kind} report is malformed`);
+		}
+		const summary =
+			kind === "harness"
+				? { ...runSummary(root, value as Record<string, unknown>), action: "status" as const }
+				: codingSolutionSummary(root, value as Record<string, unknown>, "status");
+		return { ...summary, process: process.display };
+	}
+
 	async function executeCoding(
 		action:
 			| "harness"
 			| "harness-resume"
 			| "harness-retry"
+			| "harness-status"
 			| "solution"
 			| "solution-resume"
 			| "solution-retry"
@@ -328,15 +409,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		signal?: AbortSignal,
 	): Promise<ModeSummary> {
 		if (running) throw new Error("an evolution command is already running in this Pi session");
-		if (action === "solution-status") {
-			const root = await latestCodingRoot("solution");
-			if (!root) throw new Error(`no completed coding solution runs exist under ${runsDirectory()}`);
-			const value: unknown = JSON.parse(await readFile(join(root, "experiment-report.json"), "utf8"));
-			if (typeof value !== "object" || value === null || Array.isArray(value)) {
-				throw new Error("latest coding solution report is malformed");
-			}
-			return codingSolutionSummary(root, value as Record<string, unknown>, "status");
-		}
+		if (action === "harness-status") return codingStatus("harness");
+		if (action === "solution-status") return codingStatus("solution");
 		const runtime = runtimeManifest();
 		if (!existsSync(runtime)) throw new Error(`reviewed runtime manifest is unavailable: ${runtime}`);
 		await mkdir(runsDirectory(), { recursive: true });
@@ -387,8 +461,41 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			root = latest;
 			args = ["run", "python", "apps/coding_agent/solution_experiment.py", "verify", root];
 		}
+		const runKind = action.startsWith("harness") ? "harness" : "solution";
+		const initial = processProjection(
+			runKind === "harness" && action === "harness"
+				? 1
+				: runKind === "harness"
+					? 2
+					: action === "solution-verify"
+						? 6
+						: 4,
+		);
+		let watching = true;
+		let shown = initial.display;
+		const refresh = async (): Promise<void> => {
+			const process = await readProcessProjection(root, runKind, initial.stage);
+			if (!watching || process.display === shown) return;
+			shown = process.display;
+			setModeStatus(ctx, "running", shown);
+			setModeWidget(ctx, {
+				action: "status",
+				kind: runKind === "harness" ? "coding-harness" : "coding-solution",
+				process: shown,
+				runRoot: root,
+				status: "in progress",
+			});
+		};
 		running = true;
-		setModeStatus(ctx, "running");
+		setModeStatus(ctx, "running", shown);
+		setModeWidget(ctx, {
+			action: "status",
+			kind: runKind === "harness" ? "coding-harness" : "coding-solution",
+			process: shown,
+			runRoot: root,
+			status: "in progress",
+		});
+		const watcher = setInterval(() => void refresh().catch(() => undefined), 1000);
 		try {
 			const result = await pi.exec("uv", args, {
 				cwd: repositoryRoot(),
@@ -396,16 +503,21 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				timeout: COMMAND_TIMEOUT_MS,
 			});
 			const report = decodeOutput(result);
-			const summary = action.startsWith("harness")
+			const baseSummary = action.startsWith("harness")
 				? runSummary(root, report)
 				: codingSolutionSummary(root, report, action === "solution-verify" ? "verify" : "run");
-			setModeStatus(ctx, "ready");
+			const process = await readProcessProjection(root, runKind, runKind === "harness" ? 3 : 6);
+			const summary = { ...baseSummary, process: process.display };
+			setModeStatus(ctx, "ready", process.display);
 			setModeWidget(ctx, summary);
 			return summary;
 		} catch (error) {
-			setModeStatus(ctx, "failed");
+			const process = await readProcessProjection(root, runKind, initial.stage).catch(() => initial);
+			setModeStatus(ctx, "failed", process.display);
 			throw error;
 		} finally {
+			watching = false;
+			clearInterval(watcher);
 			running = false;
 		}
 	}
@@ -429,18 +541,18 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		const result = await ctx.ui.custom<LoaderResult | null>((tui, theme, _keybindings, done) => {
 			const label =
 				action === "harness"
-					? "Evolving the Pi harness on coding assays…"
+					? "[1/6] Validating configuration; then [2/6] evolving the harness…"
 					: action === "harness-resume"
-						? "Resuming committed harness-evolution effects…"
+						? "[2/6] Resuming committed harness-evolution effects…"
 						: action === "harness-retry"
-							? "Retrying an explicitly approved harness model attempt…"
+							? "[2/6] Retrying an explicitly approved harness model attempt…"
 							: action === "solution"
-								? "Evolving immutable solution commits…"
+								? "[4/6] Evolving immutable solution commits…"
 								: action === "solution-resume"
-									? "Resuming committed coding evolution effects…"
+									? "[4/6] Resuming committed coding evolution effects…"
 									: action === "solution-retry"
-										? "Retrying an explicitly approved model attempt…"
-										: "Replaying coding evolution evidence…";
+										? "[4/6] Retrying an explicitly approved model attempt…"
+										: "[6/6] Replaying coding evolution evidence…";
 			const loader = new BorderedLoader(tui, theme, label);
 			loader.onAbort = () => done(null);
 			executeCoding(action, ctx, profileArgument, loader.signal)
@@ -536,6 +648,23 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		},
 	});
 
+	pi.registerCommand("evolve-harness-status", {
+		description: "Show the latest harness run and its six-stage process position",
+		handler: async (args, ctx) => {
+			if (args.trim()) {
+				ctx.ui.notify("/evolve-harness-status accepts no arguments", "error");
+				return;
+			}
+			try {
+				const summary = await executeCoding("harness-status", ctx);
+				setModeWidget(ctx, summary);
+				ctx.ui.notify(humanSummary(summary), "info");
+			} catch (error) {
+				ctx.ui.notify(String(error), "error");
+			}
+		},
+	});
+
 	pi.registerCommand("evolve-harness-resume", {
 		description: "Resume committed effects in the latest coding harness run",
 		handler: async (args, ctx) => {
@@ -588,7 +717,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("evolve-code-status", {
-		description: "Show the latest selected coding solution and patch",
+		description: "Show the latest solution run and its six-stage process position",
 		handler: async (_args, ctx) => {
 			try {
 				const summary = await executeCoding("solution-status", ctx);
@@ -649,13 +778,19 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		name: "darwinian_coding",
 		label: "Darwinian Coding",
 		description:
-			"Evolve the fixed Pi coding harness, or run/status/verify solution evolution using only the operator-approved METERING_EVOLUTION_TASK_PROFILE. It accepts no task text, command, evaluator, candidate, or output path.",
+			"Evolve or inspect the fixed Pi coding harness, or run/status/verify solution evolution using only the operator-approved METERING_EVOLUTION_TASK_PROFILE. It accepts no task text, command, evaluator, candidate, or output path.",
 		promptSnippet: "Run independently evaluated Darwinian coding evolution",
 		promptGuidelines: [
 			"Use darwinian_coding only after the user explicitly requests harness or solution evolution. Never substitute ordinary in-place edits for its immutable candidates and independent assays.",
 		],
 		parameters: Type.Object({
-			action: StringEnum(["harness_run", "solution_run", "solution_status", "solution_verify"] as const),
+			action: StringEnum([
+				"harness_run",
+				"harness_status",
+				"solution_run",
+				"solution_status",
+				"solution_verify",
+			] as const),
 		}),
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			onUpdate?.({
@@ -665,11 +800,13 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const action =
 				params.action === "harness_run"
 					? "harness"
-					: params.action === "solution_run"
-						? "solution"
-						: params.action === "solution_status"
-							? "solution-status"
-							: "solution-verify";
+					: params.action === "harness_status"
+						? "harness-status"
+						: params.action === "solution_run"
+							? "solution"
+							: params.action === "solution_status"
+								? "solution-status"
+								: "solution-verify";
 			const summary = await executeCoding(action, ctx, "", signal);
 			pi.appendEntry("darwinian-coding-run", summary);
 			return {
@@ -682,12 +819,22 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	pi.on("session_start", async (_event, ctx) => {
 		setModeStatus(ctx, "ready");
 		try {
-			const latest = await statusSummary();
+			const latest = await codingStatus("solution");
 			setModeWidget(ctx, latest);
 		} catch {
-			setModeWidget(ctx);
+			try {
+				const latest = await codingStatus("harness");
+				setModeWidget(ctx, latest);
+			} catch {
+				try {
+					const latest = await statusSummary();
+					setModeWidget(ctx, latest);
+				} catch {
+					setModeWidget(ctx);
+				}
+			}
 		}
-		ctx.ui.notify(`${MODE_NAME} active. Use /evolve-harness, then /evolve-code TASK.json.`, "info");
+		ctx.ui.notify(`${MODE_NAME} active. Six-stage tracker: /evolve-harness-status or /evolve-code-status.`, "info");
 	});
 
 	pi.on("before_agent_start", async (event) => ({
