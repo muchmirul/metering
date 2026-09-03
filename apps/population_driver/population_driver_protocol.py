@@ -49,6 +49,7 @@ TASK_SET_SCHEMA = "population-driver-task-set-v1"
 MUTATION_POLICY_SCHEMA = "population-driver-mutation-policy-v1"
 CONTROLLER_RECEIPT_SCHEMA = "population-driver-controller-receipt-v1"
 EVIDENCE_RECEIPT_SCHEMA = "population-driver-evidence-receipt-v1"
+STOPPING_POLICY_TYPE = "all-development-cases-pass-v1"
 
 
 class RequestError(ValueError):
@@ -100,6 +101,24 @@ def _selection_policy(value: object, location: str) -> dict[str, object]:
             f"{location}.reject_safety_regression",
         ),
         "type": "task-pass-count-v1",
+    }
+
+
+def normalize_stopping_policy(
+    value: object, location: str = "stopping"
+) -> dict[str, object]:
+    """Validate the optional evaluator-backed early-stopping policy."""
+
+    if type(value) is not dict:
+        raise ProtocolError(f"{location} must be a JSON object")
+    require_exact_keys(value, {"minimum_replicates", "type"}, location)
+    if value["type"] != STOPPING_POLICY_TYPE:
+        raise ProtocolError(f"{location}.type must be {STOPPING_POLICY_TYPE}")
+    return {
+        "minimum_replicates": _positive_integer(
+            value["minimum_replicates"], f"{location}.minimum_replicates"
+        ),
+        "type": STOPPING_POLICY_TYPE,
     }
 
 
@@ -164,20 +183,18 @@ def _limits(value: object) -> dict[str, object]:
 def decode_request(source: str) -> dict[str, object]:
     request = decode_json_object(source, RequestError)
     try:
-        require_exact_keys(
-            request,
-            {
-                "allocation_draws",
-                "evidence_adapter",
-                "generation",
-                "initial_parent_artifact",
-                "limits",
-                "population",
-                "proposal",
-                "schema_version",
-            },
-            "request",
-        )
+        required_keys = {
+            "allocation_draws",
+            "evidence_adapter",
+            "generation",
+            "initial_parent_artifact",
+            "limits",
+            "population",
+            "proposal",
+            "schema_version",
+        }
+        if set(request) not in (required_keys, {*required_keys, "stopping"}):
+            raise ProtocolError("request has unexpected or missing fields")
         if (
             type(request["schema_version"]) is not int
             or request["schema_version"] != DRIVER_SCHEMA_VERSION
@@ -285,6 +302,15 @@ def decode_request(source: str) -> dict[str, object]:
         limits = _limits(request["limits"])
         rounds = int(limits["max_rounds"])
         draws = _draws(request["allocation_draws"], rounds - 1, "allocation_draws")
+        stopping = (
+            normalize_stopping_policy(request["stopping"])
+            if "stopping" in request
+            else None
+        )
+        if stopping is not None and int(stopping["minimum_replicates"]) > rounds:
+            raise ProtocolError(
+                "stopping.minimum_replicates cannot exceed limits.max_rounds"
+            )
     except (ProtocolError, PopulationRequestError) as exc:
         raise RequestError(str(exc)) from exc
 
@@ -296,7 +322,7 @@ def decode_request(source: str) -> dict[str, object]:
             "timeout_seconds": proposal_document["timeout_seconds"],
         }
     )
-    return {
+    normalized = {
         "allocation_draws": draws,
         "evidence_adapter": evidence_adapter,
         "generation": generation_document,
@@ -307,6 +333,9 @@ def decode_request(source: str) -> dict[str, object]:
         "proposal": proposal_document,
         "schema_version": DRIVER_SCHEMA_VERSION,
     }
+    if stopping is not None:
+        normalized["stopping"] = stopping
+    return normalized
 
 
 def validate_normalized_config(value: object) -> dict[str, object]:
@@ -339,6 +368,8 @@ def validate_normalized_config(value: object) -> dict[str, object]:
             "proposal": value["proposal"],
             "schema_version": value["schema_version"],
         }
+        if "stopping" in value:
+            reconstructed_request["stopping"] = value["stopping"]
     except (KeyError, TypeError) as exc:
         detail = exc.args[0] if exc.args else type(exc).__name__
         raise PopulationDriverError(

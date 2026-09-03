@@ -42,10 +42,13 @@ parent. No scalar fitness or intelligence score is introduced.
 
 ## Instruction architecture
 
-The schema-version-1 files and CLI are unchanged, but implementation ownership
-is explicit: `replay.py` performs read-only ledger/receipt verification,
-`planner.py` returns one pure next action, `machine.py` owns external effects and
-Population transitions, `population_driver_state.py` owns durable stores, and
+The schema-version-1 durable records and CLI identifiers are unchanged. The
+request now admits one optional, versioned evaluator-backed stopping policy;
+requests that omit it retain limit-only behavior. Implementation ownership is
+explicit: `replay.py` performs read-only ledger/receipt verification,
+`planner.py` returns one pure next action, `stopping.py` evaluates only verified
+development archives, `machine.py` owns external effects and Population
+transitions, `population_driver_state.py` owns durable stores, and
 `runtime.py` is the bounded load-plan-effect-store sequencer.
 `population_driver.py` is the thin `run|retry|verify` dispatcher.
 Population access goes through `apps.population.contract`; no driver module
@@ -116,6 +119,8 @@ is [`example-request.json`](example-request.json). Its top-level fields are:
   protected admission, resource observations, and run seed metadata;
 - `allocation_draws`: exactly `max_rounds - 1` rational draws in the Population
   Archive format;
+- optional `stopping`: `all-development-cases-pass-v1` plus a positive
+  `minimum_replicates`; and
 - `limits`: positive round, proposal-call, global timeout-reservation, and
   resource limits.
 
@@ -124,6 +129,15 @@ evaluator ID, and task-set ID. The evaluator ID hashes its exact command. The
 task-set ID hashes the evaluation label and normalized public task array. The
 experiment role is always `development` and its information objective is always
 false, preventing request fields from relabeling final evidence as search input.
+
+A worded objective belongs in `proposal.context`; it guides mutation but cannot
+self-certify completion. With the optional stopping policy, recurrence ends only
+when the latest independently computed development archive contains a feasible
+candidate whose accumulated public cases all pass for at least the configured
+replicate count. The status is `development_goal_reached`. `max_rounds` remains
+mandatory and finite, so this is goal-or-limit stopping rather than an unbounded
+natural-language loop. The policy suppresses the otherwise unused next-parent
+allocation when the goal is reached. It never reads protected-final evidence.
 
 Only ordinary Git candidates are accepted in this first schema. Controller must
 return a different normalized Git child. If a proposer reproduces a Git
@@ -205,7 +219,8 @@ Controller task list, or adapter.
 The limits are deterministic scheduling limits rather than claims that Python
 can undo physical work:
 
-- `max_rounds` bounds completed mutation/evaluation/archive rounds;
+- `max_rounds` bounds completed mutation/evaluation/archive rounds and supports
+  numeric limits such as 100;
 - `max_proposal_calls` bounds initial attempts plus explicitly approved retries;
 - `max_wall_seconds` bounds the sum of configured Controller and evidence-adapter
   timeout **reservations** across the durable run, including failed attempts;
@@ -219,9 +234,9 @@ retains it as infeasible evidence; software cannot retroactively prevent the
 already consumed resource. The driver will not schedule a later round whose
 preflight bound fails.
 
-An empty archive, any configured limit, or declaration of the first final-role
-experiment stops new rounds. Its first run activates the broader Population
-seal. Allocation draws are explicit request inputs; no hidden random-number
+An evaluator-verified development goal, empty archive, any configured limit, or
+declaration of the first final-role experiment stops new rounds. Its first run
+activates the broader Population seal. Allocation draws are explicit request inputs; no hidden random-number
 generator or SQLite query affects scheduling.
 
 ## State and interruption recovery

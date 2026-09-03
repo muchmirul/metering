@@ -44,6 +44,7 @@ from apps.population_driver.receipts import (
     evidence_receipt_document,
     evidence_receipt_name,
 )
+from apps.population_driver.stopping import archive_reaches_development_goal
 from apps._support.process import (
     JsonProcessError,
     run_json_process,
@@ -474,7 +475,11 @@ def ingest_population_round(
             member_ids = [str(member["candidate_id"]) for member in members]
             allocation_record: dict[str, object] | None = None
             limits = cast(dict[str, object], config["limits"])
-            if members and round_number < int(limits["max_rounds"]):
+            if (
+                members
+                and round_number < int(limits["max_rounds"])
+                and not archive_reaches_development_goal(config, archive_body)
+            ):
                 draws = cast(list[dict[str, int]], config["allocation_draws"])
                 allocation_body = decode_allocation_request(
                     {

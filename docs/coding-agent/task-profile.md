@@ -1,6 +1,6 @@
-# Coding task profile
+# Agentvolve coding task profile
 
-A Level-1 task is one canonical JSON object followed by one newline. It binds an
+An Agentvolve Level-1 task is one canonical JSON object followed by one newline. It binds an
 immutable repository base, writable paths, development checks, finite budgets,
 exact allocation draws, and a separately permissioned protected-final profile.
 
@@ -34,6 +34,10 @@ exact allocation draws, and a separately permissioned protected-final profile.
     "path":"/absolute/operator-approved/repository"
   },
   "schema_version":1,
+  "stopping":{
+    "minimum_replicates":1,
+    "type":"all-development-cases-pass-v1"
+  },
   "task_schema":"darwinian-coding-task-v1"
 }
 ```
@@ -48,6 +52,27 @@ repository but persisted changes outside these prefixes fail validation.
 Development checks are reviewed argv arrays, not shell strings. A zero exit
 status before timeout is a pass. Each candidate/check pair runs in a separate
 fresh container.
+
+## Goal or numeric stopping
+
+`goal` is bounded natural-language guidance for the fixed proposer. For example,
+a game adapter could use `"Solve this until we finish the game."` The model's
+claim that it finished is never stop authority. The independently evaluated
+public case must report pass.
+
+There are two supported configurations:
+
+- omit `stopping` to run until a numeric/resource limit; or
+- include `all-development-cases-pass-v1` to stop when a feasible archived
+  candidate has passed every accumulated development case for at least
+  `minimum_replicates` evaluations.
+
+The numeric `limits.max_rounds` is mandatory in both modes and is always the
+finite fallback. Thus `max_rounds: 100` means at most 100 mutation/evaluation
+rounds, while the example `stopping` policy may end the run sooner with
+`development_goal_reached`. A 100-round profile also binds 99 exact allocation
+draws and at least 100 proposal-call reservations. Protected-final checks never
+participate in the goal predicate.
 
 ## Protected-final profile
 
@@ -88,8 +113,10 @@ Before execution, fixed code requires:
 - non-empty reviewed argv commands;
 - unique case IDs within each suite;
 - finite positive per-check and global bounds;
-- exactly `max_rounds - 1` recurrence draws; and
-- at least `max_rounds` proposal-call reservations.
+- exactly `max_rounds - 1` recurrence draws;
+- at least `max_rounds` proposal-call reservations; and
+- when present, a versioned stopping policy whose `minimum_replicates` does not
+  exceed `max_rounds`.
 
 Reservations above the round count are finite capacity for explicit retries.
 Ordinary resume cannot consume one.

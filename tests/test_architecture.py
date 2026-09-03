@@ -248,8 +248,10 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
         '"evolve-code-verify"',
     ):
         assert f"pi.registerCommand({command}" in implementation
+    assert 'const MODE_NAME = "Agentvolve";' in implementation
     assert 'name: "population_evolution"' in implementation
     assert 'name: "darwinian_coding"' in implementation
+    assert 'label: "Agentvolve"' in implementation
     assert 'await pi.exec("uv", args' in implementation
     assert "final-tasks.json" not in implementation
     assert "development-tasks.json" not in implementation

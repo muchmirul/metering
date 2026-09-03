@@ -12,6 +12,7 @@ from apps._support.wire import canonical_digest, canonical_json, decode_json_obj
 from apps.agent_protocol import ProtocolError, require_exact_keys
 from apps.harness.workspace import WorkspaceError, normalized_path
 from apps.population.contract import PopulationError, normalize_draw
+from apps.population_driver.population_driver_protocol import normalize_stopping_policy
 
 TASK_SCHEMA = "darwinian-coding-task-v1"
 FINAL_SCHEMA = "darwinian-coding-final-v1"
@@ -191,13 +192,14 @@ def load_task_profile(
     keys = set(document)
     current_keys = {*common_keys, "final_assay"}
     legacy_keys = {*common_keys, "final_checks"}
-    if keys == legacy_keys:
+    stopping_keys = {"stopping"}
+    if keys in (legacy_keys, legacy_keys | stopping_keys):
         if not allow_legacy_inline_final:
             raise CodingTaskError(
                 "inline final_checks are legacy-only; use a SHA-256-bound final_assay"
             )
         legacy = True
-    elif keys == current_keys:
+    elif keys in (current_keys, current_keys | stopping_keys):
         legacy = False
     else:
         raise CodingTaskError("coding task has the wrong keys")
@@ -244,8 +246,21 @@ def load_task_profile(
             for index, raw in enumerate(draws)
         ]
         final_draw = normalize_draw(document["final_draw"], "coding task.final_draw")
+        stopping = (
+            normalize_stopping_policy(document["stopping"], "coding task.stopping")
+            if "stopping" in document
+            else None
+        )
     except (PopulationError, ValueError) as exc:
         raise CodingTaskError(str(exc)) from exc
+    if (
+        stopping is not None
+        and int(stopping["minimum_replicates"])
+        > normalized_limits["max_rounds"]
+    ):
+        raise CodingTaskError(
+            "coding task stopping.minimum_replicates cannot exceed max_rounds"
+        )
     repository = _repository(document["repository"])
     normalized = {
         "allocation_draws": normalized_draws,
@@ -260,6 +275,8 @@ def load_task_profile(
         "schema_version": TASK_SCHEMA_VERSION,
         "task_schema": TASK_SCHEMA,
     }
+    if stopping is not None:
+        normalized["stopping"] = stopping
     if legacy:
         normalized["final_checks"] = _checks(
             document["final_checks"], "coding task.final_checks"

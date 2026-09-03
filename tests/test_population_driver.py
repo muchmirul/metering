@@ -98,6 +98,7 @@ def driver_request(
     max_proposal_calls: int | None = None,
     maximum_cost: int = 100,
     max_wall_seconds: int = 2000,
+    stop_on_goal: bool = False,
 ) -> dict[str, object]:
     def component(action: str) -> dict[str, object]:
         return {
@@ -105,7 +106,7 @@ def driver_request(
             "timeout_seconds": 5,
         }
 
-    return {
+    request: dict[str, object] = {
         "allocation_draws": [
             {"denominator": 1, "numerator": 0} for _ in range(max_rounds - 1)
         ],
@@ -157,6 +158,12 @@ def driver_request(
         },
         "schema_version": 1,
     }
+    if stop_on_goal:
+        request["stopping"] = {
+            "minimum_replicates": 1,
+            "type": "all-development-cases-pass-v1",
+        }
+    return request
 
 
 def adapter_environment(tmp_path: Path, **extra: str) -> dict[str, str]:
@@ -219,6 +226,49 @@ def test_population_driver_runs_allocated_rounds_and_ignores_sqlite(tmp_path: Pa
     assert (tmp_path / "proposal-count").read_text() == "3"
     assert (state / "driver.jsonl").read_bytes() == before_driver
     assert (state / "population" / "population.jsonl").read_bytes() == before_population
+
+
+def test_evaluator_verified_goal_stops_before_the_numeric_round_limit(
+    tmp_path: Path,
+):
+    adapter = make_adapter(tmp_path)
+    request = driver_request(adapter, max_rounds=3, stop_on_goal=True)
+    environment = adapter_environment(tmp_path)
+    state = tmp_path / "state"
+
+    result = run_script(DRIVER, request, "run", str(state), env=environment)
+
+    assert result.returncode == 0, result.stderr
+    summary = json.loads(result.stdout)
+    assert summary["status"] == "development_goal_reached"
+    assert summary["completed_rounds"] == 1
+    assert summary["candidate_count"] == 2
+    assert summary["proposal_calls"] == 1
+    round_record = records(state / "driver.jsonl")[1]
+    assert round_record["next_allocation_record_id"] is None
+    assert round_record["population_record_ids"]["allocation"] is None
+    assert len(records(state / "population" / "population.jsonl")) == 7
+
+    before = (state / "driver.jsonl").read_bytes()
+    resumed = run_script(DRIVER, request, "run", str(state), env=environment)
+    verified = run_script(DRIVER, None, "verify", str(state), env=environment)
+
+    assert resumed.returncode == verified.returncode == 0
+    assert json.loads(resumed.stdout)["status"] == "development_goal_reached"
+    assert json.loads(verified.stdout)["status"] == "verified"
+    assert (tmp_path / "proposal-count").read_text() == "1"
+    assert (state / "driver.jsonl").read_bytes() == before
+
+
+def test_goal_stopping_policy_must_fit_the_numeric_round_limit(tmp_path: Path):
+    adapter = make_adapter(tmp_path)
+    request = driver_request(adapter, max_rounds=3, stop_on_goal=True)
+    request["stopping"]["minimum_replicates"] = 4
+
+    result = run_script(DRIVER, request, "run", str(tmp_path / "state"))
+
+    assert result.returncode == 2
+    assert "minimum_replicates cannot exceed limits.max_rounds" in result.stderr
 
 
 def test_indeterminate_controller_attempt_requires_an_explicit_retry(tmp_path: Path):

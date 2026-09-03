@@ -1,4 +1,4 @@
-# How the coding agent works
+# How Agentvolve works
 
 ## High-level architecture
 
@@ -29,6 +29,10 @@ flowchart TD
     Final --> Result
     Result --> Operator
 ```
+
+Agentvolve is the complete Level-2 plus Level-1 workflow shown above. See the
+[component map](components.md) for the exact Git, Pi, Qwen/llama.cpp, IPython,
+Docker, control-plane, and evidence responsibilities.
 
 The operator owns the task, repository identity, writable paths, checks,
 budgets, runtime, and final decision. The model can propose edits but cannot

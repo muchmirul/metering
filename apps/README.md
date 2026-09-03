@@ -29,7 +29,7 @@ parents, and no stage creates a generic fitness score.
 | [Population](population/README.md) | archive membership, Pareto retention, and exact allocation |
 | [Population Driver](population_driver/README.md) | bounded multi-candidate recurrence |
 | [Evolutionary Harness](harness/README.md) | typed Level-2 harness execution and sealing |
-| [Coding Agent](coding_agent/README.md) | Level-1 immutable solution evolution and final patch |
+| [Agentvolve](coding_agent/README.md) | two-level coding evolution; Level-1 immutable solutions use a sealed Level-2 harness |
 
 Population's SQLite database is only a rebuildable query projection. Git,
 canonical JSONL, exact draws, and immutable receipts remain authoritative.
@@ -48,10 +48,11 @@ Prime Agent translation lives only under
 [`connectors/fixed/`](../connectors/fixed/README.md). Generic Git candidate
 mechanics live under [`artifacts/git/`](../artifacts/git/README.md).
 
-## Coding-agent documentation
+## Agentvolve documentation
 
-Start with the dedicated [coding-agent guide](../docs/coding-agent/README.md),
-then read its [simple architecture](../docs/coding-agent/how-it-works.md),
+Start with the dedicated [Agentvolve guide](../docs/coding-agent/README.md),
+then read its [component map](../docs/coding-agent/components.md),
+[simple architecture](../docs/coding-agent/how-it-works.md),
 [workflow](../docs/coding-agent/workflow.md),
 [operations](../docs/coding-agent/operations.md),
 [task profile](../docs/coding-agent/task-profile.md), and

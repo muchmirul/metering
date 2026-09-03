@@ -91,6 +91,7 @@ type:
 | `receipts.py` | immutable Controller/evidence receipt construction and replay |
 | `replay.py` | read-only ledger/receipt replay and cross-ledger verification |
 | `planner.py` | pure next-action and stop decision from a replayed view |
+| `stopping.py` | pure evaluator-backed development-goal predicate over verified archives |
 | `machine.py` | one explicit external effect or Population transition at a time |
 | `runtime.py` | bounded load-plan-effect-store sequencing and recovery |
 | `population_driver.py` | `run`, `retry`, and `verify` CLI dispatch |
@@ -144,7 +145,7 @@ seventh semantic owner. Its instruction split is:
 Provider files do not enter this application owner. Pi and Prime Agent
 translations under `connectors/fixed/` return one strict action with tools,
 sessions, and discovery disabled. The project-local `.pi/extensions/` entrypoint
-only re-exports the fixed Pi connector's Population Evolution Mode; it does not
+only re-exports the fixed Pi connector's Agentvolve extension; it does not
 move recurrence, evaluation, final tasks, or selection authority into Pi.
 Generic clone/content/commit mechanics stay in
 `artifacts/git/`. Candidate bootstrap crosses into exactly `kernel_server.py`;
@@ -168,9 +169,10 @@ appends its single final run, and invokes existing Population replay. Offline ve
 also checks every Git checkout, typed manifest, dependency lock, run receipt,
 final bundle, ledger, and permanent seal.
 
-## Darwinian Coding machine
+## Agentvolve machine
 
-`apps/coding_agent` is a narrow outer composition, not an installed Metering
+`apps/coding_agent` is Agentvolve's compatibility-stable narrow outer
+composition, not an installed Metering
 feature or a replacement for Controller/Population. It adds these instructions:
 
 | Module | Responsibility |

@@ -13,9 +13,8 @@ The installed package exposes exactly:
 - optional Git-backed measurement history.
 
 It does **not** infer probabilities, assign a generic fitness or intelligence
-score, run agents, or deploy code. Population evolution, sandboxing, and the
-Darwinian coding agent are repository-local source applications kept outside
-the wheel.
+score, run agents, or deploy code. Population evolution, sandboxing, and
+**Agentvolve** are repository-local source applications kept outside the wheel.
 
 ## Install
 
@@ -81,9 +80,10 @@ uv run metering-history verify "$history_dir"
 History is opt-in and requires Git. See the
 [measurement-history contract](docs/history.md).
 
-## Darwinian coding agent
+## Agentvolve
 
-The source checkout contains a bounded two-level coding agent:
+**Agentvolve** is the source checkout's bounded two-level coding evolution
+system:
 
 ```text
 Level 2 evolves and seals the coding harness
@@ -149,8 +149,9 @@ A completed solution run produces:
 The source repository is never changed automatically. Applying, merging,
 installing, or deploying the patch is a separate operator decision.
 
-Read the dedicated [coding-agent guide](docs/coding-agent/README.md), including
-the [simple architecture](docs/coding-agent/how-it-works.md),
+Read the dedicated [Agentvolve guide](docs/coding-agent/README.md), including
+the [component map](docs/coding-agent/components.md),
+[simple architecture](docs/coding-agent/how-it-works.md),
 [six-stage workflow](docs/coding-agent/workflow.md),
 [operations](docs/coding-agent/operations.md),
 [task-profile reference](docs/coding-agent/task-profile.md), and
@@ -161,7 +162,7 @@ the [simple architecture](docs/coding-agent/how-it-works.md),
 | Area | Responsibility |
 |---|---|
 | `src/metering/` | Installed four-measure API, strict JSON CLI, and opt-in history |
-| `apps/` | Source-only Controller, Population, harness, evaluators, and coding agent |
+| `apps/` | Source-only Controller, Population, harness, evaluators, and Agentvolve |
 | `connectors/` | Fixed Pi and Prime Agent translation |
 | `artifacts/` | Generic immutable Git-candidate mechanics |
 | Operator | Task meaning, approved checks, final evidence, review, and deployment |

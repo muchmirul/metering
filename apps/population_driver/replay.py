@@ -33,6 +33,7 @@ from apps.population_driver.receipts import (
     controller_receipt_document,
     evidence_receipt_document,
 )
+from apps.population_driver.stopping import archive_reaches_development_goal
 from apps._support.wire import (
     canonical_digest,
     canonical_json,
@@ -402,7 +403,11 @@ def _verify_pending_population_prefix(
         return
     members = cast(list[dict[str, object]], archive_body["members"])
     limits = cast(dict[str, object], config["limits"])
-    if members and round_number < int(limits["max_rounds"]):
+    if (
+        members
+        and round_number < int(limits["max_rounds"])
+        and not archive_reaches_development_goal(config, archive_body)
+    ):
         allocation_body = decode_allocation_request(
             {
                 "archive_record_id": tail[position - 1]["record_id"],
@@ -684,9 +689,17 @@ def _replay_round(
         state=state,
     )
     limits = cast(dict[str, object], config["limits"])
+    population_references = cast(dict[str, object], record["population_record_ids"])
+    archive_record = _population_record_by_id(
+        state, population_references["archive"], "round archive record"
+    )
+    archive_body = archive_record.get("body")
+    if type(archive_body) is not dict:
+        raise PopulationDriverError("round archive body is malformed")
     expected_draw = (
         cast(list[dict[str, int]], config["allocation_draws"])[round_number - 1]
         if round_number < int(limits["max_rounds"])
+        and not archive_reaches_development_goal(config, archive_body)
         else None
     )
     start_record = _population_record_by_id(

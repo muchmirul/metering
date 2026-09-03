@@ -13,7 +13,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
-const MODE_NAME = "Population Evolution Mode";
+const MODE_NAME = "Agentvolve";
 const STATUS_KEY = "population-evolution";
 const WIDGET_KEY = "population-evolution";
 const RUN_NAME = /^pi-\d{8}T\d{6}(?:\d{3})?Z$/;
@@ -291,13 +291,13 @@ async function statusSummary(): Promise<ModeSummary> {
 
 function setModeStatus(ctx: ExtensionContext, state: "failed" | "ready" | "running", process?: string): void {
 	const color = state === "failed" ? "error" : state === "running" ? "warning" : "accent";
-	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(color, `population: ${process ?? state}`));
+	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(color, `agentvolve: ${process ?? state}`));
 }
 
 function setModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
 	const lines = [
 		ctx.ui.theme.fg("accent", `🧬 ${MODE_NAME}`) +
-			ctx.ui.theme.fg("dim", " · /evolve-harness · /evolve-harness-status · /evolve-code · /evolve-code-status"),
+			ctx.ui.theme.fg("dim", " · evolve harness · evolve code · verify"),
 	];
 	if (summary) {
 		if (summary.process) lines.push(ctx.ui.theme.fg("accent", summary.process));
@@ -535,7 +535,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		profileArgument = "",
 	): Promise<void> {
 		if (ctx.mode !== "tui") {
-			ctx.ui.notify("Darwinian coding commands require interactive Pi", "error");
+			ctx.ui.notify("Agentvolve commands require interactive Pi", "error");
 			return;
 		}
 		const result = await ctx.ui.custom<LoaderResult | null>((tui, theme, _keybindings, done) => {
@@ -561,7 +561,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			return loader;
 		});
 		if (result === null) {
-			ctx.ui.notify("Darwinian coding command cancelled", "info");
+			ctx.ui.notify("Agentvolve command cancelled", "info");
 			return;
 		}
 		if (result.error) {
@@ -730,7 +730,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("evolve-code-verify", {
-		description: "Offline-verify the latest Darwinian coding solution",
+		description: "Offline-verify the latest Agentvolve solution",
 		handler: async (args, ctx) => {
 			if (args.trim()) {
 				ctx.ui.notify("/evolve-code-verify accepts no arguments", "error");
@@ -747,7 +747,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			"Run, inspect, or offline-verify the fixed mutation-only Population experiment. The run action can take several minutes. It returns only bounded sealed results and accepts no task, candidate, evaluator, or command input.",
 		promptSnippet: "Run or verify the fixed isolated Population evolutionary harness",
 		promptGuidelines: [
-			"Use population_evolution only when the user explicitly asks to run, inspect, or verify Population Evolution Mode; never emulate its recurrence with bash or file-editing tools.",
+			"Use population_evolution only when the user explicitly asks to run, inspect, or verify Agentvolve's fixed reference Population assay; never emulate its recurrence with bash or file-editing tools.",
 		],
 		parameters: Type.Object({
 			action: StringEnum(["run", "status", "verify"] as const),
@@ -776,10 +776,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	pi.registerTool({
 		name: "darwinian_coding",
-		label: "Darwinian Coding",
+		label: "Agentvolve",
 		description:
-			"Evolve or inspect the fixed Pi coding harness, or run/status/verify solution evolution using only the operator-approved METERING_EVOLUTION_TASK_PROFILE. It accepts no task text, command, evaluator, candidate, or output path.",
-		promptSnippet: "Run independently evaluated Darwinian coding evolution",
+			"Run or inspect Agentvolve's fixed Pi coding-harness and solution evolution using only the operator-approved METERING_EVOLUTION_TASK_PROFILE. It accepts no task text, command, evaluator, candidate, or output path.",
+		promptSnippet: "Run independently evaluated Agentvolve coding evolution",
 		promptGuidelines: [
 			"Use darwinian_coding only after the user explicitly requests harness or solution evolution. Never substitute ordinary in-place edits for its immutable candidates and independent assays.",
 		],
@@ -794,7 +794,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}),
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			onUpdate?.({
-				content: [{ type: "text", text: `Darwinian coding ${params.action}…` }],
+				content: [{ type: "text", text: `Agentvolve ${params.action}…` }],
 				details: { action: params.action },
 			});
 			const action =

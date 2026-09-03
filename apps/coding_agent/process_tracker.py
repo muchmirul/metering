@@ -1,4 +1,4 @@
-"""Projection-only six-stage status for the Darwinian coding workflow."""
+"""Projection-only six-stage status for the Agentvolve workflow."""
 
 from __future__ import annotations
 

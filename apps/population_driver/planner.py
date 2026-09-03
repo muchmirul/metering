@@ -10,6 +10,7 @@ from apps.population_driver.population_driver_protocol import (
     controller_timeout_seconds,
     total_cost,
 )
+from apps.population_driver.stopping import state_reaches_development_goal
 
 ActionKind = Literal["advance_pending", "start_round", "stop"]
 
@@ -56,6 +57,11 @@ def stop_status(context: dict[str, object]) -> str | None:
     rounds = cast(list[object], context["rounds"])
     if final_phase_started(state):
         return "final_evidence_sealed"
+    if (
+        state.head_id == context["last_population_head"]
+        and state_reaches_development_goal(config, state)
+    ):
+        return "development_goal_reached"
     if len(rounds) >= int(limits["max_rounds"]):
         return "round_limit"
     if state.head_id != context["last_population_head"]:

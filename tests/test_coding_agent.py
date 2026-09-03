@@ -252,7 +252,11 @@ def test_level_two_fixture_evolves_harness_on_coding_tasks_and_seals_final(
 
 
 def _write_solution_profile(
-    root: Path, *, max_rounds: int, max_proposal_calls: int
+    root: Path,
+    *,
+    max_rounds: int,
+    max_proposal_calls: int,
+    stop_on_goal: bool = False,
 ) -> Path:
     root.mkdir(parents=True)
     repository = root / "source"
@@ -333,11 +337,78 @@ def _write_solution_profile(
         "schema_version": 1,
         "task_schema": "darwinian-coding-task-v1",
     }
+    if stop_on_goal:
+        profile["stopping"] = {
+            "minimum_replicates": 1,
+            "type": "all-development-cases-pass-v1",
+        }
     profile_path = root / "task.json"
     profile_path.write_text(
         canonical_json(profile) + "\n", encoding="ascii", newline=""
     )
     return profile_path
+
+
+def test_task_profile_binds_a_worded_goal_and_a_maximum_100_rounds(
+    tmp_path: Path,
+) -> None:
+    profile_path = _write_solution_profile(
+        tmp_path / "goal-profile",
+        max_rounds=100,
+        max_proposal_calls=100,
+        stop_on_goal=True,
+    )
+
+    profile = load_task_profile(profile_path)
+    assert profile["goal"] == "Fix solver.py so solve returns left plus right."
+    assert cast(dict[str, int], profile["limits"])["max_rounds"] == 100
+    assert len(cast(list[object], profile["allocation_draws"])) == 99
+    assert profile["stopping"] == {
+        "minimum_replicates": 1,
+        "type": "all-development-cases-pass-v1",
+    }
+    request = solution_module._request(
+        profile,
+        {},
+        proposer=Path("fixture-proposer.py"),
+        coding_runtime_id="0" * 64,
+    )
+    assert request["stopping"] == profile["stopping"]
+
+
+def test_agentvolve_stops_on_verified_goal_before_numeric_limit(
+    tmp_path: Path,
+) -> None:
+    harness_root = tmp_path / "harness-evolution"
+    run_experiment("fixture", harness_root, None, assay="coding-agent-v1")
+    profile_path = _write_solution_profile(
+        tmp_path / "goal-profile",
+        max_rounds=3,
+        max_proposal_calls=3,
+        stop_on_goal=True,
+    )
+    solution_root = tmp_path / "solution-evolution"
+
+    report = run_solution_experiment(
+        "fixture",
+        profile_path,
+        solution_root,
+        RUNTIME,
+        harness_root / "selected-harness.json",
+    )
+
+    development = cast(dict[str, object], report["development"])
+    final = cast(dict[str, object], report["final"])
+    assert development["status"] == "development_goal_reached"
+    assert development["completed_rounds"] == 1
+    assert development["candidate_count"] == 2
+    assert final["passed_count"] == final["task_count"] == 1
+    final_development_round = [
+        json.loads(line)
+        for line in (solution_root / "state" / "driver.jsonl").read_text().splitlines()
+    ][-1]
+    assert final_development_round["next_allocation_record_id"] is None
+    assert verify_solution_experiment(solution_root)["status"] == "verified"
 
 
 def test_selected_harness_evolves_solution_commits_and_returns_verified_patch(

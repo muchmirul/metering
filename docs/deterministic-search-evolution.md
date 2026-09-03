@@ -667,7 +667,7 @@ manifests, dependency compatibility, receipts, and both ledgers offline. The
 fixture model and host kernel establish deterministic mechanism behavior only;
 live acceptance requires the immutable OCI image and reviewed credentials.
 
-### Phase 8: two-level Darwinian coding — implemented
+### Phase 8: Agentvolve two-level coding — implemented
 
 The kernel ABI accepts bounded regular-file coding archives and fixed workspace
 policy without a host mount. `apps/harness/experiment.py coding-fixture|coding-pi`
@@ -675,7 +675,7 @@ evolves the nine-locus harness against fixed development workspaces, evaluates
 returned snapshots in fresh kernels, runs a distinct protected suite, seals
 Population, and writes an exact selected-harness descriptor.
 
-`apps/coding_agent` then freezes that descriptor for one
+Agentvolve's `apps/coding_agent` implementation then freezes that descriptor for one
 `darwinian-coding-task-v1`, evolves only caller-approved solution paths as
 first-parent commits, evaluates each candidate/check in a fresh OCI kernel,
 records Population evidence and exact recurrence, and chooses the user-facing

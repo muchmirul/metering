@@ -1,1 +1,1 @@
-"""Source-only Darwinian coding-agent composition."""
+"""Source-only Agentvolve coding composition."""

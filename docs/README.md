@@ -9,18 +9,20 @@ explain the current system without expanding that scope.
 - [Metering theory](theory.md) — the four information measures and numerical
   rules.
 - [Measurement history](history.md) — optional Git-backed recording and replay.
-- [Darwinian coding agent](coding-agent/README.md) — dedicated user guide.
-- [How the coding agent works](coding-agent/how-it-works.md) — simple
-  architecture and one-round flow.
+- [Agentvolve](coding-agent/README.md) — dedicated user guide.
+- [Agentvolve component map](coding-agent/components.md) — Git, Pi, local model,
+  llama.cpp, IPython, Docker, control-plane, and evidence responsibilities.
+- [How Agentvolve works](coding-agent/how-it-works.md) — simple architecture and
+  one-round flow.
 
-## Coding agent
+## Agentvolve
 
 - [Six-stage workflow](coding-agent/workflow.md)
 - [Operations and commands](coding-agent/operations.md)
 - [Task-profile reference](coding-agent/task-profile.md)
 - [Architecture and threat model](coding-agent/architecture.md)
 - [Evolutionary harness implementation](../apps/harness/README.md)
-- [Coding-agent implementation](../apps/coding_agent/README.md)
+- [Agentvolve implementation](../apps/coding_agent/README.md)
 
 ## System design
 

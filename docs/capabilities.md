@@ -92,8 +92,10 @@ the first final run seals every later Population search transition.
 The bounded Population Driver now connects this archive to Controller for
 ordinary Git-code candidates. It evaluates the seed, uses each exact Population
 allocation as the next Controller parent, records matched parent/child reports as
-replicates, refreshes the archive, and stops at global round, proposal-call,
-timeout-reservation, resource, empty-archive, or final-evidence limits. A pending
+replicates, refreshes the archive, and stops at an optional evaluator-backed
+development goal or global round, proposal-call, timeout-reservation, resource,
+empty-archive, or final-evidence limit. A finite round fallback remains required;
+a pending
 model call requires explicit retry approval; durable Controller evidence resumes
 without another model call. Its driver and Population ledgers plus immutable
 receipts are authoritative, and it never reads SQLite for recurrence. Its
@@ -113,8 +115,10 @@ with one protected final assay and Population's permanent seal. Pi and Prime
 Agent are concrete tool-free model transports. Deterministic CI uses the same
 wire contract through an explicitly unsafe host-process fixture.
 
-The source-only [Darwinian coding agent](../apps/coding_agent/README.md) is also
-implemented through Level 2. The harness can receive bounded coding archives
+The source-only [Agentvolve](../apps/coding_agent/README.md) workflow is also
+implemented through Level 2. Its [component map](coding-agent/components.md)
+separates Git, Pi, local model/llama.cpp, IPython, Docker, control-plane, and
+evidence responsibilities. The harness can receive bounded coding archives
 inside the OCI kernel; a fixed coding assay evolves and seals the nine-locus Pi
 harness. A separate Level-1 run then imports one operator-approved repository
 commit without `.git`, lets the exact selected harness produce immutable
@@ -123,7 +127,8 @@ container, uses Population recurrence, chooses a final candidate by development
 task rate then reliability with an exact tie draw, runs protected checks after
 allocation, permanently seals search, and emits a replay-checked patch without
 changing the source repository. Its strict `darwinian-coding-task-v1` profile
-owns allowed paths, argv checks, draws, and budgets. Plain Pi exposes
+owns allowed paths, argv checks, draws, budgets, and optional goal-or-limit
+stopping. Plain Pi exposes
 `/evolve-harness`, `/evolve-harness-status`, explicit `/evolve-harness-resume`
 or operator-reasoned `/evolve-harness-retry`, `/evolve-code`, explicit
 `/evolve-code-resume` or
@@ -200,9 +205,9 @@ Before running an application workflow:
 - [`../apps/harness/README.md`](../apps/harness/README.md): typed recursive
   phenotype, coding workspace, kernel isolation, receipts, final assay, and
   reference command.
-- [Dedicated coding-agent documentation](coding-agent/README.md): simple
-  architecture, workflow, task profiles, operations, verification, and threat
-  model.
+- [Dedicated Agentvolve documentation](coding-agent/README.md): component map,
+  simple architecture, workflow, task profiles, operations, verification, and
+  threat model.
 - [`../apps/coding_agent/README.md`](../apps/coding_agent/README.md): concise
   implementation module map.
 - [`../artifacts/git/README.md`](../artifacts/git/README.md): immutable Git

@@ -445,8 +445,9 @@ The `apps/population_driver` outer orchestrator activates bounded automatic
 population execution as a separate source-only schema version 1 application.
 It accepts exactly one normalized Git seed, fixed proposal/runner/evaluator and
 trusted evidence-adapter commands, one derived development experiment, exactly
-`max_rounds - 1` rational allocation draws, and finite global round,
-proposal-call, candidate-resource, and timeout-reservation limits. The seed is
+`max_rounds - 1` rational allocation draws, finite global round, proposal-call,
+candidate-resource, and timeout-reservation limits, and an optional versioned
+`all-development-cases-pass-v1` stopping policy. The seed is
 the first Controller parent. Every later parent must be the exact candidate in
 the preceding Population allocation record. Controller still owns one matched
 parent/child generation; Population still owns named run evidence, Pareto
@@ -470,10 +471,16 @@ unchanged. The trusted evidence adapter may add only behavior distribution,
 protected admission, resource observations, and seed metadata; task, safety,
 forecast, candidate, evaluator, and selection facts replay from Controller.
 Controller's pairwise `next_parent` is recorded but Population allocation chooses
-the next population parent. The driver creates only development experiments,
-checks the Population final seal before another round, and never exposes final
-evidence to proposal, archive, or allocation. By itself it does not adapt
-mutation, recombine Git code, train weights, co-evolve evaluators, provide a
+the next population parent. A natural-language objective guides proposals but
+never certifies completion. When configured, the pure stopping predicate accepts
+only a feasible member of the latest independently computed archive whose
+accumulated public cases all pass for the required replicate count; it reports
+`development_goal_reached` and suppresses a next-parent allocation. The finite
+`max_rounds` bound remains mandatory and is the fallback. The driver creates
+only development experiments, checks the Population final seal before another
+round, and never exposes final evidence to proposal, archive, or allocation. By
+itself it does not adapt mutation, recombine Git code, train weights, co-evolve
+evaluators, provide a
 generic sandbox, install, or deploy.
 
 `apps/harness` supplies the accepted concrete executor for one typed Git
@@ -510,14 +517,20 @@ authority. Energy and GPU observations remain explicitly unavailable rather than
 estimated. This implementation does not train weights, adapt mutation,
 recombine Git candidates, co-evolve an evaluator, install, or deploy.
 
-`apps/coding_agent` is the accepted narrow coding executor over that same typed
-harness and Docker profile. It does not activate arbitrary legacy Git execution.
+**Agentvolve** is the user-facing name for the accepted two-level coding
+workflow. `apps/coding_agent` remains the compatibility-stable narrow coding
+executor path over that same typed harness and Docker profile. Existing
+`darwinian-coding-*` schema identifiers, the `darwinian_coding` tool name, and
+`/evolve-*` commands remain unchanged so recorded runs and task profiles replay.
+Agentvolve does not activate arbitrary legacy Git execution.
 Its canonical `darwinian-coding-task-v1` profile binds one absolute
 operator-approved repository, exact base commit and entrypoint, sorted allowed
 write paths, non-empty development checks as argv arrays, a normalized absolute
 path plus SHA-256 for a separately permissioned protected-final profile,
-per-check timeouts, exact recurrence and final tie draws, a bounded goal, and
-finite round/proposal/wall limits. Fixed code opens the protected profile only
+per-check timeouts, exact recurrence and final tie draws, a bounded worded goal,
+finite round/proposal/wall limits, and an optional evaluator-backed goal-or-limit
+stopping policy. Profiles without the additive policy retain numeric limit-only
+behavior. Fixed code opens the protected profile only
 after development stops. A model cannot supply or alter either profile. The
 task identity is the SHA-256 of its normalized canonical form.
 
@@ -555,7 +568,7 @@ Solution and harness genomes never mutate in the same experiment. A Pi session,
 transcript, IPython namespace, and unexported temporary state are phenotype, not
 heredity; only a validated Git child is inherited.
 
-The operator-facing coding workflow uses one six-stage vocabulary: `[1/6] Task
+The operator-facing Agentvolve workflow uses one six-stage vocabulary: `[1/6] Task
 and runtime configured`, `[2/6] Evolving harness`, `[3/6] Harness sealed`,
 `[4/6] Evolving solution`, `[5/6] Protected final assay`, and `[6/6] Result
 ready for review`. New run roots expose a canonical, monotonic
@@ -600,7 +613,7 @@ closes mutation/evaluation/final receipt sets, recomputes capability-first final
 allocation, requires complete development and exactly one final run, confirms
 the permanent seal, and regenerates the selected Git patch byte-for-byte.
 
-This two-level mechanism does not guarantee universal or monotonic improvement.
+Agentvolve does not guarantee universal or monotonic improvement.
 A live result applies only to its exact model, runtime, task profile, checks, and
 receipts. A saturated Level-2 suite can prove compatible retained harness
 evolution without proving increased capability. Broader improvement evidence
@@ -714,7 +727,7 @@ docs/
     agent-evolution.md
     deterministic-search-evolution.md
     source-architecture.md
-    coding-agent/       workflow, operations, task profile, architecture, and threat model
+    coding-agent/       Agentvolve components, workflow, operations, task profile, architecture, and threat model
 artifacts/
     git/              agent-neutral Git source/model-output candidate bridge
 connectors/
@@ -738,7 +751,7 @@ apps/
     population/       public contract, canonical ledger, Pareto archive, allocation, and derived index
     population_driver/ replay, planner, effects, store, and bounded Git recurrence runtime
     harness/            typed recursive phenotype, coding workspace, OCI kernel, receipts, final assay, and reference composition
-    coding_agent/       immutable solution evolution, independent checks, selected patch, and offline replay
+    coding_agent/       Agentvolve Level-1 solution evolution, independent checks, selected patch, and offline replay
 ```
 
 Agent-specific CLI translation and its canonical commands have one implementation

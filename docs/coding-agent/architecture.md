@@ -1,6 +1,7 @@
-# Darwinian coding agent architecture and threat model
+# Agentvolve architecture and threat model
 
-This document defines the accepted source-only Level-1/Level-2 coding workflow.
+This document defines the accepted source-only Agentvolve Level-1/Level-2 coding
+workflow.
 [`PLAN.md`](../../PLAN.md) remains normative. Use the [operations guide](operations.md)
 for commands and the [task-profile reference](task-profile.md) for configuration.
 
@@ -20,7 +21,8 @@ Model experience may guide the proposed edit, so mutation proposal is
 Lamarckian. The edit receives no reproductive authority: fresh independent
 checks produce evidence, Controller authenticates the pairwise comparison, and
 Population controls retained archive membership and future allocation. This is
-Darwinian retention.
+Darwinian retention inside Agentvolve; `darwinian-coding-*` remains the existing
+machine-identifier prefix.
 
 The implementation evolves only one level at a time:
 
@@ -63,6 +65,9 @@ Three classes are distinct:
 A candidate may create its own tests as ordinary changed files if their paths
 are allowed, but those tests have no authority unless the reviewed profile also
 runs them. The caller-owned argv checks remain decisive.
+
+For a component-by-component view of Git, Pi, Qwen/llama.cpp, IPython, Docker,
+and the control plane, see the [Agentvolve component map](components.md).
 
 ## Authority and storage
 

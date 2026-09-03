@@ -49,7 +49,7 @@ to candidate tools. The connector does not infer a model or retain a session. Ha
 `METERING_HARNESS_REASONING`; `experiment.py` derives these values from the
 canonical runtime profile and rejects disagreement.
 
-## Interactive Population Evolution Mode
+## Interactive Agentvolve mode
 
 From a trusted source checkout, plain `pi` can load the thin project entrypoint
 at `.pi/extensions/population-evolution.ts` after Pi's project-trust decision.
@@ -66,7 +66,7 @@ permissions. Review that ambient configuration or run the whole process in a
 container/VM for untrusted work. The nested evolutionary Pi calls are separately
 isolated and do not inherit those resources.
 
-The footer shows `population: ready`. Use:
+The footer shows `agentvolve: ready`. The compatibility commands remain:
 
 ```text
 /evolve          start one new fixed two-generation live experiment
@@ -74,7 +74,7 @@ The footer shows `population: ready`. Use:
 /evolve-verify   replay the latest run with the offline verifier
 ```
 
-The two-level coding commands are:
+Agentvolve's two-level coding commands are:
 
 ```text
 /evolve-harness                    [2/6] evolve/final-seal the Pi harness on coding assays
@@ -98,7 +98,7 @@ must be absolute and operator-reviewed; alternatively set
 `METERING_EVOLUTION_TASK_PROFILE`. The profile, not Pi, supplies repository/base
 identity, allowed paths, development checks, the digest-bound external protected
 profile, exact draws, and budgets.
-The `darwinian_coding` tool exposes only `harness_run`, `harness_status`,
+The `darwinian_coding` compatibility tool exposes only `harness_run`, `harness_status`,
 `solution_run`, `solution_status`, and `solution_verify`, and accepts no model-supplied task,
 command, candidate, evaluator, profile path, or output path. Selected code is
 written as an immutable commit and `selected.patch`; it is never applied to the
@@ -115,7 +115,7 @@ The default reviewed runtime is
 under the checkout's sibling `metering-live-runs/` directory. Override those
 locations only with caller-reviewed absolute paths through
 `METERING_EVOLUTION_RUNTIME_MANIFEST` and `METERING_EVOLUTION_RUNS_DIR`.
-Opening Pi activates the control mode but does not automatically spend model
+Opening Pi activates Agentvolve mode but does not automatically spend model
 resources or start an experiment. The extension invokes the same fixed
 `apps/harness/experiment.py` composition documented elsewhere; nested Pi model
 calls still receive isolated configuration roots and do not load the project

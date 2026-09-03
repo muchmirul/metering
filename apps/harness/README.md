@@ -182,7 +182,7 @@ uv run python apps/harness/experiment.py retry \
 New coding-harness roots write projection-only `process-status.json`: stage
 `[2/6] Evolving harness` advances monotonically to `[3/6] Harness sealed`.
 The tracker improves operator visibility but has no selection or replay authority;
-see the [six-stage coding process](../../docs/coding-agent/workflow.md).
+see the [six-stage Agentvolve process](../../docs/coding-agent/workflow.md).
 
 A retry first seals the existing content-addressed run receipts under
 `state/retry-effects/` and includes its digest in the next hash-derived attempt
@@ -190,7 +190,7 @@ identity. Offline replay treats otherwise-unbound entries as non-selecting
 residue and preserves exact receipt-set closure.
 
 That selected descriptor is the frozen policy input to the separate
-[Level-1 Darwinian coding agent](../coding_agent/README.md), which evolves
+[Agentvolve Level-1 application](../coding_agent/README.md), which evolves
 solution commits. Harness and solution genomes never mutate in the same
 experiment. A Level-2 descendant selected from a saturated suite is evidence of
 mechanism and retained compatibility, not necessarily higher coding capability.
@@ -207,8 +207,8 @@ uv run python apps/harness/experiment.py \
   prime-agent /tmp/metering-harness-prime /absolute/path/runtime.prime.json
 ```
 
-A trusted source checkout also exposes the same Pi composition as project-local
-**Population Evolution Mode**. Run `pi` from the repository root, approve the
+A trusted source checkout also exposes the same Pi composition through the
+project-local **Agentvolve** extension. Run `pi` from the repository root, approve the
 project once, and use `/evolve`, `/evolve-status`, or `/evolve-verify`. For coding, use
 `/evolve-harness`, `/evolve-harness-status`, then
 `/evolve-code /absolute/task.json`, `/evolve-code-status`, or

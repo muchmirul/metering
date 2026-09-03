@@ -352,7 +352,7 @@ def _request(
     limits = cast(dict[str, int], profile["limits"])
     development = task_documents(profile, "development")
     runner_timeout = _task_runner_timeout(development)
-    return {
+    request: dict[str, object] = {
         "allocation_draws": profile["allocation_draws"],
         "evidence_adapter": {
             "command": [sys.executable, str(EVIDENCE)],
@@ -409,6 +409,9 @@ def _request(
         },
         "schema_version": 1,
     }
+    if "stopping" in profile:
+        request["stopping"] = profile["stopping"]
+    return request
 
 
 @contextmanager

@@ -1,4 +1,4 @@
-# Coding-agent operations
+# Agentvolve operations
 
 ## Prerequisites
 
@@ -14,8 +14,7 @@ Live runs require:
 Ordinary top-level Pi is not sandboxed: its built-in tools, user/global packages,
 and extensions run with the host user's permissions. Review or disable ambient
 packages and skills, and use a whole-process container or VM when the checkout
-itself is untrusted. Candidate isolation begins only inside the fixed Darwinian
-workflow.
+itself is untrusted. Candidate isolation begins only inside the fixed Agentvolve workflow.
 
 Candidate containers use `--pull never` and have no network. Project dependencies
 and check executables must already be present in the approved image or repository
@@ -59,6 +58,12 @@ uv run python apps/coding_agent/solution_experiment.py \
 
 For live Pi, replace `fixture` with `pi`, provide the reviewed live runtime, and
 use the descriptor from a `coding-pi` Level-2 run.
+
+The task profile owns recurrence stopping. Set `limits.max_rounds` to a numeric
+cap such as 100 and provide 99 allocation draws. To stop earlier on the worded
+`goal`, add the versioned `stopping` policy shown in the [task-profile
+guide](task-profile.md). The wording guides proposals; fixed development checks,
+not a model completion claim, determine `development_goal_reached`.
 
 Verify without a model call or SQLite:
 
@@ -111,8 +116,8 @@ If `/evolve-code` has no argument,
 `METERING_EVOLUTION_TASK_PROFILE` must name an operator-reviewed absolute task
 profile. Merely starting Pi does not start an experiment.
 
-The model-facing `darwinian_coding` tool may request only harness run/status or
-solution run/status/verification. It cannot choose evaluator commands,
+The model-facing `darwinian_coding` compatibility tool may request only harness
+run/status or solution run/status/verification. It cannot choose evaluator commands,
 candidates, output paths, task profiles, protected checks, or retry authority.
 
 ## Run output

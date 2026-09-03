@@ -1,18 +1,23 @@
-# Coding-agent application
+# Agentvolve application
 
-`apps/coding_agent/` implements Level-1 solution evolution. It receives an
-operator-approved repository task and a verified sealed Level-2 harness, creates
+**Agentvolve** is the user-facing name for the two-level coding evolution
+workflow. `apps/coding_agent/` remains the compatibility-stable implementation
+path for Level-1 solution evolution. It receives an operator-approved repository
+task and a verified sealed Level-2 harness, creates
 immutable Git descendants, evaluates them in fresh containers, asks Population
 to retain and allocate candidates, runs one protected final assay, and returns a
-selected commit and patch.
+selected commit and patch. The task profile may use numeric limit-only stopping
+or evaluator-verified goal-or-limit stopping; a finite maximum is always
+required.
 
 It never modifies the source repository, installs the result, or changes
 Metering's installed API.
 
 ## Documentation
 
-Use the dedicated [coding-agent documentation](../../docs/coding-agent/README.md):
+Use the dedicated [Agentvolve documentation](../../docs/coding-agent/README.md):
 
+- [component map](../../docs/coding-agent/components.md);
 - [simple architecture and execution flow](../../docs/coding-agent/how-it-works.md);
 - [six-stage workflow](../../docs/coding-agent/workflow.md);
 - [operations and commands](../../docs/coding-agent/operations.md);
@@ -21,6 +26,10 @@ Use the dedicated [coding-agent documentation](../../docs/coding-agent/README.md
 
 Level-2 harness implementation details are in the
 [harness README](../harness/README.md).
+
+The existing directory name, `darwinian-coding-*` schemas, `darwinian_coding`
+tool, and `/evolve-*` commands are retained so existing task profiles, run
+receipts, imports, and operator workflows do not break.
 
 ## Boundary
 

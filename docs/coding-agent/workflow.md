@@ -1,7 +1,7 @@
-# Six-stage Darwinian coding process
+# Six-stage Agentvolve process
 
-This is the operator-facing lifecycle for the source-only Darwinian coding
-agent. It deliberately hides internal Controller, Population, Git, and receipt
+This is Agentvolve's operator-facing lifecycle. It deliberately hides internal
+Controller, Population, Git, and receipt
 transitions behind six stable stages.
 
 ## Tracker
