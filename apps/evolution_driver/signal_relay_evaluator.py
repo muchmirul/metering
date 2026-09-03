@@ -20,7 +20,7 @@ from apps.agent_protocol import (  # noqa: E402
     require_nonempty_string,
     require_sha256,
 )
-from apps.stdio_connector import (  # noqa: E402
+from apps._support.wire import (  # noqa: E402
     canonical_json,
     decode_json_object,
 )

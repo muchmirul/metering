@@ -14,7 +14,7 @@ from apps.population_driver.population_driver_protocol import (
     validate_controller_result,
 )
 from apps.population_driver.population_driver_state import read_receipt
-from apps.stdio_connector import canonical_json
+from apps._support.wire import canonical_json
 
 
 def controller_receipt_name(attempt_id: str) -> str:

@@ -23,7 +23,7 @@ from apps.mutator.fixture_mutation import (  # noqa: E402
     decode_document,
     run_fixture_mutation,
 )
-from apps.stdio_connector import run_stdio_application  # noqa: E402
+from apps._support.stdio import run_stdio_application  # noqa: E402
 
 
 def _process(source: str) -> dict[str, object]:

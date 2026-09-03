@@ -80,8 +80,7 @@ policy before returning `next_parent`.
 
 Pi and Prime Agent users can explicitly load the shared
 [`connectors/tools/metering`](../../connectors/tools/metering/README.md) skill.
-The older [`skills/metered-self-evolve`](skills/metered-self-evolve/SKILL.md)
-remains a Pi-oriented compatibility workflow. See the complete
+See the complete
 [agent-artifact evolution protocol](../../docs/agent-evolution.md).
 
 For bounded recurrence, use the outer

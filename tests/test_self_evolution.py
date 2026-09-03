@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MUTATOR = ROOT / "apps" / "mutator" / "mutator.py"
-PI_PROPOSER = ROOT / "apps" / "mutator" / "pi_skill_proposer.py"
+PI_PROPOSER = ROOT / "connectors" / "fixed" / "pi" / "skill_proposer.py"
 DEMO_PROPOSER = ROOT / "apps" / "evolution_driver" / "demo_proposer.py"
 EVOLVER = ROOT / "apps" / "evolution_driver" / "evolver.py"
 EXAMPLE = ROOT / "apps" / "evolution_driver" / "example-request.json"
@@ -124,7 +124,7 @@ def test_mutator_rejects_a_proposer_that_returns_no_change():
     assert "agent-skill-v1" in error["message"]
 
 
-def test_pi_skill_proposer_is_tool_free_and_injects_the_parent(tmp_path):
+def test_fixed_pi_skill_proposer_is_tool_free_and_injects_the_parent(tmp_path):
     trace = tmp_path / "argv.json"
     fake_pi = tmp_path / "fake-pi"
     response = {

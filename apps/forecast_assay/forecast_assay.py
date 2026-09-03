@@ -22,7 +22,7 @@ from apps.forecast_assay.fixture_assay import (  # noqa: E402
     decode_document,
     run_fixture_assay,
 )
-from apps.stdio_connector import run_stdio_application  # noqa: E402
+from apps._support.stdio import run_stdio_application  # noqa: E402
 
 
 def _measure_source(source: str) -> dict[str, object]:

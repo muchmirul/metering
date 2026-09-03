@@ -33,7 +33,10 @@ from apps.population_driver.receipts import (
     controller_receipt_document,
     evidence_receipt_document,
 )
-from apps.stdio_connector import canonical_digest, canonical_json
+from apps._support.wire import (
+    canonical_digest,
+    canonical_json,
+)
 
 ROUND_RECORD_KEYS = {
     "archive_member_candidate_ids",

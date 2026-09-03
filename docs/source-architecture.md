@@ -18,7 +18,7 @@ The refactor preserves these boundaries:
 - each application still owns its existing request/response schemas and domain
   policy;
 - schema-version-1 ledgers, record IDs, canonical bytes, receipts, retry
-  behavior, script paths, and process boundaries remain valid;
+  behavior, documented active script paths, and process boundaries remain valid;
 - Population ledgers and receipts remain recurrence authority; SQLite remains a
   one-way disposable projection;
 - protected final evidence cannot enter proposal feedback, development archives,
@@ -46,9 +46,8 @@ Only mechanics shared byte-for-byte by multiple source applications live under
 | `durable.py` | directory fsync and atomic canonical checkpoint writes |
 
 These modules do not import a domain application. They supply mechanics, not
-policy. Application-facing compatibility functions in `apps/stdio_connector.py`
-keep the historical source API while delegating those operations to the narrow
-support modules.
+policy. Applications import the owning support module directly; there is no
+aggregate compatibility facade.
 
 Source directories are importable package namespaces. Internal modules use
 package-qualified imports; direct script entry points retain the small

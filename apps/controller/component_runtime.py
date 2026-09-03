@@ -11,11 +11,11 @@ from pathlib import Path
 from apps.controller.contract import (
     agent_generation_timeout_seconds as _agent_generation_timeout_seconds,
 )
-from apps.stdio_connector import (
+from apps._support.process import (
     JsonProcessError,
-    decode_json_object,
     run_json_process,
 )
+from apps._support.wire import decode_json_object
 
 ROOT = Path(__file__).resolve().parents[2]
 COMPONENT_TIMEOUT_SECONDS = 10

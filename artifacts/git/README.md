@@ -61,8 +61,7 @@ the selected candidate.
 - `git_proposer.py` owns shared trusted clone, validation, build, commit, and
   publication mechanics without launching a model.
 - `connectors/fixed/{pi,prime_agent}/git_proposer.py` each let one concrete agent
-  edit the workspace without `.git`; `pi_git_proposer.py` is a compatibility
-  launcher.
+  edit the workspace without `.git`; these are the canonical provider entry points.
 - `git_candidate_adapter.py` verifies the descriptor and checkout, then passes it
   to one fixed executor command. It never executes candidate files itself.
 - `demo_validate.py`, `demo_model_builder.py`, `demo_executor.py`, and

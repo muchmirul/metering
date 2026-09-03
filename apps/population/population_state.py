@@ -15,7 +15,7 @@ from apps._support.journal import (
     validate_content_record,
 )
 from apps.agent_protocol import ProtocolError, require_exact_keys, require_sha256
-from apps.stdio_connector import canonical_json
+from apps._support.wire import canonical_json
 
 from apps.population.population_policy import (
     normalize_allocation_body,

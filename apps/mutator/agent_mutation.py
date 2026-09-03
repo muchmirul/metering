@@ -21,7 +21,7 @@ from apps.agent_protocol import (
     require_timeout,
     run_adapter,
 )
-from apps.stdio_connector import canonical_digest
+from apps._support.wire import canonical_digest
 
 ROOT = Path(__file__).resolve().parents[2]
 

@@ -13,11 +13,13 @@ from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from typing import TypedDict, cast
 
-from apps.stdio_connector import (
+from apps._support.process import (
     JsonProcessError,
+    run_json_process,
+)
+from apps._support.wire import (
     canonical_digest,
     canonical_json,
-    run_json_process,
     strict_json_float,
 )
 

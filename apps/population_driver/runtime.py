@@ -43,7 +43,7 @@ from apps.population_driver.population_driver_state import (
 )
 from apps.population_driver.receipts import controller_receipt_name
 from apps.population_driver.replay import verify_context
-from apps.stdio_connector import canonical_digest
+from apps._support.wire import canonical_digest
 
 
 def _append_initial_population(

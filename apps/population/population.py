@@ -36,7 +36,7 @@ from apps.population.population_state import (  # noqa: E402
     locked_state,
     verify_summary,
 )
-from apps.stdio_connector import (  # noqa: E402
+from apps._support.wire import (  # noqa: E402
     decode_json_object,
     error_document,
     write_document,

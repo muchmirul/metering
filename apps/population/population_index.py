@@ -9,7 +9,10 @@ from pathlib import Path
 from typing import cast
 
 from apps.agent_protocol import ProtocolError, require_exact_keys, require_sha256
-from apps.stdio_connector import canonical_digest, canonical_json
+from apps._support.wire import (
+    canonical_digest,
+    canonical_json,
+)
 
 from apps.population.population_protocol import (
     INDEX_NAME,

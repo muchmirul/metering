@@ -66,10 +66,9 @@ selected artifact. See the [agent-artifact protocol](../docs/agent-evolution.md)
 and [`tests/test_agent_evolution.py`](../tests/test_agent_evolution.py).
 
 Shared source support is deliberately narrow. `agent_protocol.py` owns schema
-version 2 artifact validation. `apps/_support/` owns only byte-identical wire,
-process, stdio, journal, lock/checkpoint, and fsync mechanics;
-`stdio_connector.py` preserves its historical application-facing API over those
-small operations. Concrete Pi and Prime Agent CLI translations live under
+version 2 artifact validation. `apps/_support/` directly owns only byte-identical
+wire, process, stdio, journal, lock/checkpoint, and fsync mechanics. Concrete Pi
+and Prime Agent CLI translations live under
 [`connectors/fixed/`](../connectors/fixed/README.md), outside every application
 owner. Application modules still own schemas, mathematics, ordering, and error
 policy. Population and Controller expose explicit public owner contracts rather

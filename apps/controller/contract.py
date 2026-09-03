@@ -27,7 +27,10 @@ from apps.agent_protocol import (
     require_sha256,
 )
 from apps.selection_gate.task_selection import select_task_reports
-from apps.stdio_connector import canonical_digest, canonical_json
+from apps._support.wire import (
+    canonical_digest,
+    canonical_json,
+)
 
 
 class ControllerReceiptError(RuntimeError):

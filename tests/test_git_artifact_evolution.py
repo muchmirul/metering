@@ -26,7 +26,9 @@ EVOLVER = ROOT / "apps" / "evolution_driver" / "evolver.py"
 CANDIDATE_RUNNER = ROOT / "apps" / "candidate_runner" / "candidate_runner.py"
 CORE_FILES = [
     ROOT / "apps" / "agent_protocol.py",
-    ROOT / "apps" / "stdio_connector.py",
+    ROOT / "apps" / "_support" / "process.py",
+    ROOT / "apps" / "_support" / "stdio.py",
+    ROOT / "apps" / "_support" / "wire.py",
     ROOT / "apps" / "mutator" / "mutator.py",
     ROOT / "apps" / "candidate_runner" / "candidate_runner.py",
     ROOT / "apps" / "observer" / "observer.py",

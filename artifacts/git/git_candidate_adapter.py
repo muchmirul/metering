@@ -26,7 +26,10 @@ from apps.agent_protocol import (  # noqa: E402
     require_exact_keys,
     run_adapter,
 )
-from apps.stdio_connector import canonical_json, decode_json_object  # noqa: E402
+from apps._support.wire import (  # noqa: E402
+    canonical_json,
+    decode_json_object,
+)
 
 from artifacts.git.git_repository import (  # noqa: E402
     GitCandidateError,

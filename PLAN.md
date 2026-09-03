@@ -728,7 +728,6 @@ apps/
     README.md         application index and composition boundary
     _support/         narrow wire, process, stdio, journal, and durable mechanics
     agent_protocol.py shared source-only agent artifact and adapter validation
-    stdio_connector.py compatibility facade over shared transport mechanics
     observer/         fixture observer and trusted task-evaluator boundary
     forecast_assay/   forecast and task-evidence assay
     mutator/          schema-v1 genome mutation plus schema-v2 artifact mutation
@@ -742,10 +741,9 @@ apps/
     coding_agent/       immutable solution evolution, independent checks, selected patch, and offline replay
 ```
 
-Historical Pi scripts under `apps/` and `artifacts/git/` are thin compatibility
-launchers. Agent-specific CLI translation has one implementation owner under
-`connectors/fixed/`; generic Git identity and build mechanics remain under
-`artifacts/git/`.
+Agent-specific CLI translation and its canonical commands have one implementation
+owner under `connectors/fixed/`; generic Git identity and build mechanics remain
+under `artifacts/git/`. Applications do not retain provider-specific aliases.
 
 Add a package module only when a concrete responsibility no longer fits one of
 these four. Do not introduce a generic abstraction in anticipation of future
@@ -914,18 +912,14 @@ common “agent” class. A connector remains an ordinary strict JSON subprocess
 command. Shared `fixed/` modules own only identical request validation, prompts,
 and process-response mechanics; provider files own explicit CLI construction.
 
-Pi proposer/runner translations moved behind compatibility launchers. Generic
+Pi proposer/runner translations live at their canonical provider paths. Generic
 Git clone, validation, build, identity, commit, and publication mechanics remain
 under `artifacts/git/`; application schemas remain under `apps/`; mutation,
 evaluation, measurement, selection, and recurrence did not move.
 
-`apps/stdio_connector.py` retains its name as the compatibility facade used by
-source applications, not agent translation. Its canonical wire, standard-stream,
-and subprocess operations delegate to the orthogonal modules under
-`apps/_support/`; hash-linked source journals additionally share
-`apps/_support/journal.py`. Renaming the facade would churn application-facing
-source APIs without clarifying the connector boundary. Historical source
-commands are thin launchers rather than second implementations.
+Source applications import canonical wire, standard-stream, subprocess, and
+journal operations directly from the orthogonal modules under `apps/_support/`.
+There is no aggregate transport facade or application-local provider launcher.
 
 ### Profile 1: fixed connector
 
@@ -1012,8 +1006,7 @@ profile currently has this implementation evidence:
 2. both Git-workspace translations run through the complete six-stage loop,
    promotion, hash-linked ledger, and resume path without network or paid-model
    access;
-3. historical Pi source paths execute the moved implementation through thin
-   compatibility launchers; and
+3. tests execute the canonical provider connector paths directly; and
 4. an explicit live test launches real Pi and Prime Agent binaries, requires a
    native harness tool call, and verifies the exact Metering response.
 
@@ -1150,8 +1143,8 @@ The rewrite is complete only when:
   protocols, disable ambient state in tool-free roles, and keep provider CLI
   details outside the applications and installed package;
 - generic Git proposal mechanics have one owner under `artifacts/git/`, while
-  provider-specific workspace editing lives under `connectors/fixed/` and old Pi
-  commands remain thin compatibility launchers;
+  provider-specific workspace editing and canonical commands live under
+  `connectors/fixed/`;
 - the explicit live-agent acceptance launches both real harness commands,
   observes a native tool call, and verifies the exact Metering response without
   treating that one request as broad provider conformance;

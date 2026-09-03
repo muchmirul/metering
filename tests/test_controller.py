@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import runpy
 import selectors
 import subprocess
 import sys
@@ -13,6 +12,11 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from apps.controller import fixture_generation  # noqa: E402
+
 SCRIPT = ROOT / "apps" / "controller" / "controller.py"
 EXAMPLE_REQUEST = ROOT / "apps" / "controller" / "example-request.json"
 
@@ -128,7 +132,7 @@ def test_controller_runs_all_apps_and_promotes_a_better_child():
 
 
 def test_controller_captures_both_forecasts_before_observer_reveal(monkeypatch):
-    api = runpy.run_path(str(SCRIPT))
+    api = vars(fixture_generation)
     events: list[str] = []
     probe = {"operation": "read", "path": "config/mode.txt"}
     target = encode({"kind": "text", "text": "fast\n"})
@@ -197,7 +201,7 @@ def test_controller_captures_both_forecasts_before_observer_reveal(monkeypatch):
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX process-group cleanup")
 def test_observer_session_abort_kills_descendants(tmp_path, monkeypatch):
-    api = runpy.run_path(str(SCRIPT))
+    api = vars(fixture_generation)
     marker = tmp_path / "leaked-observer-child"
     observer = tmp_path / "fake-observer.py"
     child = (

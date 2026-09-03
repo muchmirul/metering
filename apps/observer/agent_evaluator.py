@@ -24,10 +24,8 @@ from apps.agent_protocol import (  # noqa: E402
     require_timeout,
     run_adapter,
 )
-from apps.stdio_connector import (  # noqa: E402
-    decode_json_object,
-    run_stdio_application,
-)
+from apps._support.stdio import run_stdio_application  # noqa: E402
+from apps._support.wire import decode_json_object  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 

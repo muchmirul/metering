@@ -44,12 +44,14 @@ from apps.population_driver.receipts import (
     evidence_receipt_document,
     evidence_receipt_name,
 )
-from apps.stdio_connector import (
+from apps._support.process import (
     JsonProcessError,
+    run_json_process,
+)
+from apps._support.wire import (
     canonical_digest,
     canonical_json,
     decode_json_object,
-    run_json_process,
 )
 
 ROOT = Path(__file__).resolve().parents[2]

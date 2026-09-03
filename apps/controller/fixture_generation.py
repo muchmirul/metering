@@ -26,7 +26,8 @@ from apps.controller.component_runtime import (
     _require_nonempty_string,
     _run_component,
 )
-from apps.stdio_connector import canonical_json, kill_process_tree
+from apps._support.process import kill_process_tree
+from apps._support.wire import canonical_json
 
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = 1

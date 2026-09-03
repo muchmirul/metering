@@ -19,7 +19,7 @@ from apps.population_driver.runtime import (  # noqa: E402
     run_population_driver,
     verify_population_driver,
 )
-from apps.stdio_connector import run_stdio_application  # noqa: E402
+from apps._support.stdio import run_stdio_application  # noqa: E402
 
 
 def _application(source: str, arguments: list[str]) -> dict[str, object]:

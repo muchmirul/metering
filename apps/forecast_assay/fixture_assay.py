@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 
 from metering import ProbabilityError, self_information
 
-from apps.stdio_connector import decode_json_object
+from apps._support.wire import decode_json_object
 
 SCHEMA_VERSION = 1
 MEASUREMENT_TOLERANCE = 1e-12

@@ -37,7 +37,7 @@ from apps.population.contract import (
     decode_initialize_request,
     decode_run_request,
 )
-from apps.stdio_connector import (
+from apps._support.wire import (
     canonical_digest,
     canonical_json,
     decode_json_object,

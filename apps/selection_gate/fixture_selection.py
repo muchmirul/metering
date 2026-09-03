@@ -18,7 +18,10 @@ from apps.selection_gate.report_validation import (
     require_nonempty_string as _require_nonempty_string,
     same_number as _same_number,
 )
-from apps.stdio_connector import canonical_digest, decode_json_object
+from apps._support.wire import (
+    canonical_digest,
+    decode_json_object,
+)
 
 SCHEMA_VERSION = 1
 

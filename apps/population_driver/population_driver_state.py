@@ -27,7 +27,10 @@ from apps.population_driver.population_driver_protocol import (
     DRIVER_SCHEMA_VERSION,
     PopulationDriverError,
 )
-from apps.stdio_connector import canonical_digest, canonical_json
+from apps._support.wire import (
+    canonical_digest,
+    canonical_json,
+)
 
 DRIVER_LEDGER = "driver.jsonl"
 PENDING_FILE = "pending/round-intent.json"

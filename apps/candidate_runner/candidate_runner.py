@@ -22,7 +22,7 @@ from apps.candidate_runner.fixture_runner import (  # noqa: E402
     decode_document,
     run_fixture_candidate,
 )
-from apps.stdio_connector import run_stdio_application  # noqa: E402
+from apps._support.stdio import run_stdio_application  # noqa: E402
 
 
 def _process(source: str) -> dict[str, object]:

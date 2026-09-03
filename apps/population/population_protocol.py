@@ -27,7 +27,10 @@ from apps.agent_protocol import (
     require_nonempty_string,
     require_sha256,
 )
-from apps.stdio_connector import canonical_digest, canonical_json
+from apps._support.wire import (
+    canonical_digest,
+    canonical_json,
+)
 
 POPULATION_SCHEMA_VERSION = 1
 EXPERIMENT_SCHEMA = "population-experiment-v1"

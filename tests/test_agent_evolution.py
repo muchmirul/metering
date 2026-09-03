@@ -20,7 +20,7 @@ ASSAY = ROOT / "apps" / "forecast_assay" / "forecast_assay.py"
 GATE = ROOT / "apps" / "selection_gate" / "selection_gate.py"
 AGENT_ADAPTER = ROOT / "apps" / "controller" / "demo_agent_adapter.py"
 EVALUATOR_ADAPTER = ROOT / "apps" / "controller" / "demo_evaluator_adapter.py"
-PI_TEXT_ADAPTER = ROOT / "apps" / "candidate_runner" / "pi_text_adapter.py"
+PI_TEXT_RUNNER = ROOT / "connectors" / "fixed" / "pi" / "text_runner.py"
 
 
 def encode(value: object) -> str:
@@ -266,7 +266,7 @@ def test_candidate_adapter_timeout_kills_descendants(tmp_path):
     assert not marker.exists()
 
 
-def test_pi_text_adapter_isolates_default_and_explicit_skill_loading(tmp_path):
+def test_pi_text_runner_isolates_default_and_explicit_skill_loading(tmp_path):
     trace = tmp_path / "argv.json"
     fake_pi = tmp_path / "fake-pi"
     fake_pi.write_text(
@@ -295,7 +295,7 @@ def test_pi_text_adapter_isolates_default_and_explicit_skill_loading(tmp_path):
         "PI_TRACE": str(trace),
     }
     result = subprocess.run(
-        [sys.executable, str(PI_TEXT_ADAPTER)],
+        [sys.executable, str(PI_TEXT_RUNNER)],
         cwd=ROOT,
         input=encode(request),
         capture_output=True,
@@ -324,7 +324,7 @@ def test_pi_text_adapter_isolates_default_and_explicit_skill_loading(tmp_path):
     )
     request["candidate"]["skill_path"] = str(skill)
     with_skill = subprocess.run(
-        [sys.executable, str(PI_TEXT_ADAPTER)],
+        [sys.executable, str(PI_TEXT_RUNNER)],
         cwd=ROOT,
         input=encode(request),
         capture_output=True,

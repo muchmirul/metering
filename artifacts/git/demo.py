@@ -15,11 +15,13 @@ from apps.agent_protocol import (  # noqa: E402
     GIT_ARTIFACT_SCHEMA,
     decode_agent_artifact,
 )
-from apps.stdio_connector import (  # noqa: E402
+from apps._support.process import (  # noqa: E402
     JsonProcessError,
+    run_json_process,
+)
+from apps._support.wire import (  # noqa: E402
     canonical_json,
     decode_json_object,
-    run_json_process,
 )
 
 from artifacts.git.git_repository import content_sha256, run_git  # noqa: E402

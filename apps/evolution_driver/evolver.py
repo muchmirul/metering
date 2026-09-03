@@ -39,13 +39,15 @@ from apps.controller.contract import (  # noqa: E402
     agent_generation_timeout_seconds,
     validate_agent_generation_receipt,
 )
-from apps.stdio_connector import (  # noqa: E402
+from apps._support.process import (  # noqa: E402
     JsonProcessError,
+    run_json_process,
+)
+from apps._support.wire import (  # noqa: E402
     canonical_digest,
     canonical_json,
     decode_json_object,
     error_document,
-    run_json_process,
     write_document,
 )
 

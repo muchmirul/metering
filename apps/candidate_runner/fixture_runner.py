@@ -8,7 +8,11 @@ from decimal import Decimal
 
 from metering import entropy
 
-from apps.stdio_connector import canonical_digest, canonical_json, decode_json_object
+from apps._support.wire import (
+    canonical_digest,
+    canonical_json,
+    decode_json_object,
+)
 
 SCHEMA_VERSION = 1
 RUNNER_MODEL = "observer-fixture-hypothesis-v1"

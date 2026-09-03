@@ -20,7 +20,10 @@ from apps.agent_protocol import (
     require_exact_keys,
     require_nonempty_string,
 )
-from apps.stdio_connector import canonical_json, decode_json_object
+from apps._support.wire import (
+    canonical_json,
+    decode_json_object,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 

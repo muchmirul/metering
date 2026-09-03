@@ -6,7 +6,6 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOTS = (ROOT / "apps", ROOT / "artifacts", ROOT / "connectors")
 ENTRYPOINTS = {
     ROOT / "apps/candidate_runner/candidate_runner.py",
-    ROOT / "apps/candidate_runner/pi_text_adapter.py",
     ROOT / "apps/controller/controller.py",
     ROOT / "apps/coding_agent/candidate_runner.py",
     ROOT / "apps/coding_agent/evaluator.py",
@@ -29,7 +28,6 @@ ENTRYPOINTS = {
     ROOT / "apps/harness/harness_runner.py",
     ROOT / "apps/harness/validate_candidate.py",
     ROOT / "apps/mutator/mutator.py",
-    ROOT / "apps/mutator/pi_skill_proposer.py",
     ROOT / "apps/mutator/skill_artifact.py",
     ROOT / "apps/observer/agent_evaluator.py",
     ROOT / "apps/observer/observer.py",
@@ -40,7 +38,6 @@ ENTRYPOINTS = {
     ROOT / "artifacts/git/demo.py",
     ROOT / "artifacts/git/git_artifact.py",
     ROOT / "artifacts/git/git_candidate_adapter.py",
-    ROOT / "artifacts/git/pi_git_proposer.py",
     ROOT / "connectors/live_agent_acceptance.py",
     ROOT / "connectors/fixed/pi/coding_proposer.py",
     ROOT / "connectors/fixed/pi/git_proposer.py",

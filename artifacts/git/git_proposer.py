@@ -24,7 +24,10 @@ from apps.agent_protocol import (
     normalize_json_value,
     require_exact_keys,
 )
-from apps.stdio_connector import canonical_json, decode_json_object
+from apps._support.wire import (
+    canonical_json,
+    decode_json_object,
+)
 
 from artifacts.git.git_repository import (
     GitCandidateError,

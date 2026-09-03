@@ -162,8 +162,8 @@ Concrete fixed skill proposers for Pi and Prime Agent live under
 context files, discovered resources, and sessions, then registers and injects
 the verified current `SKILL.md`. Pin the complete harness command, including
 model and provider, through its documented JSON command environment. A proposer
-returns a full replacement, never a patch, and does not decide retention. The
-former Pi path under `apps/mutator/` is a compatibility launcher.
+returns a full replacement, never a patch, and does not decide retention. Use
+the provider connector directly; Mutator contains no provider-specific launcher.
 
 ## Agent adapter
 

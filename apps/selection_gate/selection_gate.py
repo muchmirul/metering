@@ -19,7 +19,7 @@ from apps.selection_gate.fixture_selection import (  # noqa: E402
     run_fixture_selection,
 )
 from apps.selection_gate.task_selection import select_task_reports  # noqa: E402
-from apps.stdio_connector import run_stdio_application  # noqa: E402
+from apps._support.stdio import run_stdio_application  # noqa: E402
 
 
 def _process(source: str) -> dict[str, object]:

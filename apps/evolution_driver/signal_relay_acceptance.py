@@ -26,12 +26,14 @@ from apps.agent_protocol import (  # noqa: E402
     require_nonempty_string,
 )
 from connectors.fixed.command import command_prefix  # noqa: E402
-from apps.stdio_connector import (  # noqa: E402
+from apps._support.process import (  # noqa: E402
     JsonProcessError,
+    run_json_process,
+)
+from apps._support.wire import (  # noqa: E402
     canonical_json,
     decode_json_object,
     error_document,
-    run_json_process,
     write_document,
 )
 

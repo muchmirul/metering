@@ -110,7 +110,8 @@ agent command, model, and provider through the connector's documented JSON
 command environment. Both runners provide a valid numeric uniform forecast
 example rather than a string placeholder, but still require strict JSON without
 coercion. They are not suitable for coding tasks that need tools or a mutable
-workspace. The former `pi_text_adapter.py` path is a compatibility launcher.
+workspace. Use the connector paths directly; there is no application-local
+provider launcher.
 
 Adapter commands execute with caller permissions. They own agent configuration,
 workspace isolation, tools, model budgets, and submission semantics. The

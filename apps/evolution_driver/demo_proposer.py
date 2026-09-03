@@ -19,7 +19,10 @@ from apps.agent_protocol import (  # noqa: E402
     require_exact_keys,
     require_nonempty_string,
 )
-from apps.stdio_connector import canonical_json, decode_json_object  # noqa: E402
+from apps._support.wire import (  # noqa: E402
+    canonical_json,
+    decode_json_object,
+)
 
 
 class ProposalError(ValueError):

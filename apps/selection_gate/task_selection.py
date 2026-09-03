@@ -24,7 +24,7 @@ from apps.selection_gate.report_validation import (
     probability,
     same_number,
 )
-from apps.stdio_connector import canonical_digest
+from apps._support.wire import canonical_digest
 
 
 @dataclass(frozen=True)

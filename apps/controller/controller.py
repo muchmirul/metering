@@ -24,17 +24,10 @@ from apps.controller.contract import (  # noqa: E402
     validate_agent_generation_receipt,
 )
 from apps.controller.fixture_generation import (  # noqa: E402
-    ObserverSession as _ObserverSession,
     decode_document,
     run_fixture_generation,
-    run_generation as _run_generation,
 )
-from apps.stdio_connector import run_stdio_application  # noqa: E402
-
-# Source-level compatibility for tests and callers that imported these fixture
-# owners from the historical controller module.
-ObserverSession = _ObserverSession
-run_generation = _run_generation
+from apps._support.stdio import run_stdio_application  # noqa: E402
 
 
 def _process(source: str) -> dict[str, object]:

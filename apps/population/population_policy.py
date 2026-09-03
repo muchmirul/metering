@@ -15,7 +15,7 @@ from apps.agent_protocol import (
     require_exact_keys,
     require_sha256,
 )
-from apps.stdio_connector import canonical_json
+from apps._support.wire import canonical_json
 
 from apps.population.population_protocol import (
     ALLOCATION_POLICY,
