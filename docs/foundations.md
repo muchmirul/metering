@@ -35,8 +35,8 @@ Likewise, a biological analogy does not make these programs organisms.
 | Harness phenotype | typed prompt/policy genome -> bounded model actions -> isolated IPython behavior | explicit operational semantics and resource confinement | Evolutionary Harness |
 | Integrity | canonical measurement files -> Git tree -> commit lineage | Git object model plus measurement replay | identities and `metering-history` |
 
-The [high-level system diagram](../README.md#system-at-a-glance) shows the data
-flow. The separation above is substantive: an observation is not a mutation,
+The [source architecture](source-architecture.md) describes the corresponding
+data flow. The separation above is substantive: an observation is not a mutation,
 uncertainty is not forecast quality, an assay value is not selection, and a
 selection result is not a persistent lineage.
 

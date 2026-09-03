@@ -7,6 +7,9 @@ from current implementation claims.
 
 - [Current capability map](capabilities.md) gives users and coding agents a
   concise implemented/not-implemented boundary and operational checklist.
+- [Six-stage Darwinian coding process](coding-process.md) is the short user
+  guide for `[1/6]` through `[6/6]`, status commands, interruption handling, and
+  the projection-versus-authority boundary.
 - [System foundations, design rationale, and hypotheses](foundations.md)
   connects the information theory, Bayesian observation model, proper scoring,
   biology analogy, content identity, software boundaries, and falsifiable
