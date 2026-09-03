@@ -47,7 +47,7 @@ is explicit: `replay.py` performs read-only ledger/receipt verification,
 `planner.py` returns one pure next action, `machine.py` owns external effects and
 Population transitions, `population_driver_state.py` owns durable stores, and
 `runtime.py` is the bounded load-plan-effect-store sequencer.
-`population_driver.py` is now only the historical `run|retry|verify` dispatcher.
+`population_driver.py` is the thin `run|retry|verify` dispatcher.
 Population access goes through `apps.population.contract`; no driver module
 imports Population policy, state, allocation, or SQLite internals.
 

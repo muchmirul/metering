@@ -124,8 +124,9 @@ task rate then reliability with an exact tie draw, runs protected checks after
 allocation, permanently seals search, and emits a replay-checked patch without
 changing the source repository. Its strict `darwinian-coding-task-v1` profile
 owns allowed paths, argv checks, draws, and budgets. Plain Pi exposes
-`/evolve-harness`, explicit `/evolve-harness-resume` or operator-reasoned
-`/evolve-harness-retry`, `/evolve-code`, explicit `/evolve-code-resume` or
+`/evolve-harness`, `/evolve-harness-status`, explicit `/evolve-harness-resume`
+or operator-reasoned `/evolve-harness-retry`, `/evolve-code`, explicit
+`/evolve-code-resume` or
 operator-reasoned `/evolve-code-retry`, `/evolve-code-status`, and
 `/evolve-code-verify` only after explicit invocation.
 

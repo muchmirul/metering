@@ -583,8 +583,8 @@ replay-derived patch, and evidence. Applying, merging, installing, or deploying
 it is always a separate caller action.
 
 The reviewed project-local Pi extension exposes `/evolve-harness`,
-`/evolve-harness-resume`, `/evolve-harness-retry`, `/evolve-code`,
-`/evolve-code-resume`, `/evolve-code-retry`, `/evolve-code-status`, and
+`/evolve-harness-status`, `/evolve-harness-resume`, `/evolve-harness-retry`,
+`/evolve-code`, `/evolve-code-resume`, `/evolve-code-retry`, `/evolve-code-status`, and
 `/evolve-code-verify` only after an explicit
 invocation. Resume cannot repeat an indeterminate model call; retry requires an
 operator reason and a predeclared call/time reservation. The model-facing
@@ -765,14 +765,14 @@ canonical driver ledger, pending-intent format, and immutable receipt format; it
 reads the unchanged Population schema and never treats its SQLite index as
 state authority. The source-only namespace and instruction refactor is internal:
 public Controller/Population contracts, shared journal/transport mechanics, and
-Population Driver replay/planner/effect/store modules preserve existing script
-paths, canonical bytes, identities, ledgers, receipts, and process boundaries;
-no state migration is introduced. Moving Pi translations to `connectors/fixed/pi`
-is source-path cleanup only: the former script paths remain compatibility
-launchers with the same standard-stream contracts. Prime Agent is an additive
-concrete connector over those existing contracts. These application and
-connector changes do not change the installed Python API, Metering JSON
-protocol, or numerical definitions. Measurement-history schema version 2 is a
+Population Driver replay/planner/effect/store modules preserve active owner
+commands, canonical bytes, identities, ledgers, receipts, and process boundaries;
+no state migration is introduced. Pi translations have canonical paths under
+`connectors/fixed/pi`; obsolete provider aliases under applications and artifacts
+are not retained. Prime Agent is an additive concrete connector over those
+existing contracts. These application and connector changes do not change the
+installed Python API, Metering JSON protocol, or numerical definitions.
+Measurement-history schema version 2 is a
 separate intentional storage break: Git commits replace schema-version-1
 `objects/` storage, which requires the historical implementation for inspection.
 

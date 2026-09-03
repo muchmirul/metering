@@ -13,7 +13,7 @@ uv run python connectors/fixed/prime_agent/harness_runner.py
 ```
 
 The skill proposer and text runner disable tools, sessions, discovered resources,
-and context files, then inject only the verified candidate skill. The historical
+and context files, then inject only the verified candidate skill. The generic
 Git proposer permits Prime Agent's IPython tool inside a disposable file-only
 workspace and therefore requires an external sandbox.
 

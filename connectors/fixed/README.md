@@ -16,7 +16,7 @@ harness_model.py     one fixed recursive-loop prompt -> one strict model action
 harness_runner.py    verified Git harness -> isolated phenotype completion
 ```
 
-The first three are the historical generic artifact connectors. The harness
+The first three are the generic artifact connectors. The harness
 commands translate the concrete [`apps/harness`](../../apps/harness/README.md)
 contract. Candidate bootstrap/cells execute only through its reviewed OCI kernel
 profile; provider CLIs remain tool-free and never receive selection authority.
@@ -32,12 +32,12 @@ configuration override and credential boundary.
 The surrounding Mutator and Candidate Runner own finite timeouts. The connector
 owns only CLI translation and strict response decoding. It rejects model JSON
 numbers that overflow double precision or change whether a value is zero or one
-during conversion. Historical skill/Git workspace roles still require caller
+during conversion. Tool-enabled skill/Git workspace roles still require caller
 isolation when tools are enabled. The typed harness runner instead requires the
 versioned OCI profile, verifies agent/provider/model/reasoning identity, disables
 provider tools and ambient state, and emits externally observed receipts. Docker,
 cgroup-v2 support, image construction, credentials, and provider availability
 remain documented platform responsibilities.
 
-The former Pi paths under `apps/` and `artifacts/git/` are compatibility
-launchers. New requests and documentation should use `connectors/fixed/pi/`.
+Provider commands have one canonical owner under `connectors/fixed/`; obsolete
+application-local and artifact-local aliases are not retained.

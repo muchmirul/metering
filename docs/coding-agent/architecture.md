@@ -94,11 +94,20 @@ signing, and access control remain deployment concerns.
 | Population | evidence replay, Pareto retention, exact allocation, final seal | executing candidates or inventing task meaning |
 | Metering package | four named finite-distribution measures | agent, evaluator, optimizer, sandbox, score, deployment |
 
-Pi extensions run with host authority, so only the reviewed project extension is
-loaded interactively. Candidate code and candidate-owned Pi extensions are not
-loaded there. Nested Pi calls use isolated config roots with tools, sessions,
-discovered resources, and ambient context disabled; coding tools exist only as
-fixed functions inside the OCI kernel.
+Ordinary interactive Pi runs with the permissions of its host user and has no
+built-in sandbox or command-approval boundary. Project trust controls whether
+project resources load; it does not confine built-in tools. Pi extensions and
+user/global packages also have host authority, so operators must review or
+disable them before a sensitive run. This repository ships one project extension
+shim for the reviewed Population implementation. Its model-facing action enum
+cannot supply task text, commands, evaluators, candidates, output paths, or retry
+authority; the instruction to invoke run actions only after a user request is a
+prompt policy rather than an OS security boundary.
+
+Candidate code and candidate-owned extensions are never loaded into the host Pi.
+Nested Pi calls use isolated configuration roots with tools, sessions, skills,
+extensions, discovered resources, and ambient context disabled; coding tools
+exist only as fixed functions inside the OCI kernel.
 
 ## Archive-in/archive-out boundary
 

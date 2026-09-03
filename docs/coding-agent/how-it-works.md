@@ -101,7 +101,8 @@ status/report     operator-facing projections only
 
 Candidate containers have no network, host mounts, host `.git`, Docker socket,
 credentials, writable root, or automatic image pull. Mutation and authoritative
-evaluation never share a container.
+evaluation never share a container. These controls do not sandbox ordinary
+interactive Pi, which retains the host user's permissions.
 
 A completed result is a verified immutable commit plus `selected.patch`. Nothing
 is automatically applied, merged, installed, or deployed.

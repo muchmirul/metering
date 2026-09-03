@@ -51,7 +51,7 @@ aggregate compatibility facade.
 
 Source directories are importable package namespaces. Internal modules use
 package-qualified imports; direct script entry points retain the small
-`sys.path` bootstrap needed for historical commands such as:
+`sys.path` bootstrap needed for documented commands such as:
 
 ```text
 python apps/controller/controller.py
@@ -80,8 +80,8 @@ large branch-filled implementation without introducing a generic stage engine.
 
 ## Population Driver machine
 
-The historical CLI is now a compatibility dispatcher. Its implementation is
-split by instruction type:
+The stable CLI is a thin dispatcher. Its implementation is split by instruction
+type:
 
 | Module | Responsibility |
 |---|---|
@@ -93,7 +93,7 @@ split by instruction type:
 | `planner.py` | pure next-action and stop decision from a replayed view |
 | `machine.py` | one explicit external effect or Population transition at a time |
 | `runtime.py` | bounded load-plan-effect-store sequencing and recovery |
-| `population_driver.py` | unchanged `run`, `retry`, and `verify` CLI dispatch |
+| `population_driver.py` | `run`, `retry`, and `verify` CLI dispatch |
 
 The durable round progression is:
 

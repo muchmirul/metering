@@ -11,8 +11,14 @@ Live runs require:
 - a sealed Level-2 harness selected under the same runtime identity; and
 - a pinned Pi/model endpoint.
 
-Containers use `--pull never` and have no network. Project dependencies and
-check executables must already be present in the approved image or repository
+Ordinary top-level Pi is not sandboxed: its built-in tools, user/global packages,
+and extensions run with the host user's permissions. Review or disable ambient
+packages and skills, and use a whole-process container or VM when the checkout
+itself is untrusted. Candidate isolation begins only inside the fixed Darwinian
+workflow.
+
+Candidate containers use `--pull never` and have no network. Project dependencies
+and check executables must already be present in the approved image or repository
 archive. See the [isolation guide](../../apps/harness/isolation/README.md).
 
 ## Level 2: harness

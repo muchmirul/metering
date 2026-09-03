@@ -15,7 +15,7 @@ uv run python connectors/fixed/pi/coding_proposer.py
 
 The skill proposer and text runner disable tools, sessions, discovered resources,
 and context files. They inject the complete verified `SKILL.md` because normal
-Pi progressive disclosure needs a read tool. The historical Git proposer leaves
+Pi progressive disclosure needs a read tool. The generic Git proposer leaves
 Pi's normal workspace tools enabled inside a file-only candidate workspace; it
 must run in a reviewed external sandbox.
 
@@ -51,15 +51,20 @@ canonical runtime profile and rejects disagreement.
 
 ## Interactive Population Evolution Mode
 
-From a trusted source checkout, plain `pi` auto-loads the thin project entrypoint
-at `.pi/extensions/population-evolution.ts`. The implementation remains owned by
-this connector. On the first invocation, approve Pi's normal project-trust
-prompt; later invocations need no flags:
+From a trusted source checkout, plain `pi` can load the thin project entrypoint
+at `.pi/extensions/population-evolution.ts` after Pi's project-trust decision.
+The implementation remains owned by this connector. Trust approval permits
+project code to run; it is not a sandbox or a built-in tool permission gate:
 
 ```bash
 cd /path/to/metering
 pi
 ```
+
+Top-level Pi and all user/global extensions or packages run with the host user's
+permissions. Review that ambient configuration or run the whole process in a
+container/VM for untrusted work. The nested evolutionary Pi calls are separately
+isolated and do not inherit those resources.
 
 The footer shows `population: ready`. Use:
 

@@ -66,7 +66,7 @@ reliably or that a candidate improved.
 
 ## Trust boundary
 
-Connectors and agent commands execute with caller permissions. Historical
+Connectors and agent commands execute with caller permissions. Generic
 tool-enabled Git proposers require an external container or VM. The typed
 Evolutionary Harness instead makes both provider calls tool-free and executes
 candidate Python only in its reviewed no-network OCI kernel. The Darwinian
