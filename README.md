@@ -106,6 +106,9 @@ Its operator-facing tracker is:
 
 The tracker is only a status projection. Git candidates, hash-linked JSONL,
 exact allocations, and content-addressed receipts remain authoritative.
+Level-1 task profiles can use a numeric round limit alone or stop earlier when
+independent development evidence proves a worded goal; the finite round limit
+always remains mandatory.
 
 ### Use from Pi
 
@@ -154,6 +157,7 @@ the [component map](docs/coding-agent/components.md),
 [simple architecture](docs/coding-agent/how-it-works.md),
 [six-stage workflow](docs/coding-agent/workflow.md),
 [operations](docs/coding-agent/operations.md),
+[goal-or-limit stopping](docs/coding-agent/stopping.md),
 [task-profile reference](docs/coding-agent/task-profile.md), and
 [architecture and threat model](docs/coding-agent/architecture.md).
 

@@ -11,7 +11,7 @@ transitions behind six stable stages.
 | **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | runtime/task profiles and kernel conformance |
 | **[2/6] Evolving harness** | Level 2 proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | `/evolve-harness` |
 | **[3/6] Harness sealed** | One harness has been allocated, protected-final tested, and permanently sealed. | `selected-harness.json` |
-| **[4/6] Evolving solution** | Level 1 uses the frozen harness to create and independently test immutable solution commits. | `/evolve-code TASK.json` |
+| **[4/6] Evolving solution** | Level 1 uses the frozen harness to create and independently test immutable solution commits until a verified goal or finite limit stops recurrence. | `/evolve-code TASK.json` |
 | **[5/6] Protected final assay** | Development has stopped, final allocation is committed, and protected checks are running. | final-role Population records |
 | **[6/6] Result ready for review** | The selected commit, patch, and replayable evidence are ready for operator verification. | `selected-solution.json` and `selected.patch` |
 
@@ -79,6 +79,7 @@ or tracker-free run is derived from existing run markers.
 - `[6/6]` means output is ready for review, not that it was automatically
   applied, merged, installed, or deployed.
 
-For configuration and commands, see the [task-profile reference](task-profile.md)
-and [operations guide](operations.md). For trust and evidence semantics, see the
+For configuration and commands, see the [task-profile reference](task-profile.md),
+[stopping-policy guide](stopping.md), and [operations guide](operations.md). For
+trust and evidence semantics, see the
 [architecture and threat model](architecture.md).

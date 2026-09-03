@@ -1,8 +1,9 @@
 # Agentvolve coding task profile
 
-An Agentvolve Level-1 task is one canonical JSON object followed by one newline. It binds an
-immutable repository base, writable paths, development checks, finite budgets,
-exact allocation draws, and a separately permissioned protected-final profile.
+An Agentvolve Level-1 task is one canonical JSON object followed by one newline.
+It binds an immutable repository base, writable paths, development checks,
+finite budgets, exact allocation draws, and a separately permissioned
+protected-final profile.
 
 ## Development profile
 
@@ -54,6 +55,9 @@ status before timeout is a pass. Each candidate/check pair runs in a separate
 fresh container.
 
 ## Goal or numeric stopping
+
+See the dedicated [stopping-policy guide](stopping.md) for complete semantics,
+statuses, 100-round setup, replay behavior, and interactive-game boundaries.
 
 `goal` is bounded natural-language guidance for the fixed proposer. For example,
 a game adapter could use `"Solve this until we finish the game."` The model's

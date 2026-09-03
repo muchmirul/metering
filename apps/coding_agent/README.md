@@ -21,6 +21,7 @@ Use the dedicated [Agentvolve documentation](../../docs/coding-agent/README.md):
 - [simple architecture and execution flow](../../docs/coding-agent/how-it-works.md);
 - [six-stage workflow](../../docs/coding-agent/workflow.md);
 - [operations and commands](../../docs/coding-agent/operations.md);
+- [goal-or-limit stopping policies](../../docs/coding-agent/stopping.md);
 - [task-profile reference](../../docs/coding-agent/task-profile.md); and
 - [architecture and threat model](../../docs/coding-agent/architecture.md).
 

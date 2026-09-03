@@ -3,7 +3,8 @@
 This document defines the accepted source-only Agentvolve Level-1/Level-2 coding
 workflow.
 [`PLAN.md`](../../PLAN.md) remains normative. Use the [operations guide](operations.md)
-for commands and the [task-profile reference](task-profile.md) for configuration.
+for commands, the [task-profile reference](task-profile.md) for configuration,
+and the [stopping-policy guide](stopping.md) for goal-or-limit semantics.
 
 ## Evolutionary semantics
 
@@ -64,7 +65,10 @@ Three classes are distinct:
 
 A candidate may create its own tests as ordinary changed files if their paths
 are allowed, but those tests have no authority unless the reviewed profile also
-runs them. The caller-owned argv checks remain decisive.
+runs them. The caller-owned argv checks remain decisive. Likewise, a worded
+`goal` guides mutation but does not authorize stopping. Only fixed control-plane
+logic over independently evaluated development evidence can report
+`development_goal_reached`; a finite round limit remains mandatory.
 
 For a component-by-component view of Git, Pi, Qwen/llama.cpp, IPython, Docker,
 and the control plane, see the [Agentvolve component map](components.md).

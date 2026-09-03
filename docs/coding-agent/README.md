@@ -29,9 +29,11 @@ heredity. Only validated Git commits reproduce.
 2. Read [how it works](how-it-works.md) for the simple architecture and one-round
    coding flow.
 3. Review the [six-stage workflow](workflow.md).
-4. Prepare the runtime and task using the [task-profile reference](task-profile.md).
-5. Follow the [operations guide](operations.md).
-6. Review the [architecture and threat model](architecture.md) before a live
+4. Choose numeric or evaluator-backed goal stopping in the [stopping-policy
+   guide](stopping.md).
+5. Prepare the runtime and task using the [task-profile reference](task-profile.md).
+6. Follow the [operations guide](operations.md).
+7. Review the [architecture and threat model](architecture.md) before a live
    run.
 
 ## Stable user process
@@ -47,7 +49,9 @@ heredity. Only validated Git commits reproduce.
 
 The tracker is a convenience projection. Candidate Git objects, canonical
 hash-linked JSONL, exact allocations, and content-addressed receipts remain the
-authoritative evidence.
+authoritative evidence. Level-1 recurrence can stop at a numeric round cap or at
+an independently evaluated development goal with that cap as a mandatory
+fallback.
 
 ## Result
 

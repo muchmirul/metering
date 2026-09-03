@@ -74,11 +74,15 @@ This makes evidence attributable to one fixed coding setup.
    containers using operator-approved argv commands.
 5. **Authenticate the comparison.** Controller binds candidates, tasks, runtime,
    outputs, resources, and receipts for that one pairwise generation.
-6. **Update Population.** Population records named evidence, updates its bounded
-   Pareto archive, and allocates the next parent. There is no scalar fitness.
+6. **Update Population.** Population records named evidence and updates its
+   bounded Pareto archive. If an evaluator-backed goal has been reached, the
+   Driver stops without an unused next-parent allocation; otherwise Population
+   allocates the next parent. There is no scalar fitness.
 
 The process repeats only within declared round, proposal-call, wall-time, and
-resource limits.
+resource limits. A task may additionally stop on verified development success,
+with the finite round limit retained as a fallback. See [stopping
+policies](stopping.md).
 
 ## Finalization
 
@@ -111,5 +115,6 @@ interactive Pi, which retains the host user's permissions.
 A completed result is a verified immutable commit plus `selected.patch`. Nothing
 is automatically applied, merged, installed, or deployed.
 
-Next: [operations](operations.md), [task profiles](task-profile.md), or the
-[detailed architecture and threat model](architecture.md).
+Next: [operations](operations.md), [stopping policies](stopping.md), [task
+profiles](task-profile.md), or the [detailed architecture and threat
+model](architecture.md).

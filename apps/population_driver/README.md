@@ -138,6 +138,8 @@ replicate count. The status is `development_goal_reached`. `max_rounds` remains
 mandatory and finite, so this is goal-or-limit stopping rather than an unbounded
 natural-language loop. The policy suppresses the otherwise unused next-parent
 allocation when the goal is reached. It never reads protected-final evidence.
+Concrete Level-1 configuration examples are in the [Agentvolve stopping-policy
+guide](../../docs/coding-agent/stopping.md).
 
 Only ordinary Git candidates are accepted in this first schema. Controller must
 return a different normalized Git child. If a proposer reproduces a Git

@@ -19,6 +19,7 @@ explain the current system without expanding that scope.
 
 - [Six-stage workflow](coding-agent/workflow.md)
 - [Operations and commands](coding-agent/operations.md)
+- [Goal-or-limit stopping policies](coding-agent/stopping.md)
 - [Task-profile reference](coding-agent/task-profile.md)
 - [Architecture and threat model](coding-agent/architecture.md)
 - [Evolutionary harness implementation](../apps/harness/README.md)

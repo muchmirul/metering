@@ -61,9 +61,11 @@ use the descriptor from a `coding-pi` Level-2 run.
 
 The task profile owns recurrence stopping. Set `limits.max_rounds` to a numeric
 cap such as 100 and provide 99 allocation draws. To stop earlier on the worded
-`goal`, add the versioned `stopping` policy shown in the [task-profile
-guide](task-profile.md). The wording guides proposals; fixed development checks,
-not a model completion claim, determine `development_goal_reached`.
+`goal`, add the versioned `stopping` policy. The [stopping-policy
+guide](stopping.md) provides exact examples, statuses, replay semantics, and
+game-adapter boundaries.
+The wording guides proposals; fixed development checks, not a model completion
+claim, determine `development_goal_reached`.
 
 Verify without a model call or SQLite:
 

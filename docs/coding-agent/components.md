@@ -107,8 +107,9 @@ for execution, sends only the bounded operation to the kernel.
 | **Agentvolve final selector** | Choose from the development archive by task rate, then reliability, then the exact tie draw before protected content is opened. |
 
 Agentvolve is a bounded steady-state search: each round allocates one parent and
-creates one challenger. It does not train Qwen, construct a Bayesian posterior,
-adapt mutation policy, or automatically deploy the winner.
+creates one challenger. Level-1 profiles can use numeric-only or evaluator-backed
+goal-or-limit [stopping](stopping.md). Agentvolve does not train Qwen, construct
+a Bayesian posterior, adapt mutation policy, or automatically deploy the winner.
 
 ## Git and evidence layer
 
