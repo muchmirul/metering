@@ -49,8 +49,10 @@ heredity. Only validated Git commits reproduce.
 
 Run `/agentvolve` in an extension-enabled Pi session, choose local
 Qwen/llama.cpp or routed outer-Pi model mode, and use the unified workflow menu.
-The widget always displays every `[1/6]`–`[6/6]` stage; operators no longer need
-to choose between internal harness and solution levels. Nested evolution remains
+The widget always displays every `[1/6]`–`[6/6]` stage and monitors the shared
+run directory across Pi sessions; **Browse workflow history** or
+`/agentvolve-history` exposes recent runs. Operators no longer need to choose
+between internal harness and solution levels. Nested evolution remains
 pinned to the canonical runtime manifest. The tracker is a convenience
 projection. Candidate Git objects, canonical hash-linked JSONL, exact
 allocations, and content-addressed receipts remain the authoritative evidence.

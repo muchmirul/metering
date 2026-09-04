@@ -22,6 +22,7 @@ const WIDGET_KEY = "population-evolution";
 const RUN_NAME = /^pi-\d{8}T\d{6}(?:\d{3})?Z$/;
 const COMMAND_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const LOCAL_RUNTIME_TIMEOUT_MS = 3 * 60 * 1000;
+const WORKFLOW_MONITOR_INTERVAL_MS = 2000;
 const MAX_DIAGNOSTIC_CHARS = 4000;
 const DEFAULT_LLAMACPP_SERVICE = "llama-qwen38.service";
 const DEFAULT_LLAMACPP_HEALTH_URL = "http://127.0.0.1:8080/v1/models";
@@ -76,6 +77,7 @@ type AgentvolveMenuAction =
 	| "close"
 	| "deactivate"
 	| "workflow"
+	| "workflow-history"
 	| "workflow-resume"
 	| "workflow-retry"
 	| "workflow-status"
@@ -452,6 +454,9 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	let activeModelLabel: string | undefined;
 	let originalModeState: OriginalModeState | undefined;
 	let workflowSummary: ModeSummary | undefined;
+	let monitor: ReturnType<typeof setInterval> | undefined;
+	let monitorRefreshing = false;
+	let monitorFingerprint: string | undefined;
 	let running = false;
 
 	async function ensureLocalRuntime(selection: RuntimeSelection, signal?: AbortSignal): Promise<void> {
@@ -641,6 +646,11 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				description: "Refresh the always-visible six-stage tracker",
 			},
 			{
+				value: "workflow-history",
+				label: "Browse workflow history",
+				description: "Inspect shared runs from this or any other Pi session",
+			},
+			{
 				value: "workflow-resume",
 				label: "Resume workflow",
 				description: "Continue the latest replay-authorized workflow effect",
@@ -741,9 +751,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
-	async function codingStatus(kind: "harness" | "solution"): Promise<ModeSummary> {
-		const root = await latestCodingRoot(kind, false);
-		if (!root) throw new Error(`no coding ${kind} runs exist under ${runsDirectory()}`);
+	async function codingStatusAtRoot(kind: "harness" | "solution", root: string): Promise<ModeSummary> {
 		const completed = existsSync(join(root, "experiment-report.json"));
 		const fallbackStage = kind === "harness" ? (completed ? 3 : 2) : completed ? 6 : 4;
 		const process = await readProcessProjection(root, kind, fallbackStage);
@@ -758,13 +766,19 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 		const value: unknown = JSON.parse(await readFile(join(root, "experiment-report.json"), "utf8"));
 		if (typeof value !== "object" || value === null || Array.isArray(value)) {
-			throw new Error(`latest coding ${kind} report is malformed`);
+			throw new Error(`coding ${kind} report is malformed: ${root}`);
 		}
 		const summary =
 			kind === "harness"
 				? { ...runSummary(root, value as Record<string, unknown>), action: "status" as const }
 				: codingSolutionSummary(root, value as Record<string, unknown>, "status");
 		return { ...summary, process: process.display };
+	}
+
+	async function codingStatus(kind: "harness" | "solution"): Promise<ModeSummary> {
+		const root = await latestCodingRoot(kind, false);
+		if (!root) throw new Error(`no coding ${kind} runs exist under ${runsDirectory()}`);
+		return codingStatusAtRoot(kind, root);
 	}
 
 	async function latestUnfinishedCodingRun(): Promise<{ kind: "harness" | "solution"; root: string } | null> {
@@ -792,6 +806,73 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			runRoot: runsDirectory(),
 			status: "not started",
 		};
+	}
+
+	async function refreshWorkflowMonitor(ctx: ExtensionContext): Promise<void> {
+		if (monitorRefreshing || running) return;
+		monitorRefreshing = true;
+		try {
+			const summary = await codingWorkflowStatus();
+			const fingerprint = JSON.stringify(summary);
+			if (fingerprint === monitorFingerprint) return;
+			monitorFingerprint = fingerprint;
+			renderModeWidget(ctx, summary);
+			const state = summary.status === "in progress" ? "running" : modeActive ? "ready" : "available";
+			setModeStatus(ctx, state, summary.process ?? (modeActive ? activeModelLabel : undefined));
+		} finally {
+			monitorRefreshing = false;
+		}
+	}
+
+	function startWorkflowMonitor(ctx: ExtensionContext): void {
+		if (monitor) clearInterval(monitor);
+		monitor = setInterval(() => void refreshWorkflowMonitor(ctx).catch(() => undefined), WORKFLOW_MONITOR_INTERVAL_MS);
+	}
+
+	function stopWorkflowMonitor(): void {
+		if (monitor) clearInterval(monitor);
+		monitor = undefined;
+		monitorRefreshing = false;
+	}
+
+	async function workflowHistory(limit = 50): Promise<ModeSummary[]> {
+		let entries: Array<{ isDirectory(): boolean; name: string }>;
+		try {
+			entries = await readdir(runsDirectory(), { withFileTypes: true });
+		} catch {
+			return [];
+		}
+		const names = entries
+			.filter(
+				(entry) =>
+					entry.isDirectory() &&
+					/^(?:harness|solution)-pi-\d{8}T\d{6}(?:\d{3})?Z$/.test(entry.name),
+			)
+			.map((entry) => entry.name)
+			.sort((left, right) => {
+				const leftStamp = left.slice(left.lastIndexOf("-pi-") + 4);
+				const rightStamp = right.slice(right.lastIndexOf("-pi-") + 4);
+				return rightStamp.localeCompare(leftStamp);
+			})
+			.slice(0, limit);
+		const summaries: ModeSummary[] = [];
+		for (const name of names) {
+			const kind = name.startsWith("harness-") ? "harness" : "solution";
+			const root = join(runsDirectory(), name);
+			try {
+				summaries.push(await codingStatusAtRoot(kind, root));
+			} catch {
+				const fallback = kind === "harness" ? 2 : 4;
+				summaries.push({
+					action: "status",
+					kind: kind === "harness" ? "coding-harness" : "coding-solution",
+					process: processProjection(fallback).display,
+					runRoot: root,
+					status: "unreadable",
+				});
+			}
+		}
+		return summaries;
 	}
 
 	async function executeCoding(
@@ -1110,6 +1191,28 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	async function showWorkflowHistory(ctx: ExtensionContext): Promise<void> {
+		if (ctx.mode !== "tui") {
+			ctx.ui.notify("Workflow history requires interactive Pi", "error");
+			return;
+		}
+		const summaries = await workflowHistory();
+		if (!summaries.length) {
+			ctx.ui.notify(`No Agentvolve workflow runs exist under ${runsDirectory()}`, "info");
+			return;
+		}
+		const labels = summaries.map((summary) => {
+			const name = summary.runRoot.slice(summary.runRoot.lastIndexOf("/") + 1);
+			return `${summary.process ?? "[?/6] Unknown stage"} · ${summary.status} · ${name}`;
+		});
+		const selected = await ctx.ui.select("Agentvolve workflow history", labels);
+		if (!selected) return;
+		const summary = summaries[labels.indexOf(selected)];
+		if (!summary) return;
+		pi.appendEntry("agentvolve-history-view", summary);
+		ctx.ui.notify(humanSummary(summary), "info");
+	}
+
 	async function openAgentvolve(ctx: ExtensionContext): Promise<void> {
 		if (ctx.mode !== "tui") {
 			ctx.ui.notify("/agentvolve requires interactive Pi", "error");
@@ -1125,6 +1228,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 		if (action === "workflow-status") {
 			await showWorkflowStatus(ctx);
+			return;
+		}
+		if (action === "workflow-history") {
+			await showWorkflowHistory(ctx);
 			return;
 		}
 		if (action === "workflow") {
@@ -1159,6 +1266,17 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				return;
 			}
 			await openAgentvolve(ctx);
+		},
+	});
+
+	pi.registerCommand("agentvolve-history", {
+		description: "Browse shared Agentvolve workflow history from any Pi session",
+		handler: async (args, ctx) => {
+			if (args.trim()) {
+				ctx.ui.notify("/agentvolve-history accepts no arguments", "error");
+				return;
+			}
+			await showWorkflowHistory(ctx);
 		},
 	});
 
@@ -1379,9 +1497,15 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		} catch {
 			workflowSummary = undefined;
 		}
+		monitorFingerprint = workflowSummary ? JSON.stringify(workflowSummary) : undefined;
 		setModeStatus(ctx, "available", workflowSummary?.process);
 		renderModeWidget(ctx);
-		ctx.ui.notify(`${MODE_NAME} is available. The complete [1/6]–[6/6] workflow is always visible.`, "info");
+		startWorkflowMonitor(ctx);
+		ctx.ui.notify(`${MODE_NAME} is monitoring shared workflow history. The complete [1/6]–[6/6] status is always visible.`, "info");
+	});
+
+	pi.on("session_shutdown", async () => {
+		stopWorkflowMonitor();
 	});
 
 	pi.on("before_agent_start", async (event) => {

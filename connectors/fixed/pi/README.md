@@ -89,15 +89,19 @@ The first picker offers two outer-session modes:
   start llama.cpp.
 
 Both modes then show one keyboard-driven workflow menu: **Start workflow**,
-**Refresh workflow status**, **Resume workflow**, **Retry pending attempt**, and
-**Verify completed workflow**. There are no Level-1 or Level-2 choices in this
-UI. Start asks once for the approved task profile, reuses a completed sealed
+**Refresh workflow status**, **Browse workflow history**, **Resume workflow**,
+**Retry pending attempt**, and **Verify completed workflow**. There are no
+Level-1 or Level-2 choices in this UI. `/agentvolve-history` opens the shared
+history browser directly and lists up to 50 recent run roots with their explicit
+stage and status. Start asks once for the approved task profile, reuses a completed sealed
 harness or creates one when none exists, and proceeds through the solution and
 protected assay. An unfinished run must be resumed or explicitly retried before
 a new workflow starts.
 
 The widget remains visible even when Agentvolve mode is inactive and always
-shows every explicit stage with `✓`, `▶`, `!`, or `○` markers:
+shows every explicit stage with `✓`, `▶`, `!`, or `○` markers. Each loaded Pi
+session polls the shared run directory every two seconds, so a run started by
+another session is monitorable without attaching to its process:
 
 ```text
 [1/6] Task and runtime configured

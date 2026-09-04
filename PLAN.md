@@ -604,7 +604,10 @@ the reviewed absolute extension path in Pi's global settings to make the command
 available from every working directory. `/agentvolve` first offers local and
 routed outer-session model modes, then opens one bounded workflow UI rather than
 exposing Level-1 and Level-2 choices. The UI always renders all six explicit
-`[n/6]` stages and offers one start/status/resume/retry/verify control surface.
+`[n/6]` stages and offers one start/status/history/resume/retry/verify control
+surface. Every loaded Pi session polls the same reviewed run directory, stops
+its monitor on session shutdown, and can browse up to the latest 50 runs through
+`/agentvolve-history`; monitoring is read-only and does not authorize effects.
 Start validates one task profile, reuses an already sealed compatible harness or
 creates one when none exists, and then continues through solution evolution and
 the protected final assay. It refuses to hide or bypass an unfinished run. Local mode

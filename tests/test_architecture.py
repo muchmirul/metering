@@ -235,6 +235,7 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     ).read_text(encoding="utf-8")
     for command in (
         '"agentvolve"',
+        '"agentvolve-history"',
         '"evolve"',
         '"evolve-status"',
         '"evolve-verify"',
@@ -263,6 +264,9 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'Run the complete [1/6] through [6/6] pipeline' in implementation
     assert 'for (let stage = 1; stage <= 6; stage += 1)' in implementation
     assert '`${marker} [${stage}/6] ${label}`' in implementation
+    assert 'Browse workflow history' in implementation
+    assert 'WORKFLOW_MONITOR_INTERVAL_MS = 2000' in implementation
+    assert 'pi.on("session_shutdown"' in implementation
     assert 'new SelectList(items' in implementation
     assert "final-tasks.json" not in implementation
     assert "development-tasks.json" not in implementation

@@ -32,10 +32,12 @@ model work at `[4/6]` after Agentvolve revalidates the earlier stages.
 
 ## Viewing status
 
-In interactive Pi the complete tracker is always shown. Use `/agentvolve` and
-choose **Refresh workflow status** to refresh it explicitly. The direct
-`/evolve-harness-status` and `/evolve-code-status` commands remain compatibility
-interfaces.
+In interactive Pi the complete tracker is always shown and polls the shared run
+directory every two seconds, including work launched by another Pi session. Use
+`/agentvolve` and choose **Refresh workflow status** for an explicit refresh or
+**Browse workflow history** to inspect recent runs. `/agentvolve-history` opens
+the history browser directly. The direct `/evolve-harness-status` and
+`/evolve-code-status` commands remain compatibility interfaces.
 
 From the command line:
 
