@@ -233,6 +233,9 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     implementation = (
         ROOT / "connectors/fixed/pi/population_evolution_extension.ts"
     ).read_text(encoding="utf-8")
+    support = (
+        ROOT / "connectors/fixed/pi/population_evolution_support.ts"
+    ).read_text(encoding="utf-8")
     for command in (
         '"agentvolve"',
         '"agentvolve-history"',
@@ -249,8 +252,15 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
         '"evolve-code-status"',
         '"evolve-code-verify"',
     ):
-        assert f"pi.registerCommand({command}" in implementation
+        assert command in implementation
+    assert "pi.registerCommand(name" in implementation
+    assert "registerNoArgumentCommand(" in implementation
     assert 'const MODE_NAME = "Agentvolve";' in implementation
+    assert 'from "./population_evolution_support.ts"' in implementation
+    assert "export async function codingWorkflowStatus" in support
+    assert "export async function workflowHistory" in support
+    assert "ctx.ui" not in support
+    assert "registerCommand" not in support
     assert 'name: "population_evolution"' in implementation
     assert 'name: "darwinian_coding"' in implementation
     assert 'label: "Agentvolve"' in implementation
@@ -265,14 +275,14 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'for (let stage = 1; stage <= 6; stage += 1)' in implementation
     assert '`${marker} [${stage}/6] ${label}`' in implementation
     assert 'Browse workflow history' in implementation
-    assert 'WORKFLOW_MONITOR_INTERVAL_MS = 2000' in implementation
+    assert 'WORKFLOW_MONITOR_INTERVAL_MS = 2000' in support
     assert 'await startWorkflowMonitor(ctx)' in implementation
     assert 'ctx.ui.setWidget(WIDGET_KEY, undefined)' in implementation
     assert 'pi.on("session_shutdown"' in implementation
     assert 'new SelectList(items' in implementation
-    assert "final-tasks.json" not in implementation
-    assert "development-tasks.json" not in implementation
-    assert "execSync" not in implementation
+    assert "final-tasks.json" not in implementation + support
+    assert "development-tasks.json" not in implementation + support
+    assert "execSync" not in implementation + support
 
 
 def test_coding_agent_application_is_provider_neutral():

@@ -51,6 +51,11 @@ canonical runtime profile and rejects disagreement.
 
 ## Interactive Agentvolve mode
 
+The implementation is split by responsibility:
+`population_evolution_extension.ts` owns Pi lifecycle, commands, tools, and TUI
+effects; `population_evolution_support.ts` owns runtime/profile path handling,
+run discovery, strict status parsing, and report summaries.
+
 From a trusted source checkout, plain `pi` can load the thin project entrypoint
 at `.pi/extensions/population-evolution.ts` after Pi's project-trust decision.
 To make `/agentvolve` available from every Pi working directory, add that
