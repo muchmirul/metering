@@ -146,8 +146,9 @@ Provider files do not enter this application owner. Pi and Prime Agent
 translations under `connectors/fixed/` return one strict action with tools,
 sessions, and discovery disabled. The `.pi/extensions/` entrypoint only
 re-exports the fixed Pi connector's Agentvolve extension and may be listed by
-absolute path in Pi's global settings. Its `/agentvolve` UI can select local
-Qwen/llama.cpp or retain the preceding routed outer-session Pi model. This UI
+absolute path in Pi's global settings. Its `/agentvolve` UI presents one
+streamlined workflow and an always-visible six-stage projection while allowing
+local Qwen/llama.cpp or the preceding routed outer-session Pi model. This UI
 choice does not rewrite the canonical manifest used by nested calls and does not
 move recurrence, evaluation, final tasks, runtime identity, or selection
 authority into Pi.

@@ -75,15 +75,13 @@ type AgentvolveModelMode = "local" | "routed";
 type AgentvolveMenuAction =
 	| "close"
 	| "deactivate"
-	| "harness"
-	| "harness-resume"
-	| "harness-retry"
-	| "harness-status"
-	| "solution"
-	| "solution-resume"
-	| "solution-retry"
-	| "solution-status"
-	| "solution-verify";
+	| "workflow"
+	| "workflow-resume"
+	| "workflow-retry"
+	| "workflow-status"
+	| "workflow-verify";
+
+type WorkflowAction = "run" | "resume" | "retry" | "status" | "verify";
 
 function repositoryRoot(): string {
 	return resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -406,14 +404,26 @@ function setModeWidget(
 	modelLabel?: string,
 ): void {
 	const lines = [
-		ctx.ui.theme.fg("accent", `🧬 ${MODE_NAME}`) +
-			ctx.ui.theme.fg("dim", " · evolve harness · evolve code · verify"),
+		ctx.ui.theme.fg("accent", `🧬 ${MODE_NAME}`) + ctx.ui.theme.fg("dim", " · unified workflow"),
+		ctx.ui.theme.fg(
+			"dim",
+			modelMode && modelLabel ? `model mode: ${modelMode} · ${modelLabel}` : "model mode: not active",
+		),
 	];
-	if (modelMode && modelLabel) {
-		lines.push(ctx.ui.theme.fg("dim", `model mode: ${modelMode} · ${modelLabel}`));
+	const match = summary?.process?.match(/^\[(\d+)\/6\]/);
+	const currentStage = match ? Number.parseInt(match[1], 10) : undefined;
+	const inProgress = summary?.status === "in progress";
+	const failed = summary?.status === "failed";
+	lines.push(ctx.ui.theme.fg("accent", `workflow status: ${summary?.status ?? "not started"}`));
+	for (let stage = 1; stage <= 6; stage += 1) {
+		const label = PROCESS_LABELS[stage];
+		const isCurrent = stage === currentStage;
+		const completed = currentStage !== undefined && (stage < currentStage || (isCurrent && !inProgress && !failed));
+		const marker = completed ? "✓" : isCurrent && failed ? "!" : isCurrent ? "▶" : "○";
+		const color = completed ? "success" : isCurrent && failed ? "error" : isCurrent ? "warning" : "dim";
+		lines.push(ctx.ui.theme.fg(color, `${marker} [${stage}/6] ${label}`));
 	}
 	if (summary) {
-		if (summary.process) lines.push(ctx.ui.theme.fg("accent", summary.process));
 		const assay =
 			summary.finalPassed === undefined || summary.finalTasks === undefined
 				? summary.status
@@ -441,6 +451,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	let activeModelMode: AgentvolveModelMode | undefined;
 	let activeModelLabel: string | undefined;
 	let originalModeState: OriginalModeState | undefined;
+	let workflowSummary: ModeSummary | undefined;
 	let running = false;
 
 	async function ensureLocalRuntime(selection: RuntimeSelection, signal?: AbortSignal): Promise<void> {
@@ -467,7 +478,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	}
 
 	function renderModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
-		setModeWidget(ctx, summary, activeModelMode, activeModelLabel);
+		if (summary) workflowSummary = summary;
+		setModeWidget(ctx, workflowSummary, activeModelMode, activeModelLabel);
 	}
 
 	async function activateAgentvolveMode(
@@ -569,9 +581,9 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		activeModelMode = undefined;
 		activeModelLabel = undefined;
 		originalModeState = undefined;
-		setModeStatus(ctx, "available");
-		ctx.ui.setWidget(WIDGET_KEY, undefined);
-		ctx.ui.notify("Agentvolve mode closed; background services were not stopped", "info");
+		setModeStatus(ctx, "available", workflowSummary?.process);
+		renderModeWidget(ctx);
+		ctx.ui.notify("Agentvolve mode closed; workflow status remains visible", "info");
 	}
 
 	async function selectAgentvolveModelMode(ctx: ExtensionContext): Promise<AgentvolveModelMode | null> {
@@ -618,16 +630,32 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	async function selectAgentvolveAction(ctx: ExtensionContext): Promise<AgentvolveMenuAction | null> {
 		const items: SelectItem[] = [
-			{ value: "harness", label: "Evolve harness", description: "Start a new bounded Level-2 Qwen run" },
-			{ value: "harness-status", label: "Harness status", description: "Inspect the latest Level-2 run" },
-			{ value: "harness-resume", label: "Resume harness", description: "Continue only replay-authorized effects" },
-			{ value: "harness-retry", label: "Retry harness", description: "Explicitly authorize one pending attempt" },
-			{ value: "solution", label: "Evolve solution", description: "Start Level 1 from an approved task profile" },
-			{ value: "solution-status", label: "Solution status", description: "Inspect the latest Level-1 run" },
-			{ value: "solution-resume", label: "Resume solution", description: "Continue only replay-authorized effects" },
-			{ value: "solution-retry", label: "Retry solution", description: "Explicitly authorize one pending attempt" },
-			{ value: "solution-verify", label: "Verify solution", description: "Replay the latest sealed result offline" },
-			{ value: "close", label: "Close menu", description: "Keep the selected Agentvolve model mode active" },
+			{
+				value: "workflow",
+				label: "Start Agentvolve workflow",
+				description: "Run the complete [1/6] through [6/6] pipeline",
+			},
+			{
+				value: "workflow-status",
+				label: "Refresh workflow status",
+				description: "Refresh the always-visible six-stage tracker",
+			},
+			{
+				value: "workflow-resume",
+				label: "Resume workflow",
+				description: "Continue the latest replay-authorized workflow effect",
+			},
+			{
+				value: "workflow-retry",
+				label: "Retry pending attempt",
+				description: "Explicitly authorize the workflow's pending model attempt",
+			},
+			{
+				value: "workflow-verify",
+				label: "Verify completed workflow",
+				description: "Replay the latest sealed workflow result offline",
+			},
+			{ value: "close", label: "Close menu", description: "Keep Agentvolve mode and its status tracker active" },
 			{ value: "deactivate", label: "Exit Agentvolve mode", description: "Restore the preceding Pi model" },
 		];
 		return ctx.ui.custom<AgentvolveMenuAction | null>((tui, theme, _keybindings, done) => {
@@ -635,7 +663,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			container.addChild(new DynamicBorder((text: string) => theme.fg("accent", text)));
 			container.addChild(
 				new Text(
-					theme.fg("accent", theme.bold(`Agentvolve · ${activeModelMode} · ${activeModelLabel}`)),
+					theme.fg(
+						"accent",
+						theme.bold(`Agentvolve workflow [1/6] → [6/6] · ${activeModelMode} · ${activeModelLabel}`),
+					),
 					1,
 					0,
 				),
@@ -734,6 +765,33 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				? { ...runSummary(root, value as Record<string, unknown>), action: "status" as const }
 				: codingSolutionSummary(root, value as Record<string, unknown>, "status");
 		return { ...summary, process: process.display };
+	}
+
+	async function latestUnfinishedCodingRun(): Promise<{ kind: "harness" | "solution"; root: string } | null> {
+		const runs: Array<{ kind: "harness" | "solution"; root: string }> = [];
+		for (const kind of ["harness", "solution"] as const) {
+			const root = await latestCodingRoot(kind, false);
+			if (root && !existsSync(join(root, "experiment-report.json"))) runs.push({ kind, root });
+		}
+		runs.sort((left, right) => {
+			const leftStamp = left.root.slice(left.root.lastIndexOf("-pi-") + 4);
+			const rightStamp = right.root.slice(right.root.lastIndexOf("-pi-") + 4);
+			return rightStamp.localeCompare(leftStamp);
+		});
+		return runs[0] ?? null;
+	}
+
+	async function codingWorkflowStatus(): Promise<ModeSummary> {
+		const unfinished = await latestUnfinishedCodingRun();
+		if (unfinished) return codingStatus(unfinished.kind);
+		if (await latestCodingRoot("solution")) return codingStatus("solution");
+		if (await latestCodingRoot("harness")) return codingStatus("harness");
+		return {
+			action: "status",
+			kind: "coding-solution",
+			runRoot: runsDirectory(),
+			status: "not started",
+		};
 	}
 
 	async function executeCoding(
@@ -871,6 +929,86 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	async function executeWorkflow(
+		action: WorkflowAction,
+		ctx: ExtensionContext,
+		argument = "",
+		signal?: AbortSignal,
+	): Promise<ModeSummary> {
+		if (action === "status") return codingWorkflowStatus();
+		if (action === "run") {
+			const unfinished = await latestUnfinishedCodingRun();
+			if (unfinished) {
+				throw new Error(
+					`an unfinished workflow is already at ${unfinished.root}; choose Resume workflow or Retry pending attempt`,
+				);
+			}
+			const profile = configuredTaskProfile(argument);
+			if (!(await latestCodingRoot("harness"))) await executeCoding("harness", ctx, "", signal);
+			return executeCoding("solution", ctx, profile, signal);
+		}
+		if (action === "verify") return executeCoding("solution-verify", ctx, "", signal);
+		const unfinished = await latestUnfinishedCodingRun();
+		if (!unfinished) throw new Error(`no unfinished Agentvolve workflow exists to ${action}`);
+		if (action === "retry" && !argument.trim()) {
+			throw new Error("Retry pending attempt requires an operator-approved reason");
+		}
+		const codingAction =
+			unfinished.kind === "harness"
+				? action === "retry"
+					? "harness-retry"
+					: "harness-resume"
+				: action === "retry"
+					? "solution-retry"
+					: "solution-resume";
+		return executeCoding(codingAction, ctx, argument, signal);
+	}
+
+	async function workflowLoader(
+		action: Exclude<WorkflowAction, "status">,
+		ctx: ExtensionContext,
+		argument = "",
+	): Promise<void> {
+		if (ctx.mode !== "tui") {
+			ctx.ui.notify("Agentvolve workflow commands require interactive Pi", "error");
+			return;
+		}
+		const result = await ctx.ui.custom<LoaderResult | null>((tui, theme, _keybindings, done) => {
+			const label =
+				action === "run"
+					? "Running the unified Agentvolve workflow [1/6] → [6/6]…"
+					: action === "resume"
+						? "Resuming the current Agentvolve workflow stage…"
+						: action === "retry"
+							? "Retrying the explicitly approved pending workflow attempt…"
+							: "Verifying the completed Agentvolve workflow offline…";
+			const loader = new BorderedLoader(tui, theme, label);
+			loader.onAbort = () => done(null);
+			executeWorkflow(action, ctx, argument, loader.signal)
+				.then((summary) => done({ summary }))
+				.catch((error) => done({ error: String(error) }));
+			return loader;
+		});
+		if (result === null) {
+			ctx.ui.notify("Agentvolve workflow command cancelled", "info");
+			return;
+		}
+		if (result.error) {
+			try {
+				renderModeWidget(ctx, await codingWorkflowStatus());
+			} catch {
+				renderModeWidget(ctx);
+			}
+			ctx.ui.notify(result.error, "error");
+			return;
+		}
+		if (result.summary) {
+			renderModeWidget(ctx, result.summary);
+			pi.appendEntry("darwinian-coding-run", result.summary);
+			ctx.ui.notify(humanSummary(result.summary), "info");
+		}
+	}
+
 	async function codingLoader(
 		action:
 			| "harness"
@@ -961,6 +1099,17 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	async function showWorkflowStatus(ctx: ExtensionContext): Promise<void> {
+		try {
+			const summary = await codingWorkflowStatus();
+			renderModeWidget(ctx, summary);
+			setModeStatus(ctx, modeActive ? "ready" : "available", summary.process);
+			ctx.ui.notify(humanSummary(summary), "info");
+		} catch (error) {
+			ctx.ui.notify(String(error), "error");
+		}
+	}
+
 	async function openAgentvolve(ctx: ExtensionContext): Promise<void> {
 		if (ctx.mode !== "tui") {
 			ctx.ui.notify("/agentvolve requires interactive Pi", "error");
@@ -974,32 +1123,32 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			await deactivateAgentvolveMode(ctx);
 			return;
 		}
-		if (action === "harness-status" || action === "solution-status") {
-			await showCodingStatus(action === "harness-status" ? "harness" : "solution", ctx);
+		if (action === "workflow-status") {
+			await showWorkflowStatus(ctx);
 			return;
 		}
-		if (action === "solution") {
+		if (action === "workflow") {
 			const profile = await ctx.ui.input(
-				"Agentvolve task profile",
+				"Agentvolve workflow task profile",
 				process.env.METERING_EVOLUTION_TASK_PROFILE ?? "/absolute/path/to/task.json",
 			);
 			if (!profile) {
-				ctx.ui.notify("Agentvolve solution run cancelled", "info");
+				ctx.ui.notify("Agentvolve workflow cancelled", "info");
 				return;
 			}
-			await codingLoader("solution", ctx, profile);
+			await workflowLoader("run", ctx, profile);
 			return;
 		}
-		if (action === "harness-retry" || action === "solution-retry") {
+		if (action === "workflow-retry") {
 			const reason = await ctx.ui.input("Operator-approved retry reason", "reviewed reason");
 			if (!reason) {
 				ctx.ui.notify("Agentvolve retry cancelled", "info");
 				return;
 			}
-			await codingLoader(action, ctx, reason);
+			await workflowLoader("retry", ctx, reason);
 			return;
 		}
-		await codingLoader(action, ctx);
+		await workflowLoader(action === "workflow-resume" ? "resume" : "verify", ctx);
 	}
 
 	pi.registerCommand("agentvolve", {
@@ -1224,9 +1373,15 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		activeModelMode = undefined;
 		activeModelLabel = undefined;
 		originalModeState = undefined;
-		setModeStatus(ctx, "available");
-		ctx.ui.setWidget(WIDGET_KEY, undefined);
-		ctx.ui.notify(`${MODE_NAME} is available. Run /agentvolve and choose local or routed Pi model mode.`, "info");
+		workflowSummary = undefined;
+		try {
+			workflowSummary = await codingWorkflowStatus();
+		} catch {
+			workflowSummary = undefined;
+		}
+		setModeStatus(ctx, "available", workflowSummary?.process);
+		renderModeWidget(ctx);
+		ctx.ui.notify(`${MODE_NAME} is available. The complete [1/6]–[6/6] workflow is always visible.`, "info");
 	});
 
 	pi.on("before_agent_start", async (event) => {

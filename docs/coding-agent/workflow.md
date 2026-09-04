@@ -1,17 +1,18 @@
 # Six-stage Agentvolve process
 
-This is Agentvolve's operator-facing lifecycle. It deliberately hides internal
-Controller, Population, Git, and receipt
-transitions behind six stable stages.
+This is Agentvolve's operator-facing lifecycle. The `/agentvolve` UI presents
+one streamlined workflow and deliberately hides the internal harness/solution,
+Controller, Population, Git, and receipt boundaries. Its widget remains visible
+and lists all six stages at all times.
 
 ## Tracker
 
 | Stage | Meaning | Typical command or evidence |
 |---|---|---|
 | **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | runtime/task profiles and kernel conformance |
-| **[2/6] Evolving harness** | Level 2 proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | `/evolve-harness` |
+| **[2/6] Evolving harness** | Agentvolve proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | **Start Agentvolve workflow** |
 | **[3/6] Harness sealed** | One harness has been allocated, protected-final tested, and permanently sealed. | `selected-harness.json` |
-| **[4/6] Evolving solution** | Level 1 uses the frozen harness to create and independently test immutable solution commits until a verified goal or finite limit stops recurrence. | `/evolve-code TASK.json` |
+| **[4/6] Evolving solution** | The frozen harness creates and independently tests immutable solution commits until a verified goal or finite limit stops recurrence. | automatic workflow continuation |
 | **[5/6] Protected final assay** | Development has stopped, final allocation is committed, and protected checks are running. | final-role Population records |
 | **[6/6] Result ready for review** | The selected commit, patch, and replayable evidence are ready for operator verification. | `selected-solution.json` and `selected.patch` |
 
@@ -26,17 +27,15 @@ The normal transition is:
    → [6/6] review result
 ```
 
-A previously sealed Level-2 harness can be reused, so later tasks commonly
-start operational work at `[4/6]` after revalidating stages 1 and 3.
+A previously sealed harness can be reused, so later tasks commonly begin new
+model work at `[4/6]` after Agentvolve revalidates the earlier stages.
 
 ## Viewing status
 
-From interactive Pi:
-
-```text
-/evolve-harness-status
-/evolve-code-status
-```
+In interactive Pi the complete tracker is always shown. Use `/agentvolve` and
+choose **Refresh workflow status** to refresh it explicitly. The direct
+`/evolve-harness-status` and `/evolve-code-status` commands remain compatibility
+interfaces.
 
 From the command line:
 

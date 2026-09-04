@@ -602,7 +602,12 @@ launcher and retains `/evolve-harness`, `/evolve-harness-status`,
 `/evolve-code-verify` as compatibility commands. A caller may explicitly list
 the reviewed absolute extension path in Pi's global settings to make the command
 available from every working directory. `/agentvolve` first offers local and
-routed outer-session model modes, then opens a bounded action UI. Local mode
+routed outer-session model modes, then opens one bounded workflow UI rather than
+exposing Level-1 and Level-2 choices. The UI always renders all six explicit
+`[n/6]` stages and offers one start/status/resume/retry/verify control surface.
+Start validates one task profile, reuses an already sealed compatible harness or
+creates one when none exists, and then continues through solution evolution and
+the protected final assay. It refuses to hide or bypass an unfinished run. Local mode
 starts the configured user llama.cpp service when needed, waits for the declared
 Qwen alias, and selects the canonical runtime's provider/model/reasoning level.
 Routed mode retains or restores the Pi model that preceded Agentvolve and does
@@ -612,8 +617,9 @@ runtime manifest. Loading the extension alone performs none of those effects.
 Mode selection and service activation are UI transport conveniences, not
 evaluation evidence or changes to nested runtime identity. A routed UI model
 cannot silently become the experiment model; that requires a separately
-reviewed runtime manifest and constitutes a different experiment. Resume cannot repeat an indeterminate
-model call; retry requires an operator reason and a predeclared call/time
+reviewed runtime manifest and constitutes a different experiment. Resume cannot
+repeat an indeterminate model call; retry requires an operator reason and a
+predeclared call/time
 reservation. The model-facing
 `darwinian_coding` tool accepts only a
 fixed action enum and uses the operator-configured absolute profile; it accepts

@@ -259,6 +259,10 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'type AgentvolveModelMode = "local" | "routed"' in implementation
     assert 'Agentvolve · choose model mode' in implementation
     assert 'experiments stay runtime-pinned' in implementation
+    assert 'Start Agentvolve workflow' in implementation
+    assert 'Run the complete [1/6] through [6/6] pipeline' in implementation
+    assert 'for (let stage = 1; stage <= 6; stage += 1)' in implementation
+    assert '`${marker} [${stage}/6] ${label}`' in implementation
     assert 'new SelectList(items' in implementation
     assert "final-tasks.json" not in implementation
     assert "development-tasks.json" not in implementation

@@ -88,9 +88,28 @@ The first picker offers two outer-session modes:
   level that Pi was using before Agentvolve. Merely opening this mode does not
   start llama.cpp.
 
-Both modes then show the same keyboard-driven action menu. When an evolution
-action is selected, nested mutation and evaluation remain bound to the canonical
-runtime manifest. Therefore a routed outer model can discuss and operate the UI
+Both modes then show one keyboard-driven workflow menu: **Start workflow**,
+**Refresh workflow status**, **Resume workflow**, **Retry pending attempt**, and
+**Verify completed workflow**. There are no Level-1 or Level-2 choices in this
+UI. Start asks once for the approved task profile, reuses a completed sealed
+harness or creates one when none exists, and proceeds through the solution and
+protected assay. An unfinished run must be resumed or explicitly retried before
+a new workflow starts.
+
+The widget remains visible even when Agentvolve mode is inactive and always
+shows every explicit stage with `✓`, `▶`, `!`, or `○` markers:
+
+```text
+[1/6] Task and runtime configured
+[2/6] Evolving harness
+[3/6] Harness sealed
+[4/6] Evolving solution
+[5/6] Protected final assay
+[6/6] Result ready for review
+```
+
+When an evolution action is selected, nested mutation and evaluation remain
+bound to the canonical runtime manifest. Therefore a routed outer model can discuss and operate the UI
 but cannot silently replace Qwen in assay evidence; doing that requires a
 separately reviewed runtime manifest and creates a distinct experiment. Exiting
 Agentvolve restores the preceding outer Pi model and leaves any service running.

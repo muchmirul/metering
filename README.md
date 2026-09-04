@@ -129,10 +129,15 @@ Start or reload Pi, then open the primary UI:
 The launcher first offers **Local model** and **Routed Pi model** modes. Local
 mode activates the configured Qwen/llama.cpp service and selects the canonical
 runtime model in the outer Pi session. Routed mode keeps the model Pi was
-already using. Both then present harness, solution, status, resume, retry, and
-verification actions. Evolution itself remains pinned to the canonical runtime
-manifest; routed UI mode does not silently change experiment identity. Existing
-direct commands remain available:
+already using. Both open one streamlined UI with **Start workflow**, **Refresh
+status**, **Resume**, **Retry**, and **Verify**. The status widget is always
+visible and explicitly lists every stage from `[1/6]` through `[6/6]`, including
+completed, current, and pending markers. Starting the workflow asks once for the
+task profile, reuses a sealed harness when available (or creates one when none
+exists), and continues through the solution and protected final assay. Evolution
+itself remains pinned to the canonical runtime manifest; routed UI mode does not
+silently change experiment identity. Existing direct compatibility commands
+remain available:
 
 ```text
 /evolve-harness

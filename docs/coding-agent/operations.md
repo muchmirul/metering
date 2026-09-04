@@ -120,9 +120,15 @@ It first offers two outer-session modes. **Local model** starts the configured
 Qwen/llama.cpp user service if needed, waits for the canonical runtime alias,
 and switches outer Pi to that model/reasoning selection. **Routed Pi model**
 keeps or restores the model Pi was already using and does not start llama.cpp
-merely to open the menu. Evolution actions in both modes remain bound to the
-canonical runtime manifest; changing the actual experiment model requires a
-separately reviewed manifest. Direct compatibility commands are:
+merely to open the menu. The next screen is a single workflow surface with
+start, refresh status, resume, retry, and verify actions. It does not expose the
+internal Level-1/Level-2 split. The always-visible widget lists all six stages
+explicitly as `[1/6]` through `[6/6]`, marking completed, current, failed, and
+pending stages. Start requests the task profile once and runs or reuses the
+sealed harness before continuing into solution evolution and the final assay.
+Evolution actions in both modes remain bound to the canonical runtime manifest;
+changing the actual experiment model requires a separately reviewed manifest.
+Direct compatibility commands are:
 
 ```text
 /evolve-harness
