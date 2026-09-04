@@ -2,15 +2,18 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-import { StringEnum } from "@earendil-works/pi-ai";
+import { type Api, type Model, StringEnum } from "@earendil-works/pi-ai";
 import {
 	BorderedLoader,
+	DynamicBorder,
 	type ExecResult,
 	type ExtensionAPI,
 	type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 const MODE_NAME = "Agentvolve";
@@ -18,7 +21,10 @@ const STATUS_KEY = "population-evolution";
 const WIDGET_KEY = "population-evolution";
 const RUN_NAME = /^pi-\d{8}T\d{6}(?:\d{3})?Z$/;
 const COMMAND_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+const LOCAL_RUNTIME_TIMEOUT_MS = 3 * 60 * 1000;
 const MAX_DIAGNOSTIC_CHARS = 4000;
+const DEFAULT_LLAMACPP_SERVICE = "llama-qwen38.service";
+const DEFAULT_LLAMACPP_HEALTH_URL = "http://127.0.0.1:8080/v1/models";
 const PROCESS_LABELS: Record<number, string> = {
 	1: "Task and runtime configured",
 	2: "Evolving harness",
@@ -51,6 +57,34 @@ interface LoaderResult {
 	summary?: ModeSummary;
 }
 
+type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
+interface RuntimeSelection {
+	model: string;
+	provider: string;
+	reasoning: ThinkingLevel;
+}
+
+interface OriginalModeState {
+	model: Model<Api> | undefined;
+	thinkingLevel: ThinkingLevel;
+}
+
+type AgentvolveModelMode = "local" | "routed";
+
+type AgentvolveMenuAction =
+	| "close"
+	| "deactivate"
+	| "harness"
+	| "harness-resume"
+	| "harness-retry"
+	| "harness-status"
+	| "solution"
+	| "solution-resume"
+	| "solution-retry"
+	| "solution-status"
+	| "solution-verify";
+
 function repositoryRoot(): string {
 	return resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 }
@@ -68,6 +102,73 @@ function runtimeManifest(): string {
 		"METERING_EVOLUTION_RUNTIME_MANIFEST",
 		join(homedir(), ".config", "metering", "harness", "runtime.pi.local.json"),
 	);
+}
+
+async function configuredRuntimeSelection(): Promise<RuntimeSelection> {
+	const path = runtimeManifest();
+	if (!existsSync(path)) throw new Error(`reviewed runtime manifest is unavailable: ${path}`);
+	const value: unknown = JSON.parse(await readFile(path, "utf8"));
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		throw new Error("reviewed runtime manifest is malformed");
+	}
+	const model = (value as Record<string, unknown>).model;
+	if (typeof model !== "object" || model === null || Array.isArray(model)) {
+		throw new Error("reviewed runtime manifest has no model selection");
+	}
+	const selection = model as Record<string, unknown>;
+	const levels = new Set<ThinkingLevel>(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+	if (
+		typeof selection.provider !== "string" ||
+		typeof selection.model !== "string" ||
+		typeof selection.reasoning !== "string" ||
+		!levels.has(selection.reasoning as ThinkingLevel)
+	) {
+		throw new Error("reviewed runtime manifest has an invalid model selection");
+	}
+	return {
+		model: selection.model,
+		provider: selection.provider,
+		reasoning: selection.reasoning as ThinkingLevel,
+	};
+}
+
+function llamaCppService(): string {
+	return process.env.METERING_EVOLUTION_LLAMACPP_SERVICE?.trim() || DEFAULT_LLAMACPP_SERVICE;
+}
+
+function llamaCppHealthUrl(): string {
+	return process.env.METERING_EVOLUTION_LLAMACPP_HEALTH_URL?.trim() || DEFAULT_LLAMACPP_HEALTH_URL;
+}
+
+async function llamaCppModelReady(selection: RuntimeSelection, signal?: AbortSignal): Promise<boolean> {
+	try {
+		const response = await fetch(llamaCppHealthUrl(), {
+			headers: {
+				Authorization: `Bearer ${process.env.METERING_EVOLUTION_LLAMACPP_API_KEY ?? "llamacpp"}`,
+			},
+			signal,
+		});
+		if (!response.ok) return false;
+		const value: unknown = await response.json();
+		if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+		const data = (value as Record<string, unknown>).data;
+		if (!Array.isArray(data)) return false;
+		return data.some((item) => {
+			if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+			const model = item as Record<string, unknown>;
+			const status = model.status;
+			return (
+				model.id === selection.model &&
+				typeof status === "object" &&
+				status !== null &&
+				!Array.isArray(status) &&
+				["loaded", "ready"].includes(String((status as Record<string, unknown>).value))
+			);
+		});
+	} catch (error) {
+		if (signal?.aborted) throw error;
+		return false;
+	}
 }
 
 function runsDirectory(): string {
@@ -289,16 +390,28 @@ async function statusSummary(): Promise<ModeSummary> {
 	return { ...summary, action: "status" };
 }
 
-function setModeStatus(ctx: ExtensionContext, state: "failed" | "ready" | "running", process?: string): void {
-	const color = state === "failed" ? "error" : state === "running" ? "warning" : "accent";
+function setModeStatus(
+	ctx: ExtensionContext,
+	state: "available" | "failed" | "ready" | "running",
+	process?: string,
+): void {
+	const color = state === "failed" ? "error" : state === "running" ? "warning" : state === "available" ? "dim" : "accent";
 	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(color, `agentvolve: ${process ?? state}`));
 }
 
-function setModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
+function setModeWidget(
+	ctx: ExtensionContext,
+	summary?: ModeSummary,
+	modelMode?: AgentvolveModelMode,
+	modelLabel?: string,
+): void {
 	const lines = [
 		ctx.ui.theme.fg("accent", `🧬 ${MODE_NAME}`) +
 			ctx.ui.theme.fg("dim", " · evolve harness · evolve code · verify"),
 	];
+	if (modelMode && modelLabel) {
+		lines.push(ctx.ui.theme.fg("dim", `model mode: ${modelMode} · ${modelLabel}`));
+	}
 	if (summary) {
 		if (summary.process) lines.push(ctx.ui.theme.fg("accent", summary.process));
 		const assay =
@@ -324,7 +437,231 @@ function humanSummary(summary: ModeSummary): string {
 }
 
 export default function populationEvolutionExtension(pi: ExtensionAPI): void {
+	let modeActive = false;
+	let activeModelMode: AgentvolveModelMode | undefined;
+	let activeModelLabel: string | undefined;
+	let originalModeState: OriginalModeState | undefined;
 	let running = false;
+
+	async function ensureLocalRuntime(selection: RuntimeSelection, signal?: AbortSignal): Promise<void> {
+		if (selection.provider !== "llamacpp") return;
+		if (await llamaCppModelReady(selection, signal)) return;
+		const service = llamaCppService();
+		const restart = await pi.exec("systemctl", ["--user", "restart", service], {
+			signal,
+			timeout: 30_000,
+		});
+		if (restart.killed || restart.code !== 0) {
+			throw new Error(boundedDiagnostic(restart.stderr || restart.stdout) || `cannot start ${service}`);
+		}
+		const deadline = Date.now() + LOCAL_RUNTIME_TIMEOUT_MS;
+		while (Date.now() < deadline) {
+			signal?.throwIfAborted();
+			if (await llamaCppModelReady(selection, signal)) return;
+			await delay(1000, undefined, { signal });
+		}
+		throw new Error(
+			`${selection.provider}/${selection.model} did not become ready through ${service}; ` +
+				"configure that preset for load-on-startup and inspect the user service",
+		);
+	}
+
+	function renderModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
+		setModeWidget(ctx, summary, activeModelMode, activeModelLabel);
+	}
+
+	async function activateAgentvolveMode(
+		ctx: ExtensionContext,
+		signal?: AbortSignal,
+		requestedMode: AgentvolveModelMode = activeModelMode ?? "local",
+	): Promise<void> {
+		const wasActive = modeActive;
+		const previousMode = activeModelMode;
+		const previousLabel = activeModelLabel;
+		if (!originalModeState) {
+			originalModeState = {
+				model: ctx.model,
+				thinkingLevel: pi.getThinkingLevel(),
+			};
+		}
+		if (requestedMode === "routed") {
+			setModeStatus(ctx, "running", "selecting routed Pi model");
+			try {
+				if (originalModeState.model && !(await pi.setModel(originalModeState.model))) {
+					throw new Error("Pi could not restore the routed model that preceded Agentvolve");
+				}
+				pi.setThinkingLevel(originalModeState.thinkingLevel);
+				const model = originalModeState.model ?? ctx.model;
+				activeModelMode = "routed";
+				activeModelLabel = model ? `${model.provider}/${model.id}` : "current Pi route";
+				modeActive = true;
+				setModeStatus(ctx, "ready", `routed · ${activeModelLabel}`);
+				renderModeWidget(ctx);
+				return;
+			} catch (error) {
+				modeActive = wasActive;
+				activeModelMode = previousMode;
+				activeModelLabel = previousLabel;
+				if (!wasActive) originalModeState = undefined;
+				setModeStatus(ctx, "failed", "routed Pi model");
+				throw error;
+			}
+		}
+
+		const selection = await configuredRuntimeSelection();
+		setModeStatus(ctx, "running", `activating ${selection.provider}/${selection.model}`);
+		try {
+			await ensureLocalRuntime(selection, signal);
+			const model = ctx.modelRegistry.find(selection.provider, selection.model);
+			if (!model) throw new Error(`Pi model is unavailable: ${selection.provider}/${selection.model}`);
+			if (!(await pi.setModel(model))) {
+				throw new Error(`Pi has no usable authentication for ${selection.provider}/${selection.model}`);
+			}
+			pi.setThinkingLevel(selection.reasoning);
+			activeModelMode = "local";
+			activeModelLabel = `${selection.provider}/${selection.model}`;
+			modeActive = true;
+			setModeStatus(ctx, "ready", `local · ${activeModelLabel}`);
+			renderModeWidget(ctx);
+		} catch (error) {
+			modeActive = wasActive;
+			activeModelMode = previousMode;
+			activeModelLabel = previousLabel;
+			if (!wasActive) originalModeState = undefined;
+			setModeStatus(ctx, "failed", `${selection.provider}/${selection.model}`);
+			throw error;
+		}
+	}
+
+	async function activateAgentvolveWithLoader(
+		ctx: ExtensionContext,
+		requestedMode: AgentvolveModelMode,
+	): Promise<boolean> {
+		const result = await ctx.ui.custom<{ error?: string } | null>((tui, theme, _keybindings, done) => {
+			const label =
+				requestedMode === "local"
+					? "Activating Qwen through llama.cpp…"
+					: "Entering Agentvolve with the routed Pi model…";
+			const loader = new BorderedLoader(tui, theme, label);
+			loader.onAbort = () => done(null);
+			activateAgentvolveMode(ctx, loader.signal, requestedMode)
+				.then(() => done({}))
+				.catch((error) => done({ error: String(error) }));
+			return loader;
+		});
+		if (result === null) {
+			ctx.ui.notify("Agentvolve activation cancelled", "info");
+			return false;
+		}
+		if (result.error) {
+			ctx.ui.notify(result.error, "error");
+			return false;
+		}
+		return true;
+	}
+
+	async function deactivateAgentvolveMode(ctx: ExtensionContext): Promise<void> {
+		if (originalModeState?.model && !(await pi.setModel(originalModeState.model))) {
+			ctx.ui.notify("Could not restore the model that preceded Agentvolve", "warning");
+		}
+		if (originalModeState) pi.setThinkingLevel(originalModeState.thinkingLevel);
+		modeActive = false;
+		activeModelMode = undefined;
+		activeModelLabel = undefined;
+		originalModeState = undefined;
+		setModeStatus(ctx, "available");
+		ctx.ui.setWidget(WIDGET_KEY, undefined);
+		ctx.ui.notify("Agentvolve mode closed; background services were not stopped", "info");
+	}
+
+	async function selectAgentvolveModelMode(ctx: ExtensionContext): Promise<AgentvolveModelMode | null> {
+		const routedModel = modeActive && originalModeState?.model ? originalModeState.model : ctx.model;
+		const routedLabel = routedModel ? `${routedModel.provider}/${routedModel.id}` : "the current Pi model";
+		const items: SelectItem[] = [
+			{
+				value: "local",
+				label: activeModelMode === "local" ? "Local model ✓" : "Local model",
+				description: "Use the canonical Qwen model through llama.cpp",
+			},
+			{
+				value: "routed",
+				label: activeModelMode === "routed" ? "Routed Pi model ✓" : "Routed Pi model",
+				description: `Use ${routedLabel} for the outer Pi session; experiments stay runtime-pinned`,
+			},
+		];
+		return ctx.ui.custom<AgentvolveModelMode | null>((tui, theme, _keybindings, done) => {
+			const container = new Container();
+			container.addChild(new DynamicBorder((text: string) => theme.fg("accent", text)));
+			container.addChild(new Text(theme.fg("accent", theme.bold("Agentvolve · choose model mode")), 1, 0));
+			const list = new SelectList(items, items.length, {
+				selectedPrefix: (text) => theme.fg("accent", text),
+				selectedText: (text) => theme.fg("accent", text),
+				description: (text) => theme.fg("muted", text),
+				scrollInfo: (text) => theme.fg("dim", text),
+				noMatch: (text) => theme.fg("warning", text),
+			});
+			list.onSelect = (item) => done(item.value as AgentvolveModelMode);
+			list.onCancel = () => done(null);
+			container.addChild(list);
+			container.addChild(new Text(theme.fg("dim", "↑↓ navigate • enter select • esc cancel"), 1, 0));
+			container.addChild(new DynamicBorder((text: string) => theme.fg("accent", text)));
+			return {
+				render: (width: number) => container.render(width),
+				invalidate: () => container.invalidate(),
+				handleInput: (data: string) => {
+					list.handleInput(data);
+					tui.requestRender();
+				},
+			};
+		});
+	}
+
+	async function selectAgentvolveAction(ctx: ExtensionContext): Promise<AgentvolveMenuAction | null> {
+		const items: SelectItem[] = [
+			{ value: "harness", label: "Evolve harness", description: "Start a new bounded Level-2 Qwen run" },
+			{ value: "harness-status", label: "Harness status", description: "Inspect the latest Level-2 run" },
+			{ value: "harness-resume", label: "Resume harness", description: "Continue only replay-authorized effects" },
+			{ value: "harness-retry", label: "Retry harness", description: "Explicitly authorize one pending attempt" },
+			{ value: "solution", label: "Evolve solution", description: "Start Level 1 from an approved task profile" },
+			{ value: "solution-status", label: "Solution status", description: "Inspect the latest Level-1 run" },
+			{ value: "solution-resume", label: "Resume solution", description: "Continue only replay-authorized effects" },
+			{ value: "solution-retry", label: "Retry solution", description: "Explicitly authorize one pending attempt" },
+			{ value: "solution-verify", label: "Verify solution", description: "Replay the latest sealed result offline" },
+			{ value: "close", label: "Close menu", description: "Keep the selected Agentvolve model mode active" },
+			{ value: "deactivate", label: "Exit Agentvolve mode", description: "Restore the preceding Pi model" },
+		];
+		return ctx.ui.custom<AgentvolveMenuAction | null>((tui, theme, _keybindings, done) => {
+			const container = new Container();
+			container.addChild(new DynamicBorder((text: string) => theme.fg("accent", text)));
+			container.addChild(
+				new Text(
+					theme.fg("accent", theme.bold(`Agentvolve · ${activeModelMode} · ${activeModelLabel}`)),
+					1,
+					0,
+				),
+			);
+			const list = new SelectList(items, Math.min(items.length, 12), {
+				selectedPrefix: (text) => theme.fg("accent", text),
+				selectedText: (text) => theme.fg("accent", text),
+				description: (text) => theme.fg("muted", text),
+				scrollInfo: (text) => theme.fg("dim", text),
+				noMatch: (text) => theme.fg("warning", text),
+			});
+			list.onSelect = (item) => done(item.value as AgentvolveMenuAction);
+			list.onCancel = () => done(null);
+			container.addChild(list);
+			container.addChild(new Text(theme.fg("dim", "↑↓ navigate • enter select • esc close"), 1, 0));
+			container.addChild(new DynamicBorder((text: string) => theme.fg("accent", text)));
+			return {
+				render: (width: number) => container.render(width),
+				invalidate: () => container.invalidate(),
+				handleInput: (data: string) => {
+					list.handleInput(data);
+					tui.requestRender();
+				},
+			};
+		});
+	}
 
 	async function execute(
 		action: "run" | "status" | "verify",
@@ -333,6 +670,12 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	): Promise<ModeSummary> {
 		if (action === "status") return statusSummary();
 		if (running) throw new Error("a Population evolution command is already running in this Pi session");
+		if (action === "run") {
+			await activateAgentvolveMode(ctx, signal);
+			if (activeModelMode === "routed") {
+				await ensureLocalRuntime(await configuredRuntimeSelection(), signal);
+			}
+		}
 
 		const runtime = runtimeManifest();
 		if (!existsSync(runtime)) {
@@ -357,7 +700,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const report = decodeOutput(result);
 			const summary = action === "run" ? runSummary(runRoot, report) : verificationSummary(runRoot, report);
 			setModeStatus(ctx, "ready");
-			setModeWidget(ctx, summary);
+			renderModeWidget(ctx, summary);
 			return summary;
 		} catch (error) {
 			setModeStatus(ctx, "failed");
@@ -411,6 +754,12 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		if (running) throw new Error("an evolution command is already running in this Pi session");
 		if (action === "harness-status") return codingStatus("harness");
 		if (action === "solution-status") return codingStatus("solution");
+		if (action !== "solution-verify") {
+			await activateAgentvolveMode(ctx, signal);
+			if (activeModelMode === "routed") {
+				await ensureLocalRuntime(await configuredRuntimeSelection(), signal);
+			}
+		}
 		const runtime = runtimeManifest();
 		if (!existsSync(runtime)) throw new Error(`reviewed runtime manifest is unavailable: ${runtime}`);
 		await mkdir(runsDirectory(), { recursive: true });
@@ -478,7 +827,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			if (!watching || process.display === shown) return;
 			shown = process.display;
 			setModeStatus(ctx, "running", shown);
-			setModeWidget(ctx, {
+			renderModeWidget(ctx, {
 				action: "status",
 				kind: runKind === "harness" ? "coding-harness" : "coding-solution",
 				process: shown,
@@ -488,7 +837,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		};
 		running = true;
 		setModeStatus(ctx, "running", shown);
-		setModeWidget(ctx, {
+		renderModeWidget(ctx, {
 			action: "status",
 			kind: runKind === "harness" ? "coding-harness" : "coding-solution",
 			process: shown,
@@ -509,7 +858,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const process = await readProcessProjection(root, runKind, runKind === "harness" ? 3 : 6);
 			const summary = { ...baseSummary, process: process.display };
 			setModeStatus(ctx, "ready", process.display);
-			setModeWidget(ctx, summary);
+			renderModeWidget(ctx, summary);
 			return summary;
 		} catch (error) {
 			const process = await readProcessProjection(root, runKind, initial.stage).catch(() => initial);
@@ -602,6 +951,68 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	async function showCodingStatus(kind: "harness" | "solution", ctx: ExtensionContext): Promise<void> {
+		try {
+			const summary = await executeCoding(kind === "harness" ? "harness-status" : "solution-status", ctx);
+			renderModeWidget(ctx, summary);
+			ctx.ui.notify(humanSummary(summary), "info");
+		} catch (error) {
+			ctx.ui.notify(String(error), "error");
+		}
+	}
+
+	async function openAgentvolve(ctx: ExtensionContext): Promise<void> {
+		if (ctx.mode !== "tui") {
+			ctx.ui.notify("/agentvolve requires interactive Pi", "error");
+			return;
+		}
+		const modelMode = await selectAgentvolveModelMode(ctx);
+		if (modelMode === null || !(await activateAgentvolveWithLoader(ctx, modelMode))) return;
+		const action = await selectAgentvolveAction(ctx);
+		if (action === null || action === "close") return;
+		if (action === "deactivate") {
+			await deactivateAgentvolveMode(ctx);
+			return;
+		}
+		if (action === "harness-status" || action === "solution-status") {
+			await showCodingStatus(action === "harness-status" ? "harness" : "solution", ctx);
+			return;
+		}
+		if (action === "solution") {
+			const profile = await ctx.ui.input(
+				"Agentvolve task profile",
+				process.env.METERING_EVOLUTION_TASK_PROFILE ?? "/absolute/path/to/task.json",
+			);
+			if (!profile) {
+				ctx.ui.notify("Agentvolve solution run cancelled", "info");
+				return;
+			}
+			await codingLoader("solution", ctx, profile);
+			return;
+		}
+		if (action === "harness-retry" || action === "solution-retry") {
+			const reason = await ctx.ui.input("Operator-approved retry reason", "reviewed reason");
+			if (!reason) {
+				ctx.ui.notify("Agentvolve retry cancelled", "info");
+				return;
+			}
+			await codingLoader(action, ctx, reason);
+			return;
+		}
+		await codingLoader(action, ctx);
+	}
+
+	pi.registerCommand("agentvolve", {
+		description: "Open Agentvolve in local Qwen or routed Pi model mode",
+		handler: async (args, ctx) => {
+			if (args.trim()) {
+				ctx.ui.notify("/agentvolve accepts no arguments; choose an action in the UI", "error");
+				return;
+			}
+			await openAgentvolve(ctx);
+		},
+	});
+
 	pi.registerCommand("evolve", {
 		description: "Run one sealed two-generation Population experiment",
 		handler: async (args, ctx) => {
@@ -618,7 +1029,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			try {
 				const summary = await execute("status", ctx);
-				setModeWidget(ctx, summary);
+				renderModeWidget(ctx, summary);
 				ctx.ui.notify(humanSummary(summary), "info");
 			} catch (error) {
 				ctx.ui.notify(String(error), "error");
@@ -655,13 +1066,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				ctx.ui.notify("/evolve-harness-status accepts no arguments", "error");
 				return;
 			}
-			try {
-				const summary = await executeCoding("harness-status", ctx);
-				setModeWidget(ctx, summary);
-				ctx.ui.notify(humanSummary(summary), "info");
-			} catch (error) {
-				ctx.ui.notify(String(error), "error");
-			}
+			await showCodingStatus("harness", ctx);
 		},
 	});
 
@@ -718,14 +1123,12 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	pi.registerCommand("evolve-code-status", {
 		description: "Show the latest solution run and its six-stage process position",
-		handler: async (_args, ctx) => {
-			try {
-				const summary = await executeCoding("solution-status", ctx);
-				setModeWidget(ctx, summary);
-				ctx.ui.notify(humanSummary(summary), "info");
-			} catch (error) {
-				ctx.ui.notify(String(error), "error");
+		handler: async (args, ctx) => {
+			if (args.trim()) {
+				ctx.ui.notify("/evolve-code-status accepts no arguments", "error");
+				return;
 			}
+			await showCodingStatus("solution", ctx);
 		},
 	});
 
@@ -817,27 +1220,19 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		setModeStatus(ctx, "ready");
-		try {
-			const latest = await codingStatus("solution");
-			setModeWidget(ctx, latest);
-		} catch {
-			try {
-				const latest = await codingStatus("harness");
-				setModeWidget(ctx, latest);
-			} catch {
-				try {
-					const latest = await statusSummary();
-					setModeWidget(ctx, latest);
-				} catch {
-					setModeWidget(ctx);
-				}
-			}
-		}
-		ctx.ui.notify(`${MODE_NAME} active. Six-stage tracker: /evolve-harness-status or /evolve-code-status.`, "info");
+		modeActive = false;
+		activeModelMode = undefined;
+		activeModelLabel = undefined;
+		originalModeState = undefined;
+		setModeStatus(ctx, "available");
+		ctx.ui.setWidget(WIDGET_KEY, undefined);
+		ctx.ui.notify(`${MODE_NAME} is available. Run /agentvolve and choose local or routed Pi model mode.`, "info");
 	});
 
-	pi.on("before_agent_start", async (event) => ({
-		systemPrompt: `${event.systemPrompt}\n\n[${MODE_NAME.toUpperCase()}]\nThe project-local Population control plane is active. When the user explicitly asks for the reference assay, use population_evolution. For coding-harness or immutable solution evolution, use darwinian_coding; solution_run is valid only with an operator-approved METERING_EVOLUTION_TASK_PROFILE. Fixed code owns mutation transport, independent evaluation, exact Population recurrence, protected final assays, Docker isolation, receipts, and sealing. Never replace these authorities with ordinary in-place edits or describe an unevaluated edit as evolved.`,
-	}));
+	pi.on("before_agent_start", async (event) => {
+		if (!modeActive) return;
+		return {
+			systemPrompt: `${event.systemPrompt}\n\n[${MODE_NAME.toUpperCase()}]\nAgentvolve mode is active in ${activeModelMode} outer-session model mode (${activeModelLabel}). When the user explicitly asks for the reference assay, use population_evolution. For coding-harness or immutable solution evolution, use darwinian_coding; solution_run is valid only with an operator-approved METERING_EVOLUTION_TASK_PROFILE. Nested evolution calls remain bound to the provider, model, reasoning level, and budgets in the canonical runtime manifest; routed outer-session mode does not rewrite that evidence identity. Fixed code owns mutation transport, independent evaluation, exact Population recurrence, protected final assays, Docker isolation, receipts, and sealing. Never replace these authorities with ordinary in-place edits or describe an unevaluated edit as evolved.`,
+		};
+	});
 }

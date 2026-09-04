@@ -595,12 +595,26 @@ inside that run. Output is an immutable selected commit/descriptor, a
 replay-derived patch, and evidence. Applying, merging, installing, or deploying
 it is always a separate caller action.
 
-The reviewed project-local Pi extension exposes `/evolve-harness`,
-`/evolve-harness-status`, `/evolve-harness-resume`, `/evolve-harness-retry`,
-`/evolve-code`, `/evolve-code-resume`, `/evolve-code-retry`, `/evolve-code-status`, and
-`/evolve-code-verify` only after an explicit
-invocation. Resume cannot repeat an indeterminate model call; retry requires an
-operator reason and a predeclared call/time reservation. The model-facing
+The reviewed Pi extension registers `/agentvolve` as the primary interactive
+launcher and retains `/evolve-harness`, `/evolve-harness-status`,
+`/evolve-harness-resume`, `/evolve-harness-retry`, `/evolve-code`,
+`/evolve-code-resume`, `/evolve-code-retry`, `/evolve-code-status`, and
+`/evolve-code-verify` as compatibility commands. A caller may explicitly list
+the reviewed absolute extension path in Pi's global settings to make the command
+available from every working directory. `/agentvolve` first offers local and
+routed outer-session model modes, then opens a bounded action UI. Local mode
+starts the configured user llama.cpp service when needed, waits for the declared
+Qwen alias, and selects the canonical runtime's provider/model/reasoning level.
+Routed mode retains or restores the Pi model that preceded Agentvolve and does
+not start llama.cpp merely to open the UI. An evolution action in either mode
+still uses, and if necessary activates, the provider pinned by the canonical
+runtime manifest. Loading the extension alone performs none of those effects.
+Mode selection and service activation are UI transport conveniences, not
+evaluation evidence or changes to nested runtime identity. A routed UI model
+cannot silently become the experiment model; that requires a separately
+reviewed runtime manifest and constitutes a different experiment. Resume cannot repeat an indeterminate
+model call; retry requires an operator reason and a predeclared call/time
+reservation. The model-facing
 `darwinian_coding` tool accepts only a
 fixed action enum and uses the operator-configured absolute profile; it accepts
 no task, command, evaluator, candidate, or output path. Pi is mutation transport

@@ -112,8 +112,27 @@ always remains mandatory.
 
 ### Use from Pi
 
-Prepare the reviewed digest-pinned Docker runtime, start Pi from this checkout,
-and run:
+Prepare the reviewed digest-pinned Docker runtime. To register Agentvolve from
+any Pi working directory, add its reviewed absolute entrypoint to
+`~/.pi/agent/settings.json` without removing existing settings:
+
+```json
+{"extensions":["/absolute/path/to/metering/.pi/extensions/population-evolution.ts"]}
+```
+
+Start or reload Pi, then open the primary UI:
+
+```text
+/agentvolve
+```
+
+The launcher first offers **Local model** and **Routed Pi model** modes. Local
+mode activates the configured Qwen/llama.cpp service and selects the canonical
+runtime model in the outer Pi session. Routed mode keeps the model Pi was
+already using. Both then present harness, solution, status, resume, retry, and
+verification actions. Evolution itself remains pinned to the canonical runtime
+manifest; routed UI mode does not silently change experiment identity. Existing
+direct commands remain available:
 
 ```text
 /evolve-harness

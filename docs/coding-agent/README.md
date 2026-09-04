@@ -47,9 +47,12 @@ heredity. Only validated Git commits reproduce.
 [6/6] Result ready for review
 ```
 
-The tracker is a convenience projection. Candidate Git objects, canonical
-hash-linked JSONL, exact allocations, and content-addressed receipts remain the
-authoritative evidence. Level-1 recurrence can stop at a numeric round cap or at
+Run `/agentvolve` in an extension-enabled Pi session, choose local
+Qwen/llama.cpp or routed outer-Pi model mode, and use the action menu. Nested
+evolution remains pinned to the canonical runtime manifest. The tracker is a convenience
+projection. Candidate Git objects, canonical hash-linked JSONL, exact
+allocations, and content-addressed receipts remain the authoritative evidence.
+Level-1 recurrence can stop at a numeric round cap or at
 an independently evaluated development goal with that cap as a mandatory
 fallback.
 

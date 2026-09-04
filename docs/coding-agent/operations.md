@@ -100,7 +100,29 @@ search.
 
 ## Interactive Pi commands
 
-Start plain `pi` from the trusted checkout:
+For project-local use, start plain `pi` from the trusted checkout. To register
+Agentvolve in every Pi session, add the reviewed absolute project entrypoint to
+the existing `extensions` array in `~/.pi/agent/settings.json`:
+
+```json
+{"extensions":["/absolute/path/to/metering/.pi/extensions/population-evolution.ts"]}
+```
+
+Run `/reload` after changing settings in an existing session. Loading the
+extension shows `agentvolve: available` but starts no service or experiment.
+Open the launcher with:
+
+```text
+/agentvolve
+```
+
+It first offers two outer-session modes. **Local model** starts the configured
+Qwen/llama.cpp user service if needed, waits for the canonical runtime alias,
+and switches outer Pi to that model/reasoning selection. **Routed Pi model**
+keeps or restores the model Pi was already using and does not start llama.cpp
+merely to open the menu. Evolution actions in both modes remain bound to the
+canonical runtime manifest; changing the actual experiment model requires a
+separately reviewed manifest. Direct compatibility commands are:
 
 ```text
 /evolve-harness

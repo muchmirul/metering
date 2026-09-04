@@ -234,6 +234,7 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
         ROOT / "connectors/fixed/pi/population_evolution_extension.ts"
     ).read_text(encoding="utf-8")
     for command in (
+        '"agentvolve"',
         '"evolve"',
         '"evolve-status"',
         '"evolve-verify"',
@@ -253,6 +254,12 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'name: "darwinian_coding"' in implementation
     assert 'label: "Agentvolve"' in implementation
     assert 'await pi.exec("uv", args' in implementation
+    assert 'await pi.exec("systemctl", ["--user", "restart", service]' in implementation
+    assert 'ctx.modelRegistry.find(selection.provider, selection.model)' in implementation
+    assert 'type AgentvolveModelMode = "local" | "routed"' in implementation
+    assert 'Agentvolve · choose model mode' in implementation
+    assert 'experiments stay runtime-pinned' in implementation
+    assert 'new SelectList(items' in implementation
     assert "final-tasks.json" not in implementation
     assert "development-tasks.json" not in implementation
     assert "execSync" not in implementation
