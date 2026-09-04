@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Maze Game</title>
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    #game {
+      display: grid;
+      gap: 2px;
+      background: #333;
+      padding: 4px;
+      border-radius: 8px;
+    }
+
+    .cell {
+      width: 40px;
+      height: 40px;
+      background: #eee;
+      border-radius: 3px;
+    }
+
+    .wall {
+      background: #222;
+    }
+
+    .player {
+      background: dodgerblue;
+      border-radius: 50%;
+    }
+
+    .goal {
+      background: limegreen;
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    #message {
+      height: 30px;
+      margin-top: 15px;
+      font-size: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Maze Game</h1>
+  <p>Use WASD or Arrow Keys</p>
+
+  <div id="game"></div>
+
+  <div id="message"></div>
+
+  <button onclick="resetGame()">Restart</button>
+
+  <script>
+    // 0 = floor
+    // 1 = wall
+    // 2 = player start
+    // 3 = goal
+
+    const maze = [
+      [1,1,1,1,1,1,1,1,1,1],
+      [1,2,0,0,1,0,0,0,0,1],
+      [1,1,1,0,1,0,1,1,0,1],
+      [1,0,0,0,0,0,1,0,0,1],
+      [1,0,1,1,1,1,1,0,1,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,1,1,1,1,0,1,1,0,1],
+      [1,0,0,0,1,0,0,1,0,1],
+      [1,0,1,0,0,0,1,1,3,1],
+      [1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    const game = document.getElementById("game");
+    const message = document.getElementById("message");
+
+    let player = {
+      x: 1,
+      y: 1
+    };
+
+    const startPosition = {
+      x: 1,
+      y: 1
+    };
+
+    game.style.gridTemplateColumns =
+      `repeat(${maze[0].length}, 40px)`;
+
+    function drawMaze() {
+      game.innerHTML = "";
+
+      for (let y = 0; y < maze.length; y++) {
+        for (let x = 0; x < maze[y].length; x++) {
+
+          const cell = document.createElement("div");
+          cell.classList.add("cell");
+
+          if (maze[y][x] === 1) {
+            cell.classList.add("wall");
+          }
+
+          if (maze[y][x] === 3) {
+            cell.classList.add("goal");
+          }
+
+          if (player.x === x && player.y === y) {
+            cell.classList.add("player");
+          }
+
+          game.appendChild(cell);
+        }
+      }
+    }
+
+    function movePlayer(dx, dy) {
+      const newX = player.x + dx;
+      const newY = player.y + dy;
+
+      // Prevent walking through walls
+      if (maze[newY][newX] === 1) {
+        return;
+      }
+
+      player.x = newX;
+      player.y = newY;
+
+      drawMaze();
+
+      // Check if player reached the goal
+      if (maze[player.y][player.x] === 3) {
+        message.textContent = "🎉 You escaped the maze!";
+      }
+    }
+
+    document.addEventListener("keydown", (event) => {
+
+      switch (event.key.toLowerCase()) {
+
+        case "arrowup":
+        case "w":
+          movePlayer(0, -1);
+          break;
+
+        case "arrowdown":
+        case "s":
+          movePlayer(0, 1);
+          break;
+
+        case "arrowleft":
+        case "a":
+          movePlayer(-1, 0);
+          break;
+
+        case "arrowright":
+        case "d":
+          movePlayer(1, 0);
+          break;
+      }
+    });
+
+    function resetGame() {
+      player.x = startPosition.x;
+      player.y = startPosition.y;
+
+      message.textContent = "";
+
+      drawMaze();
+    }
+
+    drawMaze();
+  </script>
+
+</body>
+</html>
