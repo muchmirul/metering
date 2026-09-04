@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from apps._support.wire import canonical_json  # noqa: E402
+from apps._support.wire import canonical_digest, canonical_json  # noqa: E402
 import apps.coding_agent.solution_experiment as solution_module  # noqa: E402
 from apps.coding_agent.evaluator import evaluate  # noqa: E402
 from apps.coding_agent.process_tracker import (  # noqa: E402
@@ -374,6 +374,36 @@ def test_task_profile_binds_a_worded_goal_and_a_maximum_100_rounds(
         coding_runtime_id="0" * 64,
     )
     assert request["stopping"] == profile["stopping"]
+
+
+def test_recorded_evaluator_accepts_only_same_interpreter_alias(
+    tmp_path: Path,
+) -> None:
+    alias = tmp_path / "python-alias"
+    alias.symlink_to(Path(sys.executable))
+    generation = {
+        "evaluator": {
+            "command": [str(alias), str(solution_module.EVALUATOR)],
+        }
+    }
+
+    recorded = solution_module._verified_recorded_evaluator_command(generation)
+    assert recorded == [str(alias), str(solution_module.EVALUATOR)]
+    assert canonical_digest({"command": recorded}) in (
+        solution_module._equivalent_evaluator_ids(recorded)
+    )
+    assert canonical_digest(
+        {
+            "command": [
+                solution_module._control_python_executable(),
+                str(solution_module.EVALUATOR),
+            ]
+        }
+    ) in solution_module._equivalent_evaluator_ids(recorded)
+
+    generation["evaluator"]["command"][0] = "/bin/false"
+    with pytest.raises(SolutionExperimentError, match="interpreter changed"):
+        solution_module._verified_recorded_evaluator_command(generation)
 
 
 def test_agentvolve_stops_on_verified_goal_before_numeric_limit(

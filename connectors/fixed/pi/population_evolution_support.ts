@@ -60,6 +60,14 @@ export interface RuntimeSelection {
 	reasoning: ThinkingLevel;
 }
 
+export interface DiscoveredTaskProfile {
+	entrypoint: string;
+	goal: string;
+	name: string;
+	path: string;
+	repository: string;
+}
+
 export function repositoryRoot(): string {
 	return resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 }
@@ -151,6 +159,54 @@ export async function llamaCppModelReady(
 
 export function runsDirectory(): string {
 	return configuredAbsolutePath("METERING_EVOLUTION_RUNS_DIR", resolve(repositoryRoot(), "..", "metering-live-runs"));
+}
+
+export function tasksDirectory(): string {
+	return configuredAbsolutePath("METERING_EVOLUTION_TASKS_DIR", resolve(repositoryRoot(), "..", "metering-live-tasks"));
+}
+
+export async function discoverTaskProfiles(): Promise<DiscoveredTaskProfile[]> {
+	let entries: Array<{ isFile(): boolean; name: string }>;
+	try {
+		entries = await readdir(tasksDirectory(), { withFileTypes: true });
+	} catch {
+		return [];
+	}
+	const profiles: DiscoveredTaskProfile[] = [];
+	for (const entry of entries
+		.filter((candidate) => candidate.isFile() && candidate.name.endsWith(".task.json"))
+		.sort((left, right) => left.name.localeCompare(right.name))
+		.slice(0, 200)) {
+		const path = join(tasksDirectory(), entry.name);
+		try {
+			const value: unknown = JSON.parse(await readFile(path, "utf8"));
+			if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+			const document = value as Record<string, unknown>;
+			const repositoryValue = document.repository;
+			if (
+				document.task_schema !== "darwinian-coding-task-v1" ||
+				document.schema_version !== 1 ||
+				typeof document.goal !== "string" ||
+				typeof repositoryValue !== "object" ||
+				repositoryValue === null ||
+				Array.isArray(repositoryValue)
+			) {
+				continue;
+			}
+			const repository = repositoryValue as Record<string, unknown>;
+			if (typeof repository.path !== "string" || typeof repository.entrypoint !== "string") continue;
+			profiles.push({
+				entrypoint: repository.entrypoint,
+				goal: document.goal,
+				name: entry.name.slice(0, -".task.json".length),
+				path,
+				repository: repository.path,
+			});
+		} catch {
+			// Invalid files are not selectable; fixed profile validation still runs before execution.
+		}
+	}
+	return profiles;
 }
 
 function timestamp(): string {

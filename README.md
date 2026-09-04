@@ -126,21 +126,47 @@ Start or reload Pi, then open the primary UI:
 /agentvolve
 ```
 
-The launcher first offers **Local model** and **Routed Pi model** modes. Local
-mode activates the configured Qwen/llama.cpp service and selects the canonical
-runtime model in the outer Pi session. Routed mode keeps the model Pi was
-already using. Both open one streamlined UI with **Start workflow**, **Refresh
-status**, **Browse workflow history**, **Resume**, **Retry**, and **Verify**.
+For the shortest normal path, configure the workflow directly in the session:
+
+```text
+/goal Fix the behavior described here and satisfy the registered checks
+/limit 100 generations
+/agentvolve
+```
+
+With both values present, `/agentvolve` selects the sole reviewed task profile
+for the current folder, derives a canonical profile with the current clean Git
+HEAD and 99 recurrence draws, activates the pinned local model, and starts. The
+configuration survives session reloads and is consumed only after a successful
+run. A folder still needs an operator-reviewed executable task contract;
+natural-language text cannot prove its own success. The same three-command
+sequence works through Pi RPC for headless operator automation; RPC refuses to
+open the menu when goal/limit configuration is incomplete.
+
+Without both values, the launcher offers **Local model** and **Routed Pi model**
+modes. Local mode activates the configured Qwen/llama.cpp service and selects
+the canonical runtime model in the outer Pi session. Routed mode keeps the model
+Pi was already using. Both open one streamlined UI with discovered task
+selection, **Create task from current session**, **Refresh status**, **Browse
+workflow history**, **Resume**, **Retry**, and **Verify**.
 Every Pi session with Agentvolve mode activated polls the shared run directory,
 so progress started in another activated session appears automatically. While
 Agentvolve is active, the status widget stays visible and explicitly lists every
 stage from `[1/6]` through `[6/6]`, including completed,
 current, and pending markers. `/agentvolve-history` opens the same shared history
-browser directly. Starting the workflow asks once for the
-task profile, reuses a sealed harness when available (or creates one when none
-exists), and continues through the solution and protected final assay. Evolution
+browser directly. Starting the workflow discovers `*.task.json` files in
+`METERING_EVOLUTION_TASKS_DIR` (by default the checkout sibling
+`metering-live-tasks`); manual path entry remains available. Session generation
+uses only user messages, shows the generated JSON for review, and registers it
+only after confirmation. Its disclosed final policy replays the approved public
+checks rather than pretending to provide hidden coverage. The workflow reuses a
+sealed harness when available (or creates one when none exists), and continues
+through the solution and protected final assay. Evolution
 itself remains pinned to the canonical runtime manifest; routed UI mode does not
-silently change experiment identity. Existing direct compatibility commands
+silently change experiment identity. Isolated run registries can reuse an
+existing sealed harness through a reviewed absolute
+`METERING_EVOLUTION_HARNESS_DESCRIPTOR`; sealed run evidence is referenced in
+place, never copied or rewritten. Existing direct compatibility commands
 remain available:
 
 ```text
@@ -217,6 +243,10 @@ uv run --extra lint ruff check .
 uv run --extra test pytest -q
 uv build
 ```
+
+Agentvolve workflow changes additionally use the opt-in, three-task local-model
+acceptance test documented in `docs/coding-agent/operations.md`; it deploy-loads
+the Pi extension, runs each approved task, and offline-verifies every result.
 
 The wheel must contain only the installed `metering` package. Source-only
 applications and connectors are distributed through the source archive.

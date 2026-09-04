@@ -3,7 +3,39 @@
 An Agentvolve Level-1 task is one canonical JSON object followed by one newline.
 It binds an immutable repository base, writable paths, development checks,
 finite budgets, exact allocation draws, and a separately permissioned
-protected-final profile.
+protected-final profile. A caller may author it directly, select it from the
+configured task directory, derive it with `/goal` and `/limit`, or approve a
+session-generated draft; all four routes produce this same schema and authority.
+
+## Interactive registration and derivation
+
+`METERING_EVOLUTION_TASKS_DIR` defaults to the checkout sibling
+`metering-live-tasks`. The Pi launcher discovers at most 200 direct
+`*.task.json` files there. Invalid-looking JSON is not offered, and fixed Python
+validation remains decisive when a selected profile runs.
+
+`/goal TEXT` and `/limit N generations` do not invent a task. They derive a
+fresh profile from an already reviewed discovered profile: fixed code keeps its
+entrypoint, allowed paths, checks, final binding, final draw, wall limit, and
+stopping policy; resolves the current clean repository `HEAD`; writes `N - 1`
+fixed rational recurrence draws; and preserves the template's finite retry
+reservation count. The derived profile is written below the task directory's
+`generated/` subdirectory.
+
+**Create task from current session** is an explicit draft path. The outer model
+receives user messages only, never assistant answers or tool output, plus the
+current commit's bounded tracked-file list. The operator edits the complete JSON
+draft and confirms it. Fixed code then requires a clean Git repository and an
+entrypoint present at `HEAD`, writes canonical task/final documents outside the
+repository, and validates the task. Its `replay-development-checks-v1` final
+policy repeats the reviewed development checks in fresh protected-final
+containers; this gives final execution/sealing but intentionally makes no
+hidden-coverage claim. Use a separately authored profile when held-out cases
+matter.
+
+Neither route can infer whether a check actually represents a natural-language
+goal. That remains operator responsibility. Missing or ambiguous executable
+checks are errors, not permission for the proposer to judge itself.
 
 ## Development profile
 

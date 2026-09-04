@@ -91,6 +91,25 @@ RUNNER = ROOT / "apps" / "coding_agent" / "candidate_runner.py"
 EVALUATOR = ROOT / "apps" / "coding_agent" / "solution_evaluator.py"
 EVIDENCE = ROOT / "apps" / "coding_agent" / "evidence_adapter.py"
 VALIDATE = ROOT / "apps" / "coding_agent" / "validate_solution.py"
+
+
+def _control_python_executable() -> str:
+    relative = Path("Scripts/python.exe") if os.name == "nt" else Path("bin/python")
+    candidate = Path(sys.prefix) / relative
+    try:
+        if candidate.is_file() and candidate.resolve(strict=True) == Path(
+            sys.executable
+        ).resolve(strict=True):
+            return str(candidate.absolute())
+    except OSError:
+        pass
+    return sys.executable
+
+
+def _control_command(script: Path) -> list[str]:
+    return [_control_python_executable(), str(script)]
+
+
 FIXTURE_PROPOSER = (
     ROOT / "apps" / "coding_agent" / "fixtures" / "fixture_solution_proposer.py"
 )
@@ -355,17 +374,17 @@ def _request(
     request: dict[str, object] = {
         "allocation_draws": profile["allocation_draws"],
         "evidence_adapter": {
-            "command": [sys.executable, str(EVIDENCE)],
+            "command": _control_command(EVIDENCE),
             "timeout_seconds": 300,
         },
         "generation": {
             "evaluation": "darwinian-coding/development-v1",
             "evaluator": {
-                "command": [sys.executable, str(EVALUATOR)],
+                "command": _control_command(EVALUATOR),
                 "timeout_seconds": 300,
             },
             "runner": {
-                "command": [sys.executable, str(GIT_ADAPTER)],
+                "command": _control_command(GIT_ADAPTER),
                 "timeout_seconds": runner_timeout,
             },
             "selection_policy": {
@@ -398,7 +417,7 @@ def _request(
             },
         },
         "proposal": {
-            "command": [sys.executable, str(proposer)],
+            "command": _control_command(proposer),
             "context": {
                 "candidate_contract": "solution-commit-v1",
                 "development_checks": profile["development_checks"],
@@ -610,8 +629,8 @@ def run_experiment(
             development_experiment_id=str(development["experiment_id"]),
             tasks=final_tasks,
             final_draw=cast(dict[str, int], profile["final_draw"]),
-            runner_command=[sys.executable, str(GIT_ADAPTER)],
-            evaluator_command=[sys.executable, str(EVALUATOR)],
+            runner_command=_control_command(GIT_ADAPTER),
+            evaluator_command=_control_command(EVALUATOR),
             runner_timeout=_task_runner_timeout(final_tasks),
             evaluator_timeout=300,
             runtime_id=coding_runtime_id,
@@ -806,8 +825,8 @@ def continue_experiment(
                 development_experiment_id=str(development["experiment_id"]),
                 tasks=final_tasks,
                 final_draw=cast(dict[str, int], profile["final_draw"]),
-                runner_command=[sys.executable, str(GIT_ADAPTER)],
-                evaluator_command=[sys.executable, str(EVALUATOR)],
+                runner_command=_control_command(GIT_ADAPTER),
+                evaluator_command=_control_command(EVALUATOR),
                 runner_timeout=_task_runner_timeout(final_tasks),
                 evaluator_timeout=300,
                 runtime_id=coding_runtime_id,
@@ -957,6 +976,53 @@ def _verify_bound_evaluation_receipt(
     if receipt["cost"] != expected_cost:
         raise SolutionExperimentError("coding evaluation receipt cost does not replay")
     return execution
+
+
+def _verified_recorded_evaluator_command(
+    generation: dict[str, object],
+) -> list[str]:
+    evaluator = generation.get("evaluator")
+    if type(evaluator) is not dict:
+        raise SolutionExperimentError("coding evaluator configuration is malformed")
+    command = evaluator.get("command")
+    if (
+        type(command) is not list
+        or len(command) != 2
+        or any(type(item) is not str or not item for item in command)
+        or command[1] != str(EVALUATOR)
+    ):
+        raise SolutionExperimentError("coding evaluator command changed")
+    executable = Path(cast(str, command[0]))
+    if not executable.is_absolute():
+        raise SolutionExperimentError("coding evaluator executable is not absolute")
+    try:
+        if executable.resolve(strict=True) != Path(sys.executable).resolve(strict=True):
+            raise SolutionExperimentError("coding evaluator interpreter changed")
+    except OSError as exc:
+        raise SolutionExperimentError(
+            "coding evaluator interpreter is unavailable"
+        ) from exc
+    return cast(list[str], command)
+
+
+def _equivalent_evaluator_ids(recorded_command: list[str]) -> set[str]:
+    expected = Path(recorded_command[0]).resolve(strict=True)
+    candidates = {
+        Path(recorded_command[0]),
+        Path(sys.executable),
+        Path(_control_python_executable()),
+    }
+    bin_directory = Path(sys.prefix) / ("Scripts" if os.name == "nt" else "bin")
+    if bin_directory.is_dir():
+        candidates.update(list(bin_directory.glob("python*"))[:32])
+    commands = []
+    for candidate in candidates:
+        try:
+            if candidate.is_file() and candidate.resolve(strict=True) == expected:
+                commands.append([str(candidate.absolute()), str(EVALUATOR)])
+        except OSError:
+            continue
+    return {canonical_digest({"command": command}) for command in commands}
 
 
 def _expected_final_selection(
@@ -1136,6 +1202,8 @@ def verify_experiment(root: Path) -> dict[str, object]:
         != coding_runtime_id
     ):
         raise SolutionExperimentError("coding task profile does not match driver state")
+    evaluator_command = _verified_recorded_evaluator_command(generation)
+    evaluator_ids = _equivalent_evaluator_ids(evaluator_command)
     expected_harness_repository = str((root / "harness.git").absolute())
     harness_artifact = cast(dict[str, object], descriptor["artifact"])
     if (
@@ -1602,8 +1670,7 @@ def verify_experiment(root: Path) -> dict[str, object]:
         or final_seed != expected_seed
         or bundle.get("candidate_id") != expected_candidate
         or bundle.get("runtime_id") != coding_runtime_id
-        or bundle.get("evaluator_id")
-        != canonical_digest({"command": [sys.executable, str(EVALUATOR)]})
+        or bundle.get("evaluator_id") not in evaluator_ids
         or bundle.get("selection") != expected_selection
     ):
         raise SolutionExperimentError("coding final selection policy does not replay")

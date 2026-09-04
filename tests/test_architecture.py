@@ -239,6 +239,8 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     for command in (
         '"agentvolve"',
         '"agentvolve-history"',
+        '"goal"',
+        '"limit"',
         '"evolve"',
         '"evolve-status"',
         '"evolve-verify"',
@@ -259,6 +261,8 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'from "./population_evolution_support.ts"' in implementation
     assert "export async function codingWorkflowStatus" in support
     assert "export async function workflowHistory" in support
+    assert "export async function discoverTaskProfiles" in support
+    assert "export function tasksDirectory" in support
     assert "ctx.ui" not in support
     assert "registerCommand" not in support
     assert 'name: "population_evolution"' in implementation
@@ -272,6 +276,14 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'experiments stay runtime-pinned' in implementation
     assert 'Start Agentvolve workflow' in implementation
     assert 'Run the complete [1/6] through [6/6] pipeline' in implementation
+    assert 'Create task from current session' in implementation
+    assert 'ctx.sessionManager.buildContextEntries()' in implementation
+    assert 'entry.message.role !== "user"' in implementation
+    assert 'agentvolve-workflow-configuration' in implementation
+    assert 'apps.coding_agent.task_profile_tool' in implementation
+    assert "METERING_EVOLUTION_HARNESS_DESCRIPTOR" in implementation
+    assert 'ctx.mode === "rpc"' in implementation
+    assert "no reviewed task profile" in implementation
     assert 'for (let stage = 1; stage <= 6; stage += 1)' in implementation
     assert '`${marker} [${stage}/6] ${label}`' in implementation
     assert 'Browse workflow history' in implementation

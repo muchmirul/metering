@@ -78,11 +78,20 @@ container/VM for untrusted work. The nested evolutionary Pi calls are separately
 isolated and do not inherit those resources.
 
 Loading the extension registers commands but performs no model or service
-effect. The footer initially shows `agentvolve: available`. Run:
+effect. The footer initially shows `agentvolve: available`. The direct workflow
+is:
 
 ```text
-/agentvolve      choose local or routed Pi model mode, then open the action UI
+/goal Describe the independently checked task
+/limit 100 generations
+/agentvolve
 ```
+
+The first two commands persist configuration in the Pi session. With both set,
+`/agentvolve` discovers the current folder's reviewed task profile, derives the
+clean `HEAD`, exact finite limits and draws, activates the pinned local model,
+and starts the full workflow. If either value is absent, `/agentvolve` instead
+opens the model-mode and action UI.
 
 The first picker offers two outer-session modes:
 
@@ -94,14 +103,19 @@ The first picker offers two outer-session modes:
   start llama.cpp.
 
 Both modes then show one keyboard-driven workflow menu: **Start workflow**,
-**Refresh workflow status**, **Browse workflow history**, **Resume workflow**,
-**Retry pending attempt**, and **Verify completed workflow**. There are no
-Level-1 or Level-2 choices in this UI. `/agentvolve-history` opens the shared
-history browser directly and lists up to 50 recent run roots with their explicit
-stage and status. Start asks once for the approved task profile, reuses a completed sealed
-harness or creates one when none exists, and proceeds through the solution and
-protected assay. An unfinished run must be resumed or explicitly retried before
-a new workflow starts.
+**Create task from current session**, **Refresh workflow status**, **Browse
+workflow history**, **Resume workflow**, **Retry pending attempt**, and **Verify
+completed workflow**. There are no Level-1 or Level-2 choices in this UI.
+`/agentvolve-history` opens the shared history browser directly and lists up to
+50 recent run roots with their explicit stage and status. Start discovers
+bounded `*.task.json` profiles in `METERING_EVOLUTION_TASKS_DIR` (default: the
+checkout sibling `metering-live-tasks`), prioritizes profiles bound to the
+current folder, and retains manual path entry. Session generation sends only
+user messages and tracked path names to the outer model, then requires operator
+editing and confirmation. Start reuses a completed sealed harness or creates
+one when none exists, and proceeds through the solution and protected assay. An
+unfinished run must be resumed or explicitly retried before a new workflow
+starts.
 
 The widget is shown only while Agentvolve mode is active and then keeps every
 explicit stage visible with `✓`, `▶`, `!`, or `○` markers. Each activated Pi
@@ -151,7 +165,10 @@ result readiness for review and polls projection-only `process-status.json` whil
 a run is active. The tracker cannot authorize model calls, final access, or
 selection.
 
-`/evolve-code` uses the newest completed coding-harness run. The profile path
+`/evolve-code` uses the newest completed coding-harness run. An isolated
+operator deployment may instead set `METERING_EVOLUTION_HARNESS_DESCRIPTOR` to
+the absolute path of an existing sealed descriptor; the original run remains
+provenance authority and is never copied or rewritten. The profile path
 must be absolute and operator-reviewed; alternatively set
 `METERING_EVOLUTION_TASK_PROFILE`. The profile, not Pi, supplies repository/base
 identity, allowed paths, development checks, the digest-bound external protected
@@ -172,15 +189,17 @@ The default reviewed runtime is
 `~/.config/metering/harness/runtime.pi.local.json`, and completed runs are kept
 under the checkout's sibling `metering-live-runs/` directory. Override those
 locations only with caller-reviewed absolute paths through
-`METERING_EVOLUTION_RUNTIME_MANIFEST` and `METERING_EVOLUTION_RUNS_DIR`.
+`METERING_EVOLUTION_RUNTIME_MANIFEST`, `METERING_EVOLUTION_RUNS_DIR`,
+`METERING_EVOLUTION_TASKS_DIR`, and (for an external sealed harness)
+`METERING_EVOLUTION_HARNESS_DESCRIPTOR`.
 The local activation defaults are `llama-qwen38.service`,
 `http://127.0.0.1:8080/v1/models`, and API key `llamacpp`; reviewed operators may
 override them with `METERING_EVOLUTION_LLAMACPP_SERVICE`,
 `METERING_EVOLUTION_LLAMACPP_HEALTH_URL`, and
 `METERING_EVOLUTION_LLAMACPP_API_KEY`. The selected llama.cpp preset must be
 configured to load on service startup. Opening Pi only registers Agentvolve;
-`/agentvolve` selects an outer-session mode but does not itself start an
-evolution experiment. The extension invokes the same fixed
+`/agentvolve` starts an experiment only when `/goal` plus `/limit` are complete
+or when the operator chooses **Start workflow**. The extension invokes the same fixed
 `apps/harness/experiment.py` composition documented elsewhere; nested Pi model
 calls still receive isolated configuration roots and do not load the project
 extension recursively. A selected candidate is recorded and sealed, not

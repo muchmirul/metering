@@ -9,7 +9,7 @@ and lists all six stages at all times.
 
 | Stage | Meaning | Typical command or evidence |
 |---|---|---|
-| **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | runtime/task profiles and kernel conformance |
+| **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | `/goal …`, `/limit N generations`, and a discovered reviewed profile |
 | **[2/6] Evolving harness** | Agentvolve proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | **Start Agentvolve workflow** |
 | **[3/6] Harness sealed** | One harness has been allocated, protected-final tested, and permanently sealed. | `selected-harness.json` |
 | **[4/6] Evolving solution** | The frozen harness creates and independently tests immutable solution commits until a verified goal or finite limit stops recurrence. | automatic workflow continuation |
@@ -28,7 +28,15 @@ The normal transition is:
 ```
 
 A previously sealed harness can be reused, so later tasks commonly begin new
-model work at `[4/6]` after Agentvolve revalidates the earlier stages.
+model work at `[4/6]` after Agentvolve revalidates the earlier stages. In the
+streamlined path, the operator enters `/goal …`, `/limit N generations`, and
+`/agentvolve`; folder discovery and canonical profile derivation happen before
+the tracker advances. If the folder has no reviewed executable task contract,
+Agentvolve stops at configuration rather than treating prose as proof. The
+three configured commands also work in Pi RPC mode. A reviewed
+`METERING_EVOLUTION_HARNESS_DESCRIPTOR` can reference an original sealed harness
+when the new solution run uses an isolated registry; provenance remains bound to
+that original run.
 
 ## Viewing status
 

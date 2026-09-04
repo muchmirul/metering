@@ -531,8 +531,17 @@ per-check timeouts, exact recurrence and final tie draws, a bounded worded goal,
 finite round/proposal/wall limits, and an optional evaluator-backed goal-or-limit
 stopping policy. Profiles without the additive policy retain numeric limit-only
 behavior. Fixed code opens the protected profile only
-after development stops. A model cannot supply or alter either profile. The
-task identity is the SHA-256 of its normalized canonical form.
+after development stops. A model cannot directly authorize or alter either
+profile. The interactive launcher may generate a task-description draft from
+user messages on the active Pi branch, but it excludes assistant messages and
+requires explicit operator review before fixed code registers the profile. That
+registration binds a clean repository HEAD and may only replay the reviewed
+public checks as its disclosed protected-final policy; it does not invent hidden
+coverage. `/goal` plus `/limit` may mechanically derive a fresh profile only from
+an already reviewed discovered task profile, preserving its paths, checks,
+protected-final binding, and stopping policy while updating the exact goal,
+clean HEAD, round limit, and draws. The task identity is the SHA-256 of its
+normalized canonical form.
 
 Coding mutation is archive-in/archive-out. Fixed host code resolves the exact
 base/parent commit, serializes only sorted regular files, excludes `.git`, and
@@ -596,7 +605,8 @@ replay-derived patch, and evidence. Applying, merging, installing, or deploying
 it is always a separate caller action.
 
 The reviewed Pi extension registers `/agentvolve` as the primary interactive
-launcher and retains `/evolve-harness`, `/evolve-harness-status`,
+launcher, `/goal` and `/limit` as session-persisted workflow configuration, and
+retains `/evolve-harness`, `/evolve-harness-status`,
 `/evolve-harness-resume`, `/evolve-harness-retry`, `/evolve-code`,
 `/evolve-code-resume`, `/evolve-code-retry`, `/evolve-code-status`, and
 `/evolve-code-verify` as compatibility commands. A caller may explicitly list
@@ -609,9 +619,21 @@ surface. Every Agentvolve-activated Pi session polls the same reviewed run
 directory, stops its monitor on deactivation or session shutdown, and can browse
 up to the latest 50 runs through
 `/agentvolve-history`; monitoring is read-only and does not authorize effects.
-Start validates one task profile, reuses an already sealed compatible harness or
-creates one when none exists, and then continues through solution evolution and
-the protected final assay. It refuses to hide or bypass an unfinished run. Local mode
+Start discovers bounded `*.task.json` profiles from the absolute
+`METERING_EVOLUTION_TASKS_DIR` (defaulting to the checkout sibling
+`metering-live-tasks`), gives current-folder profiles priority, and keeps manual
+absolute-path entry as a compatibility option. With both `/goal` and `/limit`
+configured, `/agentvolve` selects the sole applicable reviewed profile, derives
+its canonical run profile, activates local mode, and begins without another path
+prompt; ambiguity still requires a choice. The configured three-command path is
+also available in Pi RPC mode for headless operator automation, while incomplete
+RPC configuration cannot open an interactive menu. Start validates one task
+profile, reuses an already sealed compatible harness or creates one when none
+exists, and then continues through solution evolution and the protected final
+assay. An isolated run registry may reference an original sealed descriptor via
+`METERING_EVOLUTION_HARNESS_DESCRIPTOR`; copying or rewriting its
+repository-bound provenance is forbidden. It refuses to hide or bypass an
+unfinished run. Local mode
 starts the configured user llama.cpp service when needed, waits for the declared
 Qwen alias, and selects the canonical runtime's provider/model/reasoning level.
 Routed mode retains or restores the Pi model that preceded Agentvolve and does
@@ -633,9 +655,17 @@ and UI, never evaluator, selector, ledger authority, or sandbox boundary.
 Offline verification replays Driver and Population without SQLite, validates
 profile/runtime/harness bindings and kernel conformance, re-clones every exact
 harness and solution candidate, checks first-parent ancestry and allowed paths,
-closes mutation/evaluation/final receipt sets, recomputes capability-first final
-allocation, requires complete development and exactly one final run, confirms
+closes mutation/evaluation/final receipt sets, requires recorded evaluator
+interpreter aliases to resolve to the exact current interpreter and evaluator
+script, recomputes capability-first final allocation, requires complete
+development and exactly one final run, confirms
 the permanent seal, and regenerates the selected Git patch byte-for-byte.
+
+Agentvolve workflow changes require an opt-in live acceptance run that loads the
+project Pi extension and runs at least three operator-approved tasks through the
+pinned local llama.cpp runtime, requiring every protected case and offline replay
+to pass. This expensive check is separate from deterministic CI and fails unless
+its explicit runtime, sealed harness, and task-profile inputs are present.
 
 Agentvolve does not guarantee universal or monotonic improvement.
 A live result applies only to its exact model, runtime, task profile, checks, and

@@ -110,7 +110,24 @@ the existing `extensions` array in `~/.pi/agent/settings.json`:
 
 Run `/reload` after changing settings in an existing session. Loading the
 extension shows `agentvolve: available` but starts no service or experiment.
-Open the launcher with:
+The direct goal workflow is:
+
+```text
+/goal Describe the independently checkable task
+/limit 100 generations
+/agentvolve
+```
+
+`/goal` records the exact operator text and `/limit` accepts 1 through 256
+finite generations. Both values persist in the current Pi session. `/agentvolve`
+then activates the pinned local model, discovers the sole applicable reviewed
+profile, derives a new canonical profile with the repository's clean `HEAD`,
+100 proposal rounds, and 99 exact allocation draws, and starts the complete
+workflow. It refuses a dirty repository, a missing entrypoint, an ambiguous
+profile choice, or an unfinished earlier run. Goal text never replaces an
+executable evaluator.
+
+Without a complete goal/limit pair, open the launcher with:
 
 ```text
 /agentvolve
@@ -121,8 +138,19 @@ Qwen/llama.cpp user service if needed, waits for the canonical runtime alias,
 and switches outer Pi to that model/reasoning selection. **Routed Pi model**
 keeps or restores the model Pi was already using and does not start llama.cpp
 merely to open the menu. The next screen is a single workflow surface with
-start, refresh status, browse history, resume, retry, and verify actions. It does
-not expose the internal Level-1/Level-2 split. While Agentvolve is active, the
+start, create-from-session, refresh status, browse history, resume, retry, and
+verify actions. Start discovers profiles under `METERING_EVOLUTION_TASKS_DIR`
+(default: the checkout sibling `metering-live-tasks`) and prioritizes profiles
+whose repository is the current folder. Manual absolute-path entry remains a
+compatibility option. Create-from-session sends only user messages from the
+active branch plus the tracked Git path list to the selected outer model,
+opens the returned task draft in an editor, and requires confirmation before
+fixed code binds and registers it. Assistant messages and tool output are not
+inputs, so a prior assistant answer is not copied into the task. The generated
+protected profile explicitly replays the reviewed development checks and offers
+no hidden-case claim.
+
+The UI does not expose the internal Level-1/Level-2 split. While Agentvolve is active, the
 widget keeps all six stages visible as `[1/6]` through `[6/6]`, marking completed,
 current, failed, and pending stages. Every activated Agentvolve session polls the
 shared run directory every two seconds, including runs launched in other
@@ -130,6 +158,9 @@ sessions. Deactivation hides the tracker and stops monitoring. Use
 `/agentvolve-history` to browse the latest 50 shared runs directly. Start
 requests the task profile once and runs or reuses the
 sealed harness before continuing into solution evolution and the final assay.
+For headless operator automation, Pi RPC mode accepts the complete `/goal`,
+`/limit`, `/agentvolve` sequence and direct resume/retry commands without a
+synthetic model turn; incomplete `/agentvolve` configuration remains rejected.
 Evolution actions in both modes remain bound to the canonical runtime manifest;
 changing the actual experiment model requires a separately reviewed manifest.
 Direct compatibility commands are:
@@ -148,7 +179,12 @@ Direct compatibility commands are:
 
 If `/evolve-code` has no argument,
 `METERING_EVOLUTION_TASK_PROFILE` must name an operator-reviewed absolute task
-profile. Merely starting Pi does not start an experiment.
+profile. It takes priority over folder discovery for a configured goal run.
+`METERING_EVOLUTION_TASKS_DIR` must be absolute when set. An isolated run
+registry may reuse an existing sealed harness by setting the reviewed absolute
+`METERING_EVOLUTION_HARNESS_DESCRIPTOR`; copying a sealed run would invalidate
+its repository-bound provenance and is not supported. Merely starting Pi does
+not start an experiment.
 
 The model-facing `darwinian_coding` compatibility tool may request only harness
 run/status or solution run/status/verification. It cannot choose evaluator commands,
@@ -179,10 +215,38 @@ separate application or merge.
 3. checks every harness and solution Git candidate, tree, parent, and allowed
    path;
 4. closes the exact mutation/evaluation receipt sets;
-5. authenticates fresh-container development and final evidence;
+5. authenticates fresh-container development and final evidence, treating
+   `python`/`python3` spellings as equivalent only when they resolve to the same
+   interpreter and exact evaluator script;
 6. recomputes capability-first final selection and exact allocation;
 7. checks protected-final case coverage and kernel conformance; and
 8. regenerates `selected.patch` and requires byte equality.
 
 Deleting `state/population/population.sqlite` is supported because SQLite is
 only a rebuildable query projection.
+
+## Standard local-model end-to-end acceptance
+
+Every Agentvolve workflow or Pi-extension behavior change must run the ordinary
+focused/full tests and this opt-in live test against at least three distinct,
+operator-approved problems. It deploy-loads the project extension, requires the
+runtime's `pi-v1`/`llamacpp` identity, performs actual local model inference,
+requires every protected case to pass, and offline-verifies each sealed run.
+
+```bash
+export METERING_RUN_AGENTVOLVE_E2E=1
+export METERING_EVOLUTION_LIVE_HARNESS=/absolute/harness-run/selected-harness.json
+export METERING_EVOLUTION_LIVE_TASK_PROFILES="/abs/one.task.json:/abs/two.task.json:/abs/three.task.json"
+# Optional, only when each profile includes explicit retry reservations:
+export METERING_EVOLUTION_LIVE_MAX_RETRIES=1
+export METERING_EVOLUTION_LIVE_RETRY_REASON="operator-approved local acceptance transport retry"
+uv run --extra test pytest -q -m live_agents tests/test_agentvolve_live_workflow.py
+```
+
+On POSIX, separate profiles with `:` (`os.pathsep`). A retry is never implicit:
+both a positive maximum and an operator-authored reason are required, and fixed
+run reservations remain authoritative. The test is deliberately
+not part of unattended deterministic CI: it requires Docker, cgroup v2, the
+reviewed image, a running pinned local endpoint, a verified sealed harness, and
+substantial model time. Skipping it must be reported; a source assertion is not
+a substitute for a claimed live acceptance result.

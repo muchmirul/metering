@@ -128,8 +128,13 @@ task rate then reliability with an exact tie draw, runs protected checks after
 allocation, permanently seals search, and emits a replay-checked patch without
 changing the source repository. Its strict `darwinian-coding-task-v1` profile
 owns allowed paths, argv checks, draws, budgets, and optional goal-or-limit
-stopping. Plain Pi exposes `/agentvolve` as one streamlined workflow UI with
-local Qwen/llama.cpp and routed outer-Pi model modes. While active, its widget
+stopping. Plain Pi exposes `/goal`, `/limit`, and `/agentvolve` as a streamlined
+workflow: fixed code can discover reviewed profiles, derive the exact goal,
+clean `HEAD`, finite generations, and draws, activate the pinned local model,
+and start without a copied profile path. The fallback UI supports local
+Qwen/llama.cpp and routed outer-Pi model modes, registered-profile selection,
+and a user-message-only session task draft with mandatory review. It does not
+invent evaluator authority from prose. While active, its widget
 keeps every explicit `[1/6]`–`[6/6]` stage visible and polls shared runs across
 activated Pi sessions; `/agentvolve-history` browses recent run status. Nested assay calls
 remain pinned to the canonical runtime. Compatibility commands include `/evolve-harness`,

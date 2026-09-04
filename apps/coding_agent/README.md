@@ -11,7 +11,10 @@ or evaluator-verified goal-or-limit stopping; a finite maximum is always
 required.
 
 It never modifies the source repository, installs the result, or changes
-Metering's installed API.
+Metering's installed API. Interactive `/goal` and `/limit` derive a run profile
+only from a reviewed discovered profile and a clean Git `HEAD`; session task
+generation creates an operator-reviewed draft, not model-owned evaluation
+authority.
 
 ## Documentation
 
@@ -61,6 +64,7 @@ kernel state, and unexported files are not inherited.
 |---|---|
 | `process_tracker.py` | projection-only `[n/6]` status |
 | `protocol.py` | task and protected-final profile validation |
+| `task_profile_tool.py` | reviewed session-draft registration and goal/limit profile derivation |
 | `harness_workspace_editor.py` | verified harness materialization and isolated mutation |
 | `candidate_runner.py` | fresh-container solution execution |
 | `solution_evaluator.py` | execution-receipt validation |
