@@ -122,10 +122,11 @@ and switches outer Pi to that model/reasoning selection. **Routed Pi model**
 keeps or restores the model Pi was already using and does not start llama.cpp
 merely to open the menu. The next screen is a single workflow surface with
 start, refresh status, browse history, resume, retry, and verify actions. It does
-not expose the internal Level-1/Level-2 split. The always-visible widget lists
-all six stages explicitly as `[1/6]` through `[6/6]`, marking completed, current,
-failed, and pending stages. Every Pi session polls the shared run directory every
-two seconds, including runs launched in other sessions. Use
+not expose the internal Level-1/Level-2 split. While Agentvolve is active, the
+widget keeps all six stages visible as `[1/6]` through `[6/6]`, marking completed,
+current, failed, and pending stages. Every activated Agentvolve session polls the
+shared run directory every two seconds, including runs launched in other
+sessions. Deactivation hides the tracker and stops monitoring. Use
 `/agentvolve-history` to browse the latest 50 shared runs directly. Start
 requests the task profile once and runs or reuses the
 sealed harness before continuing into solution evolution and the final assay.

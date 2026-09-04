@@ -131,9 +131,10 @@ mode activates the configured Qwen/llama.cpp service and selects the canonical
 runtime model in the outer Pi session. Routed mode keeps the model Pi was
 already using. Both open one streamlined UI with **Start workflow**, **Refresh
 status**, **Browse workflow history**, **Resume**, **Retry**, and **Verify**.
-Every Pi session polls the shared run directory, so progress started in another
-session appears automatically. The status widget is always visible and
-explicitly lists every stage from `[1/6]` through `[6/6]`, including completed,
+Every Pi session with Agentvolve mode activated polls the shared run directory,
+so progress started in another activated session appears automatically. While
+Agentvolve is active, the status widget stays visible and explicitly lists every
+stage from `[1/6]` through `[6/6]`, including completed,
 current, and pending markers. `/agentvolve-history` opens the same shared history
 browser directly. Starting the workflow asks once for the
 task profile, reuses a sealed harness when available (or creates one when none

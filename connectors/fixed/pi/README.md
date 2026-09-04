@@ -98,10 +98,11 @@ harness or creates one when none exists, and proceeds through the solution and
 protected assay. An unfinished run must be resumed or explicitly retried before
 a new workflow starts.
 
-The widget remains visible even when Agentvolve mode is inactive and always
-shows every explicit stage with `✓`, `▶`, `!`, or `○` markers. Each loaded Pi
+The widget is shown only while Agentvolve mode is active and then keeps every
+explicit stage visible with `✓`, `▶`, `!`, or `○` markers. Each activated Pi
 session polls the shared run directory every two seconds, so a run started by
-another session is monitorable without attaching to its process:
+another session is monitorable without attaching to its process. Deactivation
+hides the widget and stops that session's monitor:
 
 ```text
 [1/6] Task and runtime configured

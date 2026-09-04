@@ -266,6 +266,8 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert '`${marker} [${stage}/6] ${label}`' in implementation
     assert 'Browse workflow history' in implementation
     assert 'WORKFLOW_MONITOR_INTERVAL_MS = 2000' in implementation
+    assert 'await startWorkflowMonitor(ctx)' in implementation
+    assert 'ctx.ui.setWidget(WIDGET_KEY, undefined)' in implementation
     assert 'pi.on("session_shutdown"' in implementation
     assert 'new SelectList(items' in implementation
     assert "final-tasks.json" not in implementation

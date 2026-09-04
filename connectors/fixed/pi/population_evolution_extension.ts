@@ -484,6 +484,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	function renderModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
 		if (summary) workflowSummary = summary;
+		if (!modeActive) {
+			ctx.ui.setWidget(WIDGET_KEY, undefined);
+			return;
+		}
 		setModeWidget(ctx, workflowSummary, activeModelMode, activeModelLabel);
 	}
 
@@ -513,7 +517,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				activeModelLabel = model ? `${model.provider}/${model.id}` : "current Pi route";
 				modeActive = true;
 				setModeStatus(ctx, "ready", `routed · ${activeModelLabel}`);
-				renderModeWidget(ctx);
+				await startWorkflowMonitor(ctx);
 				return;
 			} catch (error) {
 				modeActive = wasActive;
@@ -539,7 +543,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			activeModelLabel = `${selection.provider}/${selection.model}`;
 			modeActive = true;
 			setModeStatus(ctx, "ready", `local · ${activeModelLabel}`);
-			renderModeWidget(ctx);
+			await startWorkflowMonitor(ctx);
 		} catch (error) {
 			modeActive = wasActive;
 			activeModelMode = previousMode;
@@ -586,9 +590,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		activeModelMode = undefined;
 		activeModelLabel = undefined;
 		originalModeState = undefined;
-		setModeStatus(ctx, "available", workflowSummary?.process);
-		renderModeWidget(ctx);
-		ctx.ui.notify("Agentvolve mode closed; workflow status remains visible", "info");
+		stopWorkflowMonitor();
+		setModeStatus(ctx, "available");
+		ctx.ui.setWidget(WIDGET_KEY, undefined);
+		ctx.ui.notify("Agentvolve mode closed; workflow status monitoring stopped", "info");
 	}
 
 	async function selectAgentvolveModelMode(ctx: ExtensionContext): Promise<AgentvolveModelMode | null> {
@@ -809,7 +814,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	}
 
 	async function refreshWorkflowMonitor(ctx: ExtensionContext): Promise<void> {
-		if (monitorRefreshing || running) return;
+		if (!modeActive || monitorRefreshing || running) return;
 		monitorRefreshing = true;
 		try {
 			const summary = await codingWorkflowStatus();
@@ -824,8 +829,14 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
-	function startWorkflowMonitor(ctx: ExtensionContext): void {
+	async function startWorkflowMonitor(ctx: ExtensionContext): Promise<void> {
 		if (monitor) clearInterval(monitor);
+		monitorFingerprint = undefined;
+		try {
+			await refreshWorkflowMonitor(ctx);
+		} catch {
+			renderModeWidget(ctx);
+		}
 		monitor = setInterval(() => void refreshWorkflowMonitor(ctx).catch(() => undefined), WORKFLOW_MONITOR_INTERVAL_MS);
 	}
 
@@ -1184,7 +1195,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		try {
 			const summary = await codingWorkflowStatus();
 			renderModeWidget(ctx, summary);
-			setModeStatus(ctx, modeActive ? "ready" : "available", summary.process);
+			setModeStatus(ctx, modeActive ? "ready" : "available", modeActive ? summary.process : undefined);
 			ctx.ui.notify(humanSummary(summary), "info");
 		} catch (error) {
 			ctx.ui.notify(String(error), "error");
@@ -1492,16 +1503,11 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		activeModelLabel = undefined;
 		originalModeState = undefined;
 		workflowSummary = undefined;
-		try {
-			workflowSummary = await codingWorkflowStatus();
-		} catch {
-			workflowSummary = undefined;
-		}
-		monitorFingerprint = workflowSummary ? JSON.stringify(workflowSummary) : undefined;
-		setModeStatus(ctx, "available", workflowSummary?.process);
-		renderModeWidget(ctx);
-		startWorkflowMonitor(ctx);
-		ctx.ui.notify(`${MODE_NAME} is monitoring shared workflow history. The complete [1/6]–[6/6] status is always visible.`, "info");
+		monitorFingerprint = undefined;
+		stopWorkflowMonitor();
+		setModeStatus(ctx, "available");
+		ctx.ui.setWidget(WIDGET_KEY, undefined);
+		ctx.ui.notify(`${MODE_NAME} is available. Run /agentvolve to activate workflow status monitoring.`, "info");
 	});
 
 	pi.on("session_shutdown", async () => {

@@ -129,9 +129,9 @@ allocation, permanently seals search, and emits a replay-checked patch without
 changing the source repository. Its strict `darwinian-coding-task-v1` profile
 owns allowed paths, argv checks, draws, budgets, and optional goal-or-limit
 stopping. Plain Pi exposes `/agentvolve` as one streamlined workflow UI with
-local Qwen/llama.cpp and routed outer-Pi model modes. Its always-visible widget
-lists every explicit `[1/6]`–`[6/6]` stage and polls shared runs across Pi
-sessions; `/agentvolve-history` browses recent run status. Nested assay calls
+local Qwen/llama.cpp and routed outer-Pi model modes. While active, its widget
+keeps every explicit `[1/6]`–`[6/6]` stage visible and polls shared runs across
+activated Pi sessions; `/agentvolve-history` browses recent run status. Nested assay calls
 remain pinned to the canonical runtime. Compatibility commands include `/evolve-harness`,
 `/evolve-harness-status`, explicit
 `/evolve-harness-resume` or operator-reasoned `/evolve-harness-retry`,
