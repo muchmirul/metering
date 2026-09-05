@@ -61,6 +61,14 @@ Level-1 recurrence can stop at a numeric round cap or at
 an independently evaluated development goal with that cap as a mandatory
 fallback.
 
+## Empirical evidence
+
+The [2026-09-05 Qwen3.8 maze study](maze-study-2026-09-05.md) records six
+correctly configured, independently checked Level-1 runs under an existing
+verified harness. Three rounds did not improve accuracy over one round. The
+report also preserves the failed fresh Level-2 attempt and the initial
+benchmark configuration errors; it does not establish equal-compute superiority.
+
 ## Result
 
 A completed Level-1 run provides:
