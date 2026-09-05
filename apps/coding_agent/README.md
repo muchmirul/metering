@@ -71,6 +71,16 @@ kernel state, and unexported files are not inherited.
 | `evaluator.py` | independent Level-2 coding-workspace checks |
 | `evidence_adapter.py` | Controller evidence to Population coordinates |
 | `final_assay.py` | capability-first allocation, protected checks, and seal |
-| `solution_experiment.py` | Level-1 sequencing, resume/retry, and offline verification |
+| `experiment_config.py` | fixed commands, budgets, Driver request, and runtime identity |
+| `experiment_artifacts.py` | canonical documents, Git import, harness provenance, and explicit final-profile read/copy |
+| `experiment_runtime.py` | Level-1 execution, publication, resume/retry, and final sealing |
+| `experiment_receipts.py` | read-only execution and retry receipt validation |
+| `experiment_replay.py` | phased independent offline verification |
+| `solution_experiment.py` | compatibility CLI, public operation exports, and status projection |
 | `validate_solution.py` | host-side syntax and content validation |
 | `fixtures/` | deterministic CI profiles and proposal transport |
+
+The entrypoint's public operation/error imports and recorded command paths are
+unchanged. Internal modules import the owning implementation instead of the
+CLI. See the [maintenance guide](../../docs/coding-agent/maintenance.md) for
+boundaries, regression checks, and known accounting limitations.

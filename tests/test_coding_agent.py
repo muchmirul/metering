@@ -17,7 +17,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from apps._support.wire import canonical_digest, canonical_json  # noqa: E402
-import apps.coding_agent.solution_experiment as solution_module  # noqa: E402
+import apps.coding_agent.experiment_artifacts as solution_artifacts  # noqa: E402
+import apps.coding_agent.experiment_config as solution_config  # noqa: E402
+import apps.coding_agent.experiment_receipts as solution_receipts  # noqa: E402
+import apps.coding_agent.experiment_runtime as solution_runtime  # noqa: E402
 from apps.coding_agent.evaluator import evaluate  # noqa: E402
 from apps.coding_agent.process_tracker import (  # noqa: E402
     ProcessTrackerError,
@@ -29,6 +32,7 @@ from apps.coding_agent.protocol import (  # noqa: E402
     load_final_checks,
     load_task_profile,
 )
+import apps.harness.experiment_runtime as harness_runtime  # noqa: E402
 from apps.harness.experiment import (  # noqa: E402
     harness_process_status,
     run_experiment,
@@ -367,7 +371,7 @@ def test_task_profile_binds_a_worded_goal_and_a_maximum_100_rounds(
         "minimum_replicates": 1,
         "type": "all-development-cases-pass-v1",
     }
-    request = solution_module._request(
+    request = solution_config.solution_driver_request(
         profile,
         {},
         proposer=Path("fixture-proposer.py"),
@@ -383,27 +387,27 @@ def test_recorded_evaluator_accepts_only_same_interpreter_alias(
     alias.symlink_to(Path(sys.executable))
     generation = {
         "evaluator": {
-            "command": [str(alias), str(solution_module.EVALUATOR)],
+            "command": [str(alias), str(solution_config.EVALUATOR)],
         }
     }
 
-    recorded = solution_module._verified_recorded_evaluator_command(generation)
-    assert recorded == [str(alias), str(solution_module.EVALUATOR)]
+    recorded = solution_receipts.verified_recorded_evaluator_command(generation)
+    assert recorded == [str(alias), str(solution_config.EVALUATOR)]
     assert canonical_digest({"command": recorded}) in (
-        solution_module._equivalent_evaluator_ids(recorded)
+        solution_receipts.equivalent_evaluator_ids(recorded)
     )
     assert canonical_digest(
         {
             "command": [
-                solution_module._control_python_executable(),
-                str(solution_module.EVALUATOR),
+                solution_config.control_python_executable(),
+                str(solution_config.EVALUATOR),
             ]
         }
-    ) in solution_module._equivalent_evaluator_ids(recorded)
+    ) in solution_receipts.equivalent_evaluator_ids(recorded)
 
     generation["evaluator"]["command"][0] = "/bin/false"
     with pytest.raises(SolutionExperimentError, match="interpreter changed"):
-        solution_module._verified_recorded_evaluator_command(generation)
+        solution_receipts.verified_recorded_evaluator_command(generation)
 
 
 def test_agentvolve_stops_on_verified_goal_before_numeric_limit(
@@ -443,6 +447,7 @@ def test_agentvolve_stops_on_verified_goal_before_numeric_limit(
 
 def test_selected_harness_evolves_solution_commits_and_returns_verified_patch(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     harness_root = tmp_path / "harness-evolution"
     run_experiment("fixture", harness_root, None, assay="coding-agent-v1")
@@ -578,7 +583,34 @@ def test_selected_harness_evolves_solution_commits_and_returns_verified_patch(
     (solution_root / "state" / "population" / "population.sqlite").unlink(
         missing_ok=True
     )
-    verified = verify_solution_experiment(solution_root)
+
+    def evidence_snapshot():
+        return {
+            path.relative_to(tmp_path).as_posix(): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in tmp_path.rglob("*")
+            if path.is_file() and not path.is_symlink()
+        }
+
+    def forbid_effect(*args, **kwargs):
+        pytest.fail("offline verification attempted a live or publication effect")
+
+    before_verify = evidence_snapshot()
+    with monkeypatch.context() as guard:
+        for runtime_module in (solution_runtime, harness_runtime):
+            for effect in (
+                "run_conformance",
+                "run_final_assay",
+                "run_population_driver",
+                "retry_population_driver",
+                "atomic_write",
+                "advance_process_status",
+            ):
+                guard.setattr(runtime_module, effect, forbid_effect)
+        guard.setattr(solution_artifacts, "atomic_write", forbid_effect)
+        verified = verify_solution_experiment(solution_root)
+    assert evidence_snapshot() == before_verify
     assert verified["status"] == "verified"
     assert verified["mutation_receipt_count"] == 2
     assert solution_process_status(solution_root)["display"] == (
@@ -640,9 +672,9 @@ def test_solution_resume_never_repeats_call_and_retry_requires_reserved_budget(
         encoding="utf-8",
     )
     monkeypatch.setenv("CODING_TEST_CALL_COUNTER", str(counter))
-    original = solution_module.FIXTURE_PROPOSER
+    original = solution_runtime.FIXTURE_PROPOSER
     monkeypatch.setenv("CODING_TEST_PROPOSER", str(original))
-    monkeypatch.setattr(solution_module, "FIXTURE_PROPOSER", failing)
+    monkeypatch.setattr(solution_runtime, "FIXTURE_PROPOSER", failing)
 
     exhausted_profile = _write_solution_profile(
         tmp_path / "exhausted-input", max_rounds=1, max_proposal_calls=1

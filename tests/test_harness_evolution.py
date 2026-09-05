@@ -19,7 +19,7 @@ if str(ROOT) not in sys.path:
 
 from apps._support.wire import canonical_json  # noqa: E402
 from apps.harness.conformance import run_conformance  # noqa: E402
-import apps.harness.experiment as harness_experiment_module  # noqa: E402
+import apps.harness.experiment_config as harness_config  # noqa: E402
 from apps.harness.experiment import (  # noqa: E402
     ExperimentError,
     continue_experiment,
@@ -327,7 +327,7 @@ def test_harness_resume_does_not_repeat_model_call_and_reserved_retry_completes(
 ) -> None:
     counter = tmp_path / "calls.txt"
     wrapper = tmp_path / "fail-once.py"
-    original = harness_experiment_module.FIXTURE_PROPOSER
+    original = harness_config.FIXTURE_PROPOSER
     wrapper.write_text(
         "import os,sys\n"
         "from pathlib import Path\n"
@@ -343,7 +343,7 @@ def test_harness_resume_does_not_repeat_model_call_and_reserved_retry_completes(
     )
     monkeypatch.setenv("HARNESS_TEST_CALL_COUNTER", str(counter))
     monkeypatch.setenv("HARNESS_TEST_PROPOSER", str(original))
-    monkeypatch.setattr(harness_experiment_module, "FIXTURE_PROPOSER", wrapper)
+    monkeypatch.setattr(harness_config, "FIXTURE_PROPOSER", wrapper)
     root = tmp_path / "interrupted"
     with pytest.raises(ExperimentError, match="explicit pending intent"):
         run_experiment("fixture", root, None, assay="coding-agent-v1")

@@ -140,7 +140,11 @@ seventh semantic owner. Its instruction split is:
 | `receipts.py` | immutable content-addressed evidence |
 | `conformance.py` | fixed lifecycle assay |
 | `final_assay.py` | protected one-candidate evidence and Population seal |
-| `experiment.py` | thin reference composition and offline verification |
+| `experiment_config.py` | fixed paths, commands, Driver request, and read-only allocation policy |
+| `experiment_runtime.py` | initialization, recurrence, publication, and explicit retry effects |
+| `experiment_receipts.py` | independent development/final receipt validation and retry-set closure |
+| `experiment_replay.py` | offline candidate, conformance, descriptor, and receipt verification |
+| `experiment.py` | compatibility CLI, public operation exports, and status projection |
 
 Provider files do not enter this application owner. Pi and Prime Agent
 translations under `connectors/fixed/` return one strict action with tools,
@@ -192,7 +196,28 @@ feature or a replacement for Controller/Population. It adds these instructions:
 | `evaluator.py` | fresh-container evaluation of Level-2 returned workspaces |
 | `evidence_adapter.py` | authenticated Controller traces to Population evidence |
 | `final_assay.py` | lexicographic development selection and protected one-use assay |
-| `solution_experiment.py` | bounded effects, Git publication, final sealing, and offline replay |
+| `experiment_config.py` | fixed commands, budgets, Driver request, and coding runtime identity |
+| `experiment_artifacts.py` | canonical documents, Git import, harness provenance, and explicit final-profile copy/read operations |
+| `experiment_runtime.py` | bounded execution, publication, final sealing, resume, and retry effects |
+| `experiment_receipts.py` | read-only execution and retry receipt validation |
+| `experiment_replay.py` | independent harness, ancestry, mutation, development, final, and patch verification phases |
+| `solution_experiment.py` | compatibility CLI, public operation exports, and status projection |
+
+Both experiment entrypoints retain their existing script paths and public
+`run_experiment`, `continue_experiment`, `verify_experiment`, status, and error
+imports. Internal owners never import those entrypoints. Runtime may invoke
+replay, but replay never imports experiment runtime or invokes live assays,
+model calls, publication, or status writes. Verification may create disposable
+Git checkouts outside the run; completed run evidence remains unchanged.
+
+The final-profile read operation cannot fall back to opening the operator's
+profile or copying it. Only the explicit runtime copy operation may reveal it,
+at the existing post-development boundary. Receipt verification remains
+independent of publication code; do not remove independent checks merely because
+the writer computes the same fields. See the
+[maintenance guide](coding-agent/maintenance.md) for accounting ownership and
+remaining concerns. These are implementation boundaries, not new schemas,
+budgets, or selection semantics.
 
 Generic snapshot/path primitives belong to `apps/harness/workspace.py`; generic
 clone/content/commit operations remain in `artifacts/git`. Provider invocation
@@ -267,7 +292,10 @@ observations, and credentials; withheld final evaluation remains separate.
 - SQLite use outside Population's projection;
 - duplicate hash-linked journal ownership;
 - domain dependencies from shared mechanical support;
-- durable store instructions in Population Driver replay; and
+- durable store instructions in Population Driver replay;
+- experiment implementation imports of compatibility entrypoints;
+- live execution or publication instructions in experiment replay;
+- experiment CLI ownership beyond dispatch and status projection; and
 - imports from the source control plane into installed Metering core;
 - provider imports from the harness or coding-agent application owners;
 - candidate `exec`/`eval` effects outside the sandbox-side kernel server; and

@@ -652,6 +652,17 @@ fixed action enum and uses the operator-configured absolute profile; it accepts
 no task, command, evaluator, candidate, or output path. Pi is mutation transport
 and UI, never evaluator, selector, ledger authority, or sandbox boundary.
 
+Experiment implementations separate fixed configuration, runtime effects,
+artifact operations, receipt validation, and offline replay behind the existing
+`apps/harness/experiment.py` and `apps/coding_agent/solution_experiment.py`
+entrypoints. Those entrypoints retain public operation/error imports and own
+only command dispatch and status projection. Internal modules do not import the
+entrypoints; experiment replay does not invoke live execution or publication.
+Reading an existing protected-final profile is a separate operation from copying
+it at the existing runtime boundary. This decomposition preserves schemas,
+canonical identities, cost semantics, budgets, stopping, and retry behavior; it
+does not activate new search-cost accounting or require run migration.
+
 Offline verification replays Driver and Population without SQLite, validates
 profile/runtime/harness bindings and kernel conformance, re-clones every exact
 harness and solution candidate, checks first-parent ancestry and allowed paths,

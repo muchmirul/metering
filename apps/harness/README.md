@@ -247,7 +247,15 @@ the exact profile, model, tasks, evaluator, and receipts.
 | `harness_runner.py` | concrete `git-candidate-v1` executor |
 | `evidence_adapter.py` | receipt-to-Population translation |
 | `final_assay.py` | protected single-candidate evaluation and seal |
-| `experiment.py` | reference composition and offline verification |
+| `experiment_config.py` | fixed commands, Driver configuration, and read-only allocation policy |
+| `experiment_runtime.py` | initialization, recurrence, publication, and retry effects |
+| `experiment_receipts.py` | development/final receipt validation and retry-set closure |
+| `experiment_replay.py` | offline candidate, conformance, descriptor, and receipt verification |
+| `experiment.py` | compatibility CLI, public operation exports, and status projection |
 
 Provider CLI translation stays under `connectors/fixed/`; generic Git clone,
 commit, content identity, and publication stay under `artifacts/git/`.
+Experiment implementation modules never import the compatibility CLI. Runtime
+can invoke replay, but replay cannot invoke live execution or publication.
+The existing command surface and public operation/error imports remain intact;
+recorded runs do not need migration for this internal decomposition.

@@ -244,6 +244,11 @@ uv run --extra test pytest -q
 uv build
 ```
 
+For Agentvolve internals, see the [maintenance guide](docs/coding-agent/maintenance.md).
+The experiment entrypoints are compatibility dispatchers; configuration, runtime
+effects, and independent replay have separate owners. Internal refactoring does
+not change command paths, recorded schemas, or require run migration.
+
 Agentvolve workflow changes additionally use the opt-in, three-task local-model
 acceptance test documented in `docs/coding-agent/operations.md`; it deploy-loads
 the Pi extension, runs each approved task, and offline-verifies every result.

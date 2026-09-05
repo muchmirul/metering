@@ -347,6 +347,72 @@ def test_reference_genome_excludes_fixed_evolution_authorities():
     }
 
 
+def experiment_modules():
+    for owner in ("coding_agent", "harness"):
+        yield from (ROOT / "apps" / owner).glob("experiment_*.py")
+
+
+def test_experiment_entrypoints_only_own_dispatch_and_status():
+    entrypoints = {
+        "apps/harness/experiment.py": {"main", "harness_process_status"},
+        "apps/coding_agent/solution_experiment.py": {"main", "solution_process_status"},
+    }
+    for relative, expected_functions in entrypoints.items():
+        tree = parsed(ROOT / relative)
+        assert {
+            node.name for node in tree.body if isinstance(node, ast.FunctionDef)
+        } == expected_functions
+        assert not any(isinstance(node, ast.ClassDef) for node in tree.body)
+        modules = {
+            node.module for node in tree.body if isinstance(node, ast.ImportFrom)
+        }
+        owner = relative.split("/")[1]
+        assert f"apps.{owner}.experiment_runtime" in modules
+        assert f"apps.{owner}.experiment_replay" in modules
+
+
+def test_experiment_implementation_does_not_import_compatibility_entrypoints():
+    forbidden = {"apps.harness.experiment", "apps.coding_agent.solution_experiment"}
+    for path in experiment_modules():
+        imported = {
+            node.module
+            for node in ast.walk(parsed(path))
+            if isinstance(node, ast.ImportFrom)
+        }
+        assert imported.isdisjoint(forbidden), path
+
+
+def test_experiment_replay_cannot_import_or_call_live_effects():
+    forbidden = {
+        "atomic_write",
+        "copy_canonical",
+        "copy_protected_final_tasks",
+        "initialize_solution_repository",
+        "localize_harness",
+        "run_conformance",
+        "run_final_assay",
+        "run_population_driver",
+        "retry_population_driver",
+        "advance_process_status",
+        "KernelSession",
+        "HarnessRuntime",
+    }
+    writes = {"write_bytes", "write_text", "mkdir", "unlink", "rmtree"}
+    for path in experiment_modules():
+        if path.name not in {"experiment_replay.py", "experiment_receipts.py"}:
+            continue
+        tree = parsed(path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                assert all(alias.name not in forbidden for alias in node.names), path
+                assert not (node.module or "").endswith("experiment_runtime"), path
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name):
+                    assert node.func.id not in forbidden, path
+                elif isinstance(node.func, ast.Attribute):
+                    assert node.func.attr not in forbidden | writes, path
+
+
 def test_installed_core_never_imports_source_control_plane():
     forbidden = ("apps", "artifacts", "connectors")
     offenders = []
