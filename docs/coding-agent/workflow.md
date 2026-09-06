@@ -1,16 +1,16 @@
 # Six-stage Agentvolve process
 
-This is Agentvolve's operator-facing lifecycle. The `/agentvolve` UI presents
-one streamlined workflow and deliberately hides the internal harness/solution,
-Controller, Population, Git, and receipt boundaries. Its widget remains visible
-and lists all six stages at all times.
+This is Agentvolve's operator-facing lifecycle. Ordinary Pi slash commands start
+one streamlined detached workflow while hiding the internal harness/solution,
+Controller, Population, Git, and receipt boundaries. The compact widget and
+`/view-progress` dashboard list all six stages without owning the worker.
 
 ## Tracker
 
 | Stage | Meaning | Typical command or evidence |
 |---|---|---|
 | **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | `/goal …`, `/limit N generations`, and a discovered reviewed profile |
-| **[2/6] Evolving harness** | Agentvolve proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | **Start Agentvolve workflow** |
+| **[2/6] Evolving harness** | Agentvolve proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | detached worker after `/agentvolve` or `/evolve-start` |
 | **[3/6] Harness sealed** | One harness has been allocated, protected-final tested, and permanently sealed. | `selected-harness.json` |
 | **[4/6] Evolving solution** | The frozen harness creates and independently tests immutable solution commits until a verified goal or finite limit stops recurrence. | automatic workflow continuation |
 | **[5/6] Protected final assay** | Development has stopped, final allocation is committed, and protected checks are running. | final-role Population records |
@@ -40,33 +40,45 @@ that original run.
 
 ## Viewing status
 
-In interactive Pi the complete tracker stays shown while Agentvolve mode is
-active and polls the shared run directory every two seconds, including work
-launched by another activated Pi session. Use
-`/agentvolve` and choose **Refresh workflow status** for an explicit refresh or
-**Browse workflow history** to inspect recent runs. `/agentvolve-history` opens
-the history browser directly. The direct `/evolve-harness-status` and
+The normal start has no pre-start menu. `/agentvolve` keeps Pi's current operator
+model and launches a manifest-pinned evolution worker in a separate process. Pi
+returns immediately. While operator mode is active, the compact tracker polls
+the shared run directory every two seconds, including work launched by another
+session.
+
+Use `/view-progress [RUN_NAME]` for the live terminal dashboard and
+`/view-history` for the shared history browser. The dashboard labels operator
+and worker identities separately, shows committed rounds and archive evidence,
+and renders a bounded lineage/diff only when immutable candidates exist. It also
+shows a summary for every completed stage and the final selected commit/patch
+report. Press `Esc` or `q` to return to Pi; the worker continues. The
+`/agentvolve-history` name and direct `/evolve-harness-status` and
 `/evolve-code-status` commands remain compatibility interfaces.
 
-From the command line:
+Read the same projection without Pi:
 
 ```bash
-uv run python apps/harness/experiment.py status HARNESS_RUN_ROOT
-uv run python apps/coding_agent/solution_experiment.py status SOLUTION_RUN_ROOT
+uv run python -m apps.coding_agent.operator_view progress RUNS_DIRECTORY [RUN_NAME]
+uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY
 ```
 
-New runs also contain canonical `process-status.json`:
+Detached workflows contain canonical `workflow.json`, ordinal jobs, and a held
+`worker.lock`. `worker-status.json` and `workflow-report.json` are
+projection/orchestration records. Each underlying run also contains canonical
+`process-status.json`:
 
 ```json
 {"authority":"projection-only","display":"[4/6] Evolving solution","process_schema":"darwinian-coding-process-v1","run_kind":"solution","stage":4,"stage_label":"Evolving solution","total_stages":6}
 ```
 
-Pi polls this file while a command is running, so the status line and widget can
-advance without exposing internal model prompts or protected-final content.
+The worker and operator view combine these projections with authoritative
+ledgers and receipts, so status can advance without exposing internal model
+prompts or protected-final content.
 
 ## Authority boundary
 
-The tracker is a convenience projection, not experimental authority. It cannot:
+The tracker, worker status, graph, diff preview, and reports are convenience
+projections, not experimental authority. They cannot:
 
 - authorize a model call or retry;
 - select or allocate a candidate;

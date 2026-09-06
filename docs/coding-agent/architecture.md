@@ -39,12 +39,28 @@ objects locally, and records `harness-provenance.json`. Later resume and replay
 recheck that source evidence. A Level-1 result never changes harness policy.
 This preserves attribution.
 
-## User process
+## Operator and worker processes
+
+Interactive Pi is the operator, not the evolution executor. `/agentvolve` or
+`/evolve-start` launches `apps.coding_agent.agentvolve_worker` in a detached
+session and returns control to Pi. The worker alone sequences harness and
+solution effects using the canonical runtime manifest. It owns a workflow-scoped
+inherited file lock, bounded logs, heartbeat/liveness identity, and canonical
+ordinal start/resume/retry/verify jobs. Closing Pi or the live dashboard does not
+attach to, cancel, or change that worker.
+
+The boundary is portable filesystem JSON. A thin agent adapter needs only to
+launch fixed worker actions and render `apps.coding_agent.operator_view` output;
+it does not need access to mutation prompts or evaluator internals. The operator
+view derives current rounds and lineage from canonical ledgers and candidate Git
+objects. Its `worker-status.json`, `workflow-report.json`, per-run
+`process-status.json`, dashboard, and stage notices are projection/orchestration
+data only: they cannot authorize model calls, selection, final access, or replay.
+Git, JSONL, allocations, receipts, and seals remain authoritative.
 
 The operator sees the stable `[1/6]` through `[6/6]` lifecycle documented in the
-[six-stage workflow](workflow.md). Its `process-status.json` file is a monotonic,
-projection-only UI tracker: it cannot authorize model calls, selection, final
-access, or replay. Git, JSONL, allocations, and receipts remain authoritative.
+[six-stage workflow](workflow.md). A reused sealed harness is explicitly marked
+as reused rather than presented as work performed by the current worker.
 
 ## Evidence visibility
 
@@ -113,11 +129,13 @@ Ordinary interactive Pi runs with the permissions of its host user and has no
 built-in sandbox or command-approval boundary. Project trust controls whether
 project resources load; it does not confine built-in tools. Pi extensions and
 user/global packages also have host authority, so operators must review or
-disable them before a sensitive run. This repository ships one project extension
-shim for the reviewed Population implementation. Its model-facing action enum
-cannot supply task text, commands, evaluators, candidates, output paths, or retry
-authority; the instruction to invoke run actions only after a user request is a
-prompt policy rather than an OS security boundary.
+disable them before a sensitive run. This repository ships one thin project
+extension shim for the reviewed implementation. The operator model may differ
+from the manifest-pinned worker model; the dashboard labels both identities.
+The model-facing action enum cannot supply task text, commands, evaluators,
+candidates, output paths, profile paths, or retry authority. The instruction to
+invoke run actions only after a user request is prompt policy rather than an OS
+security boundary.
 
 Candidate code and candidate-owned extensions are never loaded into the host Pi.
 Nested Pi calls use isolated configuration roots with tools, sessions, skills,

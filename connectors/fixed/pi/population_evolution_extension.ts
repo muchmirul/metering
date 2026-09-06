@@ -4,17 +4,17 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-import { type Api, type Message, type Model, StringEnum, uuidv7 } from "@earendil-works/pi-ai";
+import { type Message, StringEnum, uuidv7 } from "@earendil-works/pi-ai";
 import {
 	BorderedLoader,
-	DynamicBorder,
 	type ExtensionAPI,
 	type ExtensionContext,
 	type SessionEntry,
 } from "@earendil-works/pi-coding-agent";
-import { Container, type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
+import { showAgentvolveDashboard } from "./agentvolve_dashboard.ts";
 import {
 	boundedDiagnostic,
 	COMMAND_TIMEOUT_MS,
@@ -25,17 +25,21 @@ import {
 	codingWorkflowStatus,
 	configuredRuntimeSelection,
 	configuredTaskProfile,
+	decodeOperatorHistory,
+	decodeOperatorProgress,
 	decodeOutput,
 	discoverTaskProfiles,
 	latestCodingRoot,
 	latestRunRoot,
-	latestUnfinishedCodingRun,
+	latestWorkerWorkflowRoot,
 	llamaCppModelReady,
 	llamaCppService,
 	LOCAL_RUNTIME_TIMEOUT_MS,
 	type ModeSummary,
 	newCodingRunRoot,
 	newRunRoot,
+	type OperatorHistoryView,
+	type OperatorProgressView,
 	PROCESS_LABELS,
 	processProjection,
 	readProcessProjection,
@@ -46,9 +50,7 @@ import {
 	runSummary,
 	statusSummary,
 	tasksDirectory,
-	type ThinkingLevel,
 	verificationSummary,
-	workflowHistory,
 	WORKFLOW_MONITOR_INTERVAL_MS,
 } from "./population_evolution_support.ts";
 
@@ -67,39 +69,23 @@ interface CodingInvocation {
 	root: string;
 }
 
-interface OriginalModeState {
-	model: Model<Api> | undefined;
-	thinkingLevel: ThinkingLevel;
-}
-
 interface WorkflowConfiguration {
 	goal?: string;
 	maxRounds?: number;
 }
 
-type AgentvolveModelMode = "local" | "routed";
+interface WorkerResponse {
+	action: string;
+	pid: number;
+	state: string;
+	worker_response_schema: "agentvolve-worker-response-v1";
+	workflow_id: string;
+	workflow_root: string;
+}
 
-type AgentvolveMenuAction =
-	| "close"
-	| "deactivate"
-	| "workflow"
-	| "workflow-from-session"
-	| "workflow-history"
-	| "workflow-resume"
-	| "workflow-retry"
-	| "workflow-status"
-	| "workflow-verify";
+type AgentvolveModelMode = "routed";
 
-type WorkflowAction = "run" | "resume" | "retry" | "status" | "verify";
-type WorkflowEffectAction = Exclude<WorkflowAction, "status">;
 type CodingLoaderAction = Exclude<CodingAction, "harness-status" | "solution-status">;
-
-const WORKFLOW_LOADER_LABELS: Record<WorkflowEffectAction, string> = {
-	run: "Running the unified Agentvolve workflow [1/6] → [6/6]…",
-	resume: "Resuming the current Agentvolve workflow stage…",
-	retry: "Retrying the explicitly approved pending workflow attempt…",
-	verify: "Verifying the completed Agentvolve workflow offline…",
-};
 
 const CODING_LOADER_LABELS: Record<CodingLoaderAction, string> = {
 	harness: "[1/6] Validating configuration; then [2/6] evolving the harness…",
@@ -124,13 +110,14 @@ const POPULATION_TOOL_GUIDELINE = [
 ].join(" ");
 
 const CODING_TOOL_DESCRIPTION = [
-	"Run or inspect Agentvolve's fixed Pi coding-harness and solution evolution using only",
-	"the operator-approved METERING_EVOLUTION_TASK_PROFILE. It accepts no task text, command,",
-	"evaluator, candidate, or output path.",
+	"Start or inspect Agentvolve's detached workflow, or use its compatibility harness/solution actions,",
+	"using only operator-approved session configuration and task profiles. It accepts no task text, command,",
+	"evaluator, candidate, retry reason, or output path.",
 ].join(" ");
 
 const CODING_TOOL_GUIDELINE = [
-	"Use darwinian_coding only after the user explicitly requests harness or solution evolution.",
+	"Use darwinian_coding only after the user explicitly requests Agentvolve workflow, harness, or solution evolution.",
+	"Prefer workflow_start so the Pi session remains the operator while a detached worker performs evolution.",
 	"Never substitute ordinary in-place edits for its immutable candidates and independent assays.",
 ].join(" ");
 
@@ -180,7 +167,10 @@ function responseText(response: { content: Array<{ type: string; text?: string }
 
 function unquoteArgument(value: string): string {
 	const text = value.trim();
-	if (text.length >= 2 && ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")))) {
+	if (
+		text.length >= 2 &&
+		((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")))
+	) {
 		return text.slice(1, -1).trim();
 	}
 	return text;
@@ -191,7 +181,8 @@ function setModeStatus(
 	state: "available" | "failed" | "ready" | "running",
 	process?: string,
 ): void {
-	const color = state === "failed" ? "error" : state === "running" ? "warning" : state === "available" ? "dim" : "accent";
+	const color =
+		state === "failed" ? "error" : state === "running" ? "warning" : state === "available" ? "dim" : "accent";
 	ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(color, `agentvolve: ${process ?? state}`));
 }
 
@@ -205,18 +196,18 @@ function setModeWidget(
 		ctx.ui.theme.fg("accent", `🧬 ${MODE_NAME}`) + ctx.ui.theme.fg("dim", " · unified workflow"),
 		ctx.ui.theme.fg(
 			"dim",
-			modelMode && modelLabel ? `model mode: ${modelMode} · ${modelLabel}` : "model mode: not active",
+			modelMode && modelLabel ? `operator model: ${modelLabel}` : "operator model: mode not active",
 		),
 	];
 	const match = summary?.process?.match(/^\[(\d+)\/6\]/);
 	const currentStage = match ? Number.parseInt(match[1], 10) : undefined;
-	const inProgress = summary?.status === "in progress";
-	const failed = summary?.status === "failed";
+	const failed = ["failed", "inconsistent", "stalled", "stopped", "waiting-retry"].includes(summary?.status ?? "");
 	lines.push(ctx.ui.theme.fg("accent", `workflow status: ${summary?.status ?? "not started"}`));
 	for (let stage = 1; stage <= 6; stage += 1) {
 		const label = PROCESS_LABELS[stage];
 		const isCurrent = stage === currentStage;
-		const completed = currentStage !== undefined && (stage < currentStage || (isCurrent && !inProgress && !failed));
+		const currentComplete = ["completed", "sealed", "verified"].includes(summary?.status ?? "");
+		const completed = currentStage !== undefined && (stage < currentStage || (isCurrent && currentComplete));
 		const marker = completed ? "✓" : isCurrent && failed ? "!" : isCurrent ? "▶" : "○";
 		const color = completed ? "success" : isCurrent && failed ? "error" : isCurrent ? "warning" : "dim";
 		lines.push(ctx.ui.theme.fg(color, `${marker} [${stage}/6] ${label}`));
@@ -244,37 +235,22 @@ function humanSummary(summary: ModeSummary): string {
 	return fields.join("\n");
 }
 
-function selectMenu<Value extends string>(
-	ctx: ExtensionContext,
-	title: string,
-	items: SelectItem[],
-	cancelLabel: string,
-): Promise<Value | null> {
-	return ctx.ui.custom<Value | null>((tui, theme, _keybindings, done) => {
-		const container = new Container();
-		container.addChild(new DynamicBorder((text: string) => theme.fg("accent", text)));
-		container.addChild(new Text(theme.fg("accent", theme.bold(title)), 1, 0));
-		const list = new SelectList(items, Math.min(items.length, 12), {
-			selectedPrefix: (text) => theme.fg("accent", text),
-			selectedText: (text) => theme.fg("accent", text),
-			description: (text) => theme.fg("muted", text),
-			scrollInfo: (text) => theme.fg("dim", text),
-			noMatch: (text) => theme.fg("warning", text),
-		});
-		list.onSelect = (item) => done(item.value as Value);
-		list.onCancel = () => done(null);
-		container.addChild(list);
-		container.addChild(new Text(theme.fg("dim", `↑↓ navigate • enter select • esc ${cancelLabel}`), 1, 0));
-		container.addChild(new DynamicBorder((text: string) => theme.fg("accent", text)));
-		return {
-			render: (width: number) => container.render(width),
-			invalidate: () => container.invalidate(),
-			handleInput: (data: string) => {
-				list.handleInput(data);
-				tui.requestRender();
-			},
-		};
-	});
+function decodeWorkerResponse(value: Record<string, unknown>): WorkerResponse {
+	if (
+		value.worker_response_schema !== "agentvolve-worker-response-v1" ||
+		typeof value.action !== "string" ||
+		typeof value.pid !== "number" ||
+		typeof value.state !== "string" ||
+		typeof value.workflow_id !== "string" ||
+		typeof value.workflow_root !== "string"
+	) {
+		throw new Error("Agentvolve worker returned an unexpected response");
+	}
+	return value as unknown as WorkerResponse;
+}
+
+function operatorModelLabel(ctx: ExtensionContext): string {
+	return ctx.model ? `${ctx.model.provider}/${ctx.model.id} · ${ctx.thinkingLevel}` : "no operator model selected";
 }
 
 function summaryLoader(
@@ -296,16 +272,18 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	let modeActive = false;
 	let activeModelMode: AgentvolveModelMode | undefined;
 	let activeModelLabel: string | undefined;
-	let originalModeState: OriginalModeState | undefined;
 	let workflowSummary: ModeSummary | undefined;
 	let monitor: ReturnType<typeof setInterval> | undefined;
 	let monitorRefreshing = false;
 	let monitorFingerprint: string | undefined;
 	let running = false;
 	let workflowConfiguration: WorkflowConfiguration = {};
+	let configurationWorkflowRoot: string | undefined;
+	let reportedStages = new Set<string>();
 
 	function persistWorkflowConfiguration(next: WorkflowConfiguration): void {
 		workflowConfiguration = next;
+		configurationWorkflowRoot = undefined;
 		pi.appendEntry("agentvolve-workflow-configuration", next);
 	}
 
@@ -349,178 +327,27 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	async function activateAgentvolveMode(
 		ctx: ExtensionContext,
-		signal?: AbortSignal,
-		requestedMode: AgentvolveModelMode = activeModelMode ?? "local",
+		_signal?: AbortSignal,
+		_requestedMode: AgentvolveModelMode = "routed",
 	): Promise<void> {
 		const wasActive = modeActive;
-		const previousMode = activeModelMode;
-		const previousLabel = activeModelLabel;
-		if (!originalModeState) {
-			originalModeState = {
-				model: ctx.model,
-				thinkingLevel: pi.getThinkingLevel(),
-			};
-		}
-		if (requestedMode === "routed") {
-			setModeStatus(ctx, "running", "selecting routed Pi model");
-			try {
-				if (originalModeState.model && !(await pi.setModel(originalModeState.model))) {
-					throw new Error("Pi could not restore the routed model that preceded Agentvolve");
-				}
-				pi.setThinkingLevel(originalModeState.thinkingLevel);
-				const model = originalModeState.model ?? ctx.model;
-				activeModelMode = "routed";
-				activeModelLabel = model ? `${model.provider}/${model.id}` : "current Pi route";
-				modeActive = true;
-				setModeStatus(ctx, "ready", `routed · ${activeModelLabel}`);
-				await startWorkflowMonitor(ctx);
-				return;
-			} catch (error) {
-				modeActive = wasActive;
-				activeModelMode = previousMode;
-				activeModelLabel = previousLabel;
-				if (!wasActive) originalModeState = undefined;
-				setModeStatus(ctx, "failed", "routed Pi model");
-				throw error;
-			}
-		}
-
-		const selection = await configuredRuntimeSelection();
-		setModeStatus(ctx, "running", `activating ${selection.provider}/${selection.model}`);
-		try {
-			await ensureLocalRuntime(selection, signal);
-			const model = ctx.modelRegistry.find(selection.provider, selection.model);
-			if (!model) throw new Error(`Pi model is unavailable: ${selection.provider}/${selection.model}`);
-			if (!(await pi.setModel(model))) {
-				throw new Error(`Pi has no usable authentication for ${selection.provider}/${selection.model}`);
-			}
-			pi.setThinkingLevel(selection.reasoning);
-			activeModelMode = "local";
-			activeModelLabel = `${selection.provider}/${selection.model}`;
-			modeActive = true;
-			setModeStatus(ctx, "ready", `local · ${activeModelLabel}`);
-			await startWorkflowMonitor(ctx);
-		} catch (error) {
-			modeActive = wasActive;
-			activeModelMode = previousMode;
-			activeModelLabel = previousLabel;
-			if (!wasActive) originalModeState = undefined;
-			setModeStatus(ctx, "failed", `${selection.provider}/${selection.model}`);
-			throw error;
-		}
-	}
-
-	async function activateAgentvolveWithLoader(
-		ctx: ExtensionContext,
-		requestedMode: AgentvolveModelMode,
-	): Promise<boolean> {
-		if (ctx.mode === "rpc") {
-			try {
-				await activateAgentvolveMode(ctx, undefined, requestedMode);
-				return true;
-			} catch (error) {
-				ctx.ui.notify(String(error), "error");
-				return false;
-			}
-		}
-		const result = await ctx.ui.custom<{ error?: string } | null>((tui, theme, _keybindings, done) => {
-			const label =
-				requestedMode === "local"
-					? "Activating Qwen through llama.cpp…"
-					: "Entering Agentvolve with the routed Pi model…";
-			const loader = new BorderedLoader(tui, theme, label);
-			loader.onAbort = () => done(null);
-			activateAgentvolveMode(ctx, loader.signal, requestedMode)
-				.then(() => done({}))
-				.catch((error) => done({ error: String(error) }));
-			return loader;
-		});
-		if (result === null) {
-			ctx.ui.notify("Agentvolve activation cancelled", "info");
-			return false;
-		}
-		if (result.error) {
-			ctx.ui.notify(result.error, "error");
-			return false;
-		}
-		return true;
+		activeModelMode = "routed";
+		activeModelLabel = operatorModelLabel(ctx);
+		modeActive = true;
+		setModeStatus(ctx, "ready", `operator · ${activeModelLabel}`);
+		await startWorkflowMonitor(ctx);
+		if (!wasActive) pi.appendEntry("agentvolve-mode", { active: true, modelMode: "routed" });
 	}
 
 	async function deactivateAgentvolveMode(ctx: ExtensionContext): Promise<void> {
-		if (originalModeState?.model && !(await pi.setModel(originalModeState.model))) {
-			ctx.ui.notify("Could not restore the model that preceded Agentvolve", "warning");
-		}
-		if (originalModeState) pi.setThinkingLevel(originalModeState.thinkingLevel);
 		modeActive = false;
 		activeModelMode = undefined;
 		activeModelLabel = undefined;
-		originalModeState = undefined;
 		stopWorkflowMonitor();
 		setModeStatus(ctx, "available");
 		ctx.ui.setWidget(WIDGET_KEY, undefined);
+		pi.appendEntry("agentvolve-mode", { active: false });
 		ctx.ui.notify("Agentvolve mode closed; workflow status monitoring stopped", "info");
-	}
-
-	async function selectAgentvolveModelMode(ctx: ExtensionContext): Promise<AgentvolveModelMode | null> {
-		const routedModel = modeActive && originalModeState?.model ? originalModeState.model : ctx.model;
-		const routedLabel = routedModel ? `${routedModel.provider}/${routedModel.id}` : "the current Pi model";
-		const items: SelectItem[] = [
-			{
-				value: "local",
-				label: activeModelMode === "local" ? "Local model ✓" : "Local model",
-				description: "Use the canonical Qwen model through llama.cpp",
-			},
-			{
-				value: "routed",
-				label: activeModelMode === "routed" ? "Routed Pi model ✓" : "Routed Pi model",
-				description: `Use ${routedLabel} for the outer Pi session; experiments stay runtime-pinned`,
-			},
-		];
-		return selectMenu<AgentvolveModelMode>(ctx, "Agentvolve · choose model mode", items, "cancel");
-	}
-
-	async function selectAgentvolveAction(ctx: ExtensionContext): Promise<AgentvolveMenuAction | null> {
-		const items: SelectItem[] = [
-			{
-				value: "workflow",
-				label: "Start Agentvolve workflow",
-				description: "Run the complete [1/6] through [6/6] pipeline with a discovered task",
-			},
-			{
-				value: "workflow-from-session",
-				label: "Create task from current session",
-				description: "Generate a reviewable task draft from user messages, register it, and run",
-			},
-			{
-				value: "workflow-status",
-				label: "Refresh workflow status",
-				description: "Refresh the always-visible six-stage tracker",
-			},
-			{
-				value: "workflow-history",
-				label: "Browse workflow history",
-				description: "Inspect shared runs from this or any other Pi session",
-			},
-			{
-				value: "workflow-resume",
-				label: "Resume workflow",
-				description: "Continue the latest replay-authorized workflow effect",
-			},
-			{
-				value: "workflow-retry",
-				label: "Retry pending attempt",
-				description: "Explicitly authorize the workflow's pending model attempt",
-			},
-			{
-				value: "workflow-verify",
-				label: "Verify completed workflow",
-				description: "Replay the latest sealed workflow result offline",
-			},
-			{ value: "close", label: "Close menu", description: "Keep Agentvolve mode and its status tracker active" },
-			{ value: "deactivate", label: "Exit Agentvolve mode", description: "Restore the preceding Pi model" },
-		];
-		const title = `Agentvolve workflow [1/6] → [6/6] · ${activeModelMode} · ${activeModelLabel}`;
-		return selectMenu<AgentvolveMenuAction>(ctx, title, items, "close");
 	}
 
 	async function executePopulation(
@@ -579,8 +406,50 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			if (fingerprint === monitorFingerprint) return;
 			monitorFingerprint = fingerprint;
 			renderModeWidget(ctx, summary);
-			const state = summary.status === "in progress" ? "running" : modeActive ? "ready" : "available";
+			const activeStates = new Set(["in progress", "queued", "running"]);
+			const failedStates = new Set(["failed", "inconsistent", "stalled", "stopped", "waiting-retry"]);
+			const state = activeStates.has(summary.status)
+				? "running"
+				: failedStates.has(summary.status)
+					? "failed"
+					: modeActive
+						? "ready"
+						: "available";
 			setModeStatus(ctx, state, summary.process ?? (modeActive ? activeModelLabel : undefined));
+			try {
+				const progress = await operatorProgress();
+				for (const stage of progress.stages) {
+					if (!["complete", "reused"].includes(stage.status)) continue;
+					const key = `${progress.workflow_id}:${stage.number}`;
+					if (reportedStages.has(key)) continue;
+					reportedStages.add(key);
+					pi.appendEntry("agentvolve-stage-report", {
+						label: stage.label,
+						stage: stage.number,
+						status: stage.status,
+						summary: stage.summary,
+						workflowId: progress.workflow_id,
+					});
+					if (stage.number === 6) ctx.ui.notify(`Agentvolve finished: ${stage.summary}`, "info");
+				}
+				if (["failed", "inconsistent", "stalled", "stopped", "waiting-retry"].includes(progress.state)) {
+					const stateKey = `${progress.workflow_id}:state:${progress.state}`;
+					if (!reportedStages.has(stateKey)) {
+						reportedStages.add(stateKey);
+						ctx.ui.notify(`Agentvolve ${progress.state}: ${progress.activity}`, "warning");
+					}
+				}
+				if (
+					(workflowConfiguration.goal !== undefined || workflowConfiguration.maxRounds !== undefined) &&
+					configurationWorkflowRoot === progress.workflow_root &&
+					["completed", "verified"].includes(progress.state)
+				) {
+					persistWorkflowConfiguration({});
+					configurationWorkflowRoot = undefined;
+				}
+			} catch {
+				// The compact widget still works if the richer read-only projection is temporarily unavailable.
+			}
 		} finally {
 			monitorRefreshing = false;
 		}
@@ -787,99 +656,117 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
-	async function executeWorkflow(
-		action: WorkflowAction,
-		ctx: ExtensionContext,
-		argument = "",
-		signal?: AbortSignal,
-	): Promise<ModeSummary> {
-		if (action === "status") return codingWorkflowStatus();
-		if (action === "run") {
-			const unfinished = await latestUnfinishedCodingRun();
-			if (unfinished) {
-				throw new Error(
-					`an unfinished workflow is already at ${unfinished.root}; choose Resume workflow or Retry pending attempt`,
-				);
-			}
-			const profile = configuredTaskProfile(argument);
-			if (!(await selectedHarnessDescriptor())) await executeCoding("harness", ctx, "", signal);
-			return executeCoding("solution", ctx, profile, signal);
-		}
-		if (action === "verify") return executeCoding("solution-verify", ctx, "", signal);
-		const unfinished = await latestUnfinishedCodingRun();
-		if (!unfinished) throw new Error(`no unfinished Agentvolve workflow exists to ${action}`);
-		if (action === "retry" && !argument.trim()) {
-			throw new Error("Retry pending attempt requires an operator-approved reason");
-		}
-		const codingAction =
-			unfinished.kind === "harness"
-				? action === "retry"
-					? "harness-retry"
-					: "harness-resume"
-				: action === "retry"
-					? "solution-retry"
-					: "solution-resume";
-		return executeCoding(codingAction, ctx, argument, signal);
-	}
-
-	async function workflowLoader(
-		action: WorkflowEffectAction,
-		ctx: ExtensionContext,
-		argument = "",
-	): Promise<boolean> {
-		if (ctx.mode === "rpc") {
-			try {
-				const summary = await executeWorkflow(action, ctx, argument);
-				renderModeWidget(ctx, summary);
-				pi.appendEntry("darwinian-coding-run", summary);
-				consumeWorkflowConfiguration(summary);
-				ctx.ui.notify(humanSummary(summary), "info");
-				return true;
-			} catch (error) {
-				try {
-					renderModeWidget(ctx, await codingWorkflowStatus());
-				} catch {
-					renderModeWidget(ctx);
-				}
-				ctx.ui.notify(String(error), "error");
-				return false;
-			}
-		}
-		if (ctx.mode !== "tui") {
-			ctx.ui.notify("Agentvolve workflow commands require interactive or RPC Pi", "error");
-			return false;
-		}
-		const result = await summaryLoader(ctx, WORKFLOW_LOADER_LABELS[action], (signal) =>
-			executeWorkflow(action, ctx, argument, signal),
+	async function operatorProgress(selector = ""): Promise<OperatorProgressView> {
+		const result = await pi.exec(
+			"uv",
+			[
+				"run",
+				"python",
+				"-m",
+				"apps.coding_agent.operator_view",
+				"progress",
+				runsDirectory(),
+				...(selector.trim() ? [selector.trim()] : []),
+			],
+			{ cwd: repositoryRoot(), timeout: 15_000 },
 		);
-		if (result === null) {
-			ctx.ui.notify("Agentvolve workflow command cancelled", "info");
-			return false;
-		}
-		if (result.error) {
-			try {
-				renderModeWidget(ctx, await codingWorkflowStatus());
-			} catch {
-				renderModeWidget(ctx);
-			}
-			ctx.ui.notify(result.error, "error");
-			return false;
-		}
-		if (result.summary) {
-			renderModeWidget(ctx, result.summary);
-			pi.appendEntry("darwinian-coding-run", result.summary);
-			consumeWorkflowConfiguration(result.summary);
-			ctx.ui.notify(humanSummary(result.summary), "info");
-			return true;
-		}
-		return false;
+		return decodeOperatorProgress(decodeOutput(result));
 	}
 
-	async function codingLoader(
-		action: CodingLoaderAction,
+	async function operatorHistory(): Promise<OperatorHistoryView> {
+		const result = await pi.exec(
+			"uv",
+			["run", "python", "-m", "apps.coding_agent.operator_view", "history", runsDirectory()],
+			{ cwd: repositoryRoot(), timeout: 15_000 },
+		);
+		return decodeOperatorHistory(decodeOutput(result));
+	}
+
+	async function launchDetachedWorkflow(
 		ctx: ExtensionContext,
-		profileArgument = "",
-	): Promise<void> {
+		profile: string,
+		consumeConfiguration = false,
+		signal?: AbortSignal,
+	): Promise<boolean> {
+		try {
+			await activateAgentvolveMode(ctx, signal, "routed");
+			const selection = await configuredRuntimeSelection();
+			await ensureLocalRuntime(selection, signal);
+			const runtime = runtimeManifest();
+			const harness = await selectedHarnessDescriptor();
+			const result = await pi.exec(
+				"uv",
+				[
+					"run",
+					"python",
+					"-m",
+					"apps.coding_agent.agentvolve_worker",
+					"start",
+					runsDirectory(),
+					configuredTaskProfile(profile),
+					runtime,
+					...(harness ? [harness] : []),
+				],
+				{ cwd: repositoryRoot(), signal, timeout: 30_000 },
+			);
+			const worker = decodeWorkerResponse(decodeOutput(result));
+			if (consumeConfiguration) configurationWorkflowRoot = worker.workflow_root;
+			pi.appendEntry("agentvolve-worker-launch", { ...worker, consumesConfiguration: consumeConfiguration });
+			setModeStatus(ctx, "running", `[1/6] detached worker pid ${worker.pid}`);
+			await startWorkflowMonitor(ctx);
+			ctx.ui.notify(
+				`Agentvolve worker started separately from this Pi session.\nworker pid: ${worker.pid}\nworkflow: ${worker.workflow_root}\nUse /view-progress while you continue using Pi.`,
+				"info",
+			);
+			return true;
+		} catch (error) {
+			ctx.ui.notify(String(error), "error");
+			return false;
+		}
+	}
+
+	async function launchDetachedAction(
+		action: "resume" | "retry" | "stop" | "verify",
+		ctx: ExtensionContext,
+		reason = "",
+		signal?: AbortSignal,
+	): Promise<boolean> {
+		try {
+			await activateAgentvolveMode(ctx, signal, "routed");
+			const workflow = await latestWorkerWorkflowRoot();
+			if (!workflow) throw new Error("no detached Agentvolve workflow exists");
+			if (["resume", "retry"].includes(action)) {
+				const selection = await configuredRuntimeSelection();
+				await ensureLocalRuntime(selection, signal);
+			}
+			const result = await pi.exec(
+				"uv",
+				[
+					"run",
+					"python",
+					"-m",
+					"apps.coding_agent.agentvolve_worker",
+					action,
+					workflow,
+					...(action === "retry" ? [reason] : []),
+				],
+				{ cwd: repositoryRoot(), signal, timeout: 30_000 },
+			);
+			const worker = decodeWorkerResponse(decodeOutput(result));
+			pi.appendEntry("agentvolve-worker-launch", { ...worker, consumesConfiguration: false });
+			await startWorkflowMonitor(ctx);
+			ctx.ui.notify(
+				`Agentvolve worker action accepted: ${action} · ${worker.state}\npid: ${worker.pid}\nworkflow: ${worker.workflow_root}`,
+				"info",
+			);
+			return true;
+		} catch (error) {
+			ctx.ui.notify(String(error), "error");
+			return false;
+		}
+	}
+
+	async function codingLoader(action: CodingLoaderAction, ctx: ExtensionContext, profileArgument = ""): Promise<void> {
 		if (ctx.mode === "rpc") {
 			try {
 				const summary = await executeCoding(action, ctx, profileArgument);
@@ -954,94 +841,74 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
-	async function showWorkflowStatus(ctx: ExtensionContext): Promise<void> {
+	async function showProgress(ctx: ExtensionContext, selector = ""): Promise<void> {
 		try {
-			const summary = await codingWorkflowStatus();
-			renderModeWidget(ctx, summary);
-			setModeStatus(ctx, modeActive ? "ready" : "available", modeActive ? summary.process : undefined);
-			ctx.ui.notify(humanSummary(summary), "info");
+			const progress = await operatorProgress(selector);
+			pi.appendEntry("agentvolve-progress-view", {
+				stage: progress.stage,
+				state: progress.state,
+				workflowId: progress.workflow_id,
+				workflowRoot: progress.workflow_root,
+			});
+			if (ctx.mode !== "tui") {
+				ctx.ui.notify(
+					`${progress.stage_label} · ${progress.state}\n${progress.activity}\n${progress.workflow_root}`,
+					"info",
+				);
+				return;
+			}
+			const resumeMonitor = monitor !== undefined;
+			if (resumeMonitor) stopWorkflowMonitor();
+			try {
+				await showAgentvolveDashboard(ctx, operatorModelLabel(ctx), progress, () => operatorProgress(selector));
+			} finally {
+				if (resumeMonitor && modeActive) await startWorkflowMonitor(ctx);
+			}
 		} catch (error) {
 			ctx.ui.notify(String(error), "error");
 		}
 	}
 
 	async function showWorkflowHistory(ctx: ExtensionContext): Promise<void> {
-		if (ctx.mode !== "tui") {
-			ctx.ui.notify("Workflow history requires interactive Pi", "error");
-			return;
+		try {
+			const history = await operatorHistory();
+			if (!history.runs.length) {
+				ctx.ui.notify(`No Agentvolve workflow runs exist under ${runsDirectory()}`, "info");
+				return;
+			}
+			if (ctx.mode !== "tui") {
+				const lines = history.runs
+					.slice(0, 10)
+					.map((run) => `${run.name} · ${run.state} · ${run.stage === null ? "?" : `[${run.stage}/6]`}`);
+				ctx.ui.notify(lines.join("\n"), "info");
+				return;
+			}
+			const labels = history.runs.map((run) => {
+				const goal = run.goal?.replaceAll(/\s+/g, " ").slice(0, 70) ?? "goal unavailable";
+				return `${run.stage === null ? "[?/6]" : `[${run.stage}/6]`} ${run.state} · ${run.name} · ${goal}`;
+			});
+			const selected = await ctx.ui.select("Agentvolve history · choose a run to inspect", labels);
+			if (!selected) return;
+			const run = history.runs[labels.indexOf(selected)];
+			if (!run) return;
+			pi.appendEntry("agentvolve-history-view", { name: run.name, state: run.state });
+			await showProgress(ctx, run.name);
+		} catch (error) {
+			ctx.ui.notify(String(error), "error");
 		}
-		const summaries = await workflowHistory();
-		if (!summaries.length) {
-			ctx.ui.notify(`No Agentvolve workflow runs exist under ${runsDirectory()}`, "info");
-			return;
-		}
-		const labels = summaries.map((summary) => {
-			const name = summary.runRoot.slice(summary.runRoot.lastIndexOf("/") + 1);
-			return `${summary.process ?? "[?/6] Unknown stage"} · ${summary.status} · ${name}`;
-		});
-		const selected = await ctx.ui.select("Agentvolve workflow history", labels);
-		if (!selected) return;
-		const summary = summaries[labels.indexOf(selected)];
-		if (!summary) return;
-		pi.appendEntry("agentvolve-history-view", summary);
-		ctx.ui.notify(humanSummary(summary), "info");
 	}
 
-	async function chooseTaskProfile(ctx: ExtensionContext, automatic = false): Promise<string | null> {
-		const discovered = await discoverTaskProfiles();
+	async function chooseTaskProfile(ctx: ExtensionContext): Promise<string> {
 		const configured = process.env.METERING_EVOLUTION_TASK_PROFILE?.trim();
-		if (configured) {
-			const path = configuredTaskProfile(configured);
-			if (automatic) return path;
-			if (!discovered.some((profile) => profile.path === path)) {
-				discovered.unshift({
-					entrypoint: "configured profile",
-					goal: "Explicit METERING_EVOLUTION_TASK_PROFILE",
-					name: "configured",
-					path,
-					repository: "environment",
-				});
-			}
-		}
+		if (configured) return configuredTaskProfile(configured);
+		const discovered = await discoverTaskProfiles();
 		const cwd = resolve(ctx.cwd);
 		const matching = discovered.filter((profile) => resolve(profile.repository) === cwd);
-		if (automatic && matching.length === 1) return matching[0]!.path;
-		if (automatic && matching.length === 0) {
-			throw new Error(
-				`no reviewed task profile under ${tasksDirectory()} is bound to the current folder ${cwd}`,
-			);
+		if (matching.length === 1) return matching[0]!.path;
+		if (matching.length === 0) {
+			throw new Error(`no reviewed task profile under ${tasksDirectory()} is bound to the current folder ${cwd}`);
 		}
-
-		const ordered = [
-			...matching,
-			...discovered.filter((profile) => !matching.some((candidate) => candidate.path === profile.path)),
-		];
-		const items: SelectItem[] = ordered.map((profile, index) => ({
-			value: `profile:${index}`,
-			label: profile.name,
-			description: `${profile.entrypoint} · ${profile.goal.replaceAll(/\s+/g, " ").slice(0, 100)}`,
-		}));
-		items.push({
-			value: "manual",
-			label: "Enter task-profile path",
-			description: "Compatibility path for a profile outside the registered task folder",
-		});
-		const selected = await selectMenu<string>(
-			ctx,
-			`Agentvolve · choose task (${tasksDirectory()})`,
-			items,
-			"cancel",
-		);
-		if (selected === null) return null;
-		if (selected === "manual") {
-			const path = await ctx.ui.input(
-				"Agentvolve workflow task profile",
-				configured ?? join(tasksDirectory(), "task.task.json"),
-			);
-			return path ? configuredTaskProfile(path) : null;
-		}
-		const index = Number.parseInt(selected.slice("profile:".length), 10);
-		return ordered[index]?.path ?? null;
+		throw new Error(`${matching.length} reviewed task profiles match ${cwd}; pass one explicitly to /evolve-start`);
 	}
 
 	async function trackedRepositoryFiles(ctx: ExtensionContext): Promise<string[]> {
@@ -1136,12 +1003,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
-	async function deriveGoalTask(
-		ctx: ExtensionContext,
-		template: string,
-		goal: string,
-		maxRounds: number,
-	): Promise<string> {
+	async function deriveGoalTask(template: string, goal: string, maxRounds: number): Promise<string> {
 		const temporary = await mkdtemp(join(tmpdir(), "agentvolve-goal-"));
 		try {
 			const goalPath = join(temporary, "goal.txt");
@@ -1184,23 +1046,34 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		const { goal, maxRounds } = workflowConfiguration;
 		if (!goal || maxRounds === undefined) return false;
 		try {
-			const unfinished = await latestUnfinishedCodingRun();
-			if (unfinished) {
-				await showWorkflowStatus(ctx);
+			if (configurationWorkflowRoot) {
+				const associated = await operatorProgress(configurationWorkflowRoot).catch(() => undefined);
+				if (associated && ["completed", "verified"].includes(associated.state)) {
+					persistWorkflowConfiguration({});
+					ctx.ui.notify(
+						`The configured Agentvolve workflow already finished at ${associated.workflow_root}. Use /view-progress ${associated.workflow_root.slice(associated.workflow_root.lastIndexOf("/") + 1)} to review it.`,
+						"info",
+					);
+					return true;
+				}
+			}
+			const current = await operatorProgress().catch(() => undefined);
+			if (current && !["completed", "verified"].includes(current.state)) {
+				const name = current.workflow_root.slice(current.workflow_root.lastIndexOf("/") + 1);
+				const recovery = name.startsWith("workflow-")
+					? "/agentvolve-resume or /agentvolve-retry REASON"
+					: name.startsWith("harness-")
+						? "/evolve-harness-resume or /evolve-harness-retry REASON"
+						: "/evolve-code-resume or /evolve-code-retry REASON";
 				ctx.ui.notify(
-					`Existing workflow requires attention at ${unfinished.root}; use Resume or Retry rather than starting another task.`,
+					`Existing ${current.state} work requires attention at ${current.workflow_root}; use ${recovery} before starting another task.`,
 					"warning",
 				);
 				return true;
 			}
-			const template = await chooseTaskProfile(ctx, true);
-			if (!template) {
-				ctx.ui.notify("No task contract selected; Agentvolve did not start", "warning");
-				return true;
-			}
-			const profile = await deriveGoalTask(ctx, template, goal, maxRounds);
-			if (!(await activateAgentvolveWithLoader(ctx, "local"))) return true;
-			await workflowLoader("run", ctx, profile);
+			const template = await chooseTaskProfile(ctx);
+			const profile = await deriveGoalTask(template, goal, maxRounds);
+			await launchDetachedWorkflow(ctx, profile, true);
 		} catch (error) {
 			ctx.ui.notify(String(error), "error");
 		}
@@ -1213,52 +1086,17 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			return;
 		}
 		if (await runConfiguredGoal(ctx)) return;
-		if (ctx.mode === "rpc") {
-			ctx.ui.notify("RPC /agentvolve requires both /goal and /limit", "error");
-			return;
+		try {
+			await activateAgentvolveMode(ctx, undefined, "routed");
+			ctx.ui.notify(
+				"Agentvolve mode is active. Pi remains the operator and keeps its current /model; " +
+					"the manifest-pinned model runs in a detached worker. Set /goal and /limit, then " +
+					"run /agentvolve again, or use /evolve-start. Monitor with /view-progress or /view-history.",
+				"info",
+			);
+		} catch (error) {
+			ctx.ui.notify(String(error), "error");
 		}
-		const modelMode = await selectAgentvolveModelMode(ctx);
-		if (modelMode === null || !(await activateAgentvolveWithLoader(ctx, modelMode))) return;
-		const action = await selectAgentvolveAction(ctx);
-		if (action === null || action === "close") return;
-		if (action === "deactivate") {
-			await deactivateAgentvolveMode(ctx);
-			return;
-		}
-		if (action === "workflow-status") {
-			await showWorkflowStatus(ctx);
-			return;
-		}
-		if (action === "workflow-history") {
-			await showWorkflowHistory(ctx);
-			return;
-		}
-		if (action === "workflow" || action === "workflow-from-session") {
-			try {
-				const profile =
-					action === "workflow-from-session"
-						? await generateSessionTaskDraft(ctx)
-						: await chooseTaskProfile(ctx);
-				if (!profile) {
-					ctx.ui.notify("Agentvolve workflow cancelled", "info");
-					return;
-				}
-				await workflowLoader("run", ctx, profile);
-			} catch (error) {
-				ctx.ui.notify(String(error), "error");
-			}
-			return;
-		}
-		if (action === "workflow-retry") {
-			const reason = await ctx.ui.input("Operator-approved retry reason", "reviewed reason");
-			if (!reason) {
-				ctx.ui.notify("Agentvolve retry cancelled", "info");
-				return;
-			}
-			await workflowLoader("retry", ctx, reason);
-			return;
-		}
-		await workflowLoader(action === "workflow-resume" ? "resume" : "verify", ctx);
 	}
 
 	function registerNoArgumentCommand(
@@ -1277,6 +1115,25 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			},
 		});
 	}
+
+	pi.registerEntryRenderer<{
+		label: string;
+		stage: number;
+		status: string;
+		summary: string;
+		workflowId: string;
+	}>("agentvolve-stage-report", (entry, _options, theme) => {
+		const report = entry.data;
+		const marker = report?.status === "reused" ? "↺" : "✓";
+		const label = report?.label ?? "Agentvolve stage";
+		const stage = report?.stage ?? "?";
+		const summary = report?.summary ?? "Stage completed";
+		return new Text(
+			`${theme.fg("success", `${marker} Agentvolve [${stage}/6] ${label}`)}\n${theme.fg("muted", summary)}`,
+			1,
+			0,
+		);
+	});
 
 	pi.registerCommand("goal", {
 		description: "Set the natural-language goal for the next Agentvolve workflow",
@@ -1314,13 +1171,63 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	registerNoArgumentCommand(
 		"agentvolve",
-		"Run a configured goal or open the Agentvolve workflow UI",
+		"Activate Agentvolve mode or start the configured goal in a detached worker",
 		openAgentvolve,
 	);
 	registerNoArgumentCommand(
-		"agentvolve-history",
-		"Browse shared Agentvolve workflow history from any Pi session",
+		"agentvolve-off",
+		"Leave Agentvolve operator mode and stop this session's monitor",
+		deactivateAgentvolveMode,
+	);
+	pi.registerCommand("view-progress", {
+		description: "Open the live Agentvolve terminal dashboard; optionally name one run",
+		handler: async (args, ctx) => showProgress(ctx, unquoteArgument(args)),
+	});
+	registerNoArgumentCommand(
+		"view-history",
+		"Browse Agentvolve workflow history and open a selected dashboard",
 		showWorkflowHistory,
+	);
+	registerNoArgumentCommand("agentvolve-history", "Compatibility alias for /view-history", showWorkflowHistory);
+	pi.registerCommand("evolve-start", {
+		description: "Start Agentvolve in a detached worker using an optional absolute task profile",
+		handler: async (args, ctx) => {
+			try {
+				const supplied = unquoteArgument(args);
+				const profile = supplied ? configuredTaskProfile(supplied) : await chooseTaskProfile(ctx);
+				await launchDetachedWorkflow(ctx, profile);
+			} catch (error) {
+				ctx.ui.notify(String(error), "error");
+			}
+		},
+	});
+	registerNoArgumentCommand("evolve-task", "Create a reviewed task from this Pi session and start it", async (ctx) => {
+		try {
+			const profile = await generateSessionTaskDraft(ctx);
+			if (profile) await launchDetachedWorkflow(ctx, profile);
+		} catch (error) {
+			ctx.ui.notify(String(error), "error");
+		}
+	});
+	registerNoArgumentCommand("agentvolve-resume", "Resume replay-authorized detached workflow effects", (ctx) =>
+		launchDetachedAction("resume", ctx).then(() => undefined),
+	);
+	pi.registerCommand("agentvolve-retry", {
+		description: "Authorize one reserved retry in the detached worker",
+		handler: async (args, ctx) => {
+			const reason = unquoteArgument(args);
+			if (!reason) {
+				ctx.ui.notify("/agentvolve-retry requires an operator-reviewed reason", "error");
+				return;
+			}
+			await launchDetachedAction("retry", ctx, reason);
+		},
+	});
+	registerNoArgumentCommand("agentvolve-stop", "Interrupt the detached worker; recovery may require retry", (ctx) =>
+		launchDetachedAction("stop", ctx).then(() => undefined),
+	);
+	registerNoArgumentCommand("agentvolve-verify", "Offline-verify the detached workflow result", (ctx) =>
+		launchDetachedAction("verify", ctx).then(() => undefined),
 	);
 	registerNoArgumentCommand("evolve", "Run one sealed two-generation Population experiment", (ctx) =>
 		commandWithLoader("run", ctx),
@@ -1361,10 +1268,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		},
 	});
 
-	registerNoArgumentCommand(
-		"evolve-code-resume",
-		"Resume committed effects in the latest coding solution run",
-		(ctx) => codingLoader("solution-resume", ctx),
+	registerNoArgumentCommand("evolve-code-resume", "Resume committed effects in the latest coding solution run", (ctx) =>
+		codingLoader("solution-resume", ctx),
 	);
 
 	pi.registerCommand("evolve-code-retry", {
@@ -1426,6 +1331,9 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		promptGuidelines: [CODING_TOOL_GUIDELINE],
 		parameters: Type.Object({
 			action: StringEnum([
+				"workflow_start",
+				"workflow_status",
+				"workflow_verify",
 				"harness_run",
 				"harness_status",
 				"solution_run",
@@ -1438,6 +1346,50 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				content: [{ type: "text", text: `Agentvolve ${params.action}…` }],
 				details: { action: params.action },
 			});
+			if (params.action === "workflow_status") {
+				const progress = await operatorProgress();
+				return {
+					content: [
+						{
+							type: "text",
+							text: `${progress.stage_label} · ${progress.state}\n${progress.activity}\n${progress.workflow_root}`,
+						},
+					],
+					details: progress,
+				};
+			}
+			if (params.action === "workflow_start") {
+				const { goal, maxRounds } = workflowConfiguration;
+				let profile: string;
+				if (goal && maxRounds !== undefined) {
+					const template = await chooseTaskProfile(ctx);
+					profile = await deriveGoalTask(template, goal, maxRounds);
+				} else {
+					profile = configuredTaskProfile("");
+				}
+				if (!(await launchDetachedWorkflow(ctx, profile, goal !== undefined && maxRounds !== undefined, signal))) {
+					throw new Error("Agentvolve worker did not start");
+				}
+				const progress = await operatorProgress();
+				return {
+					content: [
+						{
+							type: "text",
+							text: `Detached Agentvolve worker started at ${progress.workflow_root}. Use /view-progress while continuing this Pi session.`,
+						},
+					],
+					details: progress,
+				};
+			}
+			if (params.action === "workflow_verify") {
+				if (!(await launchDetachedAction("verify", ctx, "", signal)))
+					throw new Error("Agentvolve verification did not start");
+				const progress = await operatorProgress();
+				return {
+					content: [{ type: "text", text: `Agentvolve offline verification queued for ${progress.workflow_root}.` }],
+					details: progress,
+				};
+			}
 			const action =
 				params.action === "harness_run"
 					? "harness"
@@ -1461,30 +1413,72 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		modeActive = false;
 		activeModelMode = undefined;
 		activeModelLabel = undefined;
-		originalModeState = undefined;
 		workflowSummary = undefined;
 		workflowConfiguration = {};
+		configurationWorkflowRoot = undefined;
+		reportedStages = new Set<string>();
+		let restoredMode: AgentvolveModelMode | undefined;
 		for (const entry of ctx.sessionManager.getBranch()) {
-			if (entry.type !== "custom" || entry.customType !== "agentvolve-workflow-configuration") continue;
+			if (entry.type !== "custom") continue;
 			const data = entry.data;
 			if (typeof data !== "object" || data === null || Array.isArray(data)) continue;
 			const candidate = data as Record<string, unknown>;
-			workflowConfiguration = {
-				...(typeof candidate.goal === "string" ? { goal: candidate.goal } : {}),
-				...(Number.isInteger(candidate.maxRounds) ? { maxRounds: candidate.maxRounds as number } : {}),
-			};
+			if (entry.customType === "agentvolve-workflow-configuration") {
+				workflowConfiguration = {
+					...(typeof candidate.goal === "string" ? { goal: candidate.goal } : {}),
+					...(Number.isInteger(candidate.maxRounds) ? { maxRounds: candidate.maxRounds as number } : {}),
+				};
+				configurationWorkflowRoot = undefined;
+			} else if (entry.customType === "agentvolve-mode") {
+				restoredMode = candidate.active === true ? "routed" : undefined;
+			} else if (entry.customType === "agentvolve-worker-launch") {
+				if (
+					candidate.consumesConfiguration === true &&
+					workflowConfiguration.goal !== undefined &&
+					workflowConfiguration.maxRounds !== undefined &&
+					typeof candidate.workflow_root === "string"
+				) {
+					configurationWorkflowRoot = candidate.workflow_root;
+				}
+			} else if (entry.customType === "agentvolve-stage-report") {
+				if (typeof candidate.workflowId === "string" && Number.isInteger(candidate.stage)) {
+					reportedStages.add(`${candidate.workflowId}:${candidate.stage}`);
+				}
+			}
 		}
 		monitorFingerprint = undefined;
 		stopWorkflowMonitor();
-		setModeStatus(ctx, "available");
-		ctx.ui.setWidget(WIDGET_KEY, undefined);
+		if (restoredMode) {
+			modeActive = true;
+			activeModelMode = restoredMode;
+			activeModelLabel = operatorModelLabel(ctx);
+			setModeStatus(ctx, "ready", `operator · ${activeModelLabel}`);
+			await startWorkflowMonitor(ctx);
+		} else {
+			setModeStatus(ctx, "available");
+			ctx.ui.setWidget(WIDGET_KEY, undefined);
+		}
 		const configured = workflowConfiguration.goal && workflowConfiguration.maxRounds !== undefined;
 		ctx.ui.notify(
 			configured
-				? `${MODE_NAME} goal and limit restored. Run /agentvolve to start the local workflow.`
-				: `${MODE_NAME} is available. Use /goal and /limit, then run /agentvolve.`,
+				? `${MODE_NAME} goal and limit restored. Run /agentvolve to start the detached workflow.`
+				: restoredMode
+					? `${MODE_NAME} operator mode restored. Use /view-progress or continue using Pi normally.`
+					: `${MODE_NAME} is available. Use /goal and /limit, then run /agentvolve.`,
 			"info",
 		);
+	});
+
+	pi.on("model_select", async (_event, ctx) => {
+		if (!modeActive) return;
+		activeModelLabel = operatorModelLabel(ctx);
+		renderModeWidget(ctx);
+	});
+
+	pi.on("thinking_level_select", async (_event, ctx) => {
+		if (!modeActive) return;
+		activeModelLabel = operatorModelLabel(ctx);
+		renderModeWidget(ctx);
 	});
 
 	pi.on("session_shutdown", async () => {
@@ -1494,13 +1488,14 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	pi.on("before_agent_start", async (event) => {
 		if (!modeActive) return;
 		const authorityPrompt = [
-			`Agentvolve mode is active in ${activeModelMode} outer-session model mode (${activeModelLabel}).`,
+			`Agentvolve operator mode is active in this Pi session (${activeModelLabel}).`,
+			"Pi remains the interactive operator. The evolution worker is a separate detached process,",
+			"and its provider, model, reasoning level, and budgets stay bound to the canonical runtime manifest.",
+			"When the user explicitly asks to start the configured workflow, prefer darwinian_coding",
+			"workflow_start so this session remains responsive; workflow_status is read-only.",
+			"The operator can inspect truthful shared progress with /view-progress and prior runs with /view-history.",
 			"When the user explicitly asks for the reference assay, use population_evolution.",
-			"For coding-harness or immutable solution evolution, use darwinian_coding; solution_run",
-			"is valid only with an operator-approved task profile. Interactive /goal and /limit state",
-			"may derive that profile only from an already reviewed discovered task contract.",
-			"Nested evolution calls remain bound to the provider, model, reasoning level, and budgets",
-			"in the canonical runtime manifest; routed outer-session mode does not rewrite that evidence identity.",
+			"Interactive /goal and /limit state may derive a task only from an already reviewed discovered contract.",
 			"Fixed code owns mutation transport, independent evaluation, exact Population recurrence,",
 			"protected final assays, Docker isolation, receipts, and sealing. Never replace these",
 			"authorities with ordinary in-place edits or describe an unevaluated edit as evolved.",

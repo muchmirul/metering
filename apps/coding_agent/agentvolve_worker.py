@@ -1,0 +1,1180 @@
+#!/usr/bin/env python3
+"""Detached operator/worker orchestration for the Agentvolve Pi workflow."""
+
+from __future__ import annotations
+
+import fcntl
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import IO, cast
+
+from apps._support.durable import atomic_write, reject_symlink
+from apps._support.wire import (
+    canonical_digest,
+    canonical_json,
+    decode_json_object,
+    write_document,
+)
+from apps.coding_agent.harness_workspace_editor import CodingMutationError
+from apps.coding_agent.preflight import preflight_task
+from apps.coding_agent.process_tracker import (
+    STAGE_LABELS,
+    load_process_status,
+)
+from apps.coding_agent.protocol import CodingTaskError, load_task_profile
+from apps.harness.runtime_manifest import RuntimeManifestError, load_runtime_manifest
+from artifacts.git.git_repository import GitCandidateError
+
+ROOT = Path(__file__).resolve().parents[2]
+
+WORKFLOW_REQUEST_SCHEMA = "agentvolve-worker-request-v1"
+WORKFLOW_JOB_SCHEMA = "agentvolve-worker-job-v1"
+WORKFLOW_STATUS_SCHEMA = "agentvolve-worker-status-v1"
+WORKFLOW_AUTHORITY = "operator-orchestration-only"
+STATUS_AUTHORITY = "projection-only"
+WORKFLOW_NAME = re.compile(r"^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$")
+RUN_NAME = re.compile(r"^(?:harness|solution)-pi-\d{8}T\d{9}Z(?:-\d+)?$")
+MAX_DIAGNOSTIC_BYTES = 8_192
+HEARTBEAT_SECONDS = 2.0
+
+
+class AgentvolveWorkerError(RuntimeError):
+    """Raised when detached workflow orchestration is malformed or unsafe."""
+
+
+def _absolute_path(value: str, label: str) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        raise AgentvolveWorkerError(f"{label} must be an absolute path")
+    return path.absolute()
+
+
+def _regular_file(path: Path, label: str) -> None:
+    reject_symlink(path, label, AgentvolveWorkerError)
+    if not path.is_file():
+        raise AgentvolveWorkerError(f"{label} is unavailable: {path}")
+
+
+def _canonical_document(path: Path, label: str) -> dict[str, object]:
+    _regular_file(path, label)
+    try:
+        source = path.read_text(encoding="ascii")
+    except (OSError, UnicodeError) as exc:
+        raise AgentvolveWorkerError(f"cannot read {label}: {exc}") from exc
+    document = decode_json_object(source, AgentvolveWorkerError)
+    if source != canonical_json(document) + "\n":
+        raise AgentvolveWorkerError(f"{label} is not canonical")
+    return document
+
+
+def _write_canonical(path: Path, document: dict[str, object]) -> None:
+    atomic_write(path, (canonical_json(document) + "\n").encode("ascii"))
+
+
+def _timestamp() -> str:
+    now = time.time_ns()
+    seconds, nanoseconds = divmod(now, 1_000_000_000)
+    return (
+        time.strftime("%Y%m%dT%H%M%S", time.gmtime(seconds))
+        + f"{nanoseconds // 1_000_000:03d}Z"
+    )
+
+
+def _new_path(parent: Path, prefix: str) -> Path:
+    stamp = _timestamp()
+    candidate = parent / f"{prefix}-pi-{stamp}"
+    suffix = 1
+    while candidate.exists():
+        candidate = parent / f"{prefix}-pi-{stamp}-{suffix}"
+        suffix += 1
+    return candidate
+
+
+def _validate_runs_directory(path: Path, *, create: bool) -> None:
+    reject_symlink(path, "Agentvolve runs directory", AgentvolveWorkerError)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
+    if not path.is_dir():
+        raise AgentvolveWorkerError(f"Agentvolve runs directory is unavailable: {path}")
+
+
+def _runtime_model(runtime_path: Path) -> dict[str, str]:
+    document = _canonical_document(runtime_path, "runtime manifest")
+    model = document.get("model")
+    if type(model) is not dict:
+        raise AgentvolveWorkerError("runtime manifest has no model identity")
+    required = ("connector", "provider", "model", "reasoning")
+    if any(
+        type(model.get(key)) is not str or not str(model[key]).strip()
+        for key in required
+    ):
+        raise AgentvolveWorkerError("runtime manifest model identity is malformed")
+    return {key: str(model[key]) for key in required}
+
+
+def _completed_run(run_root: Path, kind: str) -> bool:
+    report_path = run_root / "experiment-report.json"
+    if not report_path.exists():
+        return False
+    report = _canonical_document(report_path, f"{kind} experiment report")
+    expected = (
+        "evolutionary-harness-experiment-v1"
+        if kind == "harness"
+        else "darwinian-coding-experiment-v1"
+    )
+    if report.get("schema") != expected:
+        raise AgentvolveWorkerError(
+            f"{kind} experiment report has an unexpected schema"
+        )
+    marker = run_root / (
+        "selected-harness.json" if kind == "harness" else "selected-solution.json"
+    )
+    _regular_file(marker, f"selected {kind} descriptor")
+    return True
+
+
+def _preflight_workflow(
+    task_profile: Path,
+    runtime_manifest: Path,
+    harness_descriptor: Path | None,
+) -> None:
+    try:
+        task = load_task_profile(task_profile)
+        runtime = load_runtime_manifest(runtime_manifest)
+        preflight_task(task, runtime=runtime, harness_source=harness_descriptor)
+    except (
+        CodingMutationError,
+        CodingTaskError,
+        GitCandidateError,
+        OSError,
+        RuntimeManifestError,
+        TypeError,
+        ValueError,
+    ) as exc:
+        raise AgentvolveWorkerError(str(exc) or type(exc).__name__) from exc
+
+
+def _request_path(workflow_root: Path) -> Path:
+    return workflow_root / "workflow.json"
+
+
+def _status_path(workflow_root: Path) -> Path:
+    return workflow_root / "worker-status.json"
+
+
+def load_workflow_request(workflow_root: Path) -> dict[str, object]:
+    """Load and replay one immutable operator workflow request."""
+
+    request = _canonical_document(
+        _request_path(workflow_root), "Agentvolve workflow request"
+    )
+    expected = {
+        "agent",
+        "authority",
+        "created_unix_ns",
+        "harness_descriptor",
+        "harness_run_root",
+        "repository_root",
+        "runtime_manifest",
+        "solution_run_root",
+        "task_profile",
+        "workflow_id",
+        "workflow_schema",
+    }
+    if (
+        set(request) != expected
+        or request.get("workflow_schema") != WORKFLOW_REQUEST_SCHEMA
+    ):
+        raise AgentvolveWorkerError(
+            "Agentvolve workflow request has an unexpected schema"
+        )
+    if request.get("authority") != WORKFLOW_AUTHORITY or request.get("agent") != "pi":
+        raise AgentvolveWorkerError(
+            "Agentvolve workflow request changed its authority or agent"
+        )
+    workflow_id = request.get("workflow_id")
+    identity = {key: value for key, value in request.items() if key != "workflow_id"}
+    if type(workflow_id) is not str or workflow_id != canonical_digest(identity):
+        raise AgentvolveWorkerError(
+            "Agentvolve workflow request identity does not replay"
+        )
+    if request.get("repository_root") != str(ROOT):
+        raise AgentvolveWorkerError("Agentvolve workflow repository root changed")
+    return request
+
+
+def _load_job(path: Path) -> dict[str, object]:
+    job = _canonical_document(path, "Agentvolve worker job")
+    if set(job) != {"action", "job_schema", "ordinal", "reason", "workflow_id"}:
+        raise AgentvolveWorkerError("Agentvolve worker job has unexpected fields")
+    if job.get("job_schema") != WORKFLOW_JOB_SCHEMA:
+        raise AgentvolveWorkerError("Agentvolve worker job has an unexpected schema")
+    action = job.get("action")
+    reason = job.get("reason")
+    if action not in {"start", "resume", "retry", "verify"}:
+        raise AgentvolveWorkerError("Agentvolve worker job action is unsupported")
+    if type(job.get("ordinal")) is not int or cast(int, job["ordinal"]) < 1:
+        raise AgentvolveWorkerError("Agentvolve worker job ordinal is malformed")
+    if action == "retry":
+        if type(reason) is not str or not reason.strip() or "\x00" in reason:
+            raise AgentvolveWorkerError(
+                "Agentvolve retry reason must be non-empty text"
+            )
+    elif reason is not None:
+        raise AgentvolveWorkerError("only an Agentvolve retry job may contain a reason")
+    return job
+
+
+def _process_start_token(pid: int) -> str | None:
+    if pid <= 0:
+        return None
+    path = Path("/proc") / str(pid) / "stat"
+    try:
+        fields = path.read_text(encoding="ascii").split()
+    except (OSError, UnicodeError):
+        return None
+    return fields[21] if len(fields) > 21 else None
+
+
+def _worker_alive(workflow_root: Path, status: dict[str, object]) -> bool:
+    pid = status.get("worker_pid")
+    token = status.get("worker_start_token")
+    if type(pid) is not int or pid <= 0 or type(token) is not str:
+        return False
+    if _process_start_token(pid) != token:
+        return False
+    try:
+        command = (Path("/proc") / str(pid) / "cmdline").read_bytes().split(b"\0")
+    except OSError:
+        return False
+    return (
+        b"apps.coding_agent.agentvolve_worker" in command
+        and str(workflow_root).encode() in command
+    )
+
+
+def load_worker_status(workflow_root: Path) -> dict[str, object] | None:
+    path = _status_path(workflow_root)
+    if not path.exists():
+        return None
+    status = _canonical_document(path, "Agentvolve worker status")
+    expected = {
+        "activity",
+        "authority",
+        "effect_pid",
+        "error",
+        "job_action",
+        "job_ordinal",
+        "job_started_unix_ns",
+        "sequence",
+        "stage",
+        "stage_label",
+        "state",
+        "status_schema",
+        "updated_unix_ns",
+        "worker_pid",
+        "worker_start_token",
+        "workflow_id",
+    }
+    stage = status.get("stage")
+    state = status.get("state")
+    pid = status.get("worker_pid")
+    effect_pid = status.get("effect_pid")
+    if (
+        set(status) != expected
+        or status.get("status_schema") != WORKFLOW_STATUS_SCHEMA
+        or status.get("authority") != STATUS_AUTHORITY
+        or type(stage) is not int
+        or stage not in STAGE_LABELS
+        or status.get("stage_label") != STAGE_LABELS[cast(int, stage)]
+        or state
+        not in {
+            "completed",
+            "failed",
+            "queued",
+            "running",
+            "stopped",
+            "verified",
+            "waiting-retry",
+        }
+        or status.get("job_action") not in {"start", "resume", "retry", "verify"}
+        or type(status.get("job_ordinal")) is not int
+        or cast(int, status["job_ordinal"]) < 1
+        or type(status.get("sequence")) is not int
+        or cast(int, status["sequence"]) < 0
+        or type(status.get("job_started_unix_ns")) is not int
+        or type(status.get("updated_unix_ns")) is not int
+        or type(status.get("activity")) is not str
+        or type(status.get("workflow_id")) is not str
+        or (status.get("error") is not None and type(status.get("error")) is not str)
+        or (pid is not None and (type(pid) is not int or pid <= 0))
+        or (effect_pid is not None and (type(effect_pid) is not int or effect_pid <= 0))
+        or (pid is None and status.get("worker_start_token") is not None)
+        or (pid is not None and type(status.get("worker_start_token")) is not str)
+    ):
+        raise AgentvolveWorkerError("Agentvolve worker status has an unexpected schema")
+    return status
+
+
+def worker_is_alive(workflow_root: Path) -> bool:
+    status = load_worker_status(workflow_root)
+    return status is not None and _worker_alive(workflow_root, status)
+
+
+def _open_registry_lock(runs_directory: Path) -> IO[bytes]:
+    lock_path = runs_directory / ".agentvolve.lock"
+    reject_symlink(lock_path, "Agentvolve registry lock", AgentvolveWorkerError)
+    stream = lock_path.open("a+b")
+    try:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        stream.close()
+        raise AgentvolveWorkerError(
+            "another Agentvolve workflow launch is in progress"
+        ) from exc
+    return stream
+
+
+def _open_lock(workflow_root: Path) -> IO[bytes]:
+    lock_path = workflow_root / "worker.lock"
+    reject_symlink(lock_path, "Agentvolve worker lock", AgentvolveWorkerError)
+    stream = lock_path.open("a+b")
+    try:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as exc:
+        stream.close()
+        raise AgentvolveWorkerError(
+            "Agentvolve workflow already has a live worker"
+        ) from exc
+    return stream
+
+
+def _status_document(
+    workflow_root: Path,
+    request: dict[str, object],
+    job: dict[str, object],
+    *,
+    state: str,
+    stage: int,
+    activity: str,
+    error: str | None = None,
+    effect_pid: int | None = None,
+    worker_pid: int | None = None,
+) -> dict[str, object]:
+    try:
+        previous = load_worker_status(workflow_root)
+    except AgentvolveWorkerError:
+        reject_symlink(
+            _status_path(workflow_root),
+            "Agentvolve worker status",
+            AgentvolveWorkerError,
+        )
+        previous = None
+    sequence = 0 if previous is None else int(previous.get("sequence", -1)) + 1
+    started = (
+        time.time_ns()
+        if previous is None or previous.get("job_ordinal") != job["ordinal"]
+        else previous.get("job_started_unix_ns", time.time_ns())
+    )
+    pid = os.getpid() if worker_pid is None else worker_pid
+    token = _process_start_token(pid) if pid > 0 else None
+    return {
+        "activity": activity,
+        "authority": STATUS_AUTHORITY,
+        "effect_pid": effect_pid,
+        "error": error,
+        "job_action": job["action"],
+        "job_ordinal": job["ordinal"],
+        "job_started_unix_ns": started,
+        "sequence": sequence,
+        "stage": stage,
+        "stage_label": STAGE_LABELS[stage],
+        "state": state,
+        "status_schema": WORKFLOW_STATUS_SCHEMA,
+        "updated_unix_ns": time.time_ns(),
+        "worker_pid": pid if pid > 0 else None,
+        "worker_start_token": token,
+        "workflow_id": request["workflow_id"],
+    }
+
+
+def _write_status(
+    workflow_root: Path,
+    request: dict[str, object],
+    job: dict[str, object],
+    *,
+    state: str,
+    stage: int,
+    activity: str,
+    error: str | None = None,
+    effect_pid: int | None = None,
+    worker_pid: int | None = None,
+) -> dict[str, object]:
+    document = _status_document(
+        workflow_root,
+        request,
+        job,
+        state=state,
+        stage=stage,
+        activity=activity,
+        error=error,
+        effect_pid=effect_pid,
+        worker_pid=worker_pid,
+    )
+    _write_canonical(_status_path(workflow_root), document)
+    return document
+
+
+def _next_job(
+    workflow_root: Path, workflow_id: str, action: str, reason: str | None
+) -> Path:
+    jobs = workflow_root / "jobs"
+    reject_symlink(jobs, "Agentvolve worker jobs", AgentvolveWorkerError)
+    jobs.mkdir(exist_ok=True)
+    ordinals: list[int] = []
+    for path in jobs.glob("*.json"):
+        if path.is_file() and not path.is_symlink() and path.stem.isdigit():
+            ordinals.append(int(path.stem))
+    ordinal = max(ordinals, default=0) + 1
+    job = {
+        "action": action,
+        "job_schema": WORKFLOW_JOB_SCHEMA,
+        "ordinal": ordinal,
+        "reason": reason,
+        "workflow_id": workflow_id,
+    }
+    path = jobs / f"{ordinal:06d}.json"
+    _write_canonical(path, job)
+    return path
+
+
+def _spawn_worker(
+    workflow_root: Path,
+    job_path: Path,
+    inherited_lock: IO[bytes] | None = None,
+) -> dict[str, object]:
+    lock = inherited_lock if inherited_lock is not None else _open_lock(workflow_root)
+    try:
+        request = load_workflow_request(workflow_root)
+        job = _load_job(job_path)
+        if job["workflow_id"] != request["workflow_id"]:
+            raise AgentvolveWorkerError(
+                "Agentvolve worker job targets another workflow"
+            )
+        _write_status(
+            workflow_root,
+            request,
+            job,
+            state="queued",
+            stage=int((load_worker_status(workflow_root) or {}).get("stage", 1)),
+            activity="detached worker is starting",
+            worker_pid=0,
+        )
+        log_path = workflow_root / f"worker-{int(job['ordinal']):06d}.log"
+        descriptor = os.open(log_path, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o600)
+        try:
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "apps.coding_agent.agentvolve_worker",
+                    "_work",
+                    str(workflow_root),
+                    str(job_path),
+                    str(lock.fileno()),
+                ],
+                cwd=ROOT,
+                stdin=subprocess.DEVNULL,
+                stdout=descriptor,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                close_fds=True,
+                pass_fds=(lock.fileno(),),
+            )
+        finally:
+            os.close(descriptor)
+    except Exception:
+        lock.close()
+        raise
+    lock.close()
+    return {
+        "action": job["action"],
+        "pid": process.pid,
+        "state": "queued",
+        "worker_response_schema": "agentvolve-worker-response-v1",
+        "workflow_id": request["workflow_id"],
+        "workflow_root": str(workflow_root),
+    }
+
+
+def _referenced_run_roots(runs_directory: Path) -> set[Path]:
+    roots: set[Path] = set()
+    for workflow in runs_directory.iterdir():
+        if (
+            not workflow.is_dir()
+            or workflow.is_symlink()
+            or not WORKFLOW_NAME.fullmatch(workflow.name)
+        ):
+            continue
+        try:
+            request = load_workflow_request(workflow)
+        except AgentvolveWorkerError:
+            continue
+        for key in ("harness_run_root", "solution_run_root"):
+            value = request.get(key)
+            if type(value) is str:
+                roots.add(Path(value).absolute())
+    return roots
+
+
+def _refuse_conflicting_work(runs_directory: Path) -> None:
+    referenced = _referenced_run_roots(runs_directory)
+    for workflow in runs_directory.iterdir():
+        if (
+            not workflow.is_dir()
+            or workflow.is_symlink()
+            or not WORKFLOW_NAME.fullmatch(workflow.name)
+        ):
+            continue
+        request = load_workflow_request(workflow)
+        try:
+            probe = _open_lock(workflow)
+        except AgentvolveWorkerError as exc:
+            raise AgentvolveWorkerError(
+                f"another Agentvolve worker is active or its lock is unsafe: {workflow}"
+            ) from exc
+        else:
+            probe.close()
+        solution_root = _absolute_path(
+            cast(str, request["solution_run_root"]),
+            "Agentvolve workflow solution run root",
+        )
+        if not _completed_run(solution_root, "solution"):
+            raise AgentvolveWorkerError(
+                f"unfinished Agentvolve workflow requires resume or retry: {workflow}"
+            )
+    for run in runs_directory.iterdir():
+        if (
+            run.is_dir()
+            and not run.is_symlink()
+            and RUN_NAME.fullmatch(run.name)
+            and run.absolute() not in referenced
+            and not (run / "experiment-report.json").is_file()
+        ):
+            raise AgentvolveWorkerError(
+                f"unfinished legacy Agentvolve run requires its compatibility recovery command: {run}"
+            )
+
+
+def start_workflow(
+    runs_directory: Path,
+    task_profile: Path,
+    runtime_manifest: Path,
+    harness_descriptor: Path | None = None,
+) -> dict[str, object]:
+    runs_directory = runs_directory.expanduser().absolute()
+    task_profile = task_profile.expanduser().absolute()
+    runtime_manifest = runtime_manifest.expanduser().absolute()
+    harness_descriptor = (
+        None
+        if harness_descriptor is None
+        else harness_descriptor.expanduser().absolute()
+    )
+    _validate_runs_directory(runs_directory, create=True)
+    _regular_file(task_profile, "Agentvolve task profile")
+    _regular_file(runtime_manifest, "Agentvolve runtime manifest")
+    _runtime_model(runtime_manifest)
+    if harness_descriptor is not None:
+        _regular_file(harness_descriptor, "selected harness descriptor")
+    _preflight_workflow(task_profile, runtime_manifest, harness_descriptor)
+    registry_lock = _open_registry_lock(runs_directory)
+    try:
+        _refuse_conflicting_work(runs_directory)
+        workflow_root = _new_path(runs_directory, "workflow")
+        harness_root = (
+            None
+            if harness_descriptor is not None
+            else _new_path(runs_directory, "harness")
+        )
+        solution_root = _new_path(runs_directory, "solution")
+        workflow_root.mkdir(mode=0o700)
+        identity: dict[str, object] = {
+            "agent": "pi",
+            "authority": WORKFLOW_AUTHORITY,
+            "created_unix_ns": time.time_ns(),
+            "harness_descriptor": None
+            if harness_descriptor is None
+            else str(harness_descriptor),
+            "harness_run_root": None if harness_root is None else str(harness_root),
+            "repository_root": str(ROOT),
+            "runtime_manifest": str(runtime_manifest),
+            "solution_run_root": str(solution_root),
+            "task_profile": str(task_profile),
+            "workflow_schema": WORKFLOW_REQUEST_SCHEMA,
+        }
+        request = {**identity, "workflow_id": canonical_digest(identity)}
+        _write_canonical(_request_path(workflow_root), request)
+        job = _next_job(workflow_root, str(request["workflow_id"]), "start", None)
+        return _spawn_worker(workflow_root, job)
+    finally:
+        registry_lock.close()
+
+
+def launch_existing(
+    workflow_root: Path, action: str, reason: str | None = None
+) -> dict[str, object]:
+    workflow_root = workflow_root.expanduser().absolute()
+    if workflow_root.is_symlink() or not workflow_root.is_dir():
+        raise AgentvolveWorkerError(
+            f"Agentvolve workflow is absent or unsafe: {workflow_root}"
+        )
+    if action not in {"resume", "retry", "verify"}:
+        raise AgentvolveWorkerError("Agentvolve continuation action is unsupported")
+    lock = _open_lock(workflow_root)
+    try:
+        request = load_workflow_request(workflow_root)
+        if action == "retry" and (
+            reason is None or not reason.strip() or "\x00" in reason
+        ):
+            raise AgentvolveWorkerError("Agentvolve retry requires an operator reason")
+        if action != "retry" and reason is not None:
+            raise AgentvolveWorkerError("only Agentvolve retry accepts a reason")
+
+        harness_root = _request_path_value(request, "harness_run_root", optional=True)
+        solution_root = cast(Path, _request_path_value(request, "solution_run_root"))
+        solution_complete = _completed_run(solution_root, "solution")
+        active_root: Path | None = None
+        if solution_root.is_dir() and not solution_complete:
+            active_root = solution_root
+        elif (
+            harness_root is not None
+            and harness_root.is_dir()
+            and not _completed_run(harness_root, "harness")
+        ):
+            active_root = harness_root
+        _pending, retry_required = (
+            _pending_state(active_root) if active_root is not None else (None, False)
+        )
+        if action == "retry" and not retry_required:
+            raise AgentvolveWorkerError(
+                "Agentvolve retry is allowed only for an authoritative pending indeterminate attempt"
+            )
+        if action == "resume" and retry_required:
+            raise AgentvolveWorkerError(
+                "Agentvolve workflow requires explicit retry authorization, not resume"
+            )
+        if action == "resume" and solution_complete:
+            raise AgentvolveWorkerError(
+                "completed Agentvolve workflow has no effects to resume"
+            )
+        if action == "verify" and not solution_complete:
+            raise AgentvolveWorkerError(
+                "Agentvolve workflow must complete before offline verification"
+            )
+        job = _next_job(workflow_root, str(request["workflow_id"]), action, reason)
+    except Exception:
+        lock.close()
+        raise
+    return _spawn_worker(workflow_root, job, lock)
+
+
+def _safe_tail(path: Path) -> str:
+    try:
+        with path.open("rb") as stream:
+            stream.seek(0, os.SEEK_END)
+            size = stream.tell()
+            stream.seek(max(0, size - MAX_DIAGNOSTIC_BYTES))
+            payload = stream.read(MAX_DIAGNOSTIC_BYTES)
+    except OSError:
+        return ""
+    text = payload.decode("utf-8", errors="replace")
+    return "".join(
+        character if character in "\n\t" or character.isprintable() else "?"
+        for character in text
+    ).strip()
+
+
+def _pending_state(run_root: Path) -> tuple[str | None, bool]:
+    path = run_root / "state" / "pending" / "round-intent.json"
+    if not path.is_file() or path.is_symlink():
+        return None, False
+    try:
+        document = _canonical_document(path, "pending round intent")
+    except AgentvolveWorkerError:
+        return "unreadable pending intent", False
+    stage = document.get("stage")
+    retry_required = (
+        stage == "controller_pending" and document.get("controller_receipt") is None
+    )
+    return str(stage) if type(stage) is str else "pending effect", retry_required
+
+
+def _activity(run_root: Path, kind: str, stage: int) -> str:
+    pending, _ = _pending_state(run_root)
+    if pending == "controller_pending":
+        return (
+            f"{kind} Controller round is awaiting an immutable model/evaluation receipt"
+        )
+    if pending == "controller_complete":
+        return f"{kind} Controller receipt is complete; trusted evidence adaptation is running"
+    if pending == "evidence_complete":
+        return f"{kind} evidence is complete; Population records are being committed"
+    if stage == 5:
+        return "protected final checks are running after development allocation"
+    return f"{kind} evolution command is running"
+
+
+class _EffectRunner:
+    def __init__(
+        self,
+        workflow_root: Path,
+        request: dict[str, object],
+        job: dict[str, object],
+    ) -> None:
+        self.workflow_root = workflow_root
+        self.request = request
+        self.job = job
+        self.process: subprocess.Popen[bytes] | None = None
+        self.terminated = False
+
+    def terminate(self, _signum: int, _frame: object) -> None:
+        self.terminated = True
+        if self.process is None or self.process.poll() is not None:
+            return
+        try:
+            os.killpg(self.process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+
+    def run(
+        self, command: list[str], *, run_root: Path, kind: str, fallback_stage: int
+    ) -> None:
+        if self.terminated:
+            raise AgentvolveWorkerError("Agentvolve worker was stopped by the operator")
+        ordinal = int(self.job["ordinal"])
+        prefix = f"{ordinal:06d}-{kind}"
+        stdout_path = self.workflow_root / f"{prefix}.stdout"
+        stderr_path = self.workflow_root / f"{prefix}.stderr"
+        stdout_fd = os.open(stdout_path, os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
+        stderr_fd = os.open(stderr_path, os.O_CREAT | os.O_TRUNC | os.O_WRONLY, 0o600)
+        try:
+            self.process = subprocess.Popen(
+                command,
+                cwd=ROOT,
+                stdin=subprocess.DEVNULL,
+                stdout=stdout_fd,
+                stderr=stderr_fd,
+                start_new_session=True,
+                close_fds=True,
+            )
+        finally:
+            os.close(stdout_fd)
+            os.close(stderr_fd)
+        last_stage = fallback_stage
+        while self.process.poll() is None:
+            if run_root.is_dir():
+                try:
+                    projection = load_process_status(run_root, expected_run_kind=kind)
+                except Exception:
+                    projection = None
+                if projection is not None:
+                    last_stage = int(projection["stage"])
+            _write_status(
+                self.workflow_root,
+                self.request,
+                self.job,
+                state="running",
+                stage=last_stage,
+                activity=_activity(run_root, kind, last_stage),
+                effect_pid=self.process.pid,
+            )
+            time.sleep(HEARTBEAT_SECONDS)
+        return_code = self.process.returncode
+        self.process = None
+        if self.terminated:
+            raise AgentvolveWorkerError("Agentvolve worker was stopped by the operator")
+        if return_code != 0:
+            diagnostic = _safe_tail(stderr_path) or _safe_tail(stdout_path)
+            raise AgentvolveWorkerError(
+                diagnostic or f"{kind} evolution exited with status {return_code}"
+            )
+        if not _completed_run(run_root, kind):
+            raise AgentvolveWorkerError(
+                f"{kind} evolution did not produce a completed run"
+            )
+
+
+def _request_path_value(
+    request: dict[str, object], key: str, *, optional: bool = False
+) -> Path | None:
+    value = request.get(key)
+    if optional and value is None:
+        return None
+    if type(value) is not str:
+        raise AgentvolveWorkerError(f"Agentvolve workflow {key} is malformed")
+    return _absolute_path(value, f"Agentvolve workflow {key}")
+
+
+def _run_command(
+    kind: str, operation: str, root: Path, reason: str | None = None
+) -> list[str]:
+    module = (
+        "apps.harness.experiment"
+        if kind == "harness"
+        else "apps.coding_agent.solution_experiment"
+    )
+    return [
+        sys.executable,
+        "-m",
+        module,
+        operation,
+        str(root),
+        *([] if reason is None else [reason]),
+    ]
+
+
+def _fresh_harness_command(root: Path, runtime: Path) -> list[str]:
+    return [
+        sys.executable,
+        "-m",
+        "apps.harness.experiment",
+        "coding-pi",
+        str(root),
+        str(runtime),
+    ]
+
+
+def _fresh_solution_command(
+    root: Path, task: Path, runtime: Path, harness: Path
+) -> list[str]:
+    return [
+        sys.executable,
+        "-m",
+        "apps.coding_agent.solution_experiment",
+        "pi",
+        str(task),
+        str(root),
+        str(runtime),
+        str(harness),
+    ]
+
+
+def _write_completion_report(workflow_root: Path, request: dict[str, object]) -> None:
+    solution_root = cast(Path, _request_path_value(request, "solution_run_root"))
+    report = _canonical_document(
+        solution_root / "experiment-report.json", "solution experiment report"
+    )
+    final = report.get("final") if type(report.get("final")) is dict else {}
+    selected = (
+        report.get("selected_solution")
+        if type(report.get("selected_solution")) is dict
+        else {}
+    )
+    artifact = (
+        selected.get("artifact") if type(selected.get("artifact")) is dict else {}
+    )
+    document = {
+        "authority": STATUS_AUTHORITY,
+        "candidate_id": selected.get("candidate_id"),
+        "completed_rounds": (
+            report.get("development", {}).get("completed_rounds")
+            if type(report.get("development")) is dict
+            else None
+        ),
+        "final_passed": final.get("passed_count"),
+        "final_tasks": final.get("task_count"),
+        "patch_path": str(solution_root / "selected.patch"),
+        "report_schema": "agentvolve-workflow-report-v1",
+        "selected_commit": artifact.get("commit"),
+        "solution_run_root": str(solution_root),
+        "workflow_id": request["workflow_id"],
+    }
+    _write_canonical(workflow_root / "workflow-report.json", document)
+
+
+def _execute_job(workflow_root: Path, job_path: Path) -> None:
+    request = load_workflow_request(workflow_root)
+    job = _load_job(job_path)
+    if request["workflow_id"] != job["workflow_id"]:
+        raise AgentvolveWorkerError(
+            "Agentvolve worker job identity does not match its workflow"
+        )
+    task = cast(Path, _request_path_value(request, "task_profile"))
+    runtime = cast(Path, _request_path_value(request, "runtime_manifest"))
+    harness_root = _request_path_value(request, "harness_run_root", optional=True)
+    solution_root = cast(Path, _request_path_value(request, "solution_run_root"))
+    configured_harness = _request_path_value(
+        request, "harness_descriptor", optional=True
+    )
+    _regular_file(task, "Agentvolve task profile")
+    _regular_file(runtime, "Agentvolve runtime manifest")
+    _runtime_model(runtime)
+    runner = _EffectRunner(workflow_root, request, job)
+    previous_term = signal.signal(signal.SIGTERM, runner.terminate)
+    previous_int = signal.signal(signal.SIGINT, runner.terminate)
+    try:
+        action = str(job["action"])
+        reason = cast(str | None, job["reason"])
+        current_stage = int((load_worker_status(workflow_root) or {}).get("stage", 1))
+        _write_status(
+            workflow_root,
+            request,
+            job,
+            state="running",
+            stage=current_stage,
+            activity="detached worker accepted the operator job",
+        )
+        if action == "verify":
+            if not _completed_run(solution_root, "solution"):
+                raise AgentvolveWorkerError(
+                    "Agentvolve workflow has no completed solution to verify"
+                )
+            runner.run(
+                _run_command("solution", "verify", solution_root),
+                run_root=solution_root,
+                kind="solution",
+                fallback_stage=6,
+            )
+            _write_status(
+                workflow_root,
+                request,
+                job,
+                state="verified",
+                stage=6,
+                activity="offline replay verified the selected result",
+            )
+            return
+
+        harness = configured_harness
+        if harness is None:
+            if harness_root is None:
+                raise AgentvolveWorkerError(
+                    "Agentvolve workflow omitted its harness run root"
+                )
+            if not _completed_run(harness_root, "harness"):
+                if harness_root.exists():
+                    operation = "retry" if action == "retry" else "resume"
+                    runner.run(
+                        _run_command(
+                            "harness",
+                            operation,
+                            harness_root,
+                            reason if operation == "retry" else None,
+                        ),
+                        run_root=harness_root,
+                        kind="harness",
+                        fallback_stage=2,
+                    )
+                    action = "resume"
+                    reason = None
+                else:
+                    runner.run(
+                        _fresh_harness_command(harness_root, runtime),
+                        run_root=harness_root,
+                        kind="harness",
+                        fallback_stage=1,
+                    )
+            harness = harness_root / "selected-harness.json"
+        _regular_file(harness, "selected harness descriptor")
+        _write_status(
+            workflow_root,
+            request,
+            job,
+            state="running",
+            stage=3,
+            activity="sealed harness is fixed for solution evolution",
+        )
+
+        if not _completed_run(solution_root, "solution"):
+            if solution_root.exists():
+                operation = "retry" if action == "retry" else "resume"
+                runner.run(
+                    _run_command(
+                        "solution",
+                        operation,
+                        solution_root,
+                        reason if operation == "retry" else None,
+                    ),
+                    run_root=solution_root,
+                    kind="solution",
+                    fallback_stage=4,
+                )
+            else:
+                if action == "retry":
+                    raise AgentvolveWorkerError(
+                        "no pending Agentvolve run exists to retry"
+                    )
+                runner.run(
+                    _fresh_solution_command(solution_root, task, runtime, harness),
+                    run_root=solution_root,
+                    kind="solution",
+                    fallback_stage=4,
+                )
+        _write_completion_report(workflow_root, request)
+        _write_status(
+            workflow_root,
+            request,
+            job,
+            state="completed",
+            stage=6,
+            activity="selected commit and patch are ready for operator review",
+        )
+    except Exception as exc:
+        active_root = solution_root if solution_root.exists() else harness_root
+        pending, retry_required = (
+            _pending_state(active_root) if active_root is not None else (None, False)
+        )
+        state = (
+            "waiting-retry"
+            if retry_required
+            else "stopped"
+            if runner.terminated
+            else "failed"
+        )
+        stage = (
+            4
+            if solution_root.exists()
+            else 2
+            if harness_root is not None and harness_root.exists()
+            else 1
+        )
+        if active_root is not None and active_root.is_dir():
+            kind = "solution" if active_root == solution_root else "harness"
+            try:
+                projection = load_process_status(active_root, expected_run_kind=kind)
+            except Exception:
+                projection = None
+            if projection is not None:
+                stage = int(projection["stage"])
+        detail = str(exc) or type(exc).__name__
+        if pending:
+            detail = f"{detail} (pending state: {pending})"
+        _write_status(
+            workflow_root,
+            request,
+            job,
+            state=state,
+            stage=stage,
+            activity=(
+                "operator retry authorization is required"
+                if retry_required
+                else "worker stopped; inspect the bounded worker logs"
+            ),
+            error=detail[-MAX_DIAGNOSTIC_BYTES:],
+        )
+        raise
+    finally:
+        signal.signal(signal.SIGTERM, previous_term)
+        signal.signal(signal.SIGINT, previous_int)
+
+
+def stop_workflow(workflow_root: Path) -> dict[str, object]:
+    workflow_root = workflow_root.expanduser().absolute()
+    status = load_worker_status(workflow_root)
+    if status is None or not _worker_alive(workflow_root, status):
+        raise AgentvolveWorkerError("Agentvolve workflow has no live worker to stop")
+    pid = cast(int, status["worker_pid"])
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except ProcessLookupError as exc:
+        raise AgentvolveWorkerError(
+            "Agentvolve worker exited before it could be stopped"
+        ) from exc
+    return {
+        "action": "stop",
+        "pid": pid,
+        "state": "stopping",
+        "worker_response_schema": "agentvolve-worker-response-v1",
+        "workflow_id": status["workflow_id"],
+        "workflow_root": str(workflow_root),
+    }
+
+
+def _work_main(arguments: list[str]) -> int:
+    if len(arguments) != 3:
+        return 2
+    workflow_root = _absolute_path(arguments[0], "Agentvolve workflow root")
+    job_path = _absolute_path(arguments[1], "Agentvolve worker job")
+    lock_fd: int | None = None
+    try:
+        lock_fd = int(arguments[2])
+        lock_stat = os.fstat(lock_fd)
+        expected_lock = workflow_root / "worker.lock"
+        reject_symlink(expected_lock, "Agentvolve worker lock", AgentvolveWorkerError)
+        expected_stat = expected_lock.stat()
+        if (lock_stat.st_dev, lock_stat.st_ino) != (
+            expected_stat.st_dev,
+            expected_stat.st_ino,
+        ):
+            raise AgentvolveWorkerError(
+                "detached worker did not inherit its workflow lock"
+            )
+        if job_path.parent != workflow_root / "jobs" or not re.fullmatch(
+            r"\d{6}\.json", job_path.name
+        ):
+            raise AgentvolveWorkerError("detached worker job path escapes its workflow")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _execute_job(workflow_root, job_path)
+    except Exception as exc:
+        print(str(exc) or type(exc).__name__, flush=True)
+        return 2
+    finally:
+        if lock_fd is not None:
+            try:
+                os.close(lock_fd)
+            except OSError:
+                pass
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == "_work":
+        return _work_main(arguments[1:])
+    try:
+        if len(arguments) in {4, 5} and arguments[0] == "start":
+            harness = (
+                None
+                if len(arguments) == 4
+                else _absolute_path(arguments[4], "selected harness descriptor")
+            )
+            result = start_workflow(
+                _absolute_path(arguments[1], "Agentvolve runs directory"),
+                _absolute_path(arguments[2], "Agentvolve task profile"),
+                _absolute_path(arguments[3], "Agentvolve runtime manifest"),
+                harness,
+            )
+        elif len(arguments) == 2 and arguments[0] in {"resume", "verify"}:
+            result = launch_existing(
+                _absolute_path(arguments[1], "Agentvolve workflow root"), arguments[0]
+            )
+        elif len(arguments) == 3 and arguments[0] == "retry":
+            result = launch_existing(
+                _absolute_path(arguments[1], "Agentvolve workflow root"),
+                "retry",
+                arguments[2],
+            )
+        elif len(arguments) == 2 and arguments[0] == "stop":
+            result = stop_workflow(
+                _absolute_path(arguments[1], "Agentvolve workflow root")
+            )
+        else:
+            raise AgentvolveWorkerError(
+                "usage: agentvolve_worker.py start RUNS TASK.json RUNTIME.json "
+                "[SELECTED-HARNESS.json] | resume WORKFLOW | retry WORKFLOW REASON | "
+                "verify WORKFLOW | stop WORKFLOW"
+            )
+    except (AgentvolveWorkerError, OSError, TypeError, ValueError) as exc:
+        print(str(exc) or type(exc).__name__, file=sys.stderr)
+        return 2
+    write_document(sys.stdout, result)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

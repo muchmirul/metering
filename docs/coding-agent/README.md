@@ -47,15 +47,16 @@ heredity. Only validated Git commits reproduce.
 [6/6] Result ready for review
 ```
 
-Run `/agentvolve` in an extension-enabled Pi session, choose local
-Qwen/llama.cpp or routed outer-Pi model mode, and use the unified workflow menu.
-While Agentvolve mode is active, the widget displays every `[1/6]`–`[6/6]`
-stage and monitors the shared run directory across activated Pi sessions;
-**Browse workflow history** or
-`/agentvolve-history` exposes recent runs. Operators no longer need to choose
-between internal harness and solution levels. Nested evolution remains
-pinned to the canonical runtime manifest. The tracker is a convenience
-projection. Candidate Git objects, canonical hash-linked JSONL, exact
+In an extension-enabled Pi session, set `/goal` and `/limit`, then run
+`/agentvolve`. There is no launcher or model picker: Pi keeps its normal
+interactive `/model` and starts a separate detached worker whose identity and
+budgets remain pinned to the canonical runtime manifest. Launch returns
+immediately. While operator mode is active, the widget displays every
+`[1/6]`–`[6/6]` stage and monitors the shared run directory across sessions.
+`/view-progress` opens the live dashboard and `/view-history` exposes recent
+runs. Operators do not choose between internal harness and solution levels.
+The worker status, tracker, graph, diff preview, and reports are convenience
+projections. Candidate Git objects, canonical hash-linked JSONL, exact
 allocations, and content-addressed receipts remain the authoritative evidence.
 Level-1 recurrence can stop at a numeric round cap or at
 an independently evaluated development goal with that cap as a mandatory

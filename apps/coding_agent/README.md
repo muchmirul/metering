@@ -51,17 +51,25 @@ Harness/runtime policy, evaluator commands, task permissions, Population policy,
 and Docker security do not mutate with solution code. Sessions, transcripts,
 kernel state, and unexported files are not inherited.
 
-## Source entry point
+## Source entry points
 
 `apps/coding_agent/solution_experiment.py` provides `fixture`, `pi`, `status`,
 `resume`, `retry`, and `verify` operations. New run roots are required for
-`fixture` and `pi`; selected code is never applied automatically. See the
+`fixture` and `pi`; selected code is never applied automatically.
+
+`python -m apps.coding_agent.agentvolve_worker` provides detached full-workflow
+`start`, `resume`, `retry`, `stop`, and `verify` operations. It emits only a
+bounded launch response; canonical status and logs live under the workflow root.
+`python -m apps.coding_agent.operator_view` exposes read-only `progress` and
+`history` JSON for Pi or another future coding-agent adapter. See the
 [operations guide](../../docs/coding-agent/operations.md) for exact commands.
 
 ## Modules
 
 | Module | Responsibility |
 |---|---|
+| `agentvolve_worker.py` | detached six-stage workflow jobs, process lock/liveness, and final workflow report |
+| `operator_view.py` | read-only progress/history, lineage, bounded candidate diffs, and stage reports |
 | `process_tracker.py` | projection-only `[n/6]` status |
 | `protocol.py` | task and protected-final profile validation |
 | `preflight.py` | private operator preparation before Level-1 inference, without executing checks |

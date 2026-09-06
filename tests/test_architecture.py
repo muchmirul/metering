@@ -233,12 +233,30 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     implementation = (
         ROOT / "connectors/fixed/pi/population_evolution_extension.ts"
     ).read_text(encoding="utf-8")
-    support = (
-        ROOT / "connectors/fixed/pi/population_evolution_support.ts"
-    ).read_text(encoding="utf-8")
+    support = (ROOT / "connectors/fixed/pi/population_evolution_support.ts").read_text(
+        encoding="utf-8"
+    )
+    dashboard = (ROOT / "connectors/fixed/pi/agentvolve_dashboard.ts").read_text(
+        encoding="utf-8"
+    )
+    worker = (ROOT / "apps/coding_agent/agentvolve_worker.py").read_text(
+        encoding="utf-8"
+    )
+    operator_view = (ROOT / "apps/coding_agent/operator_view.py").read_text(
+        encoding="utf-8"
+    )
     for command in (
         '"agentvolve"',
+        '"agentvolve-off"',
         '"agentvolve-history"',
+        '"agentvolve-resume"',
+        '"agentvolve-retry"',
+        '"agentvolve-stop"',
+        '"agentvolve-verify"',
+        '"view-progress"',
+        '"view-history"',
+        '"evolve-start"',
+        '"evolve-task"',
         '"goal"',
         '"limit"',
         '"evolve"',
@@ -259,8 +277,10 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert "registerNoArgumentCommand(" in implementation
     assert 'const MODE_NAME = "Agentvolve";' in implementation
     assert 'from "./population_evolution_support.ts"' in implementation
+    assert 'from "./agentvolve_dashboard.ts"' in implementation
     assert "export async function codingWorkflowStatus" in support
-    assert "export async function workflowHistory" in support
+    assert "export function decodeOperatorProgress" in support
+    assert "export function decodeOperatorHistory" in support
     assert "export async function discoverTaskProfiles" in support
     assert "export function tasksDirectory" in support
     assert "ctx.ui" not in support
@@ -270,29 +290,47 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'label: "Agentvolve"' in implementation
     assert 'await pi.exec("uv", args' in implementation
     assert 'await pi.exec("systemctl", ["--user", "restart", service]' in implementation
-    assert 'ctx.modelRegistry.find(selection.provider, selection.model)' in implementation
-    assert 'type AgentvolveModelMode = "local" | "routed"' in implementation
-    assert 'Agentvolve · choose model mode' in implementation
-    assert 'experiments stay runtime-pinned' in implementation
-    assert 'Start Agentvolve workflow' in implementation
-    assert 'Run the complete [1/6] through [6/6] pipeline' in implementation
-    assert 'Create task from current session' in implementation
-    assert 'ctx.sessionManager.buildContextEntries()' in implementation
+    assert "pi.setModel(" not in implementation
+    assert "pi.setThinkingLevel(" not in implementation
+    assert 'type AgentvolveModelMode = "routed"' in implementation
+    assert "Agentvolve · choose model mode" not in implementation
+    assert "new SelectList(" not in implementation
+    assert "launchDetachedWorkflow" in implementation
+    assert '"apps.coding_agent.agentvolve_worker"' in implementation
+    assert '"apps.coding_agent.operator_view"' in implementation
+    assert "showAgentvolveDashboard" in implementation
+    assert "setInterval(() => void this.refresh()" in dashboard
+    assert 'matchesKey(data, "escape")' in dashboard
+    assert 'this.theme.fg("accent", "Committed lineage / evidence")' in dashboard
+    assert 'this.theme.fg("accent", "Completed-stage reports")' in dashboard
+    assert "start_new_session=True" in worker
+    assert "pass_fds=(lock.fileno(),)" in worker
+    assert 'runs_directory / ".agentvolve.lock"' in worker
+    assert (
+        "_preflight_workflow(task_profile, runtime_manifest, harness_descriptor)"
+        in worker
+    )
+    assert 'STATUS_AUTHORITY = "projection-only"' in worker
+    assert 'VIEW_AUTHORITY = "projection-only"' in operator_view
+    assert '"detached-operator-worker-v1"' in operator_view
+    assert (
+        '"Create a reviewed task from this Pi session and start it"' in implementation
+    )
+    assert "ctx.sessionManager.buildContextEntries()" in implementation
     assert 'entry.message.role !== "user"' in implementation
-    assert 'agentvolve-workflow-configuration' in implementation
-    assert 'apps.coding_agent.task_profile_tool' in implementation
+    assert "agentvolve-workflow-configuration" in implementation
+    assert "apps.coding_agent.task_profile_tool" in implementation
     assert "METERING_EVOLUTION_HARNESS_DESCRIPTOR" in implementation
     assert 'ctx.mode === "rpc"' in implementation
     assert "no reviewed task profile" in implementation
-    assert 'for (let stage = 1; stage <= 6; stage += 1)' in implementation
-    assert '`${marker} [${stage}/6] ${label}`' in implementation
-    assert 'Browse workflow history' in implementation
-    assert 'WORKFLOW_MONITOR_INTERVAL_MS = 2000' in support
-    assert 'await startWorkflowMonitor(ctx)' in implementation
-    assert 'ctx.ui.setWidget(WIDGET_KEY, undefined)' in implementation
+    assert "for (let stage = 1; stage <= 6; stage += 1)" in implementation
+    assert "`${marker} [${stage}/6] ${label}`" in implementation
+    assert '"view-history"' in implementation
+    assert "WORKFLOW_MONITOR_INTERVAL_MS = 2000" in support
+    assert "await startWorkflowMonitor(ctx)" in implementation
+    assert "ctx.ui.setWidget(WIDGET_KEY, undefined)" in implementation
     assert 'pi.on("session_shutdown"' in implementation
-    assert 'new SelectList(items' in implementation
-    assert "final-tasks.json" not in implementation + support
+    assert "final-tasks.json" not in implementation + support + dashboard
     assert "development-tasks.json" not in implementation + support
     assert "execSync" not in implementation + support
 

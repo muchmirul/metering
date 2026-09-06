@@ -112,21 +112,8 @@ always remains mandatory.
 
 ### Use from Pi
 
-Prepare the reviewed digest-pinned Docker runtime. To register Agentvolve from
-any Pi working directory, add its reviewed absolute entrypoint to
-`~/.pi/agent/settings.json` without removing existing settings:
-
-```json
-{"extensions":["/absolute/path/to/metering/.pi/extensions/population-evolution.ts"]}
-```
-
-Start or reload Pi, then open the primary UI:
-
-```text
-/agentvolve
-```
-
-For the shortest normal path, configure the workflow directly in the session:
+Register the reviewed `.pi/extensions/population-evolution.ts` entrypoint, then
+use ordinary slash commands:
 
 ```text
 /goal Fix the behavior described here and satisfy the registered checks
@@ -134,66 +121,56 @@ For the shortest normal path, configure the workflow directly in the session:
 /agentvolve
 ```
 
-With both values present, `/agentvolve` selects the sole reviewed task profile
-for the current folder, derives a canonical profile with the current clean Git
-HEAD and 99 recurrence draws, activates the pinned local model, and starts. The
-configuration survives session reloads and is consumed only after a successful
-run. A folder still needs an operator-reviewed executable task contract;
-natural-language text cannot prove its own success. The same three-command
-sequence works through Pi RPC for headless operator automation; RPC refuses to
-open the menu when goal/limit configuration is incomplete.
+There is no launcher or model picker. Pi remains the interactive operator and
+keeps its current `/model`. With a complete goal/limit pair, `/agentvolve`
+derives a canonical profile from the sole reviewed task contract bound to the
+clean current Git folder, then launches a separate detached evolution worker.
+That worker uses the canonical runtime's provider/model/reasoning identity and
+finite budgets. Launch returns immediately, so Pi stays usable while evolution
+continues. Without both values, `/agentvolve` only activates operator mode and
+prints slash-command guidance.
 
-Without both values, the launcher offers **Local model** and **Routed Pi model**
-modes. Local mode activates the configured Qwen/llama.cpp service and selects
-the canonical runtime model in the outer Pi session. Routed mode keeps the model
-Pi was already using. Both open one streamlined UI with discovered task
-selection, **Create task from current session**, **Refresh status**, **Browse
-workflow history**, **Resume**, **Retry**, and **Verify**.
-Every Pi session with Agentvolve mode activated polls the shared run directory,
-so progress started in another activated session appears automatically. While
-Agentvolve is active, the status widget stays visible and explicitly lists every
-stage from `[1/6]` through `[6/6]`, including completed,
-current, and pending markers. `/agentvolve-history` opens the same shared history
-browser directly. Starting the workflow discovers `*.task.json` files in
-`METERING_EVOLUTION_TASKS_DIR` (by default the checkout sibling
-`metering-live-tasks`); manual path entry remains available. Session generation
-uses only user messages, shows the generated JSON for review, and registers it
-only after confirmation. Its disclosed final policy replays the approved public
-checks rather than pretending to provide hidden coverage. The workflow reuses a
-sealed harness when available (or creates one when none exists), and continues
-through the solution and protected final assay. Evolution
-itself remains pinned to the canonical runtime manifest; routed UI mode does not
-silently change experiment identity. Isolated run registries can reuse an
-existing sealed harness through a reviewed absolute
-`METERING_EVOLUTION_HARNESS_DESCRIPTOR`; sealed run evidence is referenced in
-place, never copied or rewritten. Existing direct compatibility commands
-remain available:
+Use an explicit reviewed profile or generate a reviewed session task with:
 
 ```text
-/evolve-harness
-/evolve-harness-status
-/evolve-code /absolute/path/to/task.json
-/evolve-code-status
-/evolve-code-verify
+/evolve-start /absolute/path/to/task.json
+/evolve-task
 ```
 
-If execution is interrupted, ordinary resume never repeats an indeterminate
-model call:
+Inspect the current or previous shared workflows from any Pi session:
 
 ```text
-/evolve-harness-resume
-/evolve-code-resume
+/view-progress [RUN_NAME]
+/view-history
 ```
 
-Use `/evolve-harness-retry REASON` or `/evolve-code-retry REASON` only when the
-run explicitly requires an operator-approved retry and reserved budget remains.
+The terminal dashboard refreshes every two seconds and distinguishes the
+operator model from the detached worker model. It shows all six stages, worker
+liveness, committed rounds/attempts/archive, bounded lineage and candidate diff
+views, completed-stage reports, and the final commit/patch report. `Esc` or `q`
+returns to Pi without stopping the worker.
 
-Each new run writes canonical `process-status.json`. The equivalent command-line
-status checks are:
+Recovery and verification remain explicit:
+
+```text
+/agentvolve-resume
+/agentvolve-retry OPERATOR-REVIEWED-REASON
+/agentvolve-stop
+/agentvolve-verify
+```
+
+Resume never repeats an indeterminate model call; retry is accepted only for a
+reserved pending attempt. Existing low-level `/evolve-harness*` and
+`/evolve-code*` compatibility commands remain documented in the
+[operations guide](docs/coding-agent/operations.md).
+
+The dashboard and worker status are projections only. Candidate Git objects,
+hash-linked ledgers, exact allocations, receipts, and seals remain authoritative.
+Equivalent read-only command-line projections are:
 
 ```bash
-uv run python apps/harness/experiment.py status HARNESS_RUN_ROOT
-uv run python apps/coding_agent/solution_experiment.py status SOLUTION_RUN_ROOT
+uv run python -m apps.coding_agent.operator_view progress RUNS_DIRECTORY [RUN_NAME]
+uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY
 ```
 
 A completed solution run produces:

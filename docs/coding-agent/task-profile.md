@@ -10,9 +10,10 @@ session-generated draft; all four routes produce this same schema and authority.
 ## Interactive registration and derivation
 
 `METERING_EVOLUTION_TASKS_DIR` defaults to the checkout sibling
-`metering-live-tasks`. The Pi launcher discovers at most 200 direct
-`*.task.json` files there. Invalid-looking JSON is not offered, and fixed Python
-validation remains decisive when a selected profile runs.
+`metering-live-tasks`. The Pi adapter discovers at most 200 direct
+`*.task.json` files there. `/evolve-start` uses the sole profile bound to the
+current folder or requires an explicit absolute path when discovery is
+ambiguous. Fixed Python validation remains decisive when the worker starts.
 
 `/goal TEXT` and `/limit N generations` do not invent a task. They derive a
 fresh profile from an already reviewed discovered profile: fixed code keeps its
@@ -22,7 +23,7 @@ fixed rational recurrence draws; and preserves the template's finite retry
 reservation count. The derived profile is written below the task directory's
 `generated/` subdirectory.
 
-**Create task from current session** is an explicit draft path. The outer model
+`/evolve-task` is an explicit draft path. The outer model
 receives user messages only, never assistant answers or tool output, plus the
 current commit's bounded tracked-file list. The operator edits the complete JSON
 draft and confirms it. Fixed code then requires a clean Git repository and an

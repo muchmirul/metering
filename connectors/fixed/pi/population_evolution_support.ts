@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import type { ExecResult } from "@earendil-works/pi-coding-agent";
 
 const RUN_NAME = /^pi-\d{8}T\d{6}(?:\d{3})?Z$/;
+const WORKFLOW_RUN_NAME = /^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$/;
 const MAX_DIAGNOSTIC_CHARS = 4000;
 const DEFAULT_LLAMACPP_SERVICE = "llama-qwen38.service";
 const DEFAULT_LLAMACPP_HEALTH_URL = "http://127.0.0.1:8080/v1/models";
@@ -68,6 +69,92 @@ export interface DiscoveredTaskProfile {
 	repository: string;
 }
 
+export interface OperatorStageView {
+	label: string;
+	number: number;
+	status: "complete" | "failed" | "pending" | "reused" | "running" | "waiting-retry";
+	summary: string;
+}
+
+export interface OperatorRoundView {
+	archive_members: number;
+	attempts: number;
+	challenger_passed: number | null;
+	child_candidate_id: string;
+	decision: string;
+	parent_candidate_id: string;
+	parent_passed: number | null;
+	retries: number;
+	round: number | null;
+	selected_candidate_id: string;
+}
+
+export interface OperatorDiffView {
+	child_candidate_id: string;
+	deletions: number;
+	files: Array<{ deletions: number | null; insertions: number | null; path: string }>;
+	insertions: number;
+	parent_candidate_id: string;
+	preview_lines: string[];
+	round: number | null;
+	summary: string;
+	truncated: boolean;
+}
+
+export interface OperatorProgressView {
+	activity: string;
+	authority: "projection-only";
+	diff: OperatorDiffView | null;
+	error: string | null;
+	evolution: {
+		activity: string | null;
+		archive_member_count: number;
+		completed_rounds: number;
+		kind: CodingKind;
+		max_rounds: number | null;
+		pending_attempts: number;
+		pending_parent_candidate_id: string | null;
+		pending_round: number | null;
+		pending_stage: string | null;
+		proposal_calls: number;
+		rounds: OperatorRoundView[];
+	} | null;
+	progress_schema: "agentvolve-progress-view-v1";
+	result: Record<string, unknown> | null;
+	stage: number;
+	stage_label: string;
+	stages: OperatorStageView[];
+	state: string;
+	task: { goal: string; max_rounds: number | null; repository: string | null; task_id: string | null } | null;
+	updated_unix_ns: number | null;
+	warnings: string[];
+	worker: {
+		alive: boolean | null;
+		effect_pid: number | null;
+		model: { connector: string; model: string; provider: string; reasoning: string } | null;
+		pid: number | null;
+		separation: string;
+	};
+	workflow_id: string;
+	workflow_root: string;
+}
+
+export interface OperatorHistoryView {
+	authority: "projection-only";
+	history_schema: "agentvolve-history-view-v1";
+	runs: Array<{
+		goal: string | null;
+		id: string;
+		name: string;
+		stage: number | null;
+		stage_label: string;
+		state: string;
+		updated_unix_ns: number;
+		warning?: string;
+	}>;
+	runs_directory: string;
+}
+
 export function repositoryRoot(): string {
 	return resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 }
@@ -123,10 +210,7 @@ function llamaCppHealthUrl(): string {
 	return process.env.METERING_EVOLUTION_LLAMACPP_HEALTH_URL?.trim() || DEFAULT_LLAMACPP_HEALTH_URL;
 }
 
-export async function llamaCppModelReady(
-	selection: RuntimeSelection,
-	signal?: AbortSignal,
-): Promise<boolean> {
+export async function llamaCppModelReady(selection: RuntimeSelection, signal?: AbortSignal): Promise<boolean> {
 	try {
 		const response = await fetch(llamaCppHealthUrl(), {
 			headers: {
@@ -235,10 +319,20 @@ export async function latestRunRoot(): Promise<string | undefined> {
 	}
 }
 
-export async function latestCodingRoot(
-	kind: CodingKind,
-	requireCompleted = true,
-): Promise<string | undefined> {
+export async function latestWorkerWorkflowRoot(): Promise<string | undefined> {
+	try {
+		const entries = await readdir(runsDirectory(), { withFileTypes: true });
+		return entries
+			.filter((entry) => entry.isDirectory() && WORKFLOW_RUN_NAME.test(entry.name))
+			.map((entry) => join(runsDirectory(), entry.name))
+			.sort()
+			.reverse()[0];
+	} catch {
+		return undefined;
+	}
+}
+
+export async function latestCodingRoot(kind: CodingKind, requireCompleted = true): Promise<string | undefined> {
 	const pattern = new RegExp(`^${kind}-pi-\\d{8}T\\d{6}(?:\\d{3})?Z$`);
 	try {
 		const entries = await readdir(runsDirectory(), { withFileTypes: true });
@@ -451,7 +545,73 @@ export async function latestUnfinishedCodingRun(): Promise<{ kind: CodingKind; r
 	return runs[0] ?? null;
 }
 
+async function projectedWorkerAlive(root: string, status: Record<string, unknown>): Promise<boolean> {
+	const pid = integer(status.worker_pid);
+	const token = text(status.worker_start_token);
+	if (pid === undefined || pid <= 0 || token === undefined) return false;
+	try {
+		const stat = await readFile(join("/proc", String(pid), "stat"), "ascii");
+		if (stat.trim().split(/\s+/)[21] !== token) return false;
+		const command = await readFile(join("/proc", String(pid), "cmdline"));
+		const fields = command.toString("utf8").split("\0");
+		return fields.includes("apps.coding_agent.agentvolve_worker") && fields.includes(root);
+	} catch {
+		return false;
+	}
+}
+
+async function workerWorkflowStatus(root: string): Promise<ModeSummary> {
+	const statusValue: unknown = JSON.parse(await readFile(join(root, "worker-status.json"), "utf8"));
+	if (typeof statusValue !== "object" || statusValue === null || Array.isArray(statusValue)) {
+		throw new Error("Agentvolve worker status is malformed");
+	}
+	const status = statusValue as Record<string, unknown>;
+	const stage = integer(status.stage);
+	if (
+		status.authority !== "projection-only" ||
+		status.status_schema !== "agentvolve-worker-status-v1" ||
+		stage === undefined ||
+		!PROCESS_LABELS[stage] ||
+		status.stage_label !== PROCESS_LABELS[stage] ||
+		typeof status.state !== "string" ||
+		typeof status.workflow_id !== "string"
+	) {
+		throw new Error("Agentvolve worker status has an unexpected identity");
+	}
+	let state = text(status.state) ?? "unknown";
+	if (["queued", "running"].includes(state)) {
+		const updated = integer(status.updated_unix_ns);
+		const heartbeatAge = updated === undefined ? Number.POSITIVE_INFINITY : Date.now() - updated / 1_000_000;
+		const alive = await projectedWorkerAlive(root, status);
+		if (heartbeatAge >= 10_000 || (!alive && heartbeatAge >= 5_000)) state = "stalled";
+	}
+	let report: Record<string, unknown> | undefined;
+	const reportPath = join(root, "workflow-report.json");
+	if (existsSync(reportPath)) {
+		const reportValue: unknown = JSON.parse(await readFile(reportPath, "utf8"));
+		if (typeof reportValue === "object" && reportValue !== null && !Array.isArray(reportValue)) {
+			report = reportValue as Record<string, unknown>;
+			if (report.report_schema !== "agentvolve-workflow-report-v1" || report.workflow_id !== status.workflow_id) {
+				throw new Error("Agentvolve workflow report does not match worker status");
+			}
+		}
+	}
+	return {
+		action: "status",
+		candidateId: text(report?.candidate_id),
+		finalPassed: integer(report?.final_passed),
+		finalTasks: integer(report?.final_tasks),
+		kind: stage <= 3 ? "coding-harness" : "coding-solution",
+		patchPath: text(report?.patch_path),
+		process: processProjection(stage).display,
+		runRoot: root,
+		status: state,
+	};
+}
+
 export async function codingWorkflowStatus(): Promise<ModeSummary> {
+	const workflow = await latestWorkerWorkflowRoot();
+	if (workflow && existsSync(join(workflow, "worker-status.json"))) return workerWorkflowStatus(workflow);
 	const unfinished = await latestUnfinishedCodingRun();
 	if (unfinished) return codingStatus(unfinished.kind);
 	if (await latestCodingRoot("solution")) return codingStatus("solution");
@@ -472,10 +632,7 @@ export async function workflowHistory(limit = 50): Promise<ModeSummary[]> {
 		return [];
 	}
 	const names = entries
-		.filter(
-			(entry) =>
-				entry.isDirectory() && /^(?:harness|solution)-pi-\d{8}T\d{6}(?:\d{3})?Z$/.test(entry.name),
-		)
+		.filter((entry) => entry.isDirectory() && /^(?:harness|solution)-pi-\d{8}T\d{6}(?:\d{3})?Z$/.test(entry.name))
 		.map((entry) => entry.name)
 		.sort((left, right) => {
 			const leftStamp = left.slice(left.lastIndexOf("-pi-") + 4);
@@ -501,6 +658,155 @@ export async function workflowHistory(limit = 50): Promise<ModeSummary[]> {
 		}
 	}
 	return summaries;
+}
+
+function requiredObject(value: unknown, label: string): Record<string, unknown> {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		throw new Error(`${label} must be an object`);
+	}
+	return value as Record<string, unknown>;
+}
+
+function nullableInteger(value: unknown): boolean {
+	return value === null || Number.isInteger(value);
+}
+
+function nullableString(value: unknown): boolean {
+	return value === null || typeof value === "string";
+}
+
+export function decodeOperatorProgress(value: Record<string, unknown>): OperatorProgressView {
+	if (value.progress_schema !== "agentvolve-progress-view-v1" || value.authority !== "projection-only") {
+		throw new Error("operator progress returned an unexpected schema");
+	}
+	const stage = integer(value.stage);
+	const stages = value.stages;
+	const stageStatuses = new Set(["complete", "failed", "pending", "reused", "running", "waiting-retry"]);
+	if (
+		stage === undefined ||
+		!PROCESS_LABELS[stage] ||
+		!Array.isArray(stages) ||
+		stages.length !== 6 ||
+		!stages.every((item, index) => {
+			if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+			const projected = item as Record<string, unknown>;
+			return (
+				projected.number === index + 1 &&
+				projected.label === PROCESS_LABELS[index + 1] &&
+				typeof projected.status === "string" &&
+				stageStatuses.has(projected.status) &&
+				typeof projected.summary === "string"
+			);
+		})
+	) {
+		throw new Error("operator progress returned an invalid stage projection");
+	}
+	const worker = requiredObject(value.worker, "operator progress worker");
+	const model = worker.model === null ? null : requiredObject(worker.model, "operator progress worker model");
+	const warnings = value.warnings;
+	if (
+		typeof value.activity !== "string" ||
+		!nullableString(value.error) ||
+		typeof value.state !== "string" ||
+		typeof value.workflow_id !== "string" ||
+		typeof value.workflow_root !== "string" ||
+		!nullableInteger(value.updated_unix_ns) ||
+		!Array.isArray(warnings) ||
+		!warnings.every((warning) => typeof warning === "string") ||
+		(worker.alive !== null && typeof worker.alive !== "boolean") ||
+		!nullableInteger(worker.effect_pid) ||
+		!nullableInteger(worker.pid) ||
+		typeof worker.separation !== "string" ||
+		(model !== null &&
+			![model.connector, model.model, model.provider, model.reasoning].every((item) => typeof item === "string"))
+	) {
+		throw new Error("operator progress returned malformed summary fields");
+	}
+	if (value.evolution !== null) {
+		const evolution = requiredObject(value.evolution, "operator progress evolution");
+		if (
+			(evolution.kind !== "harness" && evolution.kind !== "solution") ||
+			!nullableString(evolution.activity) ||
+			!Number.isInteger(evolution.archive_member_count) ||
+			!Number.isInteger(evolution.completed_rounds) ||
+			!nullableInteger(evolution.max_rounds) ||
+			!Number.isInteger(evolution.pending_attempts) ||
+			!nullableString(evolution.pending_parent_candidate_id) ||
+			!nullableInteger(evolution.pending_round) ||
+			!nullableString(evolution.pending_stage) ||
+			!Number.isInteger(evolution.proposal_calls) ||
+			!Array.isArray(evolution.rounds) ||
+			!evolution.rounds.every((item) => {
+				if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+				const round = item as Record<string, unknown>;
+				return (
+					Number.isInteger(round.archive_members) &&
+					Number.isInteger(round.attempts) &&
+					nullableInteger(round.challenger_passed) &&
+					typeof round.child_candidate_id === "string" &&
+					typeof round.decision === "string" &&
+					typeof round.parent_candidate_id === "string" &&
+					nullableInteger(round.parent_passed) &&
+					Number.isInteger(round.retries) &&
+					nullableInteger(round.round) &&
+					typeof round.selected_candidate_id === "string"
+				);
+			})
+		) {
+			throw new Error("operator progress returned malformed evolution fields");
+		}
+	}
+	if (value.diff !== null) {
+		const diff = requiredObject(value.diff, "operator progress diff");
+		if (
+			typeof diff.child_candidate_id !== "string" ||
+			!Number.isInteger(diff.deletions) ||
+			!Array.isArray(diff.files) ||
+			!diff.files.every((item) => {
+				if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+				const file = item as Record<string, unknown>;
+				return nullableInteger(file.deletions) && nullableInteger(file.insertions) && typeof file.path === "string";
+			}) ||
+			!Number.isInteger(diff.insertions) ||
+			typeof diff.parent_candidate_id !== "string" ||
+			!Array.isArray(diff.preview_lines) ||
+			!diff.preview_lines.every((line) => typeof line === "string") ||
+			!nullableInteger(diff.round) ||
+			typeof diff.summary !== "string" ||
+			typeof diff.truncated !== "boolean"
+		) {
+			throw new Error("operator progress returned malformed diff fields");
+		}
+	}
+	if (value.result !== null) requiredObject(value.result, "operator progress result");
+	if (value.task !== null) requiredObject(value.task, "operator progress task");
+	return value as unknown as OperatorProgressView;
+}
+
+export function decodeOperatorHistory(value: Record<string, unknown>): OperatorHistoryView {
+	if (
+		value.history_schema !== "agentvolve-history-view-v1" ||
+		value.authority !== "projection-only" ||
+		!Array.isArray(value.runs) ||
+		typeof value.runs_directory !== "string" ||
+		!value.runs.every((item) => {
+			if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+			const run = item as Record<string, unknown>;
+			return (
+				nullableString(run.goal) &&
+				typeof run.id === "string" &&
+				typeof run.name === "string" &&
+				nullableInteger(run.stage) &&
+				typeof run.stage_label === "string" &&
+				typeof run.state === "string" &&
+				Number.isInteger(run.updated_unix_ns) &&
+				(run.warning === undefined || typeof run.warning === "string")
+			);
+		})
+	) {
+		throw new Error("operator history returned an unexpected schema");
+	}
+	return value as unknown as OperatorHistoryView;
 }
 
 export async function statusSummary(): Promise<ModeSummary> {

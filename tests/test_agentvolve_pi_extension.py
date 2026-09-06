@@ -46,7 +46,18 @@ def test_goal_and_limit_are_persisted_by_deployed_extension(tmp_path: Path):
             command["name"]
             for command in commands["data"]["commands"]  # type: ignore[index]
         }
-        assert {"agentvolve", "goal", "limit"} <= names
+        assert {
+            "agentvolve",
+            "agentvolve-resume",
+            "agentvolve-retry",
+            "agentvolve-stop",
+            "agentvolve-verify",
+            "evolve-start",
+            "goal",
+            "limit",
+            "view-history",
+            "view-progress",
+        } <= names
 
         send(
             process.stdin,
@@ -76,6 +87,13 @@ def test_goal_and_limit_are_persisted_by_deployed_extension(tmp_path: Path):
             "goal": "solve the task",
             "maxRounds": 100,
         }
+        mode_entries = [
+            entry["data"]
+            for entry in entries
+            if entry.get("type") == "custom"
+            and entry.get("customType") == "agentvolve-mode"
+        ]
+        assert mode_entries[-1] == {"active": True, "modelMode": "routed"}
     finally:
         process.terminate()
         process.wait(timeout=10)
