@@ -340,6 +340,9 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert "`${marker} [${stage}/6] ${label}`" in implementation
     assert '"view-history"' in implementation
     assert "WORKFLOW_MONITOR_INTERVAL_MS = 2000" in support
+    assert 'ACTIVE_WORKFLOW_STATUSES = new Set(["queued", "running"])' in implementation
+    assert "!ACTIVE_WORKFLOW_STATUSES.has(summary.status)" in implementation
+    assert "latestUnfinishedCodingRun" not in support
     assert "await startWorkflowMonitor(ctx)" in implementation
     assert "ctx.ui.setWidget(WIDGET_KEY, undefined)" in implementation
     assert 'pi.on("session_shutdown"' in implementation

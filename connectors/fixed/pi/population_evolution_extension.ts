@@ -58,6 +58,7 @@ import {
 const MODE_NAME = "Agentvolve";
 const STATUS_KEY = "population-evolution";
 const WIDGET_KEY = "population-evolution";
+const ACTIVE_WORKFLOW_STATUSES = new Set(["queued", "running"]);
 interface LoaderResult {
 	error?: string;
 	summary?: ModeSummary;
@@ -275,6 +276,10 @@ function setModeWidget(
 	modelMode?: AgentvolveModelMode,
 	modelLabel?: string,
 ): void {
+	if (!summary || !ACTIVE_WORKFLOW_STATUSES.has(summary.status)) {
+		ctx.ui.setWidget(WIDGET_KEY, undefined);
+		return;
+	}
 	const lines = [
 		ctx.ui.theme.fg("accent", `🧬 ${MODE_NAME}`) + ctx.ui.theme.fg("dim", " · unified workflow"),
 		ctx.ui.theme.fg(
@@ -389,6 +394,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	let monitor: ReturnType<typeof setInterval> | undefined;
 	let monitorRefreshing = false;
 	let monitorFingerprint: string | undefined;
+	let monitoredWorkflowRoot: string | undefined;
 	let running = false;
 	let workflowConfiguration: WorkflowConfiguration = {};
 	let configurationWorkflowRoot: string | undefined;
@@ -518,17 +524,15 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const fingerprint = JSON.stringify(summary);
 			if (fingerprint === monitorFingerprint) return;
 			monitorFingerprint = fingerprint;
+			const active = ACTIVE_WORKFLOW_STATUSES.has(summary.status);
+			if (active) monitoredWorkflowRoot = summary.runRoot;
 			renderModeWidget(ctx, summary);
-			const activeStates = new Set(["in progress", "queued", "running"]);
-			const failedStates = new Set(["failed", "inconsistent", "stalled", "stopped", "waiting-retry"]);
-			const state = activeStates.has(summary.status)
-				? "running"
-				: failedStates.has(summary.status)
-					? "failed"
-					: modeActive
-						? "ready"
-						: "available";
-			setModeStatus(ctx, state, summary.process ?? (modeActive ? activeModelLabel : undefined));
+			setModeStatus(
+				ctx,
+				active ? "running" : modeActive ? "ready" : "available",
+				active ? summary.process : modeActive && activeModelLabel ? `operator · ${activeModelLabel}` : undefined,
+			);
+			if (!active && monitoredWorkflowRoot !== summary.runRoot) return;
 			try {
 				const progress = await operatorProgress();
 				for (const stage of progress.stages) {
@@ -562,6 +566,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				}
 			} catch {
 				// The compact widget still works if the richer read-only projection is temporarily unavailable.
+			} finally {
+				if (!active) monitoredWorkflowRoot = undefined;
 			}
 		} finally {
 			monitorRefreshing = false;
@@ -583,6 +589,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		if (monitor) clearInterval(monitor);
 		monitor = undefined;
 		monitorRefreshing = false;
+		monitoredWorkflowRoot = undefined;
 	}
 
 	async function requireCodingRoot(kind: CodingKind, completed: boolean, message: string): Promise<string> {
@@ -1536,16 +1543,16 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				};
 			}
 			if (params.action === "workflow_status") {
-				const history = await operatorHistory();
-				if (history.runs.length === 0) {
+				const summary = await codingWorkflowStatus();
+				if (!ACTIVE_WORKFLOW_STATUSES.has(summary.status)) {
 					return {
 						content: [
 							{
 								type: "text",
-								text: "Agentvolve operator mode is available, but no workflow has been started yet. Describe a coding goal or start a reviewed task when ready.",
+								text: "No Agentvolve workflow is currently queued or running. Describe a coding goal or start a reviewed task when ready; use workflow_history for prior runs.",
 							},
 						],
-						details: { active: modeActive, status: "not-started" },
+						details: { active: modeActive, status: "idle" },
 					};
 				}
 				const progress = await operatorProgress();

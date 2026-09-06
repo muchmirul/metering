@@ -49,7 +49,7 @@ needed. The connector does not infer a model or retain a nested session.
 The integration is split at a filesystem/JSON boundary:
 
 - `population_evolution_extension.ts` owns Pi commands, tools, lifecycle, and the
-  compact always-visible widget;
+  compact active-workflow widget;
 - `agentvolve_dashboard.ts` owns the live terminal dashboard;
 - `population_evolution_support.ts` owns paths, discovery, and strict projection
   decoding;
@@ -143,10 +143,13 @@ completed-stage report, and the final selected commit/patch report. Press `r` to
 refresh, `d` to expand or collapse the bounded diff, and `Esc` or `q` to return
 to ordinary Pi. Closing the dashboard does not stop the worker.
 
-The compact widget also polls the shared runs directory every two seconds. Stage
-completion reports are added to the Pi transcript. Any Pi session using the same
-runs directory can inspect the worker; neither dashboard nor monitor attaches to
-or owns its process.
+The compact widget polls the shared runs directory every two seconds and appears
+only while the latest detached workflow is genuinely queued or running. It is
+cleared when no worker is active, so abandoned legacy run directories and prior
+completed workflows are not presented as current progress. Stage completion
+reports for a workflow observed while active are added to the Pi transcript. Any
+Pi session using the same runs directory can inspect the worker; neither
+dashboard nor monitor attaches to or owns its process.
 
 ```text
 [1/6] Task and runtime configured

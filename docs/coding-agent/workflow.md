@@ -2,8 +2,9 @@
 
 This is Agentvolve's operator-facing lifecycle. Ordinary Pi slash commands start
 one streamlined detached workflow while hiding the internal harness/solution,
-Controller, Population, Git, and receipt boundaries. The compact widget and
-`/view-progress` dashboard list all six stages without owning the worker.
+Controller, Population, Git, and receipt boundaries. While a detached worker is
+queued or running, the compact widget and `/view-progress` dashboard list all
+six stages without owning the worker.
 
 ## Tracker
 
@@ -50,7 +51,9 @@ needed to bind the canonical input. `/agentvolve` keeps Pi's current operator
 model and, once a task is approved, launches a manifest-pinned evolution worker
 in a separate process. Pi returns immediately. While operator mode is active,
 the compact tracker polls the shared run directory every two seconds, including
-work launched by another session.
+work launched by another session. The widget is shown only for a genuinely
+queued or running detached workflow and disappears when no worker is active;
+abandoned legacy directories are not displayed as current progress.
 
 Use `/view-progress [RUN_NAME]` for the live terminal dashboard and
 `/view-history` for the shared history browser. The dashboard labels operator

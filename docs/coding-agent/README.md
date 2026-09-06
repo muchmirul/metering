@@ -56,8 +56,9 @@ after approval. The explicit `/goal`, `/limit`, `/agentvolve` route remains.
 There is no model picker: Pi keeps its normal interactive `/model` and starts a
 separate detached worker whose identity and budgets remain pinned to the
 canonical runtime manifest. Launch returns immediately. While operator mode is
-active, the widget displays every `[1/6]`–`[6/6]` stage and monitors the shared
-run directory across sessions. `/view-progress` opens the live dashboard and
+active, the monitor polls the shared run directory across sessions; its compact
+`[1/6]`–`[6/6]` widget appears only while a detached workflow is queued or
+running and clears when no worker is active. `/view-progress` opens the live dashboard and
 `/view-history` exposes recent runs. Operators do not choose between internal
 harness and solution levels. The worker status, tracker, graph, diff preview,
 and reports are convenience projections. Candidate Git objects, canonical

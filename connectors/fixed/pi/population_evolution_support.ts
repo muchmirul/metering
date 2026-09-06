@@ -531,20 +531,6 @@ export async function codingStatus(kind: CodingKind): Promise<ModeSummary> {
 	return codingStatusAtRoot(kind, root);
 }
 
-export async function latestUnfinishedCodingRun(): Promise<{ kind: CodingKind; root: string } | null> {
-	const runs: Array<{ kind: CodingKind; root: string }> = [];
-	for (const kind of ["harness", "solution"] as const) {
-		const root = await latestCodingRoot(kind, false);
-		if (root && !existsSync(join(root, "experiment-report.json"))) runs.push({ kind, root });
-	}
-	runs.sort((left, right) => {
-		const leftStamp = left.root.slice(left.root.lastIndexOf("-pi-") + 4);
-		const rightStamp = right.root.slice(right.root.lastIndexOf("-pi-") + 4);
-		return rightStamp.localeCompare(leftStamp);
-	});
-	return runs[0] ?? null;
-}
-
 async function projectedWorkerAlive(root: string, status: Record<string, unknown>): Promise<boolean> {
 	const pid = integer(status.worker_pid);
 	const token = text(status.worker_start_token);
@@ -612,10 +598,6 @@ async function workerWorkflowStatus(root: string): Promise<ModeSummary> {
 export async function codingWorkflowStatus(): Promise<ModeSummary> {
 	const workflow = await latestWorkerWorkflowRoot();
 	if (workflow && existsSync(join(workflow, "worker-status.json"))) return workerWorkflowStatus(workflow);
-	const unfinished = await latestUnfinishedCodingRun();
-	if (unfinished) return codingStatus(unfinished.kind);
-	if (await latestCodingRoot("solution")) return codingStatus("solution");
-	if (await latestCodingRoot("harness")) return codingStatus("harness");
 	return {
 		action: "status",
 		kind: "coding-solution",

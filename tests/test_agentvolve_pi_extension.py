@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import TextIO
 
@@ -20,9 +21,15 @@ def send(stream: TextIO, document: dict[str, object]) -> None:
     stream.flush()
 
 
-def response(stream: TextIO, request_id: str) -> dict[str, object]:
+def response(
+    stream: TextIO,
+    request_id: str,
+    events: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
     for line in stream:
         event = json.loads(line)
+        if events is not None:
+            events.append(event)
         if event.get("type") == "response" and event.get("id") == request_id:
             return event
     raise AssertionError(f"Pi RPC ended before response {request_id}")
@@ -38,6 +45,25 @@ def emitted_event(stream: TextIO, event_type: str) -> dict[str, object]:
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is not installed")
 def test_goal_and_limit_are_persisted_by_deployed_extension(tmp_path: Path):
+    runs = tmp_path / "runs"
+    tasks = tmp_path / "tasks"
+    stale = runs / "harness-pi-20260904T111122200Z"
+    stale.mkdir(parents=True)
+    tasks.mkdir()
+    (stale / "process-status.json").write_text(
+        json.dumps(
+            {
+                "authority": "projection-only",
+                "display": "[2/6] Evolving harness",
+                "process_schema": "darwinian-coding-process-v1",
+                "run_kind": "harness",
+                "stage": 2,
+                "stage_label": "Evolving harness",
+                "total_stages": 6,
+            }
+        ),
+        encoding="utf-8",
+    )
     inspector = tmp_path / "inspect-agentvolve-tool.ts"
     inspector.write_text(
         """import type { ExtensionAPI } from \"@earendil-works/pi-coding-agent\";
@@ -65,6 +91,11 @@ export default function (pi: ExtensionAPI) {
             str(inspector),
         ],
         cwd=tmp_path,
+        env={
+            **os.environ,
+            "METERING_EVOLUTION_RUNS_DIR": str(runs),
+            "METERING_EVOLUTION_TASKS_DIR": str(tasks),
+        },
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -96,20 +127,31 @@ export default function (pi: ExtensionAPI) {
             process.stdin,
             {"id": "incomplete", "type": "prompt", "message": "/agentvolve"},
         )
-        assert response(process.stdout, "incomplete")["success"] is True
+        monitor_events: list[dict[str, object]] = []
+        assert response(process.stdout, "incomplete", monitor_events)["success"] is True
 
         send(
             process.stdin,
             {"id": "goal", "type": "prompt", "message": "/goal solve the task"},
         )
-        assert response(process.stdout, "goal")["success"] is True
+        assert response(process.stdout, "goal", monitor_events)["success"] is True
         send(
             process.stdin,
             {"id": "limit", "type": "prompt", "message": '/limit "100 generations"'},
         )
-        assert response(process.stdout, "limit")["success"] is True
+        assert response(process.stdout, "limit", monitor_events)["success"] is True
         send(process.stdin, {"id": "entries", "type": "get_entries"})
-        entries = response(process.stdout, "entries")["data"]["entries"]  # type: ignore[index]
+        entries_response = response(process.stdout, "entries", monitor_events)
+        entries = entries_response["data"]["entries"]  # type: ignore[index]
+        active_widgets = [
+            event
+            for event in monitor_events
+            if event.get("type") == "extension_ui_request"
+            and event.get("method") == "setWidget"
+            and "widgetLines" in event
+        ]
+        assert active_widgets == []
+        assert str(stale) not in json.dumps(monitor_events)
         configurations = [
             entry["data"]
             for entry in entries
@@ -127,6 +169,57 @@ export default function (pi: ExtensionAPI) {
             and entry.get("customType") == "agentvolve-mode"
         ]
         assert mode_entries[-1] == {"active": True, "modelMode": "routed"}
+
+        current = runs / "workflow-pi-20260906T190000000Z"
+        current.mkdir()
+        (current / "worker-status.json").write_text(
+            json.dumps(
+                {
+                    "authority": "projection-only",
+                    "stage": 1,
+                    "stage_label": "Task and runtime configured",
+                    "state": "queued",
+                    "status_schema": "agentvolve-worker-status-v1",
+                    "updated_unix_ns": time.time_ns(),
+                    "workflow_id": "active-test",
+                }
+            ),
+            encoding="utf-8",
+        )
+        time.sleep(2.2)
+        send(process.stdin, {"id": "active-widget", "type": "get_entries"})
+        active_events: list[dict[str, object]] = []
+        assert response(process.stdout, "active-widget", active_events)["success"] is True
+        widgets = [
+            event
+            for event in active_events
+            if event.get("type") == "extension_ui_request"
+            and event.get("method") == "setWidget"
+            and "widgetLines" in event
+        ]
+        assert len(widgets) == 1
+        assert str(current) in json.dumps(widgets[0])
+        assert str(stale) not in json.dumps(widgets[0])
+
+        current_status = json.loads((current / "worker-status.json").read_text())
+        current_status["state"] = "completed"
+        current_status["updated_unix_ns"] = time.time_ns()
+        (current / "worker-status.json").write_text(
+            json.dumps(current_status),
+            encoding="utf-8",
+        )
+        time.sleep(2.2)
+        send(process.stdin, {"id": "cleared-widget", "type": "get_entries"})
+        cleared_events: list[dict[str, object]] = []
+        assert response(process.stdout, "cleared-widget", cleared_events)["success"] is True
+        widget_updates = [
+            event
+            for event in cleared_events
+            if event.get("type") == "extension_ui_request"
+            and event.get("method") == "setWidget"
+        ]
+        assert widget_updates
+        assert all("widgetLines" not in event for event in widget_updates)
 
         send(
             process.stdin,
@@ -286,7 +379,7 @@ export default function (pi: ExtensionAPI) {
         assert "No task or worker was started" in tool_results[-1]["content"][0]["text"]
 
         for request_id, request_text, action, detail_key, detail_value in (
-            ("progress", "show progress", "workflow_status", "status", "not-started"),
+            ("progress", "show progress", "workflow_status", "status", "idle"),
             ("history", "show history", "workflow_history", "runs", []),
             (
                 "start",

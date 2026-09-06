@@ -665,8 +665,11 @@ worker invokes the fixed experiment entrypoints and atomically advances
 status/heartbeat and terminal report projections. Closing Pi or a dashboard does
 not stop it. Every
 Agentvolve-activated Pi session polls the shared run directory, persists the
-bound workflow reference, emits each completed stage report at most once on its
-active branch, and stops only its monitor on deactivation or session shutdown.
+bound workflow reference, and shows its compact six-stage widget only while the
+latest detached workflow is genuinely queued or running. Abandoned legacy run
+directories and terminal workflows are not displayed as current progress. A
+workflow observed while active emits each completed stage report at most once on
+its active branch. Deactivation or session shutdown stops only the monitor.
 `/view-progress` renders all six stages and conditionally renders bounded
 lineage, Git diff, warnings, and final commit/patch sections only when immutable
 evidence exists. `/view-history` browses at most the latest 50 workflow and

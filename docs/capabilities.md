@@ -136,8 +136,9 @@ path. TUI ambiguity uses direct operator selection of reviewed summaries. A
 user-message-only session task path asks conversational clarifications when
 needed, displays a complete human-readable contract for mandatory review, and
 keeps JSON as an optional advanced correction surface. It does not invent
-evaluator authority from prose. While active, its widget keeps every explicit
-`[1/6]`–`[6/6]` stage visible and polls shared runs across activated Pi sessions;
+evaluator authority from prose. While active, its monitor polls shared runs
+across activated Pi sessions; the `[1/6]`–`[6/6]` widget is visible only for a
+queued or running detached worker and clears when none is active.
 `/agentvolve-history` browses recent run status. Nested assay calls remain pinned
 to the canonical runtime. Compatibility commands include `/evolve-harness`,
 `/evolve-harness-status`, explicit

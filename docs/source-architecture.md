@@ -155,8 +155,8 @@ absolute path in Pi's global settings. The connector keeps Pi/TUI effects in
 `population_evolution_support.ts`. Its `/agentvolve` UI and model-facing actions
 present one streamlined conversational workflow, no-effect activation, direct
 reviewed-task summaries, an activation-scoped cross-session read-only run
-monitor/history browser, and a six-stage projection that stays visible while
-Agentvolve is active. Pi keeps its current operator model while nested evolution
+monitor/history browser, and a six-stage projection visible only while a
+detached worker is queued or running. Pi keeps its current operator model while nested evolution
 uses the manifest-pinned runtime. This UI choice does not rewrite the canonical
 manifest used by nested calls and does not move recurrence, evaluation, final
 tasks, runtime identity, or selection authority into Pi.
