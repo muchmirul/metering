@@ -82,9 +82,44 @@ is never mounted into a candidate container or modified by the experiment.
 `allowed_paths` are writable path prefixes. Candidates may inspect the imported
 repository but persisted changes outside these prefixes fail validation.
 
-Development checks are reviewed argv arrays, not shell strings. A zero exit
-status before timeout is a pass. Each candidate/check pair runs in a separate
-fresh container.
+Development checks are reviewed argv arrays, not shell strings. Each
+candidate/check pair runs in a separate fresh container. The legacy form above
+passes on exit zero without timeout: it **does not prove that intended assertions
+ran**. Candidate code can terminate early or interfere with in-process checks.
+Preflight explicitly warns when either suite contains these legacy checks.
+
+### Externally checked output values
+
+For Level 1, add the versioned output contract to a development or final check:
+
+```json
+{
+  "argv":["python","-c","import json; from solver import solve; print(json.dumps({'answers':[solve(2),solve(3)]}))"],
+  "case_id":"output-values",
+  "check_schema":"stdout-json-v1",
+  "expected_stdout":{"answers":[4,9]},
+  "timeout_ms":20000
+}
+```
+
+The operator supplies the expected values. Only argv and timeout enter the
+sandbox; the fixed host evaluator compares authenticated stdout with the bound
+`expected_stdout` outside candidate control. Exit zero without timeout is still
+required. Stdout must contain exactly one strict JSON object; whitespace and key
+order are immaterial, but missing/extra fields or answers, duplicate keys,
+non-finite numbers, extra output, and JSON type changes fail. An integer is not a
+boolean or floating-point number. Empty output and `{"passed":true}` cannot
+substitute for the declared answer values.
+
+`expected_stdout` must be a non-empty object whose canonical JSON is at most
+65,536 characters. Output contracts are explicit opt-ins, not inferred from argv
+or goal text. A trivial expected pass marker is still a weak criterion; matching
+outputs does not prove internal assertion control flow or coverage beyond these
+operator-chosen cases. Existing Level-2 coding fixtures remain exit-status checks.
+
+Task/final profile schema names stay v1; each output check carries its own
+`stdout-json-v1` contract and produces a v2 evaluation receipt. Existing checks,
+profile identities, and v1 receipt replay retain their previous meanings.
 
 ## Goal or numeric stopping
 
@@ -129,9 +164,10 @@ The final profile is also canonical JSON plus one newline:
 ```
 
 `final_assay.path` is an absolute path outside the repository.
-`final_assay.sha256` authenticates its exact bytes. Fixed code opens and copies
-the profile only after development recurrence has stopped and final allocation
-has been recorded.
+`final_assay.sha256` authenticates its exact bytes. Trusted operator preflight
+reads it for structural validation, without returning protected contents or
+running checks. Runtime opens/revalidates and copies it only after development
+recurrence has stopped and final allocation has been recorded.
 
 Protected checks never enter mutation prompts, development requests, Population
 development archives, or ancestry feedback. A final failure seals the run and
@@ -139,14 +175,30 @@ cannot trigger more search.
 
 ## Validation rules
 
-Before execution, fixed code requires:
+Run trusted preflight explicitly, before any expensive workflow:
+
+```bash
+uv run python -m apps.coding_agent.task_profile_tool preflight TASK.json
+# Also check the selected harness/runtime identity binding:
+uv run python -m apps.coding_agent.task_profile_tool preflight TASK.json RUNTIME.json SELECTED-HARNESS.json
+```
+
+Registration, derivation, and new Level-1 runs perform preflight automatically.
+It launches no models, containers, or checks and returns only diagnostic metadata
+and assurance warnings—not protected case IDs, commands, answers, or counts.
+Protected parser failures are deliberately generic to avoid leaking their keys.
+Sealed harness provenance and kernel conformance are still verified separately;
+preflight is not proof of model availability or a well-designed benchmark.
+
+Before Level-1 inference, fixed code requires:
 
 - normalized absolute repository and profile paths;
 - final-profile separation from the repository;
-- profiles no larger than 2 MiB;
+- profiles no larger than 2 MiB, with exact normalized JSON types (a boolean or
+  floating-point `schema_version` is not integer version 1);
 - unique sorted relative POSIX writable paths;
 - no `.git`, traversal, backslashes, NUL, symlink, or device semantics;
-- non-empty reviewed argv commands;
+- non-empty reviewed argv commands, at most 256 arguments of 4,096 characters each;
 - unique case IDs within each suite;
 - finite positive per-check and global bounds;
 - exactly `max_rounds - 1` recurrence draws;

@@ -199,12 +199,22 @@ uv run python apps/coding_agent/solution_experiment.py status SOLUTION_RUN_ROOT
 A completed solution run produces:
 
 - `selected-solution.json` — immutable selected commit identity;
-- `selected.patch` — binary-capable patch from the approved base;
+- `selected.patch` — byte-preserving patch verified to reconstruct the selected tree (v2);
 - `experiment-report.json` — operator-facing summary; and
 - Git, Population, Driver, mutation, evaluation, and final evidence.
 
 The source repository is never changed automatically. Applying, merging,
 installing, or deploying the patch is a separate operator decision.
+
+New Level-1 runs preflight public/protected profile structure before inference,
+without exposing protected contents. Optional `stdout-json-v1` checks compare
+actual output with operator-supplied expected values outside the sandbox;
+**legacy argv checks still use exit status, which cannot prove assertions ran**.
+Old runs retain legacy replay semantics. Failed Controller attempts now retain
+bounded operator diagnostics; ordinary resume still never repeats indeterminate
+model calls. See [task contracts](docs/coding-agent/task-profile.md) and
+[recovery/compatibility](docs/coding-agent/operations.md). Retention, stopping,
+search-budget accounting, and the installed Metering API are unchanged.
 
 Read the dedicated [Agentvolve guide](docs/coding-agent/README.md), including
 the [component map](docs/coding-agent/components.md),

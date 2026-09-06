@@ -33,14 +33,12 @@ class JsonProcessError(RuntimeError):
         self.stderr = stderr
 
 
-def kill_process_tree(process: subprocess.Popen[str]) -> None:
-    """Kill a connected process and its descendants, then reap the child."""
+def kill_process_tree(process: subprocess.Popen[str] | subprocess.Popen[bytes]) -> None:
+    """Kill an owned process group (or a nested child), then reap the child."""
 
     if os.name == "posix":
         try:
             os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
         except OSError:
             if process.poll() is None:
                 process.kill()
@@ -82,7 +80,15 @@ def run_json_process(
         )
     except subprocess.TimeoutExpired as error:
         kill_process_tree(process)
-        raise JsonProcessError("timeout") from error
+        partial_stderr = error.stderr or ""
+        if isinstance(partial_stderr, bytes):
+            partial_stderr = partial_stderr.decode("utf-8", "replace")
+        raise JsonProcessError(
+            "timeout",
+            detail=f"timeout after {timeout_seconds} seconds",
+            returncode=process.returncode,
+            stderr=partial_stderr,
+        ) from error
     except BaseException:
         kill_process_tree(process)
         raise

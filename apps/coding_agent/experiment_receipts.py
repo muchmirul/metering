@@ -21,11 +21,12 @@ from apps.population.contract import RESOURCE_NAMES
 
 
 def receipt_files(
-    root: Path, schema: str, *, schema_key: str = "receipt_schema"
+    root: Path, schema: str | tuple[str, ...], *, schema_key: str = "receipt_schema"
 ) -> dict[str, dict[str, object]]:
     if root.is_symlink() or not root.is_dir():
         raise SolutionExperimentError(f"receipt directory is absent or unsafe: {root}")
     receipts: dict[str, dict[str, object]] = {}
+    schemas = (schema,) if isinstance(schema, str) else schema
     for path in sorted(root.iterdir()):
         if path.is_symlink() or not path.is_file() or path.suffix != ".json":
             raise SolutionExperimentError("receipt directory contains an unsafe entry")
@@ -36,7 +37,7 @@ def receipt_files(
         document = decode_json_object(source.decode("ascii"), SolutionExperimentError)
         if source.decode("ascii") != canonical_json(document) + "\n":
             raise SolutionExperimentError("receipt is not canonical")
-        if document.get(schema_key) != schema:
+        if document.get(schema_key) not in schemas:
             raise SolutionExperimentError("receipt schema is unexpected")
         receipts[digest] = document
     return receipts

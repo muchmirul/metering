@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 from apps._support.durable import atomic_write, reject_symlink  # noqa: E402
 from apps._support.wire import canonical_digest, canonical_json, decode_json_object  # noqa: E402
 from apps.agent_protocol import ProtocolError, require_exact_keys, require_sha256  # noqa: E402
+from apps.coding_agent.checks import CheckError, validate_output_contract  # noqa: E402
 from apps.harness.kernel_contract import KernelContractError, KernelSession  # noqa: E402
 from apps.harness.runtime_manifest import (  # noqa: E402
     RuntimeManifest,
@@ -31,6 +32,8 @@ from apps.population.contract import RESOURCE_NAMES  # noqa: E402
 
 EVIDENCE_KEY = "_metering_coding_candidate"
 RECEIPT_SCHEMA = "darwinian-coding-evaluation-receipt-v1"
+OUTPUT_RECEIPT_SCHEMA = "darwinian-coding-evaluation-receipt-v2"
+RECEIPT_SCHEMAS = (RECEIPT_SCHEMA, OUTPUT_RECEIPT_SCHEMA)
 
 
 class CodingRunnerError(RuntimeError):
@@ -90,8 +93,12 @@ def _request(
 def _assay(task: dict[str, object]) -> tuple[list[str], int]:
     task_input = cast(dict[str, object], task["input"])
     assay = task_input["assay"]
-    if type(assay) is not dict or set(assay) != {"argv", "timeout_ms"}:
+    if type(assay) is not dict:
         raise CodingRunnerError("solution task assay is malformed")
+    try:
+        validate_output_contract(assay)
+    except CheckError as exc:
+        raise CodingRunnerError(str(exc)) from exc
     argv = assay["argv"]
     timeout = assay["timeout_ms"]
     if (
@@ -193,15 +200,18 @@ def execute(source: str) -> dict[str, object]:
         "stdout": execution["stdout"],
         "timed_out": execution["timed_out"],
     }
+    assay = cast(dict[str, object], cast(dict[str, object], task["input"])["assay"])
     receipt = {
-        "assay": {"argv": argv, "timeout_ms": timeout_ms},
+        "assay": assay,
         "candidate_content_sha256": artifact.get("content_sha256"),
         "candidate_id": candidate_id,
         "cost": _cost(runtime, cast(list[object], observations)),
         "execution": execution_document,
         "isolation_enforced": runtime.isolation_enforced,
         "kernel_observations": [item.document() for item in observations],
-        "receipt_schema": RECEIPT_SCHEMA,
+        "receipt_schema": OUTPUT_RECEIPT_SCHEMA
+        if "check_schema" in assay
+        else RECEIPT_SCHEMA,
         "runtime_id": runtime.runtime_id,
         "task_id": task_id,
         "workspace_sha256": files_digest(files),

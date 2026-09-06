@@ -61,11 +61,17 @@ Three classes are distinct:
    permissioned canonical final profile. No protected evaluator request is made
    until final allocation is recorded. Declaring the final experiment stops
    Driver recurrence; its first run permanently seals Population. Protected
-   data cannot become feedback or ancestry data.
+   data cannot become feedback or ancestry data. Separate operator preflight may
+   validate the profile structure before search; it returns no protected contents,
+   case counts, or outcomes and runs no candidate checks.
 
 A candidate may create its own tests as ordinary changed files if their paths
 are allowed, but those tests have no authority unless the reviewed profile also
-runs them. The caller-owned argv checks remain decisive. Likewise, a worded
+runs them. The caller-owned check contract remains decisive. Legacy argv checks
+use exit status, not proof that assertions completed. Optional Level-1
+`stdout-json-v1` checks compare authenticated output values with an expectation
+held outside the sandbox; this still does not prove general correctness or test
+quality. Likewise, a worded
 `goal` guides mutation but does not authorize stopping. Only fixed control-plane
 logic over independently evaluated development evidence can report
 `development_goal_reached`; a finite round limit remains mandatory.

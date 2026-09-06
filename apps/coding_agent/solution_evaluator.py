@@ -18,7 +18,9 @@ from apps.agent_protocol import ProtocolError, require_exact_keys, require_sha25
 from apps.coding_agent.candidate_runner import (  # noqa: E402
     EVIDENCE_KEY,
     RECEIPT_SCHEMA,
+    OUTPUT_RECEIPT_SCHEMA,
 )
+from apps.coding_agent.checks import CheckError, check_passed, validate_output_contract  # noqa: E402
 from apps.harness.runtime_manifest import RuntimeManifestError, load_runtime_manifest  # noqa: E402
 from apps.population.contract import RESOURCE_NAMES  # noqa: E402
 
@@ -101,8 +103,20 @@ def validate_evaluation_receipt(
         require_sha256(receipt["workspace_sha256"], "coding receipt.workspace_sha256")
     except ProtocolError as exc:
         raise SolutionEvaluatorError(str(exc)) from exc
+    task_input = task.get("input")
+    assay = task_input.get("assay") if type(task_input) is dict else None
+    if type(assay) is not dict:
+        raise SolutionEvaluatorError("coding receipt task assay is malformed")
+    try:
+        validate_output_contract(assay)
+    except CheckError as exc:
+        raise SolutionEvaluatorError(str(exc)) from exc
+    expected_schema = (
+        OUTPUT_RECEIPT_SCHEMA if "check_schema" in assay else RECEIPT_SCHEMA
+    )
     if (
-        receipt["receipt_schema"] != RECEIPT_SCHEMA
+        receipt["receipt_schema"] != expected_schema
+        or canonical_json(receipt["assay"]) != canonical_json(assay)
         or receipt["candidate_id"] != candidate_id
         or receipt["runtime_id"] != runtime_id
         or receipt["task_id"] != canonical_digest(task)
@@ -205,7 +219,7 @@ def evaluate(request: dict[str, object]) -> dict[str, object]:
             }
             if summary != expected_summary:
                 raise SolutionEvaluatorError("solution execution summary changed")
-            passed = execution["returncode"] == 0 and execution["timed_out"] is False
+            passed = check_passed(execution, receipt["assay"])
             safety_passed = (
                 receipt["isolation_enforced"] is True
                 if runtime.isolation_enforced

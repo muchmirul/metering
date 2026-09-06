@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 from typing import cast
 
+from apps._support.diagnostics import exception_summary
 from apps.agent_protocol import ProtocolError, run_adapter
+from apps.population_driver.diagnostics import record_controller_failure
 from apps.population.contract import (
     POPULATION_SCHEMA_VERSION,
     PopulationError,
@@ -157,8 +160,7 @@ def update_pending(
 
 
 def error_detail(error: BaseException) -> str:
-    message = str(error).strip()
-    return message if message else error.__class__.__name__
+    return exception_summary(error)
 
 
 def run_controller_attempt(
@@ -189,9 +191,11 @@ def run_controller_attempt(
             stage="controller_complete",
         )
     request = cast(dict[str, object], pending["controller_request"])
+    command = [sys.executable, str(CONTROLLER)]
+    started = time.monotonic()
     try:
         output = run_json_process(
-            [sys.executable, str(CONTROLLER)],
+            command,
             request,
             cwd=ROOT,
             timeout_seconds=controller_timeout_seconds(config),
@@ -208,10 +212,21 @@ def run_controller_attempt(
         }
         reference = write_receipt(state_root, name, document)
     except (JsonProcessError, PopulationDriverError, ProtocolError, OSError) as exc:
+        digest = record_controller_failure(
+            state_root,
+            attempt_id=str(attempt["attempt_id"]),
+            intent_id=str(pending["intent_id"]),
+            command=command,
+            elapsed_milliseconds=max(0, int((time.monotonic() - started) * 1000)),
+            error=exc,
+        )
         return update_pending(
             state_root,
             pending,
-            last_error=f"Controller attempt requires explicit retry: {error_detail(exc)}",
+            last_error=(
+                f"Controller attempt requires explicit retry: {error_detail(exc)}; "
+                f"diagnostic-sha256:{digest}"
+            ),
         )
     return update_pending(
         state_root,

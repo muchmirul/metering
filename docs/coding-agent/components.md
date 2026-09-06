@@ -138,8 +138,10 @@ make the selected cause unknowable.
 The task profile exposes only an absolute final-profile path and SHA-256 to
 trusted host code. Mutation requests contain development material, not final
 checks. Development stops and an exact final candidate allocation is committed
-before the final profile is opened. The first final run seals Population against
-later mutation, archive, or allocation transitions.
+before runtime opens/copies the final profile. Separate operator preflight can
+validate its structure without executing checks or disclosing protected contents.
+The first final run seals Population against later mutation, archive, or allocation
+transitions.
 
 A verified result therefore means that the recorded candidate passed or failed
 the named checks under the recorded stack. It does not mean universal coding

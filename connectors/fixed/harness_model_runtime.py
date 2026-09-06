@@ -9,6 +9,8 @@ import sys
 import tempfile
 from collections.abc import Callable
 
+from apps._support.bounded_process import OutputLimitError, communicate_bounded
+from apps._support.diagnostics import operator_excerpt
 from apps._support.wire import canonical_json, decode_json_object
 from apps.harness.model_contract import ModelContractError, decode_model_request
 
@@ -180,33 +182,43 @@ def invoke_model(
     except ModelContractError as exc:
         raise HarnessModelAdapterError(str(exc)) from exc
     command = command_builder(request)
+    limit = _output_limit()
+    timeout = _timeout()
     try:
         with tempfile.TemporaryDirectory(prefix="metering-harness-model-") as temporary:
-            completed = subprocess.run(
+            # Inherit the outer transport group so its cancellation also kills Pi.
+            process = subprocess.Popen(
                 command,
                 cwd=temporary,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=_timeout(),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise HarnessModelAdapterError(f"cannot complete {agent_name}: {exc}") from exc
-    limit = _output_limit()
-    if (
-        len(completed.stdout.encode("utf-8")) > limit
-        or len(completed.stderr.encode("utf-8")) > limit
-    ):
-        raise HarnessModelAdapterError(f"{agent_name} exceeded its output byte limit")
-    if completed.returncode != 0:
-        detail = (
-            completed.stderr.strip()
-            or f"{agent_name} exited with {completed.returncode}"
+            stdout, stderr = communicate_bounded(
+                process,
+                None,
+                timeout_seconds=timeout,
+                max_output_bytes=limit,
+            )
+    except OutputLimitError as exc:
+        raise HarnessModelAdapterError(
+            f"{agent_name} exceeded its output byte limit ({exc.stream})"
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise HarnessModelAdapterError(f"{agent_name} exceeded its timeout") from exc
+    except (OSError, UnicodeError) as exc:
+        raise HarnessModelAdapterError(
+            f"cannot complete {agent_name}: {operator_excerpt(str(exc))}"
+        ) from exc
+    if process.returncode != 0:
+        detail = operator_excerpt(stderr.strip())
+        raise HarnessModelAdapterError(
+            f"{agent_name} exited with {process.returncode}"
+            + (f": {detail}" if detail else "")
         )
-        raise HarnessModelAdapterError(detail)
-    if completed.stderr:
+    if stderr:
         raise HarnessModelAdapterError(f"{agent_name} wrote unexpected standard error")
-    text, input_tokens, output_tokens = _assistant(completed.stdout, agent_name)
+    text, input_tokens, output_tokens = _assistant(stdout, agent_name)
     action = decode_json_object(text, HarnessModelAdapterError)
     return {
         "action": action,

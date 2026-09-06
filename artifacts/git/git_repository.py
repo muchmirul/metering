@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import cast
 
 from apps.agent_protocol import (
     GIT_ARTIFACT_SCHEMA,
@@ -39,6 +40,39 @@ def _safe_git_environment(
     return result
 
 
+def _git_output(
+    arguments: list[str],
+    *,
+    cwd: Path | None,
+    input_value: str | bytes | None,
+    environment: dict[str, str] | None,
+    timeout_seconds: int,
+    text: bool,
+) -> str | bytes:
+    command = ["git", "-c", "core.hooksPath=/dev/null", *arguments]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            input=input_value,
+            capture_output=True,
+            text=text,
+            check=False,
+            env=_safe_git_environment(environment),
+            timeout=timeout_seconds,
+        )
+    except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
+        raise GitCandidateError(f"cannot run Git: {exc}") from exc
+    if completed.returncode != 0:
+        stderr = completed.stderr
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", "replace")
+        raise GitCandidateError(
+            stderr.strip() or f"Git exited with {completed.returncode}"
+        )
+    return completed.stdout
+
+
 def run_git(
     arguments: list[str],
     *,
@@ -47,25 +81,40 @@ def run_git(
     environment: dict[str, str] | None = None,
     timeout_seconds: int = GIT_TIMEOUT_SECONDS,
 ) -> str:
-    command = ["git", "-c", "core.hooksPath=/dev/null", *arguments]
-    process_environment = _safe_git_environment(environment)
-    try:
-        completed = subprocess.run(
-            command,
+    """Run textual Git operations with their existing universal-newline semantics."""
+    return cast(
+        str,
+        _git_output(
+            arguments,
             cwd=cwd,
-            input=input_text,
-            capture_output=True,
+            input_value=input_text,
+            environment=environment,
+            timeout_seconds=timeout_seconds,
             text=True,
-            check=False,
-            env=process_environment,
-            timeout=timeout_seconds,
-        )
-    except (OSError, subprocess.TimeoutExpired, UnicodeError) as exc:
-        raise GitCandidateError(f"cannot run Git: {exc}") from exc
-    if completed.returncode != 0:
-        detail = completed.stderr.strip() or f"Git exited with {completed.returncode}"
-        raise GitCandidateError(detail)
-    return completed.stdout
+        ),
+    )
+
+
+def run_git_bytes(
+    arguments: list[str],
+    *,
+    cwd: Path | None = None,
+    input_bytes: bytes | None = None,
+    environment: dict[str, str] | None = None,
+    timeout_seconds: int = GIT_TIMEOUT_SECONDS,
+) -> bytes:
+    """Run artifact operations without decoding or normalizing a single byte."""
+    return cast(
+        bytes,
+        _git_output(
+            arguments,
+            cwd=cwd,
+            input_value=input_bytes,
+            environment=environment,
+            timeout_seconds=timeout_seconds,
+            text=False,
+        ),
+    )
 
 
 def _tree_entries(repository: Path, commit: str) -> list[tuple[str, str, str]]:

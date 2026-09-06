@@ -10,7 +10,8 @@ from typing import cast
 
 from apps._support.wire import canonical_digest, decode_json_object
 from apps.agent_protocol import decode_agent_artifact
-from apps.coding_agent.candidate_runner import RECEIPT_SCHEMA
+from apps.coding_agent.candidate_runner import RECEIPT_SCHEMAS
+from apps.coding_agent.checks import check_passed
 from apps.coding_agent.experiment_artifacts import (
     canonical_document,
     load_protected_final_tasks,
@@ -46,7 +47,8 @@ from apps.harness.workspace import (
 from apps.population.contract import RESOURCE_NAMES, PopulationState, load_state
 from apps.population_driver.paths import population_root
 from apps.population_driver.runtime import verify_population_driver
-from artifacts.git.git_repository import clone_verified, run_git
+from artifacts.git.git_patch import PATCH_FLAGS, verify_patch_tree
+from artifacts.git.git_repository import clone_verified, run_git, run_git_bytes
 
 
 def _expected_final_selection(
@@ -443,7 +445,7 @@ def _verify_development_receipts(
     candidate_files: dict[str, str],
 ) -> tuple[dict[str, dict[str, object]], dict[str, object], set[str]]:
     """Replay development outcomes and evaluation-only costs, not mutation costs."""
-    evaluation_receipts = receipt_files(root / "evaluation-receipts", RECEIPT_SCHEMA)
+    evaluation_receipts = receipt_files(root / "evaluation-receipts", RECEIPT_SCHEMAS)
     development_tasks = task_documents(profile, "development")
     development_task_ids = {canonical_digest(task): task for task in development_tasks}
     expected_development: set[str] = set()
@@ -489,7 +491,7 @@ def _verify_development_receipts(
                     runtime=runtime,
                 )
                 actual_passed += int(
-                    execution["returncode"] == 0 and execution["timed_out"] is False
+                    check_passed(execution, cast(dict[str, object], receipt["assay"]))
                 )
                 actual_safety_failures += int(
                     runtime.isolation_enforced
@@ -595,7 +597,7 @@ def _verify_final_cases(
             task=final_tasks_by_case[case_id],
             runtime=runtime,
         )
-        passed = execution["returncode"] == 0 and execution["timed_out"] is False
+        passed = check_passed(execution, cast(dict[str, object], receipt["assay"]))
         safety_passed = (
             receipt["isolation_enforced"] is True
             if runtime.isolation_enforced
@@ -769,7 +771,20 @@ def _verify_selected_solution(
     selected_id = selected.get("candidate_id")
     final_candidate = cast(dict[str, object], final_run["run"])["candidate_id"]
     if (
-        selected.get("descriptor_schema") != "selected-solution-commit-v1"
+        selected.get("descriptor_schema")
+        not in ("selected-solution-commit-v1", "selected-solution-commit-v2")
+        or (
+            selected.get("descriptor_schema") == "selected-solution-commit-v2"
+            and set(selected)
+            != {
+                "artifact",
+                "base_commit",
+                "candidate_id",
+                "descriptor_schema",
+                "patch_sha256",
+                "task_id",
+            }
+        )
         or selected_id != final_candidate
         or selected.get("artifact") != state.candidates[str(selected_id)]["artifact"]
         or selected.get("task_id") != profile["task_id"]
@@ -778,15 +793,27 @@ def _verify_selected_solution(
     ):
         raise SolutionExperimentError("selected solution descriptor changed identity")
     patch = (root / "selected.patch").read_bytes()
-    expected_patch = run_git(
-        [
-            "diff",
-            "--binary",
-            str(selected["base_commit"]),
-            str(cast(dict[str, object], selected["artifact"])["commit"]),
-        ],
-        cwd=root / "candidate.git",
-    ).encode("utf-8")
+    artifact = cast(dict[str, object], selected["artifact"])
+    base = str(selected["base_commit"])
+    repository = root / "candidate.git"
+    if selected["descriptor_schema"] == "selected-solution-commit-v1":
+        # Recorded v1 publications used universal-newline text transport.
+        expected_patch = run_git(
+            [
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--binary",
+                base,
+                str(artifact["commit"]),
+            ],
+            cwd=repository,
+        ).encode("utf-8")
+    else:
+        expected_patch = run_git_bytes(
+            ["diff", *PATCH_FLAGS, base, str(artifact["commit"])], cwd=repository
+        )
+        verify_patch_tree(repository, base, str(artifact["git_tree"]), patch)
     if patch != expected_patch or hashlib.sha256(patch).hexdigest() != selected.get(
         "patch_sha256"
     ):

@@ -17,7 +17,10 @@ from apps._support.wire import (
     write_document,
 )
 from apps.agent_protocol import ProtocolError, require_exact_keys
+from apps.coding_agent.harness_workspace_editor import CodingMutationError
 from apps.coding_agent.protocol import CodingTaskError, load_task_profile
+from apps.coding_agent.preflight import preflight_task
+from apps.harness.runtime_manifest import load_runtime_manifest
 from artifacts.git.git_repository import GitCandidateError, run_git
 
 DRAFT_SCHEMA = "agentvolve-session-task-draft-v1"
@@ -129,10 +132,9 @@ def _write_task_profile(
     if task_path.exists():
         raise TaskRegistrationError("generated task profile destination already exists")
     try:
-        atomic_write(
-            task_path, (canonical_json(profile) + "\n").encode("ascii")
-        )
+        atomic_write(task_path, (canonical_json(profile) + "\n").encode("ascii"))
         normalized = load_task_profile(task_path)
+        preflight_task(normalized)
     except Exception:
         task_path.unlink(missing_ok=True)
         raise
@@ -265,9 +267,7 @@ def derive_profile(
         )
 
     commit = _head(repository)
-    entrypoint = _require_entrypoint(
-        repository, commit, repository_value["entrypoint"]
-    )
+    entrypoint = _require_entrypoint(repository, commit, repository_value["entrypoint"])
     template_limits = cast(dict[str, int], template["limits"])
     retry_reservations = max(
         0,
@@ -324,13 +324,23 @@ def derive_profile(
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     try:
-        if len(arguments) == 3 and arguments[0] == "create":
+        if len(arguments) in {2, 4} and arguments[0] == "preflight":
+            result = preflight_task(
+                load_task_profile(Path(arguments[1])),
+                runtime=load_runtime_manifest(Path(arguments[2]))
+                if len(arguments) == 4
+                else None,
+                harness_source=Path(arguments[3]) if len(arguments) == 4 else None,
+            )
+        elif len(arguments) == 3 and arguments[0] == "create":
             result = create_profile(Path(arguments[1]), Path(arguments[2]))
         elif len(arguments) == 5 and arguments[0] == "derive":
             try:
                 max_rounds = int(arguments[3])
             except ValueError as exc:
-                raise TaskRegistrationError("generation limit must be an integer") from exc
+                raise TaskRegistrationError(
+                    "generation limit must be an integer"
+                ) from exc
             result = derive_profile(
                 Path(arguments[1]),
                 Path(arguments[2]),
@@ -340,9 +350,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             raise TaskRegistrationError(
                 "usage: task_profile_tool.py create SESSION-DRAFT.json TASK-DIRECTORY | "
-                "derive TEMPLATE.task.json GOAL.txt MAX_ROUNDS TASK-DIRECTORY"
+                "derive TEMPLATE.task.json GOAL.txt MAX_ROUNDS TASK-DIRECTORY | "
+                "preflight TASK.json [RUNTIME.json SELECTED-HARNESS.json]"
             )
     except (
+        CodingMutationError,
         CodingTaskError,
         GitCandidateError,
         OSError,

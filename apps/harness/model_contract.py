@@ -7,6 +7,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from apps._support.bounded_process import OutputLimitError, communicate_bounded
+from apps._support.diagnostics import operator_excerpt
 from apps._support.process import kill_process_tree
 from apps._support.wire import canonical_digest, canonical_json, decode_json_object
 from apps.agent_protocol import (
@@ -164,46 +166,48 @@ class SubprocessModelTransport:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
                 start_new_session=os.name == "posix",
                 env={**os.environ, **self.environment},
             )
         except OSError as exc:
             raise ModelContractError(f"cannot start model transport: {exc}") from exc
-        observer = ResourceObserver(
-            lambda: (
-                None
-                if process.poll() is not None
-                else ("procfs", Path(str(process.pid)))
+        try:
+            observer = ResourceObserver(
+                lambda: (
+                    None
+                    if process.poll() is not None
+                    else ("procfs", Path(str(process.pid)))
+                )
             )
-        )
+        except BaseException:
+            kill_process_tree(process)
+            raise
         try:
             try:
-                stdout, stderr = process.communicate(
-                    canonical_json(request) + "\n",
-                    timeout=self.timeout_seconds,
+                stdout, stderr = communicate_bounded(
+                    process,
+                    (canonical_json(request) + "\n").encode("utf-8"),
+                    timeout_seconds=self.timeout_seconds,
+                    max_output_bytes=self.max_response_bytes,
                 )
             except subprocess.TimeoutExpired as exc:
-                kill_process_tree(process)
                 raise ModelContractError(
                     "model transport exceeded its timeout"
                 ) from exc
-            except BaseException:
-                kill_process_tree(process)
-                raise
+            except OutputLimitError as exc:
+                raise ModelContractError(
+                    f"model transport exceeded its response byte limit ({exc.stream})"
+                ) from exc
+            except UnicodeError as exc:
+                raise ModelContractError("model transport output is not UTF-8") from exc
         finally:
             observation = observer.stop()
-        if (
-            len(stdout.encode("utf-8")) > self.max_response_bytes
-            or len(stderr.encode("utf-8")) > self.max_response_bytes
-        ):
-            raise ModelContractError("model transport exceeded its response byte limit")
         if process.returncode != 0:
-            detail = (
-                stderr.strip() or f"model transport exited with {process.returncode}"
+            detail = operator_excerpt(stderr.strip())
+            raise ModelContractError(
+                f"model transport exited with {process.returncode}"
+                + (f": {detail}" if detail else "")
             )
-            raise ModelContractError(detail)
         if stderr:
             raise ModelContractError("model transport wrote unexpected standard error")
         response = decode_json_object(stdout, ModelContractError)

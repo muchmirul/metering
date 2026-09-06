@@ -42,7 +42,7 @@ class CodingFinalError(RuntimeError):
     """Raised when protected solution evidence cannot be sealed safely."""
 
 
-def _select(
+def select_final_candidate(
     population_root: Path, development_experiment_id: str, tie_draw: dict[str, int]
 ) -> tuple[dict[str, object], str, dict[str, int], list[str]]:
     with locked_state(population_root):
@@ -302,7 +302,7 @@ def run_final_assay(
     bundle_root: Path,
     budget: dict[str, int],
 ) -> dict[str, object]:
-    candidate, allocation_id, allocation_draw, finalists = _select(
+    candidate, allocation_id, allocation_draw, finalists = select_final_candidate(
         population_root, development_experiment_id, final_draw
     )
     experiment_id = _experiment(

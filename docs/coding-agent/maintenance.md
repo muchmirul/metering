@@ -37,6 +37,30 @@ reveal the operator's original profile; the runtime owns that separate effect.
 Keep independent replay calculations independent of their writers. Sharing a
 writer's implementation is not a substitute for checking its recorded result.
 
+## Correctness and reliability owners
+
+The subsequent behavior fixes are separate from the earlier mechanical refactor:
+
+- `preflight.py` privately validates operator profiles before new Level-1 runs;
+  it returns no protected contents and never executes a candidate.
+- `checks.py` defines the pure, versioned stdout contract. Writers record raw
+  execution, not pass decisions; evaluator and replay each derive outcomes from
+  those bytes and the bound operator expectation. Legacy argv checks stay weaker.
+- Runtime start/resume share `_run_protected_final()`, whose first effect is the
+  durable development-only allocation; only then may protected bytes be copied.
+- `artifacts/git/git_patch.py` generates raw-byte patches and verifies selected
+  trees using a disposable clone/index. Replay checks v2 bytes and applied trees;
+  v1 retains its old text-transport compatibility path.
+- `apps/population_driver/diagnostics.py` records non-authoritative Controller
+  failure diagnostics; `apps/_support/diagnostics.py` bounds/redacts excerpts.
+- `apps/_support/bounded_process.py` drains model-client pipes under their existing
+  byte/time limits. It adds no search policy or accounting authority.
+
+New contract/patch versions do not change installed APIs, numerical behavior,
+selection, stopping, or search-budget rules. Profile authoring and new Level-1
+execution now fail earlier on malformed protected inputs; valid historical runs
+need no migration. See [task profiles](task-profile.md) for assurance limitations.
+
 ## Cost-accounting ownership and remaining concern
 
 The current Level-1 accounting has two distinct evidence streams:
@@ -61,15 +85,15 @@ accounting.
 
 ## Other follow-up concerns
 
-These are not addressed by the internal refactor:
+These remain follow-up work, not guarantees of the refactor or first hardening increment:
 
 - model-weight and sampling identity beyond the existing runtime labels;
 - portable verification without the original absolute run/provenance paths;
-- streaming output enforcement instead of post-buffer checks;
+- streaming limits for general application/kernel transports beyond model clients;
 - archive size limits and preinstalled runtime dependencies;
 - license selection by the copyright owner; and
-- the separately reviewed evaluator false-positive, archive champion retention,
-  generated draw, and CRLF patch defects.
+- legacy exit-status-only evaluator false positives and broader check quality; and
+- archive champion retention and generated-draw policies (policy changes remain parked).
 
 Each behavior/security fix needs its own reproduction, acceptance test, and
 compatibility decision. Do not bundle it invisibly into code movement.
@@ -79,6 +103,7 @@ compatibility decision. Do not bundle it invisibly into code movement.
 ```bash
 uv run --extra test pytest -q tests/test_architecture.py tests/test_experiment_boundaries.py
 uv run --extra test pytest -q tests/test_coding_agent.py tests/test_harness_evolution.py
+uv run --extra test pytest -q tests/test_agentvolve_hardening.py tests/test_coding_output_checks.py tests/test_bounded_model_transport.py
 uv run --extra lint ruff check .
 uv run --extra test pytest -q
 ```
@@ -92,7 +117,9 @@ tampering, and reserved retries. A passing fixture is not live sandbox or model
 acceptance; use the separately configured three-task acceptance in the
 [operations guide](operations.md) for workflow behavior changes.
 
-Command paths, public measurement APIs, numerical behavior, record identities,
-protocol versions, selection policy, budgets, retry rules, and package
-boundaries are unchanged by this decomposition. Existing runs require no
-migration for it.
+The original decomposition preserved command paths, public measurement APIs,
+numerical behavior, record identities, protocol versions, selection policy,
+budgets, retry rules, and package boundaries. The later hardening explicitly adds
+an operator preflight command, versioned output checks/receipts and patches, and
+bounded diagnostics/transport behavior as described above; it is not merely code
+movement.

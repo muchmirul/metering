@@ -64,10 +64,12 @@ kernel state, and unexported files are not inherited.
 |---|---|
 | `process_tracker.py` | projection-only `[n/6]` status |
 | `protocol.py` | task and protected-final profile validation |
+| `preflight.py` | private operator preparation before Level-1 inference, without executing checks |
+| `checks.py` | versioned external stdout comparison; explicit legacy exit-status semantics |
 | `task_profile_tool.py` | reviewed session-draft registration and goal/limit profile derivation |
 | `harness_workspace_editor.py` | verified harness materialization and isolated mutation |
 | `candidate_runner.py` | fresh-container solution execution |
-| `solution_evaluator.py` | execution-receipt validation |
+| `solution_evaluator.py` | receipt/contract binding and externally derived outcomes |
 | `evaluator.py` | independent Level-2 coding-workspace checks |
 | `evidence_adapter.py` | Controller evidence to Population coordinates |
 | `final_assay.py` | capability-first allocation, protected checks, and seal |
@@ -79,6 +81,13 @@ kernel state, and unexported files are not inherited.
 | `solution_experiment.py` | compatibility CLI, public operation exports, and status projection |
 | `validate_solution.py` | host-side syntax and content validation |
 | `fixtures/` | deterministic CI profiles and proposal transport |
+
+New runs preflight protected structure without exposing it; final allocation
+precedes runtime protected copying. Opt-in `stdout-json-v1` checks use v2 evaluation
+receipts, while legacy checks retain exit-status semantics and an assurance
+warning. New selected v2 patches preserve bytes and must reproduce the selected
+Git tree in a disposable index. V1 replay remains available without migration.
+These are correctness changes, not a claim that arbitrary checks prove a goal.
 
 The entrypoint's public operation/error imports and recorded command paths are
 unchanged. Internal modules import the owning implementation instead of the

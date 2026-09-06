@@ -596,8 +596,9 @@ selects that candidate. Both draws and the policy identifier replay offline; no
 weighted fitness/intelligence score is introduced.
 
 Protected final checks are not included in mutation prompts, Controller
-development requests, archives, or ancestry views. They are loaded only after
-development stops and the final allocation is committed. Declaring the one-use
+development requests, archives, or ancestry views. Runtime loads them only after
+development stops and the final allocation is committed. Separate trusted operator
+preflight may validate their structure without execution or protected disclosure. Declaring the one-use
 final experiment stops Driver recurrence; its first run permanently seals
 Population. Final failure cannot trigger another mutation or replacement assay
 inside that run. Output is an immutable selected commit/descriptor, a
@@ -685,11 +686,93 @@ evolution without proving increased capability. Broader improvement evidence
 requires matched one-shot, continual, and Darwinian treatments under equal
 model, tools, evaluator, task set, tokens/calls/wall budget, and protected cases.
 
+### Agentvolve correctness and execution reliability follow-up
+
+**Status: current focus; the implemented first increment is specified below.** The
+[2026-09-05 maze study](docs/coding-agent/maze-study-2026-09-05.md) supports
+hardening execution and evidence before changing evolutionary search policy.
+The core approach remains immutable mutation, independent evaluation, selection,
+and bounded recurrence.
+
+The current workstream is limited to:
+
+1. **Trusted operator preflight.** Validate public and protected profile structure,
+   bindings, command limits, and runtime compatibility before expensive inference.
+   Protected-profile preparation stays outside optimization; it must not expose
+   protected contents or run protected candidate checks during development.
+2. **Failure diagnosis and safe recovery.** Preserve bounded, sanitized attempt
+   diagnostics and distinguish running, pending retry, failed, and completed
+   outcomes. Preserve explicit retry authorization and receipt-based recovery;
+   ordinary resume must never repeat an indeterminate model call.
+3. **Independent correctness evidence.** For explicitly versioned output checks,
+   reject successful exits that do not establish the declared output values.
+   Keep comparison authority outside candidate control; test missing results,
+   early exits, and spoofed success. Legacy arbitrary-argv checks retain their
+   weaker exit-status semantics, explicitly disclosed rather than reinterpreted.
+4. **Protected-final ordering.** Enforce the existing requirement to commit the
+   development-only final allocation before runtime reveal/copy of protected
+   tasks. Test ordering and interruption boundaries without reopening search or
+   replacing an indeterminate protected assay.
+5. **Byte-exact output artifacts.** Preserve Git patch bytes and verify that
+   applying the patch to the approved base reproduces the selected tree. Cover
+   CRLF, binary content, file modes, and missing final newlines.
+6. **Runtime and transport hardening.** Strengthen model/runtime identity,
+   streaming output handling, and cancellation/cleanup under existing declared
+   limits, with explicit compatibility for previously recorded identities.
+
+The implemented first increment has these contracts:
+
+- Operator `task_profile_tool preflight` validates both profiles without executing
+  a candidate or returning protected commands, identifiers, answers, or counts.
+  Registration/derivation and new Level-1 runs perform this preparation before
+  Level-1 inference. New runs freeze the validated public/runtime documents and
+  retain only diagnostic metadata in `operator-preflight.json`. Runtime still
+  authenticates the protected source again after final allocation. This does not
+  attest model availability, image dependencies, or arbitrary check quality.
+  Canonical normalization now checks JSON types exactly; malformed boolean/float
+  schema versions previously accepted through Python equality are rejected.
+- Optional per-check `stdout-json-v1` adds operator-supplied `expected_stdout`.
+  A fresh sandbox receives only the argv, never this expected object. Its actual
+  stdout must be one complete strict JSON object with exactly the declared values
+  and types, and execution must exit zero without timeout. Evaluation receipts
+  use `darwinian-coding-evaluation-receipt-v2`; offline replay re-derives outcomes
+  from authenticated raw output and the bound contract, not stored pass markers.
+  Legacy checks/receipts remain v1, including existing Level-2 coding fixtures.
+  Matching output does not prove assertion control flow, natural-language goal
+  coverage, or general correctness; trivial expected pass markers are weak tests.
+- Failed Controller attempts retain content-addressed, bounded, best-effort
+  credential-redacted diagnostics, with attempt/intent binding, elapsed time,
+  exit status when known, and stderr excerpts. These are operator diagnostics,
+  never feedback, retry authority, cost accounting, or evidence of free inference.
+- Level-1 final selection is durably recorded before runtime protected-profile
+  copying. Resume reuses that allocation; an indeterminate declared final assay
+  still cannot be replaced. Start and resume share this effect boundary.
+- New `selected-solution-commit-v2` patches use undecoded Git bytes and must
+  reconstruct the selected tree in a disposable clone/index during publication
+  and verification. V1 descriptors retain their historical text-transport replay
+  semantics, not the stronger applied-tree guarantee. Existing valid runs need
+  no migration; no selected patch is applied to the source repository.
+- The POSIX model transport and its nested provider client enforce their existing
+  per-stream byte caps while draining pipes, and clean up on timeout/cancellation.
+  This is not a new search limit. Broader subprocess/kernel streaming, stronger
+  model-weight/sampler identity, and richer execution-status classification remain
+  follow-up work; do not claim them from these changes.
+
+These are correctness fixes, not a blanket behavior-preserving refactor. Each
+requires a focused reproduction, regression tests, and a compatibility decision
+before implementation, followed by the existing full-suite and applicable live
+acceptance checks. Preserve legacy replay and the installed package boundary.
+Do not change retention/ranking, allocation policy, stopping policy, or search
+budget enforcement as a side effect. Cost diagnostics must remain honest about
+unknown expenditure without redefining existing cost totals or Pareto coordinates.
+
 ### Parked population extensions
 
 **Status: automatic population execution is implemented; all items below remain
 parked.** They are not accepted runtime behavior, schema promises, or authority
-granted to the installed package or current applications:
+granted to the installed package or current applications. Existing retention,
+stopping, and budget safeguards remain active; the deferrals below concern
+changes to those policies, not their removal:
 
 1. **Adaptive mutation policy.** A future application may update one declared
    mutation policy only after mutation features, finite belief/update semantics,
@@ -714,6 +797,20 @@ granted to the installed package or current applications:
    environment, require a separate approval action, emit immutable receipts,
    and demonstrate an explicit rollback path. Selection alone must never trigger
    installation or deployment.
+5. **Champion retention and selection-policy changes.** Reserved champion slots,
+   a separate best-so-far final candidate, and changes to archive capacity ranking
+   or final-selection rules are deferred. Keep the current Pareto archive and
+   capability-first final-selection policy during correctness/reliability work.
+6. **Stopping-policy changes.** Changes to defaults, goal predicates, replicate
+   requirements, or early/adaptive stopping are deferred. Existing numeric caps
+   and the opt-in `all-development-cases-pass-v1` policy remain unchanged.
+7. **Budget-enforcement changes.** New total-search limits, changed reservation
+   or charging rules, and using mutation/retry/orchestration expenditure to stop
+   search are deferred. Future activation requires a versioned accounting
+   contract separating search expenditure from candidate evaluation cost, naming
+   observed/reserved/unknown costs, and preventing double charging on resume.
+   Existing call, candidate-resource, and timeout limits remain in force; do not
+   activate new accounting or enforcement incidentally while improving diagnostics.
 
 Activating any parked item requires an explicit `PLAN.md` status change, the
 narrowest new versioned schema, focused security and replay tests, full-suite and

@@ -45,6 +45,22 @@ Level-2 run root: Level 1 verifies and records its provenance.
 
 ## Level 1: solution
 
+Validate the task before spending model time (optional runtime/harness arguments
+also check their identity binding):
+
+```bash
+uv run python -m apps.coding_agent.task_profile_tool \
+  preflight TASK.json RUNTIME.json SELECTED-HARNESS.json
+```
+
+New Level-1 runs also perform this automatically, before conformance or inference.
+It checks protected structure privately and exposes no protected contents.
+`operator-preflight.json` records diagnostic metadata only. A legacy-check warning
+means exit status is the criterion, not proof that assertions ran. Prefer the
+explicit [external output contract](task-profile.md#externally-checked-output-values)
+when expected answer values are available. Preflight does not run checks or prove
+that runtime dependencies or the model endpoint are available.
+
 The deterministic fixture form is:
 
 ```bash
@@ -96,7 +112,18 @@ uv run python apps/coding_agent/solution_experiment.py \
 ```
 
 A retry remains within its current stage and does not reopen protected-final
-search.
+search. After an interruption before protected copying, resume reuses the already
+committed final allocation. After final assay declaration, an indeterminate assay
+cannot be replaced by resume or retry.
+
+Failed Controller attempts now identify `state/diagnostics/SHA256.json` in their
+pending error. The content-addressed, private diagnostic binds the attempt and
+intent, command digest, elapsed time, known exit status, and bounded stderr/detail
+excerpts. Terminal controls and common/environment credentials are redacted on a
+best-effort basis; treat these files as sensitive operator logs, not public data.
+They neither authorize retry nor enter model feedback or cost totals. A timeout,
+nonzero exit, and output-limit failure are distinct diagnoses; none implies that
+unreceipted inference was free. Existing status/retry policies are unchanged.
 
 ## Interactive Pi commands
 
@@ -199,9 +226,15 @@ A successful solution run contains:
 - canonical Driver and Population ledgers under `state/`;
 - mutation, evaluation, conformance, and final receipts;
 - copied task, runtime, harness, and harness-provenance documents;
-- protected-final content copied only after development stops;
+- `operator-preflight.json` (diagnostic-only, without protected contents);
+- protected-final content copied only after final allocation is committed;
 - `experiment-report.json`; and
 - projection-only `process-status.json`.
+
+New selected descriptors use `selected-solution-commit-v2`. Their patches preserve
+raw Git bytes, including CRLF, binary content, modes, and missing final newlines.
+Publication independently applies the patch to a disposable clone/index and checks
+the resulting Git tree. Nothing is applied to the source repository.
 
 The output is evidence, not deployment. Review the patch and receipts before any
 separate application or merge.
@@ -219,8 +252,22 @@ separate application or merge.
    `python`/`python3` spellings as equivalent only when they resolve to the same
    interpreter and exact evaluator script;
 6. recomputes capability-first final selection and exact allocation;
-7. checks protected-final case coverage and kernel conformance; and
-8. regenerates `selected.patch` and requires byte equality.
+7. checks protected-final case coverage and kernel conformance, and re-derives
+   output-check outcomes from authenticated stdout and bound expected values; and
+8. regenerates `selected.patch`, requires byte equality, and for v2 descriptors
+   applies it to a disposable clone/index to require exact selected-tree equality.
+
+V1 evaluation receipts retain exit-status-only semantics. V1 selected descriptors
+retain their historical text-transport replay, without the stronger applied-tree
+claim. Existing valid runs need no migration. Offline verification never executes
+candidate checks/models, publishes artifacts, or updates run status.
+
+The POSIX model transport and nested provider client now drain both streams under
+the existing byte cap and deadline instead of checking size after buffering an
+entire response. Timeout, excess output, malformed UTF-8, and cancellation clean
+up owned processes. Kernel-command and general application transports have not
+all been converted to streaming bounds; runtime labels still do not fully bind
+model weights or sampling parameters.
 
 Deleting `state/population/population.sqlite` is supported because SQLite is
 only a rebuildable query projection.

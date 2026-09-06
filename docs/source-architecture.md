@@ -201,6 +201,8 @@ feature or a replacement for Controller/Population. It adds these instructions:
 | `experiment_runtime.py` | bounded execution, publication, final sealing, resume, and retry effects |
 | `experiment_receipts.py` | read-only execution and retry receipt validation |
 | `experiment_replay.py` | independent harness, ancestry, mutation, development, final, and patch verification phases |
+| `preflight.py` | trusted structural preparation without protected disclosure or execution |
+| `checks.py` | pure versioned external-output contract, retaining legacy exit-status semantics |
 | `solution_experiment.py` | compatibility CLI, public operation exports, and status projection |
 
 Both experiment entrypoints retain their existing script paths and public

@@ -289,6 +289,19 @@ def test_indeterminate_controller_attempt_requires_an_explicit_retry(tmp_path: P
     assert (tmp_path / "proposal-count").read_text() == "1"
     assert (state / "pending" / "round-intent.json").read_bytes() == pending_before
     assert (state / "driver.jsonl").read_bytes() == ledger_before
+    diagnostics = list((state / "diagnostics").glob("*.json"))
+    assert len(diagnostics) == 1  # ordinary resume neither retries nor rewrites
+    source = diagnostics[0].read_bytes()
+    digest = hashlib.sha256(source).hexdigest()
+    assert diagnostics[0].name == f"{digest}.json"
+    assert f"diagnostic-sha256:{digest}" in failed_summary["pending_error"]
+    diagnostic = json.loads(source)
+    pending = json.loads(pending_before)
+    assert diagnostic["authority"] == "diagnostic-only"
+    assert diagnostic["intent_id"] == pending["intent_id"]
+    assert diagnostic["attempt_id"] == pending["attempts"][-1]["attempt_id"]
+    assert diagnostic["elapsed_milliseconds"] >= 0
+    assert diagnostic["error"]["summary"]
 
     wrong = run_script(
         DRIVER,

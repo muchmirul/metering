@@ -10,6 +10,7 @@ from typing import cast
 
 from apps._support.wire import canonical_digest, canonical_json, decode_json_object
 from apps.agent_protocol import ProtocolError, require_exact_keys
+from apps.coding_agent.checks import CheckError, validate_output_contract
 from apps.harness.workspace import WorkspaceError, normalized_path
 from apps.population.contract import PopulationError, normalize_draw
 from apps.population_driver.population_driver_protocol import normalize_stopping_policy
@@ -97,10 +98,13 @@ def _checks(value: object, location: str) -> list[dict[str, object]]:
         item_location = f"{location}[{index}]"
         if type(raw) is not dict:
             raise CodingTaskError(f"{item_location} must be a JSON object")
+        if "case_id" not in raw:
+            raise CodingTaskError(f"{item_location} omitted case_id")
+        assay = {key: value for key, value in raw.items() if key != "case_id"}
         try:
-            require_exact_keys(raw, {"argv", "case_id", "timeout_ms"}, item_location)
-        except ProtocolError as exc:
-            raise CodingTaskError(str(exc)) from exc
+            validate_output_contract(assay)
+        except CheckError as exc:
+            raise CodingTaskError(f"{item_location}: {exc}") from exc
         case_id = _text(raw["case_id"], f"{item_location}.case_id", maximum=256)
         if case_id in seen:
             raise CodingTaskError(f"{location} contains duplicate case_id: {case_id}")
@@ -117,6 +121,7 @@ def _checks(value: object, location: str) -> list[dict[str, object]]:
             raise CodingTaskError(f"{item_location}.argv is malformed")
         checks.append(
             {
+                **assay,
                 "argv": cast(list[str], argv),
                 "case_id": case_id,
                 "timeout_ms": _integer(
@@ -255,8 +260,7 @@ def load_task_profile(
         raise CodingTaskError(str(exc)) from exc
     if (
         stopping is not None
-        and int(stopping["minimum_replicates"])
-        > normalized_limits["max_rounds"]
+        and int(stopping["minimum_replicates"]) > normalized_limits["max_rounds"]
     ):
         raise CodingTaskError(
             "coding task stopping.minimum_replicates cannot exceed max_rounds"
@@ -288,7 +292,7 @@ def load_task_profile(
                 "coding task.final_assay.path must be outside the repository"
             )
         normalized["final_assay"] = final_assay
-    if document != normalized:
+    if canonical_json(document) != canonical_json(normalized):
         raise CodingTaskError("coding task profile is not normalized")
     return {**normalized, "task_id": canonical_digest(normalized)}
 
@@ -325,7 +329,7 @@ def load_final_profile(
         "final_schema": FINAL_SCHEMA,
         "schema_version": TASK_SCHEMA_VERSION,
     }
-    if document != normalized:
+    if canonical_json(document) != canonical_json(normalized):
         raise CodingTaskError("protected coding final profile is not normalized")
     return source, cast(list[dict[str, object]], normalized["checks"])
 
@@ -354,8 +358,7 @@ def task_documents(
             "case_id": str(check["case_id"]),
             "input": {
                 "assay": {
-                    "argv": check["argv"],
-                    "timeout_ms": check["timeout_ms"],
+                    key: value for key, value in check.items() if key != "case_id"
                 },
                 "outcomes": ["fail", "pass"],
                 "prompt": goal,

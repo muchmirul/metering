@@ -14,7 +14,6 @@ from apps._support.durable import atomic_write
 from apps._support.wire import canonical_json
 from apps.coding_agent.experiment_artifacts import (
     canonical_document,
-    copy_canonical,
     initialize_solution_repository,
     localize_harness,
     copy_protected_final_tasks,
@@ -34,9 +33,10 @@ from apps.coding_agent.experiment_config import (
     task_runner_timeout,
 )
 from apps.coding_agent.experiment_replay import verify_experiment
-from apps.coding_agent.final_assay import run_final_assay
+from apps.coding_agent.final_assay import run_final_assay, select_final_candidate
 from apps.coding_agent.harness_workspace_editor import load_harness_descriptor
 from apps.coding_agent.process_tracker import advance_process_status
+from apps.coding_agent.preflight import preflight_task
 from apps.coding_agent.protocol import load_task_profile
 from apps.harness.conformance import run_conformance
 from apps.harness.runtime_manifest import RuntimeManifest, load_runtime_manifest
@@ -47,7 +47,7 @@ from apps.population_driver.runtime import (
     run_population_driver,
     verify_population_driver,
 )
-from artifacts.git.git_repository import run_git
+from artifacts.git.git_patch import create_patch, verify_patch_tree
 
 FIXTURE_PROPOSER = (
     ROOT / "apps" / "coding_agent" / "fixtures" / "fixture_solution_proposer.py"
@@ -120,25 +120,17 @@ def _selected_solution(
     candidate_id = str(final["candidate_id"])
     artifact = cast(dict[str, object], state.candidates[candidate_id]["artifact"])
     base = cast(dict[str, str], profile["repository"])["base_commit"]
-    patch = run_git(
-        [
-            "diff",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--binary",
-            base,
-            str(artifact["commit"]),
-        ],
-        cwd=root / "candidate.git",
-    )
+    repository = root / "candidate.git"
+    patch = create_patch(repository, base, str(artifact["commit"]))
+    verify_patch_tree(repository, base, str(artifact["git_tree"]), patch)
     patch_path = root / "selected.patch"
-    atomic_write(patch_path, patch.encode("utf-8"))
+    atomic_write(patch_path, patch)
     descriptor = {
         "artifact": artifact,
         "base_commit": base,
         "candidate_id": candidate_id,
-        "descriptor_schema": "selected-solution-commit-v1",
-        "patch_sha256": hashlib.sha256(patch.encode("utf-8")).hexdigest(),
+        "descriptor_schema": "selected-solution-commit-v2",
+        "patch_sha256": hashlib.sha256(patch).hexdigest(),
         "task_id": profile["task_id"],
     }
     atomic_write(
@@ -182,6 +174,35 @@ def _experiment_report(
     return report
 
 
+def _run_protected_final(
+    root: Path,
+    profile: dict[str, object],
+    development: dict[str, object],
+    coding_runtime_id: str,
+) -> dict[str, object]:
+    population = population_root(root / "state")
+    experiment_id = str(development["experiment_id"])
+    draw = cast(dict[str, int], profile["final_draw"])
+    # This idempotent allocation is durable before protected bytes are opened.
+    # run_final_assay revalidates/reuses it; it cannot choose a different winner.
+    select_final_candidate(population, experiment_id, draw)
+    advance_process_status(root, stage=5, run_kind="solution")
+    tasks = copy_protected_final_tasks(root, profile)
+    return run_final_assay(
+        population,
+        development_experiment_id=experiment_id,
+        tasks=tasks,
+        final_draw=draw,
+        runner_command=control_command(GIT_ADAPTER),
+        evaluator_command=control_command(EVALUATOR),
+        runner_timeout=task_runner_timeout(tasks),
+        evaluator_timeout=300,
+        runtime_id=coding_runtime_id,
+        bundle_root=root / "final-receipts",
+        budget=resource_budget(),
+    )
+
+
 def run_experiment(
     agent: str,
     profile_source: Path,
@@ -199,12 +220,21 @@ def run_experiment(
     expected_connector = "fixture-v1" if agent == "fixture" else "pi-v1"
     if runtime.model["connector"] != expected_connector:
         raise SolutionExperimentError("runtime connector does not match selected agent")
+    preflight = preflight_task(profile, runtime=runtime, harness_source=harness_source)
     root.mkdir(parents=True)
     advance_process_status(root, stage=4, run_kind="solution")
     profile_path = root / "task.json"
     runtime_path = root / "runtime.json"
-    copy_canonical(profile_source, profile_path)
-    copy_canonical(runtime_source, runtime_path)
+    # Freeze the documents actually validated, not a second read of mutable sources.
+    documents = {
+        profile_path: {
+            key: value for key, value in profile.items() if key != "task_id"
+        },
+        runtime_path: runtime.document,
+        root / "operator-preflight.json": preflight,
+    }
+    for path, document in documents.items():
+        atomic_write(path, (canonical_json(document) + "\n").encode("ascii"))
     runtime = load_runtime_manifest(runtime_path)
     solution_remote, artifact = initialize_solution_repository(root, profile)
     descriptor_path, descriptor, harness_checkout = localize_harness(
@@ -246,21 +276,7 @@ def run_experiment(
                 "coding development has a pending model intent; explicit retry required "
                 f"for intent {pending['intent_id']}"
             )
-        advance_process_status(root, stage=5, run_kind="solution")
-        final_tasks = copy_protected_final_tasks(root, profile)
-        final = run_final_assay(
-            population_root(state_root),
-            development_experiment_id=str(development["experiment_id"]),
-            tasks=final_tasks,
-            final_draw=cast(dict[str, int], profile["final_draw"]),
-            runner_command=control_command(GIT_ADAPTER),
-            evaluator_command=control_command(EVALUATOR),
-            runner_timeout=task_runner_timeout(final_tasks),
-            evaluator_timeout=300,
-            runtime_id=coding_runtime_id,
-            bundle_root=root / "final-receipts",
-            budget=resource_budget(),
-        )
+        final = _run_protected_final(root, profile, development, coding_runtime_id)
         verified_driver = verify_population_driver(state_root)
     report = _experiment_report(
         root,
@@ -442,21 +458,7 @@ def continue_experiment(
                     "protected coding final evaluation started without a complete run; "
                     "it is sealed and cannot be retried"
                 )
-            advance_process_status(root, stage=5, run_kind="solution")
-            final_tasks = copy_protected_final_tasks(root, profile)
-            final = run_final_assay(
-                population_root(state_root),
-                development_experiment_id=str(development["experiment_id"]),
-                tasks=final_tasks,
-                final_draw=cast(dict[str, int], profile["final_draw"]),
-                runner_command=control_command(GIT_ADAPTER),
-                evaluator_command=control_command(EVALUATOR),
-                runner_timeout=task_runner_timeout(final_tasks),
-                evaluator_timeout=300,
-                runtime_id=coding_runtime_id,
-                bundle_root=root / "final-receipts",
-                budget=resource_budget(),
-            )
+            final = _run_protected_final(root, profile, development, coding_runtime_id)
         verified_driver = verify_population_driver(state_root)
     report = _experiment_report(
         root,

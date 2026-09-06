@@ -51,6 +51,14 @@ development archives, `machine.py` owns external effects and Population
 transitions, `population_driver_state.py` owns durable stores, and
 `runtime.py` is the bounded load-plan-effect-store sequencer.
 `population_driver.py` is the thin `run|retry|verify` dispatcher.
+
+Failed Controller attempts also retain private, content-addressed files under
+`STATE_ROOT/diagnostics/` (`state/diagnostics/` inside an Agentvolve run). The pending error names the
+receipt digest. Diagnostics bind the attempt/intent, elapsed time, known transport
+kind/exit status, and bounded best-effort credential-redacted stderr/detail
+excerpts. They are neither optimizer feedback nor retry/accounting authority;
+ordinary resume does not create another Controller attempt. Treat unreceipted
+inference as unknown expenditure, not zero cost.
 Population access goes through `apps.population.contract`; no driver module
 imports Population policy, state, allocation, or SQLite internals.
 

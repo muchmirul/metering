@@ -109,9 +109,13 @@ def test_create_profile_binds_reviewed_clean_repository(tmp_path: Path):
     }
     assert len(profile["allocation_draws"]) == 3
     assert final_checks == profile["development_checks"]
-    assert task_path.read_text(encoding="ascii") == canonical_json(
-        {key: value for key, value in profile.items() if key != "task_id"}
-    ) + "\n"
+    assert (
+        task_path.read_text(encoding="ascii")
+        == canonical_json(
+            {key: value for key, value in profile.items() if key != "task_id"}
+        )
+        + "\n"
+    )
 
 
 def test_derive_profile_applies_goal_and_generation_limit(tmp_path: Path):
@@ -123,7 +127,9 @@ def test_derive_profile_applies_goal_and_generation_limit(tmp_path: Path):
     registration = create_profile(draft, templates)
     template_path = Path(str(registration["profile"]))
     goal = tmp_path / "goal.txt"
-    goal.write_text("Complete the task described in this Pi session.\n", encoding="utf-8")
+    goal.write_text(
+        "Complete the task described in this Pi session.\n", encoding="utf-8"
+    )
 
     result = derive_profile(template_path, goal, 100, generated)
 
@@ -183,3 +189,40 @@ def test_create_profile_keeps_profiles_outside_candidate_repository(tmp_path: Pa
 
     with pytest.raises(TaskRegistrationError, match="must be outside"):
         create_profile(draft, source / "registered")
+
+
+def test_preflight_cli_reports_assurance_and_bounds_harness_errors(tmp_path: Path):
+    source, _ = repository(tmp_path)
+    draft = tmp_path / "draft.json"
+    write_draft(draft, draft_document(source))
+    registration = create_profile(draft, tmp_path / "registered")
+    command = [
+        sys.executable,
+        "-m",
+        "apps.coding_agent.task_profile_tool",
+        "preflight",
+        str(registration["profile"]),
+    ]
+    result = subprocess.run(
+        command, cwd=ROOT, capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stderr == ""
+    metadata = json.loads(result.stdout)
+    assert metadata["preflight_schema"] == "agentvolve-operator-preflight-v1"
+    assert metadata["warnings"]
+    assert "visible-check" not in result.stdout
+    invalid = subprocess.run(
+        [
+            *command,
+            str(ROOT / "apps/harness/profiles/runtime-fixture.json"),
+            str(tmp_path / "absent.json"),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert invalid.returncode == 2
+    assert "bounded regular file" in invalid.stderr
+    assert "Traceback" not in invalid.stderr
