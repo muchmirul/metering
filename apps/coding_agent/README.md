@@ -11,10 +11,11 @@ or evaluator-verified goal-or-limit stopping; a finite maximum is always
 required.
 
 It never modifies the source repository, installs the result, or changes
-Metering's installed API. Interactive `/goal` and `/limit` derive a run profile
-only from a reviewed discovered profile and a clean Git `HEAD`; session task
-generation creates an operator-reviewed draft, not model-owned evaluation
-authority.
+Metering's installed API. Conversational activation starts no task. Interactive
+`/goal` and `/limit` derive a run profile only from a reviewed discovered
+profile and a clean Git `HEAD`; user-message-only session task generation shows
+a complete human-readable contract for direct operator approval and creates an
+operator-reviewed draft, not model-owned evaluation authority.
 
 ## Documentation
 

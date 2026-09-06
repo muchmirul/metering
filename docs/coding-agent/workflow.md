@@ -9,7 +9,7 @@ Controller, Population, Git, and receipt boundaries. The compact widget and
 
 | Stage | Meaning | Typical command or evidence |
 |---|---|---|
-| **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | `/goal …`, `/limit N generations`, and a discovered reviewed profile |
+| **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | reviewed session task, or `/goal …`, `/limit N generations`, and a discovered profile |
 | **[2/6] Evolving harness** | Agentvolve proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | detached worker after `/agentvolve` or `/evolve-start` |
 | **[3/6] Harness sealed** | One harness has been allocated, protected-final tested, and permanently sealed. | `selected-harness.json` |
 | **[4/6] Evolving solution** | The frozen harness creates and independently tests immutable solution commits until a verified goal or finite limit stops recurrence. | automatic workflow continuation |
@@ -28,23 +28,29 @@ The normal transition is:
 ```
 
 A previously sealed harness can be reused, so later tasks commonly begin new
-model work at `[4/6]` after Agentvolve revalidates the earlier stages. In the
-streamlined path, the operator enters `/goal …`, `/limit N generations`, and
-`/agentvolve`; folder discovery and canonical profile derivation happen before
-the tracker advances. If the folder has no reviewed executable task contract,
-Agentvolve stops at configuration rather than treating prose as proof. The
-three configured commands also work in Pi RPC mode. A reviewed
+model work at `[4/6]` after Agentvolve revalidates the earlier stages. The
+operator may activate Agentvolve conversationally, describe a clear coding goal,
+and approve the human-readable task review in-session; fixed code then registers
+the same canonical profile before the tracker advances. The explicit
+`/goal …`, `/limit N generations`, and `/agentvolve` route remains. A sole
+folder-bound profile is automatic, while TUI ambiguity is resolved by direct
+operator selection of reviewed summaries. RPC mode continues to require an
+unambiguous task. If the current folder cannot supply a reviewed executable task
+contract or a valid reviewed session draft, Agentvolve remains in operator mode
+and asks for clarification rather than treating prose as proof. A reviewed
 `METERING_EVOLUTION_HARNESS_DESCRIPTOR` can reference an original sealed harness
 when the new solution run uses an isolated registry; provenance remains bound to
 that original run.
 
 ## Viewing status
 
-The normal start has no pre-start menu. `/agentvolve` keeps Pi's current operator
-model and launches a manifest-pinned evolution worker in a separate process. Pi
-returns immediately. While operator mode is active, the compact tracker polls
-the shared run directory every two seconds, including work launched by another
-session.
+Mode activation has no pre-start menu and starts no worker. A reviewed task may
+open only the clarification, task-summary selection, or approval interaction
+needed to bind the canonical input. `/agentvolve` keeps Pi's current operator
+model and, once a task is approved, launches a manifest-pinned evolution worker
+in a separate process. Pi returns immediately. While operator mode is active,
+the compact tracker polls the shared run directory every two seconds, including
+work launched by another session.
 
 Use `/view-progress [RUN_NAME]` for the live terminal dashboard and
 `/view-history` for the shared history browser. The dashboard labels operator

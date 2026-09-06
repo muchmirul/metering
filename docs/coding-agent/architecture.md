@@ -41,13 +41,16 @@ This preserves attribution.
 
 ## Operator and worker processes
 
-Interactive Pi is the operator, not the evolution executor. `/agentvolve` or
-`/evolve-start` launches `apps.coding_agent.agentvolve_worker` in a detached
-session and returns control to Pi. The worker alone sequences harness and
-solution effects using the canonical runtime manifest. It owns a workflow-scoped
-inherited file lock, bounded logs, heartbeat/liveness identity, and canonical
-ordinal start/resume/retry/verify jobs. Closing Pi or the live dashboard does not
-attach to, cancel, or change that worker.
+Interactive Pi is the operator, not the evolution executor. Conversational or
+slash-command Agentvolve activation changes only session mode and starts no
+task. After a canonical task is selected or prepared from user-only session
+messages and directly reviewed, `/agentvolve`, `/evolve-start`, or the
+model-facing start action launches `apps.coding_agent.agentvolve_worker` in a
+detached session and returns control to Pi. The worker alone sequences harness
+and solution effects using the canonical runtime manifest. It owns a
+workflow-scoped inherited file lock, bounded logs, heartbeat/liveness identity,
+and canonical ordinal start/resume/retry/verify jobs. Closing Pi or the live
+dashboard does not attach to, cancel, or change that worker.
 
 The boundary is portable filesystem JSON. A thin agent adapter needs only to
 launch fixed worker actions and render `apps.coding_agent.operator_view` output;
@@ -133,9 +136,11 @@ disable them before a sensitive run. This repository ships one thin project
 extension shim for the reviewed implementation. The operator model may differ
 from the manifest-pinned worker model; the dashboard labels both identities.
 The model-facing action enum cannot supply task text, commands, evaluators,
-candidates, output paths, profile paths, or retry authority. The instruction to
-invoke run actions only after a user request is prompt policy rather than an OS
-security boundary.
+candidates, output paths, profile paths, or retry authority. It may activate
+operator mode without effects, read progress/history, or request a task draft
+from user-only session messages; that draft still requires direct operator
+review before fixed registration. The instruction to invoke run actions only
+after a user request is prompt policy rather than an OS security boundary.
 
 Candidate code and candidate-owned extensions are never loaded into the host Pi.
 Nested Pi calls use isolated configuration roots with tools, sessions, skills,

@@ -12,8 +12,10 @@ session-generated draft; all four routes produce this same schema and authority.
 `METERING_EVOLUTION_TASKS_DIR` defaults to the checkout sibling
 `metering-live-tasks`. The Pi adapter discovers at most 200 direct
 `*.task.json` files there. `/evolve-start` uses the sole profile bound to the
-current folder or requires an explicit absolute path when discovery is
-ambiguous. Fixed Python validation remains decisive when the worker starts.
+current folder. In TUI mode, zero or multiple folder matches present registered
+profile summaries for direct operator selection; RPC mode still requires an
+unambiguous folder-bound or explicitly configured profile. Fixed Python
+validation remains decisive when the worker starts.
 
 `/goal TEXT` and `/limit N generations` do not invent a task. They derive a
 fresh profile from an already reviewed discovered profile: fixed code keeps its
@@ -23,16 +25,19 @@ fixed rational recurrence draws; and preserves the template's finite retry
 reservation count. The derived profile is written below the task directory's
 `generated/` subdirectory.
 
-`/evolve-task` is an explicit draft path. The outer model
-receives user messages only, never assistant answers or tool output, plus the
-current commit's bounded tracked-file list. The operator edits the complete JSON
-draft and confirms it. Fixed code then requires a clean Git repository and an
-entrypoint present at `HEAD`, writes canonical task/final documents outside the
-repository, and validates the task. Its `replay-development-checks-v1` final
-policy repeats the reviewed development checks in fresh protected-final
-containers; this gives final execution/sealing but intentionally makes no
-hidden-coverage claim. Use a separately authored profile when held-out cases
-matter.
+`/evolve-task` and model-facing `workflow_from_session` are explicit reviewed
+draft paths. The outer model receives user messages only, never assistant
+answers or tool output, plus the current commit's bounded tracked-file list. The
+operator first sees a human-readable review containing the complete goal,
+repository, entrypoint, writable paths, check argv, budgets, stopping policy,
+and final policy. Canonical JSON is an optional advanced correction surface,
+not required conversational input. Fixed code then requires a clean Git
+repository and an entrypoint present at `HEAD`, writes canonical task/final
+documents outside the repository, and validates the task. Its
+`replay-development-checks-v1` final policy repeats the reviewed development
+checks in fresh protected-final containers; this gives final execution/sealing
+but intentionally makes no hidden-coverage claim. Use a separately authored
+profile when held-out cases matter.
 
 Neither route can infer whether a check actually represents a natural-language
 goal. That remains operator responsibility. Missing or ambiguous executable

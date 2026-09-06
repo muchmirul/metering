@@ -288,6 +288,19 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'name: "population_evolution"' in implementation
     assert 'name: "darwinian_coding"' in implementation
     assert 'label: "Agentvolve"' in implementation
+    for action in (
+        '"workflow_activate"',
+        '"workflow_from_session"',
+        '"workflow_start"',
+        '"workflow_status"',
+        '"workflow_history"',
+        '"workflow_verify"',
+    ):
+        assert action in implementation
+    assert "No task or worker was started by activation" in implementation
+    assert "profile = await chooseTaskProfile(ctx)" in implementation
+    assert "const reviewed = await reviewSessionTaskDraft(ctx, generated)" in implementation
+    assert "Register and run this reviewed task?" in implementation
     assert 'await pi.exec("uv", args' in implementation
     assert 'await pi.exec("systemctl", ["--user", "restart", service]' in implementation
     assert "pi.setModel(" not in implementation
@@ -322,7 +335,7 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert "apps.coding_agent.task_profile_tool" in implementation
     assert "METERING_EVOLUTION_HARNESS_DESCRIPTOR" in implementation
     assert 'ctx.mode === "rpc"' in implementation
-    assert "no reviewed task profile" in implementation
+    assert "No reviewed task profile" in implementation
     assert "for (let stage = 1; stage <= 6; stage += 1)" in implementation
     assert "`${marker} [${stage}/6] ${label}`" in implementation
     assert '"view-history"' in implementation

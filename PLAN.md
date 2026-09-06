@@ -532,12 +532,16 @@ finite round/proposal/wall limits, and an optional evaluator-backed goal-or-limi
 stopping policy. Profiles without the additive policy retain numeric limit-only
 behavior. Fixed code opens the protected profile only
 after development stops. A model cannot directly authorize or alter either
-profile. The explicit `/evolve-task` command may generate a task-description draft from
-user messages on the active Pi branch, but it excludes assistant messages and
-requires explicit operator review before fixed code registers the profile. That
-registration binds a clean repository HEAD and may only replay the reviewed
-public checks as its disclosed protected-final policy; it does not invent hidden
-coverage. `/goal` plus `/limit` may mechanically derive a fresh profile only from
+profile. The explicit `/evolve-task` command and fixed model-facing
+`workflow_from_session` action may generate a task-description draft from user
+messages on the active Pi branch, but they exclude assistant messages and
+require direct operator review before fixed code registers the profile. The
+default review renders the complete goal, repository, entrypoint, writable
+paths, check argv, budgets, stopping policy, and final policy in human-readable
+form; canonical JSON is only an advanced correction surface. That registration
+binds a clean repository HEAD and may only replay the reviewed public checks as
+its disclosed protected-final policy; it does not invent hidden coverage.
+`/goal` plus `/limit` may mechanically derive a fresh profile only from
 an already reviewed discovered task profile, preserving its paths, checks,
 protected-final binding, and stopping policy while updating the exact goal,
 clean HEAD, round limit, and draws. The task identity is the SHA-256 of its
@@ -610,12 +614,14 @@ inside that run. Output is an immutable selected commit/descriptor, a
 replay-derived patch, and evidence. Applying, merging, installing, or deploying
 it is always a separate caller action.
 
-The reviewed Pi extension registers `/agentvolve` as the ordinary configured
-start command; `/goal` and `/limit` persist workflow configuration on the active
-session branch. `/evolve-start`, `/evolve-task`, `/agentvolve-resume`,
-`/agentvolve-retry`, `/agentvolve-stop`, `/agentvolve-verify`,
-`/view-progress`, `/view-history`, and `/agentvolve-off` provide explicit
-operator actions. `/agentvolve-history` aliases `/view-history`, and the existing
+The reviewed Pi extension registers `/agentvolve` as the ordinary activation or
+configured-start command; `/goal` and `/limit` persist workflow configuration on
+the active session branch. Model-facing `workflow_activate` mirrors no-effect
+mode activation so a user may enter Agentvolve through normal conversation.
+`/evolve-start`, `/evolve-task`, `/agentvolve-resume`, `/agentvolve-retry`,
+`/agentvolve-stop`, `/agentvolve-verify`, `/view-progress`, `/view-history`, and
+`/agentvolve-off` provide explicit operator actions. `/agentvolve-history`
+aliases `/view-history`, and the existing
 `/evolve-harness`, `/evolve-harness-status`, `/evolve-harness-resume`,
 `/evolve-harness-retry`, `/evolve-code`, `/evolve-code-resume`,
 `/evolve-code-retry`, `/evolve-code-status`, and `/evolve-code-verify` commands
@@ -623,17 +629,22 @@ remain as compatibility surfaces. A caller may explicitly list the reviewed
 absolute extension path in Pi's global settings to make these commands available
 from every working directory.
 
-There is no Agentvolve launcher or model picker. Pi keeps its normal interactive
-operator model and thinking level. `/agentvolve` with both `/goal` and `/limit`
-configured discovers at most 200 `*.task.json` files from the absolute
-`METERING_EVOLUTION_TASKS_DIR` (defaulting to the checkout sibling
-`metering-live-tasks`), requires exactly one reviewed profile bound to the clean
-current Git repository, mechanically derives a canonical run profile, and
-launches it. Missing configuration gives ordinary command guidance; zero or
-multiple applicable profiles fail closed without a picker. `/evolve-task` keeps
-the explicit user-message-only draft, operator edit/confirmation, fixed
-registration, and launch path. The configured three-command flow is also
-available in Pi RPC mode for headless operator automation.
+There is no Agentvolve model picker. Pi keeps its normal interactive operator
+model and thinking level. Activation alone starts no model, service, task, or
+worker and lets the user continue in ordinary conversation. `/agentvolve` with
+both `/goal` and `/limit` configured discovers at most 200 `*.task.json` files
+from the absolute `METERING_EVOLUTION_TASKS_DIR` (defaulting to the checkout
+sibling `metering-live-tasks`), mechanically derives a canonical run profile,
+and launches it. One profile bound to the clean current Git repository is
+automatic. In TUI mode, zero or multiple folder matches require direct operator
+selection from bounded reviewed summaries; cancellation starts nothing. RPC mode
+fails closed unless a folder-bound or explicitly configured profile is
+unambiguous. Missing configuration gives conversational and command guidance.
+`/evolve-task` and `workflow_from_session` preserve the explicit
+user-message-only draft, human-readable operator review/confirmation, optional
+advanced JSON correction, fixed registration, and launch path. The configured
+three-command flow is also available in Pi RPC mode for headless operator
+automation.
 
 Start validates the task, runtime, protected-final structure, Git binding,
 selected harness when supplied, runtime executable, and local-model readiness
@@ -672,13 +683,17 @@ call/time reservation. Stop signals only a lock-owning process whose PID identit
 still matches and does not manufacture a clean checkpoint. Verification is a
 separate detached offline replay of an otherwise complete workflow.
 
-The model-facing `darwinian_coding` tool adds fixed `workflow_start`,
-`workflow_status`, and `workflow_verify` actions while retaining the existing
-low-level action enum. It uses only operator-configured absolute profiles and
-accepts no task, command, evaluator, candidate, or output path. The detached
-worker and bounded progress/history JSON commands form the same adapter boundary
-for future coding-agent clients. Pi is operator, mutation transport, and UI,
-never evaluator, selector, ledger authority, worker runtime, or sandbox boundary.
+The model-facing `darwinian_coding` tool adds fixed no-effect
+`workflow_activate`, operator-reviewed `workflow_from_session`,
+`workflow_start`, read-only `workflow_status` and `workflow_history`, and
+`workflow_verify` actions while retaining the existing low-level action enum.
+Its action schema accepts no task text, command, evaluator, candidate, profile
+path, retry reason, or output path. `workflow_start` uses configured profiles or
+fixed discovery and returns a non-effectful clarification state when no task can
+be resolved. The detached worker and bounded progress/history JSON commands form
+the same adapter boundary for future coding-agent clients. Pi is operator,
+mutation transport, and UI, never evaluator, selector, ledger authority, worker
+runtime, or sandbox boundary.
 
 Experiment implementations separate fixed configuration, runtime effects,
 artifact operations, receipt validation, and offline replay behind the existing

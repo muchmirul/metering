@@ -28,6 +28,7 @@ import {
 	decodeOperatorHistory,
 	decodeOperatorProgress,
 	decodeOutput,
+	type DiscoveredTaskProfile,
 	discoverTaskProfiles,
 	latestCodingRoot,
 	latestRunRoot,
@@ -83,6 +84,8 @@ interface WorkerResponse {
 	workflow_root: string;
 }
 
+class AgentvolveInputRequired extends Error {}
+
 type AgentvolveModelMode = "routed";
 
 type CodingLoaderAction = Exclude<CodingAction, "harness-status" | "solution-status">;
@@ -110,19 +113,22 @@ const POPULATION_TOOL_GUIDELINE = [
 ].join(" ");
 
 const CODING_TOOL_DESCRIPTION = [
-	"Start or inspect Agentvolve's detached workflow, or use its compatibility harness/solution actions,",
-	"using only operator-approved session configuration and task profiles. It accepts no task text, command,",
-	"evaluator, candidate, retry reason, or output path.",
+	"Activate Agentvolve operator mode, start or inspect its detached workflow, prepare a reviewed task from",
+	"user-only session context, or use compatibility harness/solution actions. Its action schema accepts no",
+	"task text, command, evaluator, candidate, profile path, retry reason, or output path.",
 ].join(" ");
 
 const CODING_TOOL_GUIDELINE = [
-	"Use darwinian_coding only after the user explicitly requests Agentvolve workflow, harness, or solution evolution.",
-	"Prefer workflow_start so the Pi session remains the operator while a detached worker performs evolution.",
-	"Never substitute ordinary in-place edits for its immutable candidates and independent assays.",
+	"Use darwinian_coding workflow_activate when the user asks to activate or enter Agentvolve mode; activation",
+	"must not require or start a task. Use workflow_from_session only after the user clearly asks Agentvolve to",
+	"solve a coding goal described in their messages; ask a normal follow-up question first when the goal is unclear.",
+	"Use workflow_start for an already configured or reviewed task, workflow_status for progress, and",
+	"workflow_history for prior runs. Never substitute ordinary in-place edits for Agentvolve's immutable",
+	"candidates and independent assays.",
 ].join(" ");
 
 const SESSION_TASK_SYSTEM_PROMPT = `You create a reviewed Agentvolve task draft from user messages and a Git file list.
-Return exactly one JSON object and no markdown. Never include or infer an answer to the task. Do not copy assistant answers because they are not provided. Describe only the user's requested outcome and independently checkable acceptance behavior.
+Return exactly one JSON object and no markdown. Never include or infer an answer to the task. Do not copy assistant answers because they are not provided. Use the most recent explicit coding goal; treat setup or Agentvolve-interface discussion only as context. Describe only the user's requested outcome and independently checkable acceptance behavior.
 The object must have exactly these fields:
 - draft_schema: "agentvolve-session-task-draft-v1"
 - schema_version: 1
@@ -163,6 +169,83 @@ function responseText(response: { content: Array<{ type: string; text?: string }
 		.map((part) => part.text)
 		.join("\n")
 		.trim();
+}
+
+function reviewObject(value: unknown, location: string): Record<string, unknown> {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		throw new Error(`${location} must be an object`);
+	}
+	return value as Record<string, unknown>;
+}
+
+function reviewString(value: unknown, location: string): string {
+	if (typeof value !== "string" || !value.trim()) throw new Error(`${location} must be a non-empty string`);
+	return value;
+}
+
+function reviewInteger(value: unknown, location: string): number {
+	if (typeof value !== "number" || !Number.isInteger(value)) throw new Error(`${location} must be an integer`);
+	return value;
+}
+
+function sessionTaskReview(source: string): string {
+	const document = reviewObject(JSON.parse(source), "task draft");
+	if (document.draft_schema !== "agentvolve-session-task-draft-v1" || document.schema_version !== 1) {
+		throw new Error("task draft has an unsupported schema");
+	}
+	const name = reviewString(document.name, "task name");
+	const repository = reviewString(document.repository_path, "repository");
+	const goal = reviewString(document.goal, "goal");
+	const entrypoint = reviewString(document.entrypoint, "entrypoint");
+	if (
+		!Array.isArray(document.allowed_paths) ||
+		document.allowed_paths.length === 0 ||
+		!document.allowed_paths.every((path) => typeof path === "string")
+	) {
+		throw new Error("allowed paths must be a non-empty string array");
+	}
+	if (!Array.isArray(document.development_checks) || document.development_checks.length === 0) {
+		throw new Error("at least one development check is required");
+	}
+	const limits = reviewObject(document.limits, "limits");
+	const maxRounds = reviewInteger(limits.max_rounds, "generation limit");
+	const maxProposalCalls = reviewInteger(limits.max_proposal_calls, "proposal-call limit");
+	const maxWallSeconds = reviewInteger(limits.max_wall_seconds, "wall-time limit");
+	if (document.final_policy !== "replay-development-checks-v1") {
+		throw new Error("task draft has an unsupported final policy");
+	}
+	const stopping = reviewObject(document.stopping, "stopping policy");
+	if (stopping.type !== "all-development-cases-pass-v1") {
+		throw new Error("task draft has an unsupported stopping policy");
+	}
+	const lines = [
+		`Task: ${JSON.stringify(name)}`,
+		`Repository: ${JSON.stringify(repository)}`,
+		`Goal: ${JSON.stringify(goal)}`,
+		`Entrypoint: ${JSON.stringify(entrypoint)}`,
+		"Writable paths:",
+		...document.allowed_paths.map((path) => `  - ${JSON.stringify(path)}`),
+		"Development checks:",
+	];
+	for (const [index, value] of document.development_checks.entries()) {
+		const check = reviewObject(value, `development check ${index + 1}`);
+		const caseId = reviewString(check.case_id, `development check ${index + 1} case ID`);
+		if (!Array.isArray(check.argv) || check.argv.length === 0 || !check.argv.every((item) => typeof item === "string")) {
+			throw new Error(`development check ${index + 1} argv must be a non-empty string array`);
+		}
+		const timeout = reviewInteger(check.timeout_ms, `development check ${index + 1} timeout`);
+		lines.push(`  - ${JSON.stringify(caseId)}: ${JSON.stringify(check.argv)} (${timeout} ms)`);
+	}
+	lines.push(
+		`Limits: ${maxRounds} generations, ${maxProposalCalls} proposal calls, ${maxWallSeconds} wall seconds`,
+		`Stopping: ${JSON.stringify(stopping)}`,
+		`Final policy: ${JSON.stringify(document.final_policy)}`,
+		"",
+		"The generated protected final repeats these reviewed development checks and adds no hidden coverage.",
+	);
+	const summary = lines.join("\n");
+	if (summary.length > 32_000) throw new Error("task review is too large for the in-session confirmation view");
+	return summary;
 }
 
 function unquoteArgument(value: string): string {
@@ -233,6 +316,36 @@ function humanSummary(summary: ModeSummary): string {
 	if (summary.patchPath) fields.push(`selected patch: ${summary.patchPath}`);
 	if (summary.runtimeId) fields.push(`runtime: ${summary.runtimeId}`);
 	return fields.join("\n");
+}
+
+function operatorProgressSummary(progress: OperatorProgressView): string {
+	const lines = [
+		`${progress.stage_label} · ${progress.state}`,
+		progress.activity,
+		`workflow: ${progress.workflow_root}`,
+	];
+	if (progress.task?.goal) lines.push(`goal: ${progress.task.goal.replaceAll(/\s+/g, " ").slice(0, 500)}`);
+	if (progress.evolution) {
+		lines.push(
+			`evolution: ${progress.evolution.completed_rounds}/${progress.evolution.max_rounds ?? "?"} generations · ${progress.evolution.proposal_calls} proposal calls · ${progress.evolution.archive_member_count} archive members`,
+		);
+	}
+	if (progress.result) {
+		const selectedCommit = progress.result.selected_commit;
+		const selectedCandidate = progress.result.selected_candidate_id;
+		const finalPassed = progress.result.final_passed;
+		const finalTasks = progress.result.final_tasks;
+		const patchPath = progress.result.patch_path;
+		if (typeof selectedCommit === "string") lines.push(`selected commit: ${selectedCommit}`);
+		if (typeof selectedCandidate === "string") lines.push(`selected candidate: ${selectedCandidate}`);
+		if (typeof finalPassed === "number" && typeof finalTasks === "number") {
+			lines.push(`protected final assay: ${finalPassed}/${finalTasks}`);
+		}
+		if (typeof patchPath === "string") lines.push(`selected patch: ${patchPath}`);
+	}
+	if (progress.error) lines.push(`error: ${progress.error}`);
+	if (progress.warnings.length > 0) lines.push(...progress.warnings.map((warning) => `warning: ${warning}`));
+	return lines.join("\n");
 }
 
 function decodeWorkerResponse(value: Record<string, unknown>): WorkerResponse {
@@ -898,6 +1011,12 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	function taskProfileChoice(profile: DiscoveredTaskProfile, cwd: string): string {
+		const repository = resolve(profile.repository) === cwd ? "current folder" : profile.repository;
+		const goal = profile.goal.replaceAll(/\s+/g, " ").slice(0, 100);
+		return `${profile.name} · ${profile.entrypoint} · ${repository} · ${goal}`;
+	}
+
 	async function chooseTaskProfile(ctx: ExtensionContext): Promise<string> {
 		const configured = process.env.METERING_EVOLUTION_TASK_PROFILE?.trim();
 		if (configured) return configuredTaskProfile(configured);
@@ -905,10 +1024,32 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		const cwd = resolve(ctx.cwd);
 		const matching = discovered.filter((profile) => resolve(profile.repository) === cwd);
 		if (matching.length === 1) return matching[0]!.path;
-		if (matching.length === 0) {
-			throw new Error(`no reviewed task profile under ${tasksDirectory()} is bound to the current folder ${cwd}`);
+		if (ctx.mode === "tui" && discovered.length > 0) {
+			const candidates = matching.length > 0 ? matching : discovered;
+			const labels = candidates.map((profile) => taskProfileChoice(profile, cwd));
+			const title =
+				matching.length > 0
+					? "Choose the reviewed Agentvolve task for this folder"
+					: "No task is bound to this folder; choose a reviewed Agentvolve task";
+			const selected = await ctx.ui.select(title, labels);
+			if (!selected) throw new AgentvolveInputRequired("Task selection was cancelled; no workflow started.");
+			const profile = candidates[labels.indexOf(selected)];
+			if (!profile) throw new Error("Agentvolve task selection did not resolve");
+			return profile.path;
 		}
-		throw new Error(`${matching.length} reviewed task profiles match ${cwd}; pass one explicitly to /evolve-start`);
+		if (discovered.length === 0) {
+			throw new AgentvolveInputRequired(
+				`No reviewed task profiles are registered under ${tasksDirectory()}. Describe the coding goal in this session so Agentvolve can prepare it for direct review.`,
+			);
+		}
+		if (matching.length === 0) {
+			throw new AgentvolveInputRequired(
+				`No reviewed task profile is bound to the current folder ${cwd}. Describe the coding goal for this repository so Agentvolve can prepare it, or use interactive task selection.`,
+			);
+		}
+		throw new AgentvolveInputRequired(
+			`${matching.length} reviewed task profiles match ${cwd}. Choose one in an interactive Pi session before starting.`,
+		);
 	}
 
 	async function trackedRepositoryFiles(ctx: ExtensionContext): Promise<string[]> {
@@ -925,8 +1066,34 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			.slice(0, 2_000);
 	}
 
-	async function generateSessionTaskDraft(ctx: ExtensionContext): Promise<string | null> {
+	async function reviewSessionTaskDraft(ctx: ExtensionContext, generated: string): Promise<string | null> {
+		let draft = generated.trim();
+		for (;;) {
+			let summary: string;
+			try {
+				summary = sessionTaskReview(draft);
+			} catch (error) {
+				ctx.ui.notify(`The generated task needs correction: ${String(error)}`, "warning");
+				const edited = await ctx.ui.editor("Correct Agentvolve task details (advanced JSON)", draft);
+				if (edited === undefined) return null;
+				draft = edited.trim();
+				continue;
+			}
+			if (await ctx.ui.confirm("Register and run this reviewed task?", summary)) return draft;
+			const action = await ctx.ui.select("Agentvolve task was not approved", [
+				"Edit task details (advanced JSON)",
+				"Cancel without starting",
+			]);
+			if (action !== "Edit task details (advanced JSON)") return null;
+			const edited = await ctx.ui.editor("Edit Agentvolve task details (advanced JSON)", draft);
+			if (edited === undefined) return null;
+			draft = edited.trim();
+		}
+	}
+
+	async function generateSessionTaskDraft(ctx: ExtensionContext, signal?: AbortSignal): Promise<string | null> {
 		if (!ctx.model) throw new Error("select a Pi model before generating a session task");
+		const model = ctx.model;
 		const conversation = sessionUserConversation(ctx.sessionManager.buildContextEntries());
 		if (!conversation) throw new Error("the current session has no user task description");
 		const files = await trackedRepositoryFiles(ctx);
@@ -939,47 +1106,48 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			"User messages from the active session branch:",
 			conversation,
 		].join("\n");
-		const result = await ctx.ui.custom<{ draft?: string; error?: string } | null>((tui, theme, _keybindings, done) => {
-			const loader = new BorderedLoader(tui, theme, "Generating a task draft from user messages only…");
-			loader.onAbort = () => done(null);
-			const message: Message = {
-				role: "user",
-				content: [{ type: "text", text: prompt }],
-				timestamp: Date.now(),
-			};
-			ctx.modelRegistry
-				.complete(
-					ctx.model!,
-					{ systemPrompt: SESSION_TASK_SYSTEM_PROMPT, messages: [message] },
-					{ signal: loader.signal, cacheRetention: "none", sessionId: uuidv7() },
-				)
-				.then((response) => done({ draft: responseText(response) }))
-				.catch((error) => done({ error: String(error) }));
-			return loader;
-		});
-		if (result === null) return null;
-		if (result.error) throw new Error(result.error);
-		const edited = await ctx.ui.editor("Review Agentvolve session task draft", result.draft ?? "");
-		if (edited === undefined) return null;
-		let draft: Record<string, unknown>;
-		try {
-			const value: unknown = JSON.parse(edited);
-			if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("not an object");
-			draft = value as Record<string, unknown>;
-		} catch (error) {
-			throw new Error(`reviewed session task draft is not JSON: ${String(error)}`);
+		const message: Message = {
+			role: "user",
+			content: [{ type: "text", text: prompt }],
+			timestamp: Date.now(),
+		};
+		let generated: string;
+		if (ctx.mode === "tui") {
+			const result = await ctx.ui.custom<{ draft?: string; error?: string } | null>(
+				(tui, theme, _keybindings, done) => {
+					const loader = new BorderedLoader(tui, theme, "Generating a task draft from user messages only…");
+					loader.onAbort = () => done(null);
+					ctx.modelRegistry
+						.complete(
+							model,
+							{ systemPrompt: SESSION_TASK_SYSTEM_PROMPT, messages: [message] },
+							{ signal: loader.signal, cacheRetention: "none", sessionId: uuidv7() },
+						)
+						.then((response) => done({ draft: responseText(response) }))
+						.catch((error) => done({ error: String(error) }));
+					return loader;
+				},
+			);
+			if (result === null) return null;
+			if (result.error) throw new Error(result.error);
+			generated = result.draft ?? "";
+		} else if (ctx.mode === "rpc") {
+			const response = await ctx.modelRegistry.complete(
+				model,
+				{ systemPrompt: SESSION_TASK_SYSTEM_PROMPT, messages: [message] },
+				{ signal, cacheRetention: "none", sessionId: uuidv7() },
+			);
+			generated = responseText(response);
+		} else {
+			throw new Error("session task preparation requires interactive or RPC Pi");
 		}
-		const goal = typeof draft.goal === "string" ? draft.goal : "(missing goal)";
-		const approved = await ctx.ui.confirm(
-			"Register and run this task?",
-			`${goal.slice(0, 500)}\n\nThe generated protected final replays the reviewed development checks; it adds no hidden coverage.`,
-		);
-		if (!approved) return null;
+		const reviewed = await reviewSessionTaskDraft(ctx, generated);
+		if (reviewed === null) return null;
 
 		const temporary = await mkdtemp(join(tmpdir(), "agentvolve-session-task-"));
 		try {
 			const draftPath = join(temporary, "draft.json");
-			await writeFile(draftPath, `${edited.trimEnd()}\n`, "utf8");
+			await writeFile(draftPath, `${reviewed.trimEnd()}\n`, "utf8");
 			await mkdir(tasksDirectory(), { recursive: true });
 			const command = await pi.exec(
 				"uv",
@@ -1075,7 +1243,12 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const profile = await deriveGoalTask(template, goal, maxRounds);
 			await launchDetachedWorkflow(ctx, profile, true);
 		} catch (error) {
-			ctx.ui.notify(String(error), "error");
+			if (error instanceof AgentvolveInputRequired) {
+				await activateAgentvolveMode(ctx, undefined, "routed");
+				ctx.ui.notify(error.message, "warning");
+			} else {
+				ctx.ui.notify(String(error), "error");
+			}
 		}
 		return true;
 	}
@@ -1089,9 +1262,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		try {
 			await activateAgentvolveMode(ctx, undefined, "routed");
 			ctx.ui.notify(
-				"Agentvolve mode is active. Pi remains the operator and keeps its current /model; " +
-					"the manifest-pinned model runs in a detached worker. Set /goal and /limit, then " +
-					"run /agentvolve again, or use /evolve-start. Monitor with /view-progress or /view-history.",
+				"Agentvolve mode is active. Continue talking to Pi normally: describe a coding goal and ask " +
+					"Agentvolve to solve it; Pi can ask clarifying questions and prepare the reviewed task in-session. " +
+					"The manifest-pinned model runs in a detached worker while this operator session stays usable. " +
+					"You can also use /goal plus /limit, /evolve-start, /view-progress, or /view-history.",
 				"info",
 			);
 		} catch (error) {
@@ -1327,12 +1501,15 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		name: "darwinian_coding",
 		label: "Agentvolve",
 		description: CODING_TOOL_DESCRIPTION,
-		promptSnippet: "Run independently evaluated Agentvolve coding evolution",
+		promptSnippet: "Activate or operate independently evaluated Agentvolve coding evolution",
 		promptGuidelines: [CODING_TOOL_GUIDELINE],
 		parameters: Type.Object({
 			action: StringEnum([
+				"workflow_activate",
+				"workflow_from_session",
 				"workflow_start",
 				"workflow_status",
+				"workflow_history",
 				"workflow_verify",
 				"harness_run",
 				"harness_status",
@@ -1346,13 +1523,76 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				content: [{ type: "text", text: `Agentvolve ${params.action}…` }],
 				details: { action: params.action },
 			});
+			if (params.action === "workflow_activate") {
+				await activateAgentvolveMode(ctx, signal, "routed");
+				return {
+					content: [
+						{
+							type: "text",
+							text: "Agentvolve operator mode is active. Continue in normal conversation: describe a clear coding goal, ask clarifying questions when needed, then prepare or start the reviewed workflow. No task or worker was started by activation.",
+						},
+					],
+					details: { active: true, model: activeModelLabel, status: "operator-mode" },
+				};
+			}
 			if (params.action === "workflow_status") {
+				const history = await operatorHistory();
+				if (history.runs.length === 0) {
+					return {
+						content: [
+							{
+								type: "text",
+								text: "Agentvolve operator mode is available, but no workflow has been started yet. Describe a coding goal or start a reviewed task when ready.",
+							},
+						],
+						details: { active: modeActive, status: "not-started" },
+					};
+				}
 				const progress = await operatorProgress();
 				return {
 					content: [
 						{
 							type: "text",
-							text: `${progress.stage_label} · ${progress.state}\n${progress.activity}\n${progress.workflow_root}`,
+							text: operatorProgressSummary(progress),
+						},
+					],
+					details: progress,
+				};
+			}
+			if (params.action === "workflow_history") {
+				const history = await operatorHistory();
+				const lines = history.runs.slice(0, 20).map((run) => {
+					const goal = run.goal?.replaceAll(/\s+/g, " ").slice(0, 160) ?? "goal unavailable";
+					return `${run.stage === null ? "[?/6]" : `[${run.stage}/6]`} ${run.state} · ${run.name} · ${goal}`;
+				});
+				return {
+					content: [
+						{
+							type: "text",
+							text: lines.length > 0 ? lines.join("\n") : `No Agentvolve runs exist under ${history.runs_directory}.`,
+						},
+					],
+					details: history,
+				};
+			}
+			if (params.action === "workflow_from_session") {
+				await activateAgentvolveMode(ctx, signal, "routed");
+				const profile = await generateSessionTaskDraft(ctx, signal);
+				if (!profile) {
+					return {
+						content: [{ type: "text", text: "Agentvolve task preparation was cancelled; no workflow started." }],
+						details: { active: true, status: "cancelled" },
+					};
+				}
+				if (!(await launchDetachedWorkflow(ctx, profile, false, signal))) {
+					throw new Error("Agentvolve worker did not start");
+				}
+				const progress = await operatorProgress();
+				return {
+					content: [
+						{
+							type: "text",
+							text: `The reviewed session task was registered and its detached Agentvolve worker started at ${progress.workflow_root}. Use /view-progress while continuing this Pi session.`,
 						},
 					],
 					details: progress,
@@ -1361,11 +1601,20 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			if (params.action === "workflow_start") {
 				const { goal, maxRounds } = workflowConfiguration;
 				let profile: string;
-				if (goal && maxRounds !== undefined) {
-					const template = await chooseTaskProfile(ctx);
-					profile = await deriveGoalTask(template, goal, maxRounds);
-				} else {
-					profile = configuredTaskProfile("");
+				try {
+					if (goal && maxRounds !== undefined) {
+						const template = await chooseTaskProfile(ctx);
+						profile = await deriveGoalTask(template, goal, maxRounds);
+					} else {
+						profile = await chooseTaskProfile(ctx);
+					}
+				} catch (error) {
+					if (!(error instanceof AgentvolveInputRequired)) throw error;
+					await activateAgentvolveMode(ctx, signal, "routed");
+					return {
+						content: [{ type: "text", text: error.message }],
+						details: { active: true, status: "needs-task-clarification" },
+					};
 				}
 				if (!(await launchDetachedWorkflow(ctx, profile, goal !== undefined && maxRounds !== undefined, signal))) {
 					throw new Error("Agentvolve worker did not start");
@@ -1463,8 +1712,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			configured
 				? `${MODE_NAME} goal and limit restored. Run /agentvolve to start the detached workflow.`
 				: restoredMode
-					? `${MODE_NAME} operator mode restored. Use /view-progress or continue using Pi normally.`
-					: `${MODE_NAME} is available. Use /goal and /limit, then run /agentvolve.`,
+					? `${MODE_NAME} operator mode restored. Continue talking to Pi normally or use /view-progress.`
+					: `${MODE_NAME} is available. Activate it and describe a coding goal normally, or use /goal and /limit before /agentvolve.`,
 			"info",
 		);
 	});
@@ -1489,11 +1738,13 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		if (!modeActive) return;
 		const authorityPrompt = [
 			`Agentvolve operator mode is active in this Pi session (${activeModelLabel}).`,
+			"Continue the interaction as a normal conversation: help the user clarify a coding goal without requiring",
+			"JSON or profile paths. Do not start work while the goal is unclear. Once the user explicitly asks Agentvolve",
+			"to solve a clear session-described goal, use darwinian_coding workflow_from_session so direct operator review",
+			"preserves the canonical task format. For an already configured or reviewed task use workflow_start.",
 			"Pi remains the interactive operator. The evolution worker is a separate detached process,",
 			"and its provider, model, reasoning level, and budgets stay bound to the canonical runtime manifest.",
-			"When the user explicitly asks to start the configured workflow, prefer darwinian_coding",
-			"workflow_start so this session remains responsive; workflow_status is read-only.",
-			"The operator can inspect truthful shared progress with /view-progress and prior runs with /view-history.",
+			"Use workflow_status for conversational progress; the operator can also use /view-progress and /view-history.",
 			"When the user explicitly asks for the reference assay, use population_evolution.",
 			"Interactive /goal and /limit state may derive a task only from an already reviewed discovered contract.",
 			"Fixed code owns mutation transport, independent evaluation, exact Population recurrence,",

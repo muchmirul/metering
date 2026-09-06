@@ -113,7 +113,14 @@ always remains mandatory.
 ### Use from Pi
 
 Register the reviewed `.pi/extensions/population-evolution.ts` entrypoint, then
-use ordinary slash commands:
+activate Agentvolve from normal conversation (for example, “activate
+Agentvolve”) or with `/agentvolve`. Activation starts no task. Continue talking
+to Pi normally, clarify the coding goal when needed, and ask Agentvolve to solve
+it. The model-facing adapter prepares a task only from user messages and opens a
+direct operator review before registration and launch; canonical JSON remains an
+internal advanced-edit surface rather than required conversational input.
+
+The explicit three-command route remains:
 
 ```text
 /goal Fix the behavior described here and satisfy the registered checks
@@ -121,19 +128,21 @@ use ordinary slash commands:
 /agentvolve
 ```
 
-There is no launcher or model picker. Pi remains the interactive operator and
-keeps its current `/model`. With a complete goal/limit pair, `/agentvolve`
-derives a canonical profile from the sole reviewed task contract bound to the
-clean current Git folder, then launches a separate detached evolution worker.
-That worker uses the canonical runtime's provider/model/reasoning identity and
-finite budgets. Launch returns immediately, so Pi stays usable while evolution
-continues. Without both values, `/agentvolve` only activates operator mode and
-prints slash-command guidance.
+Pi remains the interactive operator and keeps its current `/model`. With a
+complete goal/limit pair, `/agentvolve` derives a canonical profile from a
+reviewed task contract and launches a separate detached evolution worker. A
+single profile bound to the current folder is automatic; when interactive
+selection is required, Pi presents reviewed task summaries instead of requiring
+a copied path. That worker uses the canonical runtime's
+provider/model/reasoning identity and finite budgets. Launch returns immediately,
+so Pi stays usable while evolution continues. Without both values,
+`/agentvolve` only activates operator mode and explains both conversational and
+slash-command routes.
 
-Use an explicit reviewed profile or generate a reviewed session task with:
+Advanced explicit starts remain available:
 
 ```text
-/evolve-start /absolute/path/to/task.json
+/evolve-start [/absolute/path/to/task.json]
 /evolve-task
 ```
 

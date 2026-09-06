@@ -47,18 +47,22 @@ heredity. Only validated Git commits reproduce.
 [6/6] Result ready for review
 ```
 
-In an extension-enabled Pi session, set `/goal` and `/limit`, then run
-`/agentvolve`. There is no launcher or model picker: Pi keeps its normal
-interactive `/model` and starts a separate detached worker whose identity and
-budgets remain pinned to the canonical runtime manifest. Launch returns
-immediately. While operator mode is active, the widget displays every
-`[1/6]`–`[6/6]` stage and monitors the shared run directory across sessions.
-`/view-progress` opens the live dashboard and `/view-history` exposes recent
-runs. Operators do not choose between internal harness and solution levels.
-The worker status, tracker, graph, diff preview, and reports are convenience
-projections. Candidate Git objects, canonical hash-linked JSONL, exact
-allocations, and content-addressed receipts remain the authoritative evidence.
-Level-1 recurrence can stop at a numeric round cap or at
+In an extension-enabled Pi session, the operator may say “activate Agentvolve”
+or run `/agentvolve`, then describe and clarify a coding goal in ordinary
+conversation. Activation starts no task. After an explicit solve request, Pi can
+prepare a canonical task from user-only session messages, display its paths,
+checks, budgets, and policies for direct human-readable review, and launch only
+after approval. The explicit `/goal`, `/limit`, `/agentvolve` route remains.
+There is no model picker: Pi keeps its normal interactive `/model` and starts a
+separate detached worker whose identity and budgets remain pinned to the
+canonical runtime manifest. Launch returns immediately. While operator mode is
+active, the widget displays every `[1/6]`–`[6/6]` stage and monitors the shared
+run directory across sessions. `/view-progress` opens the live dashboard and
+`/view-history` exposes recent runs. Operators do not choose between internal
+harness and solution levels. The worker status, tracker, graph, diff preview,
+and reports are convenience projections. Candidate Git objects, canonical
+hash-linked JSONL, exact allocations, and content-addressed receipts remain the
+authoritative evidence. Level-1 recurrence can stop at a numeric round cap or at
 an independently evaluated development goal with that cap as a mandatory
 fallback.
 

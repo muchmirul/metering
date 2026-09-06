@@ -154,7 +154,16 @@ trusted checkout, or register its absolute path in Pi's existing extension
 settings. Loading it only registers commands; it starts no model, service, or
 experiment.
 
-The normal flow uses ordinary slash commands and no launcher menu:
+The normal flow may begin entirely in conversation: ask Pi to activate
+Agentvolve, describe the coding goal in ordinary language, answer any needed
+clarifying question, and explicitly ask it to solve the task. Model-facing
+activation starts no worker. Session task preparation uses only user messages
+and tracked path names, shows a human-readable review of repository, paths,
+checks, budgets, stopping, and final policy, and registers canonical JSON only
+after direct operator approval. Advanced JSON editing remains available when a
+generated draft needs correction.
+
+The explicit configured route remains:
 
 ```text
 /goal Describe the independently checkable task
@@ -163,11 +172,14 @@ The normal flow uses ordinary slash commands and no launcher menu:
 ```
 
 The first two commands persist session configuration. With both present,
-`/agentvolve` derives a canonical profile from the sole reviewed contract bound
-to the current clean Git folder and starts a separate detached worker. Without a
-complete pair, `/agentvolve` activates operator mode and returns to Pi with usage
-guidance. It never opens a model picker. Pi keeps its current model; use Pi's
-normal `/model` command to change the interactive operator.
+`/agentvolve` derives a canonical profile from a reviewed contract and starts a
+separate detached worker. A sole contract bound to the current clean Git folder
+is automatic. TUI mode offers direct operator selection when registered
+profiles are otherwise ambiguous or bound elsewhere; RPC mode requires an
+unambiguous folder-bound or explicitly configured task. Without a complete pair,
+`/agentvolve` activates operator mode and returns to Pi with conversational and
+slash-command guidance. It never opens a model picker. Pi keeps its current
+model; use Pi's normal `/model` command to change the interactive operator.
 
 The evolution worker independently uses the model/provider/reasoning identity
 and finite budgets in the canonical runtime manifest. Launch returns
@@ -182,10 +194,11 @@ Other explicit starts are:
 /evolve-task
 ```
 
-The argument-free `/evolve-start` requires exactly one discovered task profile
-bound to the current folder. Ambiguity fails closed instead of opening a picker.
-`/evolve-task` generates from user messages and tracked path names, then requires
-editor review and confirmation before registration and launch.
+The argument-free `/evolve-start` automatically uses one folder-bound profile or
+opens the same in-session reviewed-task selector in TUI mode. `/evolve-task`
+prepares from user messages, presents human-readable review and confirmation,
+and exposes raw JSON only for advanced correction before registration and
+launch.
 
 Inspect shared state from this or another Pi session:
 
@@ -238,14 +251,19 @@ The low-level compatibility commands remain available:
 /evolve-code-verify
 ```
 
-The model-facing `darwinian_coding` tool supports detached `workflow_start`,
-read-only `workflow_status`, and detached `workflow_verify`, plus the existing
-harness/solution actions. It cannot choose evaluator commands, candidates,
-output paths, task-profile paths, protected checks, or retry authority.
+The model-facing `darwinian_coding` tool supports no-effect
+`workflow_activate`, operator-reviewed `workflow_from_session`, detached
+`workflow_start`, read-only `workflow_status` and `workflow_history`, and
+detached `workflow_verify`, plus the existing harness/solution actions. It
+cannot carry task text, evaluator commands, candidates, output paths,
+task-profile paths, protected checks, or retry authority as action arguments.
+The current user remains the source of session task text and the direct reviewer
+of the generated contract.
 
-For Pi RPC automation, send `/goal`, `/limit`, and `/agentvolve`; launch still
-returns after the worker is detached. The progress/history projections are JSON
-and can be read without attaching to that process.
+For Pi RPC automation, send `/goal`, `/limit`, and `/agentvolve`, or service the
+session-task review UI protocol; launch still returns after the worker is
+detached. The progress/history projections are JSON and can be read without
+attaching to that process.
 
 ## Run output
 

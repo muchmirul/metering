@@ -81,7 +81,14 @@ fixed isolation boundary and do not inherit the operator session.
 ### Ordinary slash-command flow
 
 Loading the extension performs no model, service, or experiment effect. It shows
-`agentvolve: available`. There is no pre-start model picker or action menu.
+`agentvolve: available`. The operator can say “activate Agentvolve” in normal
+conversation or enter `/agentvolve`; activation starts no task and does not
+require a profile path. Once active, the user can describe a coding goal
+normally. Pi should ask a conversational follow-up when the goal is unclear and,
+after an explicit request to solve it, use the user-message-only reviewed task
+flow.
+
+The explicit configured route remains:
 
 ```text
 /goal Describe the independently checked task
@@ -90,11 +97,14 @@ Loading the extension performs no model, service, or experiment effect. It shows
 ```
 
 `/goal` and `/limit` persist in the Pi session. With both present,
-`/agentvolve` derives a canonical task from the sole reviewed profile bound to
-the current Git folder and launches a detached worker. Without both values,
-`/agentvolve` only activates operator mode and explains the available slash
-commands. It does not switch the operator model. Use Pi's normal `/model` command
-if a different interactive model is desired.
+`/agentvolve` derives a canonical task from a reviewed profile and launches a
+detached worker. A sole profile bound to the current Git folder is selected
+automatically. In TUI mode, zero or multiple folder matches open a direct
+operator selection of registered task summaries; RPC mode continues to fail
+closed until the task is unambiguous. Without a complete goal/limit pair,
+`/agentvolve` only activates operator mode and explains the conversational and
+slash-command routes. It does not switch the operator model. Use Pi's normal
+`/model` command if a different interactive model is desired.
 
 The worker always uses the provider/model/reasoning identity and finite budgets
 from the reviewed runtime manifest. The operator model may therefore be the same
@@ -106,14 +116,16 @@ Alternative starts are:
 
 ```text
 /evolve-start /absolute/reviewed.task.json   start an explicit profile
-/evolve-start                               use the sole profile bound to this folder
-/evolve-task                                draft from user messages, then edit/confirm and start
+/evolve-start                               discover/select a reviewed profile in-session
+/evolve-task                                prepare from user messages, review, and start
 ```
 
-`/evolve-task` is the only start path with an editor/confirmation surface. It
-sends the outer model only user messages and tracked path names; assistant
-answers and tool output are excluded. Ambiguous profile discovery fails with an
-instruction to pass an explicit path rather than opening a picker.
+Session preparation sends the outer model only user messages and tracked path
+names; assistant answers and tool output are excluded. The default review shows
+the complete goal, repository, writable paths, check commands, limits, stopping
+policy, and final policy in human-readable form. Raw canonical JSON is available
+only as an advanced correction/edit path. Fixed registration and preflight still
+decide whether the reviewed draft is valid.
 
 ### Progress and history
 
@@ -190,11 +202,14 @@ operators and scripts:
 /evolve-code-verify
 ```
 
-The model-facing `darwinian_coding` tool adds `workflow_start`,
-`workflow_status`, and `workflow_verify`; its earlier harness/solution actions
-remain. It accepts no model-supplied task text, command, candidate, evaluator,
-profile path, retry reason, or output path. `population_evolution` remains the
-fixed reference-assay tool with only `run`, `status`, and `verify`.
+The model-facing `darwinian_coding` tool exposes `workflow_activate`,
+`workflow_from_session`, `workflow_start`, `workflow_status`,
+`workflow_history`, and `workflow_verify`; its earlier harness/solution actions
+remain. Activation has no experiment effect. Session preparation reads only
+user-authored messages and requires direct operator review. The action schema
+accepts no model-supplied task text, command, candidate, evaluator, profile path,
+retry reason, or output path. `population_evolution` remains the fixed
+reference-assay tool with only `run`, `status`, and `verify`.
 
 Selected code is written as an immutable commit and `selected.patch`; it is never
 applied to the source repository.
