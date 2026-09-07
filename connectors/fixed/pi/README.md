@@ -1,7 +1,7 @@
 # Pi fixed connector
 
-These commands translate Metering's documented proposer and runner protocols to
-the public `pi` CLI.
+These source-only commands translate the documented proposer and runner protocols
+to the public `pi` CLI:
 
 ```text
 uv run python connectors/fixed/pi/skill_proposer.py
@@ -13,227 +13,140 @@ uv run python connectors/fixed/pi/harness_runner.py
 uv run python connectors/fixed/pi/coding_proposer.py
 ```
 
-The skill proposer and text runner disable tools, sessions, discovered resources,
-and context files. They inject the complete verified `SKILL.md` because normal
-Pi progressive disclosure needs a read tool. The generic Git proposer leaves
-Pi's normal workspace tools enabled inside a file-only candidate workspace; it
-must run in a reviewed external sandbox.
+Skill/text roles disable tools, sessions, discovered resources, and context files.
+The generic Git proposer requires a reviewed external sandbox. Typed harness and
+coding roles use the fixed OCI kernel boundary: Pi receives no host repository,
+`.git`, evaluator profile, or protected checks. Harness policy, mutation transport,
+independent evaluation, Population recurrence, receipts, and seals remain in
+fixed code under [`apps/harness`](../../../apps/harness/README.md) and
+[`apps/coding_agent`](../../../apps/coding_agent/README.md).
 
-The typed harness path is stricter. `harness_proposer.py` supplies bounded
-candidate locus text to a tool-free Pi call and applies only declared whole-file
-edits. `harness_model.py` translates one provider-neutral turn with every Pi tool
-and ambient resource disabled. `harness_runner.py` verifies Pi `--version` and
-the runtime's provider/model/reasoning pins, then delegates recurrence, IPython,
-subagents, snapshots, compaction, and receipts to fixed code under
-[`apps/harness`](../../../apps/harness/README.md). Candidate Python runs only in
-the required OCI kernel. `coding_proposer.py` is the fixed Level-1 mutation
-transport: it materializes the exact selected harness, keeps the Pi call
-tool-free, and lets only the Docker kernel expose bounded workspace tools. It
-never gives Pi the host repository, `.git`, evaluator profile, or protected
-checks.
-
-Pin the command with a JSON array, for example:
+Pin the connector command with a JSON array, for example:
 
 ```bash
 export METERING_PI_COMMAND='["pi","--provider","openai-codex","--model","gpt-5.6-sol","--thinking","max"]'
 ```
 
-By default the connector creates a temporary Pi configuration directory and
-copies only regular `auth.json` and `models.json` files for tool-free roles; it
-does not copy settings, sessions, packages, or other ambient resources. Set
-`METERING_PI_CONFIG_DIR` to an existing absolute caller-reviewed directory when
-needed. The connector does not infer a model or retain a nested session.
+Tool-free roles copy only regular `auth.json` and `models.json` into a temporary
+Pi configuration, not ambient settings, sessions, extensions, or skills.
+`METERING_PI_CONFIG_DIR` may name an absolute reviewed configuration directory.
 
-## Interactive Agentvolve mode
+## Agentvolve in Pi
 
-The integration is split at a filesystem/JSON boundary:
+The integration has four owners:
 
-- `population_evolution_extension.ts` owns Pi commands, tools, lifecycle, and the
-  compact active-workflow widget;
-- `agentvolve_dashboard.ts` owns the live terminal dashboard;
-- `population_evolution_support.ts` owns paths, discovery, and strict projection
-  decoding;
-- `apps.coding_agent.agentvolve_worker` owns detached workflow orchestration; and
-- `apps.coding_agent.operator_view` creates read-only progress/history
-  projections from workflow state, ledgers, receipts, reports, and Git objects.
-
-The worker status, dashboard, graphs, and reports are projections only. Git
-commits, canonical Driver/Population ledgers, allocations, receipts, and seals
-remain the experiment authorities.
+- `population_evolution_extension.ts`: Pi commands, high-level tool, task review,
+  session configuration, and active-only compact widget;
+- `population_evolution_support.ts`: runtime paths, discovery, and projection decoding;
+- `agentvolve_dashboard.ts`: terminal progress and paginated evolution traces;
+- `apps.coding_agent.agentvolve_worker` and `operator_view`: detached execution
+  and read-only filesystem/JSON projections, respectively.
 
 ### Installation and trust
 
-From a trusted checkout, plain `pi` loads the thin project entrypoint at
-`.pi/extensions/population-evolution.ts` after Pi's project-trust decision. To
-make the commands available in every working directory, add that reviewed
-absolute path to the existing `extensions` array in
-`~/.pi/agent/settings.json`:
+From a trusted checkout, Pi loads `.pi/extensions/population-evolution.ts` after
+its project-trust decision. To use it from other repositories, add the reviewed
+absolute entrypoint to the existing `extensions` array in
+`~/.pi/agent/settings.json`, without overwriting unrelated settings:
 
 ```json
 {"extensions":["/absolute/path/to/metering/.pi/extensions/population-evolution.ts"]}
 ```
 
-Do not overwrite unrelated settings or packages. Run `/reload` after changing
-settings. Top-level Pi and its extensions run with the host user's permissions;
-project trust is not a sandbox. Nested evolutionary calls use their separate
+Run `/reload` after changing the extension. Top-level Pi extensions have host-user
+permissions; project trust is not a sandbox. Evolutionary calls have their own
 fixed isolation boundary and do not inherit the operator session.
 
-### Ordinary slash-command flow
-
-Loading the extension performs no model, service, or experiment effect. It shows
-`agentvolve: available`. The operator can say “activate Agentvolve” in normal
-conversation or enter `/agentvolve`; activation starts no task and does not
-require a profile path. Once active, the user can describe a coding goal
-normally. Pi should ask a conversational follow-up when the goal is unclear and,
-after an explicit request to solve it, use the user-message-only reviewed task
-flow.
-
-The explicit configured route remains:
+### Exactly four Agentvolve commands
 
 ```text
-/goal Describe the independently checked task
-/limit 100 generations
-/agentvolve
+/limit 10                      save a finite generation cap (1–256)
+/goal Describe the problem     review the task, then start detached work
+/history [RUN_NAME]            browse runs, full recorded traces, stage reports, results
+/progress                      inspect the most recent run
 ```
 
-`/goal` and `/limit` persist in the Pi session. With both present,
-`/agentvolve` derives a canonical task from a reviewed profile and launches a
-detached worker. A sole profile bound to the current Git folder is selected
-automatically. In TUI mode, zero or multiple folder matches open a direct
-operator selection of registered task summaries; RPC mode continues to fail
-closed until the task is unambiguous. Without a complete goal/limit pair,
-`/agentvolve` only activates operator mode and explains the conversational and
-slash-command routes. It does not switch the operator model. Use Pi's normal
-`/model` command if a different interactive model is desired.
+`/goal` activates operator mode, asks for a limit if none is saved, and offers
+current-repository reviewed task contracts or a new session-derived draft. Even
+a sole discovered contract requires explicit selection; its checks must fit the
+new goal. Direct task approval is mandatory before launch in both TUI and RPC.
+Cancel or invalid input starts no worker. A pending goal may be resubmitted with
+argument-free `/goal`; successful launch clears that goal but retains the limit.
+`/limit` affects future tasks only. Restoring a session starts no task.
 
-The worker always uses the provider/model/reasoning identity and finite budgets
-from the reviewed runtime manifest. The operator model may therefore be the same
-model, another routed model, or a local model without changing experiment
-evidence. Pi returns immediately after launch and remains usable while evolution
-continues.
+A new draft uses only user messages and tracked filenames, never assistant
+answers or tool output. The exact slash-command goal, repository, and generation
+cap remain user-bound. The human-readable review includes the complete goal,
+Git base, writable paths, check argv, budgets, stopping policy, and final policy.
+Advanced JSON correction is optional. Fixed registration validates the clean
+Git binding and canonical profile. Generated finals explicitly replay public
+checks; use a separately reviewed profile for held-out coverage.
 
-Alternative starts are:
-
-```text
-/evolve-start /absolute/reviewed.task.json   start an explicit profile
-/evolve-start                               discover/select a reviewed profile in-session
-/evolve-task                                prepare from user messages, review, and start
-```
-
-Session preparation sends the outer model only user messages and tracked path
-names; assistant answers and tool output are excluded. The default review shows
-the complete goal, repository, writable paths, check commands, limits, stopping
-policy, and final policy in human-readable form. Raw canonical JSON is available
-only as an advanced correction/edit path. Fixed registration and preflight still
-decide whether the reviewed draft is valid.
+Normal conversation remains supported: ask to activate Agentvolve (no task,
+model, service, or worker starts), clarify a coding goal, then explicitly ask it
+to solve it. The `darwinian_coding` tool exposes only `workflow_activate`,
+`workflow_from_session`, `workflow_start`, `workflow_status`, `workflow_history`,
+and `workflow_verify`. The action schema accepts no task text, command, evaluator,
+candidate, profile path, retry reason, or output path. Starts still require a
+limit and direct operator approval. Pi keeps its current model/thinking level;
+the separate worker stays bound to the reviewed runtime manifest.
 
 ### Progress and history
 
-```text
-/view-progress [RUN_NAME]   open the live six-stage dashboard
-/view-history               choose a prior shared run and inspect it
-/agentvolve-history         compatibility alias for /view-history
+The compact widget is visible only while the latest detached workflow is truly
+queued/running, never for an abandoned legacy directory or finished run. In
+contrast, explicit `/progress` shows the latest run even after completion.
+`/history` pages through runs, newest first, 50 per page; selecting one opens its
+six stages, complete stage summaries, result identity/patch location, and all
+recorded harness/solution generations in pages of 20. Reused harness evidence is
+labelled as reused, not new Level-2 work. Trace pages show parents, children,
+selection, check counts, attempts/retries, and archive counts. The underlying
+Git objects and ledgers remain the full evidence; diff previews are bounded.
+
+Dashboard keys: `[`/`]` change trace pages; arrows or PageUp/PageDown scroll;
+`r` refreshes; `d` expands/collapses the bounded diff; `Esc`/`q` returns to Pi.
+Refresh is every two seconds. RPC clients receive progress/trace projections
+and service history/trace selection dialogs. Closing Pi or the dashboard does
+not stop or own the worker. The worker and operator model/PID are separately
+labelled. Stage notices and all views are **projection-only**, not authority.
+
+Equivalent read-only commands:
+
+```bash
+uv run python -m apps.coding_agent.operator_view progress RUNS [RUN_NAME]
+uv run python -m apps.coding_agent.operator_view history RUNS [OFFSET]
+uv run python -m apps.coding_agent.operator_view trace RUNS RUN_NAME [OFFSET]
 ```
 
-The dashboard refreshes every two seconds and clearly labels the interactive
-operator model and detached worker model/PID/liveness. It shows all six stages,
-current activity, committed generation/attempt/archive evidence, a bounded
-lineage graph, the latest immutable candidate diff when one exists, each
-completed-stage report, and the final selected commit/patch report. Press `r` to
-refresh, `d` to expand or collapse the bounded diff, and `Esc` or `q` to return
-to ordinary Pi. Closing the dashboard does not stop the worker.
+### Removed UI and retained engine
 
-The compact widget polls the shared runs directory every two seconds and appears
-only while the latest detached workflow is genuinely queued or running. It is
-cleared when no worker is active, so abandoned legacy run directories and prior
-completed workflows are not presented as current progress. Stage completion
-reports for a workflow observed while active are added to the Pi transcript. Any
-Pi session using the same runs directory can inspect the worker; neither
-dashboard nor monitor attaches to or owns its process.
+All old `/evolve*`, `/agentvolve*`, `/view-progress`, and `/view-history` commands,
+the reference `population_evolution` Pi tool, and low-level harness/solution Pi
+tool handlers are removed. Migrate command automation to `/limit`, `/goal`, and
+RPC approval. Pi's unrelated built-in commands remain available.
 
-```text
-[1/6] Task and runtime configured
-[2/6] Evolving harness
-[3/6] Harness sealed
-[4/6] Evolving solution
-[5/6] Protected final assay
-[6/6] Result ready for review
-```
-
-A reused sealed harness marks stages 2 and 3 as reused instead of pretending
-that new Level-2 work occurred.
-
-### Recovery and verification
-
-```text
-/agentvolve-resume
-/agentvolve-retry OPERATOR-REVIEWED-REASON
-/agentvolve-stop
-/agentvolve-verify
-/agentvolve-off
-```
-
-Resume permits only replay-authorized effects. Retry is accepted only for a
-reserved indeterminate attempt and requires an explicit reason. Stop signals the
-detached worker and its owned effect process; it does not manufacture a clean
-checkpoint. Verification is a detached offline replay and is available only
-after completion. Worker jobs are canonical and ordinal, and a per-workflow
-inherited file lock prevents concurrent workers.
-
-### Compatibility surfaces
-
-The existing reference Population commands remain:
-
-```text
-/evolve
-/evolve-status
-/evolve-verify
-```
-
-The low-level harness/solution compatibility commands also remain for existing
-operators and scripts:
-
-```text
-/evolve-harness
-/evolve-harness-status
-/evolve-harness-resume
-/evolve-harness-retry REASON
-/evolve-code /absolute/task.json
-/evolve-code-status
-/evolve-code-resume
-/evolve-code-retry REASON
-/evolve-code-verify
-```
-
-The model-facing `darwinian_coding` tool exposes `workflow_activate`,
-`workflow_from_session`, `workflow_start`, `workflow_status`,
-`workflow_history`, and `workflow_verify`; its earlier harness/solution actions
-remain. Activation has no experiment effect. Session preparation reads only
-user-authored messages and requires direct operator review. The action schema
-accepts no model-supplied task text, command, candidate, evaluator, profile path,
-retry reason, or output path. `population_evolution` remains the fixed
-reference-assay tool with only `run`, `status`, and `verify`.
-
-Selected code is written as an immutable commit and `selected.patch`; it is never
-applied to the source repository.
+Shared Population/harness/solution engines, immutable candidates, Docker tests,
+protected assays, fixed reference CLI, and worker recovery/verification remain.
+Use the explicit worker CLI documented in the
+[operations guide](../../../docs/coding-agent/operations.md) for resume, reasoned
+retry, stop, or offline verify. Retry still needs an authoritative pending intent
+and finite reservation. No existing run files are rewritten or migrated.
+Selected commits and patches are never automatically applied.
 
 ### Configuration
 
-The default reviewed runtime is
-`~/.config/metering/harness/runtime.pi.local.json`. Runs are stored under the
-checkout sibling `metering-live-runs/`, and discovered tasks under
-`metering-live-tasks/`. Override only with caller-reviewed absolute paths:
+Defaults: runtime `~/.config/metering/harness/runtime.pi.local.json`; runs and tasks
+in checkout siblings `metering-live-runs/` and `metering-live-tasks/`.
+Advanced caller-reviewed absolute overrides:
 
 - `METERING_EVOLUTION_RUNTIME_MANIFEST`;
 - `METERING_EVOLUTION_RUNS_DIR`;
 - `METERING_EVOLUTION_TASKS_DIR`;
-- `METERING_EVOLUTION_TASK_PROFILE`; and
-- `METERING_EVOLUTION_HARNESS_DESCRIPTOR` for an external sealed harness.
+- `METERING_EVOLUTION_TASK_PROFILE` (must target the current Git repository);
+- `METERING_EVOLUTION_HARNESS_DESCRIPTOR` (original sealed source, never rewritten).
 
-For a `llamacpp` worker runtime, local readiness defaults to
-`llama-qwen38.service`, `http://127.0.0.1:8080/v1/models`, and API key
-`llamacpp`. Operators may override
-`METERING_EVOLUTION_LLAMACPP_SERVICE`,
-`METERING_EVOLUTION_LLAMACPP_HEALTH_URL`, and
-`METERING_EVOLUTION_LLAMACPP_API_KEY`. Starting Pi never starts the service;
-Agentvolve checks it only when launching or resuming a worker that requires it.
+For a `llamacpp` worker, readiness defaults to `llama-qwen38.service`,
+`http://127.0.0.1:8080/v1/models`, and key `llamacpp`. Reviewed overrides are
+`METERING_EVOLUTION_LLAMACPP_SERVICE`, `METERING_EVOLUTION_LLAMACPP_HEALTH_URL`, and
+`METERING_EVOLUTION_LLAMACPP_API_KEY`. Only approved start checks/starts that
+service; loading, activation, and viewing never do.

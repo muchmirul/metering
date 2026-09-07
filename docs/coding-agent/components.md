@@ -5,7 +5,7 @@ coding evolution workflow. It evolves a coding harness, freezes that harness,
 then evolves immutable solution commits under independent evaluation.
 
 The existing implementation path `apps/coding_agent/`, documentation path
-`docs/coding-agent/`, `/evolve-*` commands, `darwinian_coding` tool name, and
+`docs/coding-agent/`, `darwinian_coding` tool name, and
 `darwinian-coding-*` JSON identifiers remain unchanged compatibility contracts.
 They identify existing code and run artifacts; they are not alternative product
 names.
@@ -53,7 +53,7 @@ rows are not heredity.
 |---|---|---|
 | **Qwen or another fixed model** | Produces one mutation proposal or one bounded harness action from the supplied prompt and context. The same fixed weights can be used for harness mutation and coding actions in separate stateless calls. | Candidate retention, evaluator results, protected-final access, Git identity, or deployment. |
 | **llama.cpp** | Serves the local model behind an OpenAI-compatible provider endpoint. It performs tokenization, sampling, prompt evaluation, and generation. | Evolution, task scoring, parent selection, or inherited memory. |
-| **Pi** | Remains the interactive operator, provides conversational no-effect activation and user-message-only task preparation with direct review, ordinary `/agentvolve` configuration/start commands, an active-worker-only cross-session `[1/6]`–`[6/6]` widget, `/view-progress`, `/view-history`, and compatibility `/evolve-*` commands. It launches a separate worker and keeps the operator's normal `/model`; nested calls stay manifest-pinned, use isolated configuration, and disable sessions, skills, extensions, prompt templates, context files, and provider tools. | Worker execution, sandbox enforcement, evaluator authority, Population authority, automatic installation, or silently substituting the operator model for the experiment model. |
+| **Pi** | Remains the interactive operator, provides conversational no-effect activation and user-message-only task preparation with direct review, exactly four commands (`/goal`, `/limit`, `/history`, `/progress`), an active-worker-only cross-session `[1/6]`–`[6/6]` widget, and paginated run/generation history with stage reports. `/goal` requires a saved or prompted limit and direct task approval before launch. It launches a separate worker and keeps the operator's normal `/model`; nested calls stay manifest-pinned, use isolated configuration, and disable sessions, skills, extensions, prompt templates, context files, and provider tools. | Worker execution, sandbox enforcement, evaluator authority, Population authority, automatic installation, or silently substituting the operator model for the experiment model. |
 | **Detached Agentvolve worker** | Sequences fixed harness/solution commands, owns a workflow lock and liveness heartbeat, and survives dashboard/Pi detachment. | Candidate selection or evidence authority beyond the underlying fixed applications. |
 | **Fixed Pi connector** | Pins the selected provider/model/reasoning names, verifies the Pi version, translates strict JSON model actions, and rejects malformed output. | General provider discovery or silent fallback to another model. |
 

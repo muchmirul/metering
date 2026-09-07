@@ -42,21 +42,36 @@ def rpc_request(
     process.stdin.flush()
     deadline = time.monotonic() + timeout
     events: list[dict[str, Any]] = []
+    buffer = getattr(process, "_agentvolve_rpc_buffer", b"")
     while time.monotonic() < deadline:
         if process.poll() is not None:
             stderr = process.stderr.read() if process.stderr is not None else ""
             raise AssertionError(f"Pi RPC exited with {process.returncode}: {stderr}")
-        ready, _, _ = select.select(
-            [process.stdout], [], [], max(0.0, min(1.0, deadline - time.monotonic()))
-        )
-        if not ready:
-            continue
-        line = process.stdout.readline()
-        if not line:
-            continue
+        if b"\n" not in buffer:
+            ready, _, _ = select.select(
+                [process.stdout], [], [], max(0.0, min(1.0, deadline - time.monotonic()))
+            )
+            if not ready:
+                continue
+            buffer += os.read(process.stdout.fileno(), 65536)
+            if b"\n" not in buffer:
+                continue
+        line, buffer = buffer.split(b"\n", 1)
         event = json.loads(line)
         events.append(event)
+        if event.get("type") == "extension_ui_request" and event.get("method") == "confirm":
+            # This opt-in test is authorized only for the exact operator-approved profile.
+            assert event["title"] == "Run this reviewed Agentvolve task?", event
+            expected_goal = getattr(process, "_agentvolve_reviewed_goal")
+            expected_rounds = getattr(process, "_agentvolve_reviewed_rounds")
+            assert json.dumps(expected_goal, ensure_ascii=False) in event["message"]
+            assert f"{expected_rounds} generations" in event["message"]
+            process.stdin.write(json.dumps({"type": "extension_ui_response", "id": event["id"], "confirmed": True}) + "\n")
+            process.stdin.flush()
+        elif event.get("type") == "extension_ui_request" and event.get("method") in {"input", "select", "editor"}:
+            raise AssertionError(f"unexpected task ambiguity in approved live fixture: {event}")
         if event.get("type") == "response" and event.get("id") == request_id:
+            setattr(process, "_agentvolve_rpc_buffer", buffer)
             return event, events
     raise AssertionError(f"timed out waiting for Pi RPC response {request_id!r}")
 
@@ -155,16 +170,16 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
         repository = Path(profile["repository"]["path"])
         goal = str(profile["goal"])
         rounds = int(profile["limits"]["max_rounds"])
-        before = set(runs_directory.glob("solution-pi-*"))
+        before = set(runs_directory.glob("workflow-pi-*"))
         environment = {
             **os.environ,
             "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(harness),
             "METERING_EVOLUTION_RUNS_DIR": str(runs_directory),
             "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime),
             "METERING_EVOLUTION_TASKS_DIR": str(tasks_directory),
+            "METERING_EVOLUTION_TASK_PROFILE": str(source_profile),
             "PI_BIN": pi_bin,
         }
-        environment.pop("METERING_EVOLUTION_TASK_PROFILE", None)
         process = subprocess.Popen(
             [pi_bin, "--mode", "rpc", "--no-session", "-e", str(EXTENSION)],
             cwd=repository,
@@ -175,12 +190,9 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             bufsize=1,
             env=environment,
         )
+        setattr(process, "_agentvolve_reviewed_goal", goal)
+        setattr(process, "_agentvolve_reviewed_rounds", rounds)
         try:
-            goal_response, goal_events = rpc_prompt(
-                process, f"goal-{index}", f"/goal {goal}", timeout=120
-            )
-            assert goal_response.get("success") is True, goal_response
-            assert not workflow_error(goal_events), workflow_error(goal_events)
             limit_response, limit_events = rpc_prompt(
                 process,
                 f"limit-{index}",
@@ -190,30 +202,36 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             assert limit_response.get("success") is True, limit_response
             assert not workflow_error(limit_events), workflow_error(limit_events)
             run_response, run_events = rpc_prompt(
-                process, f"run-{index}", "/agentvolve", timeout=2 * 60 * 60
+                process, f"run-{index}", f"/goal {goal}", timeout=600
             )
             assert run_response.get("success") is True, run_response
+            assert not workflow_error(run_events), workflow_error(run_events)
+            assert any(event.get("method") == "confirm" for event in run_events)
 
-            created = set(runs_directory.glob("solution-pi-*")) - before
+            created = set(runs_directory.glob("workflow-pi-*")) - before
             assert len(created) == 1, workflow_error(run_events)
-            run_root = created.pop()
+            workflow_root = created.pop()
+            request = json.loads((workflow_root / "workflow.json").read_text())
+            run_root = Path(request["solution_run_root"])
             retries = 0
-            while not (run_root / "experiment-report.json").is_file():
-                pending = run_root / "state" / "pending" / "round-intent.json"
-                assert retries < max_retries and pending.is_file(), workflow_error(
-                    run_events
-                )
-                retries += 1
-                retry_response, run_events = rpc_prompt(
-                    process,
-                    f"retry-{index}-{retries}",
-                    (
-                        "/evolve-code-retry "
-                        f"{retry_reason} (task {index + 1}, retry {retries})"
-                    ),
-                    timeout=2 * 60 * 60,
-                )
-                assert retry_response.get("success") is True, retry_response
+            deadline = time.monotonic() + 2 * 60 * 60
+            while True:
+                status = json.loads((workflow_root / "worker-status.json").read_text())
+                if status["state"] in {"completed", "verified"}:
+                    break
+                assert time.monotonic() < deadline, status
+                if status["state"] == "waiting-retry":
+                    assert retries < max_retries, status
+                    retries += 1
+                    retry = subprocess.run(
+                        [sys.executable, "-m", "apps.coding_agent.agentvolve_worker", "retry", str(workflow_root),
+                         f"{retry_reason} (task {index + 1}, retry {retries})"],
+                        cwd=ROOT, capture_output=True, text=True, timeout=120, env=environment,
+                    )
+                    assert retry.returncode == 0, retry.stderr
+                else:
+                    assert status["state"] in {"queued", "running"}, status
+                time.sleep(2)
 
             report = json.loads(
                 (run_root / "experiment-report.json").read_text(encoding="ascii")
@@ -231,7 +249,7 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
                 and entry.get("customType")
                 == "agentvolve-workflow-configuration"
             ]
-            assert configurations[-1] == {}
+            assert configurations[-1] == {"maxRounds": rounds}
             assert (run_root / "selected-solution.json").is_file()
             assert (run_root / "selected.patch").is_file()
 

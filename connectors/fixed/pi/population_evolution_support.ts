@@ -6,13 +6,11 @@ import { fileURLToPath } from "node:url";
 
 import type { ExecResult } from "@earendil-works/pi-coding-agent";
 
-const RUN_NAME = /^pi-\d{8}T\d{6}(?:\d{3})?Z$/;
 const WORKFLOW_RUN_NAME = /^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$/;
 const MAX_DIAGNOSTIC_CHARS = 4000;
 const DEFAULT_LLAMACPP_SERVICE = "llama-qwen38.service";
 const DEFAULT_LLAMACPP_HEALTH_URL = "http://127.0.0.1:8080/v1/models";
 
-export const COMMAND_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const LOCAL_RUNTIME_TIMEOUT_MS = 3 * 60 * 1000;
 export const WORKFLOW_MONITOR_INTERVAL_MS = 2000;
 export const PROCESS_LABELS: Record<number, string> = {
@@ -26,32 +24,14 @@ export const PROCESS_LABELS: Record<number, string> = {
 
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export type CodingKind = "harness" | "solution";
-export type CodingAction =
-	| "harness"
-	| "harness-resume"
-	| "harness-retry"
-	| "harness-status"
-	| "solution"
-	| "solution-resume"
-	| "solution-retry"
-	| "solution-status"
-	| "solution-verify";
-
 export interface ProcessProjection {
 	display: string;
 	stage: number;
 }
 
 export interface ModeSummary {
-	action: "run" | "status" | "verify";
-	candidateId?: string;
-	finalPassed?: number;
-	finalTasks?: number;
-	kind?: "arithmetic" | "coding-harness" | "coding-solution";
-	patchPath?: string;
 	process?: string;
 	runRoot: string;
-	runtimeId?: string;
 	status: string;
 }
 
@@ -153,6 +133,27 @@ export interface OperatorHistoryView {
 		warning?: string;
 	}>;
 	runs_directory: string;
+	offset: number;
+	page_size: number;
+	total_runs: number;
+	next_offset: number | null;
+}
+
+export interface OperatorTraceView {
+	authority: "projection-only";
+	trace_schema: "agentvolve-trace-view-v1";
+	workflow_root: string;
+	offset: number;
+	page_size: number;
+	total_rounds: number;
+	next_offset: number | null;
+	experiments: Array<{
+		kind: CodingKind;
+		run_root: string;
+		reused: boolean;
+		report: Record<string, unknown> | null;
+	}>;
+	rounds: Array<OperatorRoundView & { kind: CodingKind; run_root: string }>;
 }
 
 export function repositoryRoot(): string {
@@ -293,32 +294,6 @@ export async function discoverTaskProfiles(): Promise<DiscoveredTaskProfile[]> {
 	return profiles;
 }
 
-function timestamp(): string {
-	return new Date().toISOString().replaceAll(/[-:.]/g, "");
-}
-
-export function newRunRoot(): string {
-	return join(runsDirectory(), `pi-${timestamp()}`);
-}
-
-export function newCodingRunRoot(kind: CodingKind): string {
-	return join(runsDirectory(), `${kind}-pi-${timestamp()}`);
-}
-
-export async function latestRunRoot(): Promise<string | undefined> {
-	try {
-		const entries = await readdir(runsDirectory(), { withFileTypes: true });
-		return entries
-			.filter((entry) => entry.isDirectory() && RUN_NAME.test(entry.name))
-			.map((entry) => join(runsDirectory(), entry.name))
-			.filter((root) => existsSync(join(root, "experiment-report.json")))
-			.sort()
-			.reverse()[0];
-	} catch {
-		return undefined;
-	}
-}
-
 export async function latestWorkerWorkflowRoot(): Promise<string | undefined> {
 	try {
 		const entries = await readdir(runsDirectory(), { withFileTypes: true });
@@ -332,19 +307,14 @@ export async function latestWorkerWorkflowRoot(): Promise<string | undefined> {
 	}
 }
 
-export async function latestCodingRoot(kind: CodingKind, requireCompleted = true): Promise<string | undefined> {
-	const pattern = new RegExp(`^${kind}-pi-\\d{8}T\\d{6}(?:\\d{3})?Z$`);
+export async function latestSealedHarnessRoot(): Promise<string | undefined> {
+	const pattern = /^harness-pi-\d{8}T\d{6}(?:\d{3})?Z(?:-\d+)?$/;
 	try {
 		const entries = await readdir(runsDirectory(), { withFileTypes: true });
-		const marker = kind === "harness" ? "selected-harness.json" : "selected-solution.json";
 		return entries
 			.filter((entry) => entry.isDirectory() && pattern.test(entry.name))
 			.map((entry) => join(runsDirectory(), entry.name))
-			.filter((root) =>
-				requireCompleted
-					? existsSync(join(root, marker))
-					: existsSync(join(root, "process-status.json")) || existsSync(join(root, "state", "driver.jsonl")),
-			)
+			.filter((root) => existsSync(join(root, "selected-harness.json")))
 			.sort()
 			.reverse()[0];
 	} catch {
@@ -370,35 +340,6 @@ export function processProjection(stage: number): ProcessProjection {
 
 function integer(value: unknown): number | undefined {
 	return Number.isInteger(value) ? (value as number) : undefined;
-}
-
-export async function readProcessProjection(
-	runRoot: string,
-	runKind: CodingKind,
-	fallbackStage: number,
-): Promise<ProcessProjection> {
-	const path = join(runRoot, "process-status.json");
-	if (!existsSync(path)) return processProjection(fallbackStage);
-	const value: unknown = JSON.parse(await readFile(path, "utf8"));
-	if (typeof value !== "object" || value === null || Array.isArray(value)) {
-		throw new Error("coding process status is malformed");
-	}
-	const document = value as Record<string, unknown>;
-	const stage = integer(document.stage);
-	if (
-		document.authority !== "projection-only" ||
-		document.process_schema !== "darwinian-coding-process-v1" ||
-		document.run_kind !== runKind ||
-		document.total_stages !== 6 ||
-		stage === undefined
-	) {
-		throw new Error("coding process status has an unexpected identity");
-	}
-	const expected = processProjection(stage);
-	if (document.display !== expected.display || document.stage_label !== PROCESS_LABELS[stage]) {
-		throw new Error("coding process status does not replay");
-	}
-	return expected;
 }
 
 export function boundedDiagnostic(value: string): string {
@@ -435,100 +376,6 @@ export function decodeOutput(result: ExecResult): Record<string, unknown> {
 
 function text(value: unknown): string | undefined {
 	return typeof value === "string" ? value : undefined;
-}
-
-export function runSummary(runRoot: string, report: Record<string, unknown>): ModeSummary {
-	if (report.schema !== "evolutionary-harness-experiment-v1") {
-		throw new Error("live experiment returned an unexpected schema");
-	}
-	const final = report.final;
-	if (typeof final !== "object" || final === null || Array.isArray(final)) {
-		throw new Error("live experiment omitted its final result");
-	}
-	const finalResult = final as Record<string, unknown>;
-	return {
-		action: "run",
-		candidateId: text(finalResult.candidate_id),
-		finalPassed: integer(finalResult.passed_count),
-		finalTasks: integer(finalResult.task_count),
-		kind: report.assay === "coding-agent-v1" ? "coding-harness" : "arithmetic",
-		runRoot,
-		runtimeId: text(report.runtime_id),
-		status: "sealed",
-	};
-}
-
-export function verificationSummary(runRoot: string, report: Record<string, unknown>): ModeSummary {
-	if (report.schema !== "evolutionary-harness-verification-v1") {
-		throw new Error("offline verifier returned an unexpected schema");
-	}
-	return {
-		action: "verify",
-		kind: report.assay === "coding-agent-v1" ? "coding-harness" : "arithmetic",
-		runRoot,
-		runtimeId: text(report.runtime_id),
-		status: text(report.status) ?? "unknown",
-	};
-}
-
-export function codingSolutionSummary(
-	runRoot: string,
-	report: Record<string, unknown>,
-	action: "run" | "status" | "verify",
-): ModeSummary {
-	const expected = action === "verify" ? "darwinian-coding-verification-v1" : "darwinian-coding-experiment-v1";
-	if (report.schema !== expected) throw new Error("coding evolution returned an unexpected schema");
-	const final = report.final;
-	const selected = report.selected_solution;
-	const finalResult =
-		typeof final === "object" && final !== null && !Array.isArray(final)
-			? (final as Record<string, unknown>)
-			: undefined;
-	const selectedResult =
-		typeof selected === "object" && selected !== null && !Array.isArray(selected)
-			? (selected as Record<string, unknown>)
-			: undefined;
-	return {
-		action,
-		candidateId: text(selectedResult?.candidate_id) ?? text(report.selected_candidate_id),
-		finalPassed: integer(finalResult?.passed_count),
-		finalTasks: integer(finalResult?.task_count),
-		kind: "coding-solution",
-		patchPath: action === "verify" ? undefined : join(runRoot, "selected.patch"),
-		runRoot,
-		runtimeId: text(report.runtime_id) ?? text(report.coding_runtime_id),
-		status: action === "verify" ? (text(report.status) ?? "unknown") : "sealed",
-	};
-}
-
-export async function codingStatusAtRoot(kind: CodingKind, root: string): Promise<ModeSummary> {
-	const completed = existsSync(join(root, "experiment-report.json"));
-	const fallbackStage = kind === "harness" ? (completed ? 3 : 2) : completed ? 6 : 4;
-	const process = await readProcessProjection(root, kind, fallbackStage);
-	if (!completed) {
-		return {
-			action: "status",
-			kind: kind === "harness" ? "coding-harness" : "coding-solution",
-			process: process.display,
-			runRoot: root,
-			status: "in progress",
-		};
-	}
-	const value: unknown = JSON.parse(await readFile(join(root, "experiment-report.json"), "utf8"));
-	if (typeof value !== "object" || value === null || Array.isArray(value)) {
-		throw new Error(`coding ${kind} report is malformed: ${root}`);
-	}
-	const summary =
-		kind === "harness"
-			? { ...runSummary(root, value as Record<string, unknown>), action: "status" as const }
-			: codingSolutionSummary(root, value as Record<string, unknown>, "status");
-	return { ...summary, process: process.display };
-}
-
-export async function codingStatus(kind: CodingKind): Promise<ModeSummary> {
-	const root = await latestCodingRoot(kind, false);
-	if (!root) throw new Error(`no coding ${kind} runs exist under ${runsDirectory()}`);
-	return codingStatusAtRoot(kind, root);
 }
 
 async function projectedWorkerAlive(root: string, status: Record<string, unknown>): Promise<boolean> {
@@ -571,24 +418,7 @@ async function workerWorkflowStatus(root: string): Promise<ModeSummary> {
 		const alive = await projectedWorkerAlive(root, status);
 		if (heartbeatAge >= 10_000 || (!alive && heartbeatAge >= 5_000)) state = "stalled";
 	}
-	let report: Record<string, unknown> | undefined;
-	const reportPath = join(root, "workflow-report.json");
-	if (existsSync(reportPath)) {
-		const reportValue: unknown = JSON.parse(await readFile(reportPath, "utf8"));
-		if (typeof reportValue === "object" && reportValue !== null && !Array.isArray(reportValue)) {
-			report = reportValue as Record<string, unknown>;
-			if (report.report_schema !== "agentvolve-workflow-report-v1" || report.workflow_id !== status.workflow_id) {
-				throw new Error("Agentvolve workflow report does not match worker status");
-			}
-		}
-	}
 	return {
-		action: "status",
-		candidateId: text(report?.candidate_id),
-		finalPassed: integer(report?.final_passed),
-		finalTasks: integer(report?.final_tasks),
-		kind: stage <= 3 ? "coding-harness" : "coding-solution",
-		patchPath: text(report?.patch_path),
 		process: processProjection(stage).display,
 		runRoot: root,
 		status: state,
@@ -599,47 +429,9 @@ export async function codingWorkflowStatus(): Promise<ModeSummary> {
 	const workflow = await latestWorkerWorkflowRoot();
 	if (workflow && existsSync(join(workflow, "worker-status.json"))) return workerWorkflowStatus(workflow);
 	return {
-		action: "status",
-		kind: "coding-solution",
 		runRoot: runsDirectory(),
 		status: "not started",
 	};
-}
-
-export async function workflowHistory(limit = 50): Promise<ModeSummary[]> {
-	let entries: Array<{ isDirectory(): boolean; name: string }>;
-	try {
-		entries = await readdir(runsDirectory(), { withFileTypes: true });
-	} catch {
-		return [];
-	}
-	const names = entries
-		.filter((entry) => entry.isDirectory() && /^(?:harness|solution)-pi-\d{8}T\d{6}(?:\d{3})?Z$/.test(entry.name))
-		.map((entry) => entry.name)
-		.sort((left, right) => {
-			const leftStamp = left.slice(left.lastIndexOf("-pi-") + 4);
-			const rightStamp = right.slice(right.lastIndexOf("-pi-") + 4);
-			return rightStamp.localeCompare(leftStamp);
-		})
-		.slice(0, limit);
-	const summaries: ModeSummary[] = [];
-	for (const name of names) {
-		const kind = name.startsWith("harness-") ? "harness" : "solution";
-		const root = join(runsDirectory(), name);
-		try {
-			summaries.push(await codingStatusAtRoot(kind, root));
-		} catch {
-			const fallback = kind === "harness" ? 2 : 4;
-			summaries.push({
-				action: "status",
-				kind: kind === "harness" ? "coding-harness" : "coding-solution",
-				process: processProjection(fallback).display,
-				runRoot: root,
-				status: "unreadable",
-			});
-		}
-	}
-	return summaries;
 }
 
 function requiredObject(value: unknown, label: string): Record<string, unknown> {
@@ -770,6 +562,7 @@ export function decodeOperatorHistory(value: Record<string, unknown>): OperatorH
 		value.history_schema !== "agentvolve-history-view-v1" ||
 		value.authority !== "projection-only" ||
 		!Array.isArray(value.runs) ||
+		!validPage(value, "total_runs", 50) ||
 		typeof value.runs_directory !== "string" ||
 		!value.runs.every((item) => {
 			if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
@@ -791,20 +584,27 @@ export function decodeOperatorHistory(value: Record<string, unknown>): OperatorH
 	return value as unknown as OperatorHistoryView;
 }
 
-export async function statusSummary(): Promise<ModeSummary> {
-	const runRoot = await latestRunRoot();
-	if (!runRoot) throw new Error(`no Population runs exist under ${runsDirectory()}`);
-	const reportPath = join(runRoot, "experiment-report.json");
-	let report: Record<string, unknown>;
-	try {
-		const value: unknown = JSON.parse(await readFile(reportPath, "utf8"));
-		if (typeof value !== "object" || value === null || Array.isArray(value)) {
-			throw new Error("report is not an object");
-		}
-		report = value as Record<string, unknown>;
-	} catch (error) {
-		throw new Error(`latest run has no valid experiment report: ${String(error)}`);
-	}
-	const summary = runSummary(runRoot, report);
-	return { ...summary, action: "status" };
+function validPage(value: Record<string, unknown>, totalKey: string, pageSize: number): boolean {
+	return [value.offset, value[totalKey]].every((item) => Number.isSafeInteger(item) && Number(item) >= 0) &&
+		value.page_size === pageSize &&
+		(value.next_offset === null || (Number.isSafeInteger(value.next_offset) && value.next_offset === Number(value.offset) + pageSize && Number(value.next_offset) < Number(value[totalKey])));
+}
+
+export function decodeOperatorTrace(value: Record<string, unknown>): OperatorTraceView {
+	if (value.trace_schema !== "agentvolve-trace-view-v1" || value.authority !== "projection-only" ||
+		typeof value.workflow_root !== "string" || !validPage(value, "total_rounds", 20) ||
+		!Array.isArray(value.experiments) || value.experiments.length > 2 ||
+		!value.experiments.every((item) => {
+			const experiment = requiredObject(item, "trace experiment");
+			return ["harness", "solution"].includes(String(experiment.kind)) && typeof experiment.run_root === "string" &&
+				typeof experiment.reused === "boolean" && (experiment.report === null || !!requiredObject(experiment.report, "trace report"));
+		}) || !Array.isArray(value.rounds) || value.rounds.length > 20 ||
+		!value.rounds.every((item) => {
+			const round = requiredObject(item, "trace round");
+			return ["harness", "solution"].includes(String(round.kind)) && typeof round.run_root === "string" &&
+				[round.archive_members, round.attempts, round.retries].every(Number.isInteger) &&
+				[round.round, round.parent_passed, round.challenger_passed].every(nullableInteger) &&
+				[round.child_candidate_id, round.parent_candidate_id, round.selected_candidate_id, round.decision].every((item) => typeof item === "string");
+		})) throw new Error("operator trace returned an unexpected schema");
+	return value as unknown as OperatorTraceView;
 }

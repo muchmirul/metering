@@ -128,25 +128,24 @@ task rate then reliability with an exact tie draw, runs protected checks after
 allocation, permanently seals search, and emits a replay-checked patch without
 changing the source repository. Its strict `darwinian-coding-task-v1` profile
 owns allowed paths, argv checks, draws, budgets, and optional goal-or-limit
-stopping. Plain Pi exposes conversational activation plus `/goal`, `/limit`, and
-`/agentvolve` as a streamlined workflow. No-effect activation leaves Pi as the
-operator. Fixed code can discover reviewed profiles, derive the exact goal,
-clean `HEAD`, finite generations, and draws, and start without a copied profile
-path. TUI ambiguity uses direct operator selection of reviewed summaries. A
+stopping. Plain Pi exposes conversational activation and exactly `/goal`,
+`/limit`, `/history`, and `/progress`. `/goal` requests a missing limit and direct
+task approval before starting; the saved limit persists across goals. No-effect
+activation leaves Pi as the operator. Fixed code can discover reviewed profiles,
+derive the exact goal, clean `HEAD`, finite generations, and draws, and start
+without a copied profile path. TUI and RPC require explicit contract selection
+and approval. A
 user-message-only session task path asks conversational clarifications when
 needed, displays a complete human-readable contract for mandatory review, and
 keeps JSON as an optional advanced correction surface. It does not invent
 evaluator authority from prose. While active, its monitor polls shared runs
 across activated Pi sessions; the `[1/6]`–`[6/6]` widget is visible only for a
 queued or running detached worker and clears when none is active.
-`/agentvolve-history` browses recent run status. Nested assay calls remain pinned
-to the canonical runtime. Compatibility commands include `/evolve-harness`,
-`/evolve-harness-status`, explicit
-`/evolve-harness-resume` or operator-reasoned `/evolve-harness-retry`,
-`/evolve-code`, explicit
-`/evolve-code-resume` or
-operator-reasoned `/evolve-code-retry`, `/evolve-code-status`, and
-`/evolve-code-verify` only after explicit invocation.
+`/history` pages through all runs and recorded harness/solution generations,
+with stage reports and results. `/progress` inspects the most recent run, not an
+older abandoned run. Nested assay calls remain pinned to the canonical runtime.
+Old slash commands and compatibility Pi tool actions are removed; shared engines,
+worker CLI recovery/verification, and existing run artifacts are unchanged.
 
 Implemented candidate forms are:
 

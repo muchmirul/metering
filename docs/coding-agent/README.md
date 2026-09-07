@@ -47,19 +47,22 @@ heredity. Only validated Git commits reproduce.
 [6/6] Result ready for review
 ```
 
-In an extension-enabled Pi session, the operator may say “activate Agentvolve”
-or run `/agentvolve`, then describe and clarify a coding goal in ordinary
-conversation. Activation starts no task. After an explicit solve request, Pi can
-prepare a canonical task from user-only session messages, display its paths,
-checks, budgets, and policies for direct human-readable review, and launch only
-after approval. The explicit `/goal`, `/limit`, `/agentvolve` route remains.
+In an extension-enabled Pi session, the operator may say “activate Agentvolve”,
+then describe and clarify a coding goal in ordinary conversation. Activation
+starts no task. The four commands are `/goal`, `/limit`, `/history`, and
+`/progress`. Set `/limit N`, then submit `/goal PROBLEM`; `/goal` asks for a limit
+if missing and requires direct approval of the task's paths, checks, budgets,
+and policies before launching. The last limit persists for future tasks. Pi can
+also prepare a reviewed canonical task from user-only session messages after an
+explicit conversational solve request.
 There is no model picker: Pi keeps its normal interactive `/model` and starts a
 separate detached worker whose identity and budgets remain pinned to the
 canonical runtime manifest. Launch returns immediately. While operator mode is
 active, the monitor polls the shared run directory across sessions; its compact
 `[1/6]`–`[6/6]` widget appears only while a detached workflow is queued or
-running and clears when no worker is active. `/view-progress` opens the live dashboard and
-`/view-history` exposes recent runs. Operators do not choose between internal
+running and clears when no worker is active. `/progress` inspects the latest
+run, including a finished run; `/history` browses past runs, all recorded
+generations in bounded pages, completed-stage reports, and results. Operators do not choose between internal
 harness and solution levels. The worker status, tracker, graph, diff preview,
 and reports are convenience projections. Candidate Git objects, canonical
 hash-linked JSONL, exact allocations, and content-addressed receipts remain the
@@ -89,6 +92,7 @@ Applying the patch is always a separate operator action.
 
 The implementation lives in [`apps/coding_agent/`](../../apps/coding_agent/README.md),
 while Level 2 lives in [`apps/harness/`](../../apps/harness/README.md).
-The implementation directory, `/evolve-*` commands, `darwinian_coding` tool, and
-`darwinian-coding-*` schema identifiers retain their existing names for
-compatibility with recorded runs.
+The implementation directory, `darwinian_coding` tool, and `darwinian-coding-*`
+schema identifiers retain their names for recorded-run compatibility. Legacy
+slash commands and low-level Pi tool handlers are removed, not the shared
+engine or its explicit CLI recovery and verification.

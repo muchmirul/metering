@@ -138,7 +138,8 @@ uv run python -m apps.coding_agent.agentvolve_worker stop WORKFLOW_ROOT
 uv run python -m apps.coding_agent.agentvolve_worker verify WORKFLOW_ROOT
 
 uv run python -m apps.coding_agent.operator_view progress RUNS_DIRECTORY [RUN_NAME]
-uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY
+uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY [OFFSET]
+uv run python -m apps.coding_agent.operator_view trace RUNS_DIRECTORY RUN_NAME [OFFSET]
 ```
 
 Each effectful worker command returns one bounded JSON launch response. Progress
@@ -163,73 +164,42 @@ checks, budgets, stopping, and final policy, and registers canonical JSON only
 after direct operator approval. Advanced JSON editing remains available when a
 generated draft needs correction.
 
-The explicit configured route remains:
+The only Agentvolve slash commands are:
 
 ```text
+/limit 10
 /goal Describe the independently checkable task
-/limit 100 generations
-/agentvolve
+/history [RUN_NAME]
+/progress
 ```
 
-The first two commands persist session configuration. With both present,
-`/agentvolve` derives a canonical profile from a reviewed contract and starts a
-separate detached worker. A sole contract bound to the current clean Git folder
-is automatic. TUI mode offers direct operator selection when registered
-profiles are otherwise ambiguous or bound elsewhere; RPC mode requires an
-unambiguous folder-bound or explicitly configured task. Without a complete pair,
-`/agentvolve` activates operator mode and returns to Pi with conversational and
-slash-command guidance. It never opens a model picker. Pi keeps its current
-model; use Pi's normal `/model` command to change the interactive operator.
+`/limit` saves 1–256 generations for future tasks. `/goal` asks for a limit if
+missing, then offers reviewed current-repository contracts or prepares a new
+user-only draft. Even a sole discovered contract requires selection. Direct
+human-readable task approval is mandatory in both TUI and RPC before start.
+Cancelling or invalid input starts no worker. Pending goals may be resubmitted
+with `/goal` alone; successful launch clears the goal but retains the last limit.
+Session restore starts no task. Changing `/limit` never changes a running task
+and is refused during task review.
 
-The evolution worker independently uses the model/provider/reasoning identity
-and finite budgets in the canonical runtime manifest. Launch returns
-immediately, so the operator can keep chatting, inspect files, or leave the live
-dashboard while work continues.
+Pi keeps its model and thinking level. The worker uses the canonical runtime's
+independent provider/model/reasoning and budgets. Launch returns immediately;
+Pi stays usable while the separate worker runs.
 
-Other explicit starts are:
+`/progress` inspects the most recent run, even after completion, rather than
+selecting an older abandoned unfinished run. `/history` pages through every run
+(50 per page) and opens stage reports, results, and every recorded harness and
+solution generation (20 per page). Reused harness evidence is clearly labelled.
+The dashboard refreshes every two seconds. `[`/`]` page generations;
+arrows/PageUp/PageDown scroll full stage summaries and result paths; `r`
+refreshes, `d` expands the bounded diff, and `Esc`/`q` returns without stopping the
+worker. The compact widget remains active-only and clears when no worker runs.
 
-```text
-/evolve-start /absolute/path/task.json
-/evolve-start
-/evolve-task
-```
-
-The argument-free `/evolve-start` automatically uses one folder-bound profile or
-opens the same in-session reviewed-task selector in TUI mode. `/evolve-task`
-prepares from user messages, presents human-readable review and confirmation,
-and exposes raw JSON only for advanced correction before registration and
-launch.
-
-Inspect shared state from this or another Pi session:
-
-```text
-/view-progress [RUN_NAME]
-/view-history
-```
-
-`/view-progress` opens a terminal-native dashboard that refreshes every two
-seconds. It labels the operator and worker models separately and shows all six
-stages, worker liveness, current activity, committed rounds/attempts/archive,
-bounded lineage and candidate diff views, completed-stage reports, and the final
-commit/patch report. Press `r` to refresh, `d` to expand/collapse the diff, and
-`Esc` or `q` to return to Pi without affecting the worker. `/view-history`
-lists up to 50 shared workflow or legacy runs and opens the selected dashboard.
-`/agentvolve-history` is a compatibility alias.
-
-Recovery and verification are also explicit slash commands:
-
-```text
-/agentvolve-resume
-/agentvolve-retry OPERATOR-REVIEWED-REASON
-/agentvolve-stop
-/agentvolve-verify
-/agentvolve-off
-```
-
-Resume cannot repeat an indeterminate model call. Retry is accepted only in a
-reserved retry state. Stop interrupts the worker and its owned effect rather
-than declaring success. Verification runs as a detached offline replay after
-completion. A workflow-scoped inherited file lock prevents concurrent workers.
+Recovery and verification use the explicit worker CLI above, not additional
+slash commands. Resume cannot repeat an indeterminate model call; retry needs a
+reserved pending intent and operator reason. Stop does not declare success.
+Verification is a detached offline replay after completion. Inherited workflow
+locks still prevent concurrent workers.
 
 The UI files are projection-only. `workflow.json` and ordinal job records bind
 orchestration identity, while `worker-status.json`, `workflow-report.json`, the
@@ -237,33 +207,26 @@ dashboard, and stage notices confer no experimental authority. Candidate Git
 objects, canonical ledgers, allocations, receipts, and permanent seals remain
 authoritative.
 
-The low-level compatibility commands remain available:
+Old `/evolve*`, `/agentvolve*`, `/view-progress`, and `/view-history` registrations
+and their unused UI handlers are removed. This includes the reference Pi tool
+and low-level harness/solution tool actions, not the shared engine, reference
+CLI, or existing evidence. Run artifacts require no migration. Reload Pi and
+update command automation.
 
-```text
-/evolve-harness
-/evolve-harness-status
-/evolve-harness-resume
-/evolve-harness-retry REASON
-/evolve-code /absolute/path/task.json
-/evolve-code-status
-/evolve-code-resume
-/evolve-code-retry REASON
-/evolve-code-verify
-```
-
-The model-facing `darwinian_coding` tool supports no-effect
+The model-facing `darwinian_coding` tool supports only no-effect
 `workflow_activate`, operator-reviewed `workflow_from_session`, detached
 `workflow_start`, read-only `workflow_status` and `workflow_history`, and
-detached `workflow_verify`, plus the existing harness/solution actions. It
+`workflow_verify`. It
 cannot carry task text, evaluator commands, candidates, output paths,
 task-profile paths, protected checks, or retry authority as action arguments.
 The current user remains the source of session task text and the direct reviewer
 of the generated contract.
 
-For Pi RPC automation, send `/goal`, `/limit`, and `/agentvolve`, or service the
-session-task review UI protocol; launch still returns after the worker is
-detached. The progress/history projections are JSON and can be read without
-attaching to that process.
+For Pi RPC automation, send `/limit`, then `/goal`, and service the direct task
+selection/approval UI protocol. Never synthesize approval for an unreviewed task.
+Launch returns after detachment; wait for the bound workflow's terminal status,
+not merely the command response. Progress/history/trace projections are JSON and
+can be inspected without attaching to the worker.
 
 ## Run output
 

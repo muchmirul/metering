@@ -520,8 +520,10 @@ recombine Git candidates, co-evolve an evaluator, install, or deploy.
 **Agentvolve** is the user-facing name for the accepted two-level coding
 workflow. `apps/coding_agent` remains the compatibility-stable narrow coding
 executor path over that same typed harness and Docker profile. Existing
-`darwinian-coding-*` schema identifiers, the `darwinian_coding` tool name, and
-`/evolve-*` commands remain unchanged so recorded runs and task profiles replay.
+`darwinian-coding-*` schema identifiers and the `darwinian_coding` tool name
+remain unchanged so recorded runs and task profiles replay. The Pi slash-command
+surface is now only `/goal`, `/limit`, `/history`, and `/progress`; old UI
+compatibility handlers are removed, not shared engine or evidence code.
 Agentvolve does not activate arbitrary legacy Git execution.
 Its canonical `darwinian-coding-task-v1` profile binds one absolute
 operator-approved repository, exact base commit and entrypoint, sorted allowed
@@ -532,7 +534,7 @@ finite round/proposal/wall limits, and an optional evaluator-backed goal-or-limi
 stopping policy. Profiles without the additive policy retain numeric limit-only
 behavior. Fixed code opens the protected profile only
 after development stops. A model cannot directly authorize or alter either
-profile. The explicit `/evolve-task` command and fixed model-facing
+profile. The `/goal` draft path and fixed model-facing
 `workflow_from_session` action may generate a task-description draft from user
 messages on the active Pi branch, but they exclude assistant messages and
 require direct operator review before fixed code registers the profile. The
@@ -541,8 +543,8 @@ paths, check argv, budgets, stopping policy, and final policy in human-readable
 form; canonical JSON is only an advanced correction surface. That registration
 binds a clean repository HEAD and may only replay the reviewed public checks as
 its disclosed protected-final policy; it does not invent hidden coverage.
-`/goal` plus `/limit` may mechanically derive a fresh profile only from
-an already reviewed discovered task profile, preserving its paths, checks,
+`/goal` plus `/limit` may mechanically derive a fresh profile from an explicitly
+selected already reviewed task profile, preserving its paths, checks,
 protected-final binding, and stopping policy while updating the exact goal,
 clean HEAD, round limit, and draws. The task identity is the SHA-256 of its
 normalized canonical form.
@@ -614,37 +616,35 @@ inside that run. Output is an immutable selected commit/descriptor, a
 replay-derived patch, and evidence. Applying, merging, installing, or deploying
 it is always a separate caller action.
 
-The reviewed Pi extension registers `/agentvolve` as the ordinary activation or
-configured-start command; `/goal` and `/limit` persist workflow configuration on
-the active session branch. Model-facing `workflow_activate` mirrors no-effect
-mode activation so a user may enter Agentvolve through normal conversation.
-`/evolve-start`, `/evolve-task`, `/agentvolve-resume`, `/agentvolve-retry`,
-`/agentvolve-stop`, `/agentvolve-verify`, `/view-progress`, `/view-history`, and
-`/agentvolve-off` provide explicit operator actions. `/agentvolve-history`
-aliases `/view-history`, and the existing
-`/evolve-harness`, `/evolve-harness-status`, `/evolve-harness-resume`,
-`/evolve-harness-retry`, `/evolve-code`, `/evolve-code-resume`,
-`/evolve-code-retry`, `/evolve-code-status`, and `/evolve-code-verify` commands
-remain as compatibility surfaces. A caller may explicitly list the reviewed
-absolute extension path in Pi's global settings to make these commands available
-from every working directory.
+The reviewed Pi extension registers exactly `/goal`, `/limit`, `/history`, and
+`/progress`. `/goal TEXT` prepares a reviewed coding task and starts its detached
+workflow only after direct approval. `/limit N [generations]` persists a finite
+1–256 generation cap for future tasks. If missing, `/goal` asks for the limit
+before task preparation; cancellation, missing information, or invalid input
+starts no worker. Successful launch clears the pending goal but retains the last
+limit. Argument-free `/goal` may resubmit an unlaunched pending goal, never
+implicitly restart a completed one. Configuration restoration starts no task;
+changing `/limit` never changes an immutable running task. Concurrent preparation
+is rejected, and a limit cannot change while its task is under review.
 
-There is no Agentvolve model picker. Pi keeps its normal interactive operator
+Model-facing `workflow_activate` supplies no-effect activation for normal
+conversation. There is no Agentvolve model picker: Pi keeps its interactive
 model and thinking level. Activation alone starts no model, service, task, or
-worker and lets the user continue in ordinary conversation. `/agentvolve` with
-both `/goal` and `/limit` configured discovers at most 200 `*.task.json` files
-from the absolute `METERING_EVOLUTION_TASKS_DIR` (defaulting to the checkout
-sibling `metering-live-tasks`), mechanically derives a canonical run profile,
-and launches it. One profile bound to the clean current Git repository is
-automatic. In TUI mode, zero or multiple folder matches require direct operator
-selection from bounded reviewed summaries; cancellation starts nothing. RPC mode
-fails closed unless a folder-bound or explicitly configured profile is
-unambiguous. Missing configuration gives conversational and command guidance.
-`/evolve-task` and `workflow_from_session` preserve the explicit
-user-message-only draft, human-readable operator review/confirmation, optional
-advanced JSON correction, fixed registration, and launch path. The configured
-three-command flow is also available in Pi RPC mode for headless operator
-automation.
+worker. A caller may explicitly register the reviewed absolute extension path
+in Pi's global settings for use from every working directory.
+
+`/goal` discovers at most 200 direct `*.task.json` files under the absolute
+`METERING_EVOLUTION_TASKS_DIR` (default checkout sibling `metering-live-tasks`).
+It offers current-repository summaries for direct selection, even for a sole
+match, or prepares a new draft. An explicitly configured profile must target
+the current repository. Selected contracts are mechanically derived and reviewed
+before launch; their checks must actually represent the new goal. With no
+selected contract, `/goal` uses the user-message-only draft path, as does
+`workflow_from_session`. The exact slash goal, Git repository, and generation
+cap are user-bound, not model-authored. Human-readable approval, optional advanced
+JSON correction, fixed registration, and preflight remain mandatory. TUI and RPC
+both service the direct review protocol; neither treats prose as evaluator
+authority. Removed slash commands and low-level tool actions are not aliases.
 
 Start validates the task, runtime, protected-final structure, Git binding,
 selected harness when supplied, runtime executable, and local-model readiness
@@ -669,11 +669,15 @@ bound workflow reference, and shows its compact six-stage widget only while the
 latest detached workflow is genuinely queued or running. Abandoned legacy run
 directories and terminal workflows are not displayed as current progress. A
 workflow observed while active emits each completed stage report at most once on
-its active branch. Deactivation or session shutdown stops only the monitor.
-`/view-progress` renders all six stages and conditionally renders bounded
-lineage, Git diff, warnings, and final commit/patch sections only when immutable
-evidence exists. `/view-history` browses at most the latest 50 workflow and
-legacy experiment runs. The dashboard distinctly labels the current Pi operator
+its active branch. Session shutdown stops only the monitor, not a launched worker.
+`/progress` explicitly inspects the most recent run, including a finished run;
+an older unfinished run cannot displace it. `/history [RUN_NAME]` browses all
+workflow and legacy experiment runs in pages of 50. A selected run exposes all
+recorded harness and solution generations in pages of 20, stage report summaries,
+and results. Reused harness traces are labelled separately and never claimed as
+new Level-2 work. Trace projections validate hash-linked records and retain
+bounded ledger reads; Git diff previews remain explicitly bounded. Existing
+run artifacts are not rewritten. The dashboard distinctly labels the current Pi operator
 model and manifest-pinned worker model/PID/liveness; monitoring never authorizes
 effects.
 
@@ -689,7 +693,10 @@ separate detached offline replay of an otherwise complete workflow.
 The model-facing `darwinian_coding` tool adds fixed no-effect
 `workflow_activate`, operator-reviewed `workflow_from_session`,
 `workflow_start`, read-only `workflow_status` and `workflow_history`, and
-`workflow_verify` actions while retaining the existing low-level action enum.
+`workflow_verify` actions. The old harness/solution action enum and reference
+`population_evolution` Pi tool are removed, along with their unused UI helpers.
+Shared Population, harness/solution engines, fixed reference CLI, worker
+recovery/verification, and recorded evidence remain intact.
 Its action schema accepts no task text, command, evaluator, candidate, profile
 path, retry reason, or output path. `workflow_start` uses configured profiles or
 fixed discovery and returns a non-effectful clarification state when no task can

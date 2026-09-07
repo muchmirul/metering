@@ -112,66 +112,43 @@ always remains mandatory.
 
 ### Use from Pi
 
-Register the reviewed `.pi/extensions/population-evolution.ts` entrypoint, then
-activate Agentvolve from normal conversation (for example, “activate
-Agentvolve”) or with `/agentvolve`. Activation starts no task. Continue talking
-to Pi normally, clarify the coding goal when needed, and ask Agentvolve to solve
-it. The model-facing adapter prepares a task only from user messages and opens a
-direct operator review before registration and launch; canonical JSON remains an
-internal advanced-edit surface rather than required conversational input.
-
-The explicit three-command route remains:
+Register the reviewed `.pi/extensions/population-evolution.ts` entrypoint. The
+extension exposes exactly four Agentvolve commands:
 
 ```text
-/goal Fix the behavior described here and satisfy the registered checks
-/limit 100 generations
-/agentvolve
+/limit 10
+/goal Fix the behavior described here and satisfy the reviewed checks
+/history [RUN_NAME]
+/progress
 ```
 
-Pi remains the interactive operator and keeps its current `/model`. With a
-complete goal/limit pair, `/agentvolve` derives a canonical profile from a
-reviewed task contract and launches a separate detached evolution worker. A
-single profile bound to the current folder is automatic; when interactive
-selection is required, Pi presents reviewed task summaries instead of requiring
-a copied path. That worker uses the canonical runtime's
-provider/model/reasoning identity and finite budgets. Launch returns immediately,
-so Pi stays usable while evolution continues. Without both values,
-`/agentvolve` only activates operator mode and explains both conversational and
-slash-command routes.
+`/goal` asks for a limit if none is saved, offers a reviewed current-repository
+contract or a new user-message-only draft, and requires direct task approval
+before launching. Review includes paths, checks, budgets, stopping, and final
+policy; JSON is only an optional advanced correction surface. Cancelling starts
+nothing. The last `/limit` (1–256 generations) persists for later tasks and session
+restores; it never changes an already running task. A successful launch clears
+the pending goal, not the limit.
 
-Advanced explicit starts remain available:
+Conversation still works: ask to activate Agentvolve (starts no task), clarify a
+coding goal, and explicitly ask it to solve it. Pi keeps its current model while
+a separate detached worker uses the canonical runtime's provider/model/reasoning
+and finite budgets. Pi remains usable while evolution continues.
 
-```text
-/evolve-start [/absolute/path/to/task.json]
-/evolve-task
-```
+`/progress` inspects the latest run, including a completed run. `/history` browses
+all runs in pages of 50 and every recorded harness/solution generation in pages
+of 20, with stage reports and results. Reused harness evidence is labelled, not
+counted as new work. The dashboard refreshes every two seconds; `[`/`]` page
+traces, arrows/PageUp/PageDown scroll, `d` expands the bounded diff, and `Esc`/`q`
+returns without stopping the worker. The compact widget appears only for a
+currently queued/running detached workflow and disappears when none is active.
 
-Inspect the current or previous shared workflows from any Pi session:
-
-```text
-/view-progress [RUN_NAME]
-/view-history
-```
-
-The terminal dashboard refreshes every two seconds and distinguishes the
-operator model from the detached worker model. It shows all six stages, worker
-liveness, committed rounds/attempts/archive, bounded lineage and candidate diff
-views, completed-stage reports, and the final commit/patch report. `Esc` or `q`
-returns to Pi without stopping the worker.
-
-Recovery and verification remain explicit:
-
-```text
-/agentvolve-resume
-/agentvolve-retry OPERATOR-REVIEWED-REASON
-/agentvolve-stop
-/agentvolve-verify
-```
-
-Resume never repeats an indeterminate model call; retry is accepted only for a
-reserved pending attempt. Existing low-level `/evolve-harness*` and
-`/evolve-code*` compatibility commands remain documented in the
-[operations guide](docs/coding-agent/operations.md).
+Old `/evolve*`, `/agentvolve*`, and `/view-*` slash commands, the reference Pi
+tool, and low-level compatibility tool handlers are removed. Reload Pi with
+`/reload` and migrate scripts to the four-command flow and RPC approval. Shared
+engines, existing evidence, and explicit worker CLI recovery/verification remain
+unchanged; see the [operations guide](docs/coding-agent/operations.md). No run
+migration is required.
 
 The dashboard and worker status are projections only. Candidate Git objects,
 hash-linked ledgers, exact allocations, receipts, and seals remain authoritative.
@@ -179,7 +156,8 @@ Equivalent read-only command-line projections are:
 
 ```bash
 uv run python -m apps.coding_agent.operator_view progress RUNS_DIRECTORY [RUN_NAME]
-uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY
+uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY [OFFSET]
+uv run python -m apps.coding_agent.operator_view trace RUNS_DIRECTORY RUN_NAME [OFFSET]
 ```
 
 A completed solution run produces:

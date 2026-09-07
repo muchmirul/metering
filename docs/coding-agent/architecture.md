@@ -41,10 +41,10 @@ This preserves attribution.
 
 ## Operator and worker processes
 
-Interactive Pi is the operator, not the evolution executor. Conversational or
-slash-command Agentvolve activation changes only session mode and starts no
-task. After a canonical task is selected or prepared from user-only session
-messages and directly reviewed, `/agentvolve`, `/evolve-start`, or the
+Interactive Pi is the operator, not the evolution executor. Conversational
+Agentvolve activation changes only session mode and starts no task. `/limit`
+sets a finite generation cap. After a canonical task is selected or prepared
+from user-only session messages and directly reviewed, `/goal` or the
 model-facing start action launches `apps.coding_agent.agentvolve_worker` in a
 detached session and returns control to Pi. The worker alone sequences harness
 and solution effects using the canonical runtime manifest. It owns a

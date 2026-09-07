@@ -152,7 +152,8 @@ sessions, and discovery disabled. The `.pi/extensions/` entrypoint only
 re-exports the fixed Pi connector's Agentvolve extension and may be listed by
 absolute path in Pi's global settings. The connector keeps Pi/TUI effects in
 `population_evolution_extension.ts` and non-UI runtime/run/status support in
-`population_evolution_support.ts`. Its `/agentvolve` UI and model-facing actions
+`population_evolution_support.ts`. Its four-command `/goal`, `/limit`,
+`/history`, `/progress` UI and model-facing actions
 present one streamlined conversational workflow, no-effect activation, direct
 reviewed-task summaries, an activation-scoped cross-session read-only run
 monitor/history browser, and a six-stage projection visible only while a

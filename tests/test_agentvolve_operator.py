@@ -11,9 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from apps._support.journal import content_record  # noqa: E402
 from apps._support.wire import canonical_json  # noqa: E402
 from apps.coding_agent import agentvolve_worker as worker  # noqa: E402
-from apps.coding_agent.operator_view import history_view, progress_view  # noqa: E402
+from apps.coding_agent.operator_view import (  # noqa: E402
+    OperatorViewError,
+    history_view,
+    main,
+    progress_view,
+    trace_view,
+)
 
 
 def write_document(path: Path, document: dict[str, object]) -> None:
@@ -238,3 +245,87 @@ def test_worker_recovery_actions_enforce_state(
     with pytest.raises(worker.AgentvolveWorkerError, match="no effects to resume"):
         worker.launch_existing(workflow_root, "resume")
     assert worker.launch_existing(workflow_root, "verify")["action"] == "verify"
+
+
+def test_history_pages_all_runs_and_progress_selects_newest(tmp_path: Path):
+    runs = tmp_path / "runs"
+    assert history_view(runs)["runs"] == []
+    assert not runs.exists()
+    runs.mkdir()
+    for index in range(55):
+        (runs / f"solution-pi-20260906T1900{index:02}000Z").mkdir()
+    latest = runs / "solution-pi-20260906T190054000Z"
+    write_document(latest / "experiment-report.json", {"schema": "darwinian-coding-experiment-v1"})
+    first = history_view(runs)
+    second = history_view(runs, 50)
+    assert first["total_runs"] == 55
+    assert first["next_offset"] == 50
+    assert len(first["runs"]) == 50
+    assert len(second["runs"]) == 5
+    assert second["next_offset"] is None
+    assert progress_view(runs, include_diff=False)["workflow_root"] == str(latest)
+    assert progress_view(runs, include_diff=False)["state"] == "completed"
+    assert len({run["name"] for page in (first, second) for run in page["runs"]}) == 55
+    with pytest.raises(OperatorViewError, match="nonnegative"):
+        history_view(runs, -1)
+    with pytest.raises(OperatorViewError, match="direct child"):
+        progress_view(runs, "../other")
+
+
+def write_projection_ledger(root: Path, count: int) -> None:
+    """Fixture projection evidence, not a Population experiment or replay claim."""
+    (root / "state").mkdir(parents=True)
+    records = [content_record({"kind": "header", "parent_record_id": None, "configuration": {"limits": {"max_rounds": count}}}, ValueError)]
+    for index in range(1, count + 1):
+        records.append(content_record({
+            "kind": "round", "parent_record_id": records[-1]["record_id"],
+            "round": index, "attempts": [{}, {}], "archive_member_candidate_ids": ["a"],
+            "parent_candidate_id": f"parent-{index}", "child_candidate_id": f"child-{index}",
+            "selection": {"decision": "retain_incumbent", "selected": f"parent-{index}", "comparison": {"incumbent": {"passed_count": 1}, "challenger": {"passed_count": 0}}},
+        }, ValueError))
+    (root / "state/driver.jsonl").write_text("".join(canonical_json(record) + "\n" for record in records), encoding="ascii")
+
+
+def test_trace_pages_every_generation_and_rejects_corrupt_evidence(tmp_path: Path, capsys):
+    root = tmp_path / "solution-pi-20260906T190000000Z"
+    write_projection_ledger(root, 45)
+    before = (root / "state/driver.jsonl").read_bytes()
+    pages = [trace_view(tmp_path, root.name, offset) for offset in (0, 20, 40)]
+    assert [len(page["rounds"]) for page in pages] == [20, 20, 5]
+    assert [page["next_offset"] for page in pages] == [20, 40, None]
+    assert [record["round"] for page in pages for record in page["rounds"]] == list(range(1, 46))
+    assert pages[0]["authority"] == "projection-only"
+    assert all(record["retries"] == 1 for page in pages for record in page["rounds"])
+    assert (root / "state/driver.jsonl").read_bytes() == before
+    assert main(["trace", str(tmp_path), root.name, "40"]) == 0
+    assert '"total_rounds":45' in capsys.readouterr().out
+    assert main(["history", str(tmp_path), "-1"]) == 2
+    assert "nonnegative" in capsys.readouterr().err
+    (root / "state/driver.jsonl").write_bytes(before.replace(b'parent-1', b'broken-1', 1))
+    with pytest.raises(OperatorViewError, match="does not match"):
+        trace_view(tmp_path, root.name)
+
+
+def test_workflow_trace_keeps_both_levels_and_marks_reused_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    task, runtime = tmp_path / "task.json", tmp_path / "runtime.json"
+    write_document(task, {})
+    write_document(runtime, {"model": {"connector": "pi", "provider": "fixture", "model": "fixture", "reasoning": "off"}})
+    monkeypatch.setattr(worker, "_preflight_workflow", lambda *_args: None)
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda *_args, **_kwargs: type("Process", (), {"pid": 43210})())
+    harness = tmp_path / "original-harness"
+    write_projection_ledger(harness, 25)
+    descriptor = harness / "selected-harness.json"
+    write_document(descriptor, {})
+    runs = tmp_path / "runs"
+    response = worker.start_workflow(runs, task, runtime, descriptor)
+    root = Path(str(response["workflow_root"]))
+    request = worker.load_workflow_request(root)
+    solution = Path(str(request["solution_run_root"]))
+    write_projection_ledger(solution, 23)
+    pages = [trace_view(runs, root.name, offset) for offset in (0, 20, 40)]
+    experiments = pages[0]["experiments"]
+    assert [(experiment["kind"], experiment["reused"]) for experiment in experiments] == [("harness", True), ("solution", False)]
+    rows = [row for page in pages for row in page["rounds"]]
+    assert len(rows) == 48
+    assert [row["kind"] for row in rows] == ["harness"] * 25 + ["solution"] * 23
+    assert len(history_view(runs)["runs"]) == 1  # owned child experiments are not duplicate workflow entries

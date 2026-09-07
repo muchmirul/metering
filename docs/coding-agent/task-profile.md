@@ -11,27 +11,30 @@ session-generated draft; all four routes produce this same schema and authority.
 
 `METERING_EVOLUTION_TASKS_DIR` defaults to the checkout sibling
 `metering-live-tasks`. The Pi adapter discovers at most 200 direct
-`*.task.json` files there. `/evolve-start` uses the sole profile bound to the
-current folder. In TUI mode, zero or multiple folder matches present registered
-profile summaries for direct operator selection; RPC mode still requires an
-unambiguous folder-bound or explicitly configured profile. Fixed Python
-validation remains decisive when the worker starts.
+`*.task.json` files there. `/goal` offers current-repository contract summaries
+for direct selection, even when only one matches, or prepares a new draft. TUI
+and RPC both require task approval; an explicitly configured profile must match
+the current repository. Fixed Python validation remains decisive at start.
 
-`/goal TEXT` and `/limit N generations` do not invent a task. They derive a
-fresh profile from an already reviewed discovered profile: fixed code keeps its
+Set `/limit N generations` (1–256), then `/goal TEXT`; a missing limit is
+prompted before drafting. The last limit persists, including after a launch or
+session restore; changing it never changes a running task. When a reviewed
+contract is selected, fixed code derives a fresh profile and keeps its
 entrypoint, allowed paths, checks, final binding, final draw, wall limit, and
 stopping policy; resolves the current clean repository `HEAD`; writes `N - 1`
 fixed rational recurrence draws; and preserves the template's finite retry
 reservation count. The derived profile is written below the task directory's
 `generated/` subdirectory.
 
-`/evolve-task` and model-facing `workflow_from_session` are explicit reviewed
-draft paths. The outer model receives user messages only, never assistant
+With no selected contract, `/goal` and model-facing `workflow_from_session`
+use the explicit reviewed draft path. The outer model receives user messages only, never assistant
 answers or tool output, plus the current commit's bounded tracked-file list. The
 operator first sees a human-readable review containing the complete goal,
 repository, entrypoint, writable paths, check argv, budgets, stopping policy,
 and final policy. Canonical JSON is an optional advanced correction surface,
-not required conversational input. Fixed code then requires a clean Git
+not required conversational input. The exact slash-command goal, repository,
+and saved generation limit are user-bound, not selectable by the drafting model.
+Declining, cancelling, or an invalid task starts no worker. Fixed code requires a clean Git
 repository and an entrypoint present at `HEAD`, writes canonical task/final
 documents outside the repository, and validates the task. Its
 `replay-development-checks-v1` final policy repeats the reviewed development

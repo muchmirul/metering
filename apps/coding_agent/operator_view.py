@@ -35,8 +35,10 @@ ROOT = Path(__file__).resolve().parents[2]
 
 PROGRESS_SCHEMA = "agentvolve-progress-view-v1"
 HISTORY_SCHEMA = "agentvolve-history-view-v1"
+TRACE_SCHEMA = "agentvolve-trace-view-v1"
 VIEW_AUTHORITY = "projection-only"
 MAX_HISTORY = 50
+TRACE_PAGE_SIZE = 20
 MAX_LEDGER_BYTES = 64 * 1024 * 1024
 MAX_DIFF_CHARS = 16_000
 MAX_DIFF_LINES = 40
@@ -231,7 +233,9 @@ def _load_run_report(run_root: Path | None, kind: str) -> dict[str, object] | No
     return report
 
 
-def _driver_projection(run_root: Path | None) -> dict[str, object] | None:
+def _driver_projection(
+    run_root: Path | None, *, all_rounds: bool = False
+) -> dict[str, object] | None:
     if run_root is None:
         return None
     driver_path = run_root / "state" / "driver.jsonl"
@@ -312,7 +316,7 @@ def _driver_projection(run_root: Path | None) -> dict[str, object] | None:
         if type(pending_stage) is str
         else None,
         "proposal_calls": proposal_calls,
-        "rounds": rounds[-20:],
+        "rounds": rounds if all_rounds else rounds[-TRACE_PAGE_SIZE:],
     }
 
 
@@ -889,17 +893,7 @@ def _select_latest(runs_directory: Path) -> tuple[str, Path]:
     entries = _entries(runs_directory)
     if not entries:
         raise OperatorViewError(f"no Agentvolve runs exist under {runs_directory}")
-    for kind, path in entries:
-        if kind == "workflow":
-            try:
-                request = load_workflow_request(path)
-                solution_root = Path(cast(str, request["solution_run_root"]))
-            except (AgentvolveWorkerError, KeyError, TypeError):
-                continue
-            if not (solution_root / "experiment-report.json").is_file():
-                return kind, path
-        elif not (path / "experiment-report.json").is_file():
-            return kind, path
+    # An abandoned unfinished run must not displace a newer completed run.
     return entries[0]
 
 
@@ -934,14 +928,76 @@ def progress_view(
     )
 
 
-def history_view(runs_directory: Path) -> dict[str, object]:
+def _page(offset: int, total: int, size: int) -> dict[str, object]:
+    if type(offset) is not int or offset < 0:
+        raise OperatorViewError("page offset must be a nonnegative integer")
+    return {
+        "offset": offset,
+        "page_size": size,
+        "next_offset": offset + size if offset + size < total else None,
+    }
+
+
+def trace_view(
+    runs_directory: Path, selector: str, offset: int = 0
+) -> dict[str, object]:
+    """Page all recorded generations, keeping reused Level-2 evidence distinct."""
     runs_directory = runs_directory.expanduser().absolute()
-    if runs_directory.is_symlink() or not runs_directory.is_dir():
-        raise OperatorViewError(
-            f"Agentvolve runs directory is absent or unsafe: {runs_directory}"
-        )
+    progress = progress_view(runs_directory, selector, include_diff=False)
+    root = Path(cast(str, progress["workflow_root"]))
+    sources: list[tuple[str, Path, bool]] = []
+    if WORKFLOW_NAME.fullmatch(root.name):
+        request = load_workflow_request(root)
+        harness = _path_value(request, "harness_run_root", runs_directory, optional=True)
+        if harness is not None:
+            sources.append(("harness", harness, False))
+        elif type(request.get("harness_descriptor")) is str:
+            descriptor = Path(cast(str, request["harness_descriptor"]))
+            _regular_file(descriptor, "reused harness descriptor")
+            sources.append(("harness", descriptor.parent, True))
+        solution = cast(Path, _path_value(request, "solution_run_root", runs_directory))
+        sources.append(("solution", solution, False))
+    else:
+        match = LEGACY_RUN_NAME.fullmatch(root.name)
+        assert match is not None  # progress_view already checked the selected name
+        sources.append((match.group("kind"), root, False))
+    experiments: list[dict[str, object]] = []
+    rounds: list[dict[str, object]] = []
+    for kind, run_root, reused in sources:
+        if run_root.is_symlink():
+            raise OperatorViewError("trace source must not be a symbolic link")
+        driver = _driver_projection(run_root, all_rounds=True)
+        experiments.append({
+            "kind": kind,
+            "run_root": str(run_root),
+            "reused": reused,
+            "report": _summary_from_report(_load_run_report(run_root, kind)),
+        })
+        if driver is not None:
+            rounds.extend(
+                {**record, "kind": kind, "run_root": str(run_root)}
+                for record in cast(list[dict[str, object]], driver["rounds"])
+            )
+    page = _page(offset, len(rounds), TRACE_PAGE_SIZE)
+    return {
+        "authority": VIEW_AUTHORITY,
+        "trace_schema": TRACE_SCHEMA,
+        "workflow_root": str(root),
+        "experiments": experiments,
+        "rounds": rounds[offset:offset + TRACE_PAGE_SIZE],
+        "total_rounds": len(rounds),
+        **page,
+    }
+
+
+def history_view(runs_directory: Path, offset: int = 0) -> dict[str, object]:
+    runs_directory = runs_directory.expanduser().absolute()
+    if runs_directory.is_symlink() or (runs_directory.exists() and not runs_directory.is_dir()):
+        raise OperatorViewError(f"Agentvolve runs directory is unsafe: {runs_directory}")
+    entries = _entries(runs_directory) if runs_directory.exists() else []
+    page = _page(offset, len(entries), MAX_HISTORY)
     runs: list[dict[str, object]] = []
-    for _kind, path in _entries(runs_directory)[:MAX_HISTORY]:
+    for _kind, path in entries[offset:offset + MAX_HISTORY]:
         try:
             progress = progress_view(runs_directory, path.name, include_diff=False)
             task = progress.get("task")
@@ -974,6 +1030,8 @@ def history_view(runs_directory: Path) -> dict[str, object]:
         "history_schema": HISTORY_SCHEMA,
         "runs": runs,
         "runs_directory": str(runs_directory),
+        "total_runs": len(entries),
+        **page,
     }
 
 
@@ -984,11 +1042,13 @@ def main(argv: list[str] | None = None) -> int:
             result = progress_view(
                 Path(arguments[1]), arguments[2] if len(arguments) == 3 else None
             )
-        elif len(arguments) == 2 and arguments[0] == "history":
-            result = history_view(Path(arguments[1]))
+        elif len(arguments) in {2, 3} and arguments[0] == "history":
+            result = history_view(Path(arguments[1]), int(arguments[2]) if len(arguments) == 3 else 0)
+        elif len(arguments) in {3, 4} and arguments[0] == "trace":
+            result = trace_view(Path(arguments[1]), arguments[2], int(arguments[3]) if len(arguments) == 4 else 0)
         else:
             raise OperatorViewError(
-                "usage: operator_view.py progress RUNS [RUN_NAME] | history RUNS"
+                "usage: operator_view.py progress RUNS [RUN_NAME] | history RUNS [OFFSET] | trace RUNS RUN_NAME [OFFSET]"
             )
     except (OSError, OperatorViewError, TypeError, ValueError) as exc:
         print(str(exc) or type(exc).__name__, file=sys.stderr)

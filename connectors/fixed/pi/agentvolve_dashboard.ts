@@ -1,11 +1,12 @@
 import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
-import { matchesKey, truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+import { matchesKey, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 import {
 	PROCESS_LABELS,
 	type OperatorDiffView,
 	type OperatorProgressView,
 	type OperatorRoundView,
+	type OperatorTraceView,
 } from "./population_evolution_support.ts";
 
 const REFRESH_INTERVAL_MS = 2000;
@@ -75,6 +76,9 @@ class AgentvolveDashboard {
 	private readonly requestRender: () => void;
 	private readonly viewportRows: () => number;
 	private progress: OperatorProgressView;
+	private trace: OperatorTraceView;
+	private readonly loadTrace: (offset: number) => Promise<OperatorTraceView>;
+	private paging = false;
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private refreshing = false;
 	private disposed = false;
@@ -92,10 +96,14 @@ class AgentvolveDashboard {
 		requestRender: () => void,
 		viewportRows: () => number,
 		close: () => void,
+		trace: OperatorTraceView,
+		loadTrace: (offset: number) => Promise<OperatorTraceView>,
 	) {
 		this.theme = theme;
 		this.operatorModel = operatorModel;
 		this.progress = initial;
+		this.trace = trace;
+		this.loadTrace = loadTrace;
 		if (["completed", "verified"].includes(initial.state)) this.scrollOffset = Number.MAX_SAFE_INTEGER;
 		this.load = load;
 		this.requestRender = requestRender;
@@ -108,15 +116,16 @@ class AgentvolveDashboard {
 		if (this.refreshing || this.disposed) return;
 		this.refreshing = true;
 		try {
+			this.error = undefined;
 			const previousState = this.progress.state;
 			this.progress = await this.load();
+			if (!this.paging) await this.changeTracePage(this.trace.offset, false);
 			if (
 				!["completed", "verified"].includes(previousState) &&
 				["completed", "verified"].includes(this.progress.state)
 			) {
 				this.scrollOffset = Number.MAX_SAFE_INTEGER;
 			}
-			this.error = undefined;
 		} catch (error) {
 			this.error = safeLine(String(error)).slice(-1000);
 		} finally {
@@ -125,7 +134,36 @@ class AgentvolveDashboard {
 		}
 	}
 
+	private async changeTracePage(offset: number, resetScroll = true): Promise<void> {
+		if (this.paging || this.disposed) return;
+		this.paging = true;
+		try {
+			this.trace = await this.loadTrace(offset);
+			if (resetScroll) this.scrollOffset = 0;
+			this.error = undefined;
+		} catch (error) {
+			this.error = safeLine(String(error)).slice(-1000);
+		} finally {
+			this.paging = false;
+			if (!this.disposed) this.requestRender();
+		}
+	}
+
 	handleInput(data: string): void {
+		if (data === "[" && this.trace.offset > 0) {
+			void this.changeTracePage(Math.max(0, this.trace.offset - this.trace.page_size));
+			return;
+		}
+		if (data === "]" && this.trace.next_offset !== null) {
+			void this.changeTracePage(this.trace.next_offset);
+			return;
+		}
+		if (matchesKey(data, "pageUp") || matchesKey(data, "pageDown")) {
+			this.scrollOffset = Math.max(0, Math.min(this.lastContentLength - this.lastCapacity,
+				this.scrollOffset + (matchesKey(data, "pageUp") ? -this.lastCapacity : this.lastCapacity)));
+			this.requestRender();
+			return;
+		}
 		if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c") || data === "q" || data === "Q") {
 			this.dispose();
 			this.close();
@@ -157,8 +195,8 @@ class AgentvolveDashboard {
 	}
 
 	private graphLines(rounds: OperatorRoundView[]): string[] {
-		if (!rounds.length) return [this.theme.fg("dim", "No committed generation exists yet.")];
-		return rounds.slice(-7).map((round, index, shown) => {
+		if (!rounds.length) return [this.theme.fg("dim", "No committed generations for this experiment on this page.")];
+		return rounds.map((round, index, shown) => {
 			const branch = index === shown.length - 1 ? "└─" : "├─";
 			const evidence = `${count(round.parent_passed)}→${count(round.challenger_passed)}`;
 			const retry = round.retries ? ` · ${round.retries} retry` : "";
@@ -215,7 +253,9 @@ class AgentvolveDashboard {
 			return `${border("│")}${clipped}${" ".repeat(Math.max(0, inner - visibleWidth(clipped)))}${border("│")}`;
 		};
 		const lines: string[] = [border(`╭${"─".repeat(inner)}╮`)];
-		lines.push(row(` ${this.theme.fg("accent", this.theme.bold("🧬 Agentvolve live progress"))}`));
+		const wrappedRows = (text: string) => wrapTextWithAnsi(safeLine(text), inner - 2).map((line) => row(` ${line}`));
+		lines.push(row(` ${this.theme.fg("accent", this.theme.bold("🧬 Agentvolve progress / history"))}`));
+		lines.push(row(" [ ] generations · ↑↓/PgUp/PgDn scroll · r refresh · d diff · esc/q return"));
 		lines.push(row(` operator  ${this.theme.fg("text", safeLine(this.operatorModel))}`));
 		const workerModel = this.progress.worker.model;
 		const workerLabel = workerModel
@@ -239,7 +279,8 @@ class AgentvolveDashboard {
 				` NOW ${this.theme.fg("warning", `[${this.progress.stage}/6] ${PROCESS_LABELS[this.progress.stage]}`)} · ${this.theme.fg(stageColor(this.progress.stages[this.progress.stage - 1]?.status ?? "pending"), this.progress.state)}`,
 			),
 		);
-		lines.push(row(` ${safeLine(this.progress.activity)}`));
+		lines.push(...wrappedRows(this.progress.activity));
+		if (this.progress.task) lines.push(...wrappedRows(`Goal: ${this.progress.task.goal}`));
 		if (this.progress.error) {
 			const error = safeLine(this.progress.error);
 			for (let offset = 0; offset < Math.min(error.length, inner * 3); offset += inner - 2) {
@@ -262,9 +303,16 @@ class AgentvolveDashboard {
 					row(` pending parent ${shortId(evolution.pending_parent_candidate_id)} · no child is claimed before receipt`),
 				);
 			}
-			if (evolution.rounds.length) {
-				lines.push(row(` ${this.theme.fg("accent", "Committed lineage / evidence")}`));
-				for (const line of this.graphLines(evolution.rounds)) lines.push(row(` ${line}`));
+		}
+		lines.push(row(` ${this.theme.fg("accent", `Evolution trace · ${this.trace.total_rounds ? this.trace.offset + 1 : 0}–${this.trace.offset + this.trace.rounds.length} of ${this.trace.total_rounds} generations`)}`));
+		lines.push(row(` ${this.theme.fg("dim", "[ previous page · ] next page · all recorded generations, harness then solution")}`));
+		for (const experiment of this.trace.experiments) {
+			lines.push(...wrappedRows(`${experiment.kind}${experiment.reused ? " (reused; not evolved in this workflow)" : ""}: ${experiment.run_root}`));
+			if (experiment.report) lines.push(...wrappedRows(`Stage result: ${JSON.stringify(experiment.report)}`));
+			const rounds = this.trace.rounds.filter((round) => round.run_root === experiment.run_root && round.kind === experiment.kind);
+			for (const line of this.graphLines(rounds)) lines.push(...wrapTextWithAnsi(line, inner - 2).map((part) => row(` ${part}`)));
+			for (const round of rounds) {
+				lines.push(...wrappedRows(`r${count(round.round)} parent ${round.parent_candidate_id} → child ${round.child_candidate_id}; selected ${round.selected_candidate_id}; attempts ${round.attempts}; archive ${round.archive_members}`));
 			}
 		}
 		if (this.progress.diff) {
@@ -274,9 +322,11 @@ class AgentvolveDashboard {
 		const completedStages = this.progress.stages.filter((item) => ["complete", "reused"].includes(item.status));
 		if (completedStages.length) {
 			lines.push(row(` ${this.theme.fg("accent", "Completed-stage reports")}`));
-			for (const stage of completedStages) lines.push(row(` [${stage.number}] ${safeLine(stage.summary)}`));
+			for (const stage of completedStages) lines.push(...wrappedRows(`[${stage.number}] ${stage.summary}`));
 		}
 		if (this.progress.result) {
+			lines.push(...wrappedRows(`Selected commit: ${String(this.progress.result.selected_commit ?? "unavailable")}`));
+			lines.push(...wrappedRows(`Patch: ${String(this.progress.result.patch_path ?? "unavailable")}`));
 			const finalPassed = this.progress.result.final_passed;
 			const finalTasks = this.progress.result.final_tasks;
 			lines.push(
@@ -294,7 +344,7 @@ class AgentvolveDashboard {
 			lines.push(row(` ${this.theme.fg("warning", `view warning: ${safeLine(warning)}`)}`));
 		}
 		if (this.error) lines.push(row(` ${this.theme.fg("error", `refresh error: ${this.error}`)}`));
-		lines.push(row(` ${this.theme.fg("dim", "↑↓ scroll · r refresh · d expand/collapse diff · esc/q return to Pi")}`));
+		lines.push(row(` ${this.theme.fg("dim", "[ ] generations · ↑↓/PgUp/PgDn scroll · r refresh · d diff · esc/q return")}`));
 		lines.push(border(`╰${"─".repeat(inner)}╯`));
 		const maxLines = Math.max(10, Math.min(34, this.viewportRows() - 6));
 		if (lines.length <= maxLines) {
@@ -329,9 +379,11 @@ export async function showAgentvolveDashboard(
 	operatorModel: string,
 	initial: OperatorProgressView,
 	load: () => Promise<OperatorProgressView>,
+	trace: OperatorTraceView,
+	loadTrace: (offset: number) => Promise<OperatorTraceView>,
 ): Promise<void> {
 	if (ctx.mode !== "tui") {
-		ctx.ui.notify("/view-progress requires interactive Pi", "error");
+		ctx.ui.notify("/progress dashboard requires interactive Pi", "error");
 		return;
 	}
 	await ctx.ui.custom<void>((tui, theme, _keybindings, done) => {
@@ -343,6 +395,8 @@ export async function showAgentvolveDashboard(
 			() => tui.requestRender(),
 			() => tui.terminal.rows,
 			() => done(undefined),
+			trace,
+			loadTrace,
 		);
 		return dashboard;
 	});

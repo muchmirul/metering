@@ -3,15 +3,15 @@
 This is Agentvolve's operator-facing lifecycle. Ordinary Pi slash commands start
 one streamlined detached workflow while hiding the internal harness/solution,
 Controller, Population, Git, and receipt boundaries. While a detached worker is
-queued or running, the compact widget and `/view-progress` dashboard list all
-six stages without owning the worker.
+queued or running, the compact widget lists all six stages without owning the
+worker. `/progress` also inspects the latest run after completion.
 
 ## Tracker
 
 | Stage | Meaning | Typical command or evidence |
 |---|---|---|
 | **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | reviewed session task, or `/goal …`, `/limit N generations`, and a discovered profile |
-| **[2/6] Evolving harness** | Agentvolve proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | detached worker after `/agentvolve` or `/evolve-start` |
+| **[2/6] Evolving harness** | Agentvolve proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | detached worker after approved `/goal` |
 | **[3/6] Harness sealed** | One harness has been allocated, protected-final tested, and permanently sealed. | `selected-harness.json` |
 | **[4/6] Evolving solution** | The frozen harness creates and independently tests immutable solution commits until a verified goal or finite limit stops recurrence. | automatic workflow continuation |
 | **[5/6] Protected final assay** | Development has stopped, final allocation is committed, and protected checks are running. | final-role Population records |
@@ -33,10 +33,10 @@ model work at `[4/6]` after Agentvolve revalidates the earlier stages. The
 operator may activate Agentvolve conversationally, describe a clear coding goal,
 and approve the human-readable task review in-session; fixed code then registers
 the same canonical profile before the tracker advances. The explicit
-`/goal …`, `/limit N generations`, and `/agentvolve` route remains. A sole
-folder-bound profile is automatic, while TUI ambiguity is resolved by direct
-operator selection of reviewed summaries. RPC mode continues to require an
-unambiguous task. If the current folder cannot supply a reviewed executable task
+`/limit N generations`, then `/goal …` route needs no additional start command.
+A missing limit is prompted and the last limit persists for future tasks.
+Discovered folder-bound contracts require direct selection; new drafts and
+selected contracts both require approval in TUI and RPC. If the current folder cannot supply a reviewed executable task
 contract or a valid reviewed session draft, Agentvolve remains in operator mode
 and asks for clarification rather than treating prose as proof. A reviewed
 `METERING_EVOLUTION_HARNESS_DESCRIPTOR` can reference an original sealed harness
@@ -47,7 +47,7 @@ that original run.
 
 Mode activation has no pre-start menu and starts no worker. A reviewed task may
 open only the clarification, task-summary selection, or approval interaction
-needed to bind the canonical input. `/agentvolve` keeps Pi's current operator
+needed to bind the canonical input. `/goal` keeps Pi's current operator
 model and, once a task is approved, launches a manifest-pinned evolution worker
 in a separate process. Pi returns immediately. While operator mode is active,
 the compact tracker polls the shared run directory every two seconds, including
@@ -55,20 +55,21 @@ work launched by another session. The widget is shown only for a genuinely
 queued or running detached workflow and disappears when no worker is active;
 abandoned legacy directories are not displayed as current progress.
 
-Use `/view-progress [RUN_NAME]` for the live terminal dashboard and
-`/view-history` for the shared history browser. The dashboard labels operator
-and worker identities separately, shows committed rounds and archive evidence,
-and renders a bounded lineage/diff only when immutable candidates exist. It also
-shows a summary for every completed stage and the final selected commit/patch
-report. Press `Esc` or `q` to return to Pi; the worker continues. The
-`/agentvolve-history` name and direct `/evolve-harness-status` and
-`/evolve-code-status` commands remain compatibility interfaces.
+Use `/progress` for the latest run and `/history [RUN_NAME]` for the shared
+history browser. Runs page in groups of 50; every recorded harness/solution
+generation is accessible in pages of 20 with `[`/`]`. Reused harness evidence is
+labelled. The dashboard separates operator/worker identities, shows committed
+rounds, attempts, retries, archive evidence, completed-stage summaries, and the
+final commit/patch report. Diff previews remain bounded. Scroll with arrows or
+PageUp/PageDown; `Esc`/`q` returns to Pi without stopping the worker. Old slash
+commands are removed; the explicit worker CLI still supplies recovery and verify.
 
 Read the same projection without Pi:
 
 ```bash
 uv run python -m apps.coding_agent.operator_view progress RUNS_DIRECTORY [RUN_NAME]
-uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY
+uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY [OFFSET]
+uv run python -m apps.coding_agent.operator_view trace RUNS_DIRECTORY RUN_NAME [OFFSET]
 ```
 
 Detached workflows contain canonical `workflow.json`, ordinal jobs, and a held

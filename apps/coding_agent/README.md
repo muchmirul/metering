@@ -32,9 +32,11 @@ Use the dedicated [Agentvolve documentation](../../docs/coding-agent/README.md):
 Level-2 harness implementation details are in the
 [harness README](../harness/README.md).
 
-The existing directory name, `darwinian-coding-*` schemas, `darwinian_coding`
-tool, and `/evolve-*` commands are retained so existing task profiles, run
-receipts, imports, and operator workflows do not break.
+The directory name, `darwinian-coding-*` schemas, and `darwinian_coding` tool
+retain their identities. The Pi command surface is now only `/goal`, `/limit`,
+`/history`, and `/progress`; old slash commands and low-level tool actions were
+removed. Existing task profiles, run receipts, shared engines, and worker CLI
+recovery/verification remain compatible; no run migration is required.
 
 ## Boundary
 

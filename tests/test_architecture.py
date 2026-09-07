@@ -245,37 +245,11 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     operator_view = (ROOT / "apps/coding_agent/operator_view.py").read_text(
         encoding="utf-8"
     )
-    for command in (
-        '"agentvolve"',
-        '"agentvolve-off"',
-        '"agentvolve-history"',
-        '"agentvolve-resume"',
-        '"agentvolve-retry"',
-        '"agentvolve-stop"',
-        '"agentvolve-verify"',
-        '"view-progress"',
-        '"view-history"',
-        '"evolve-start"',
-        '"evolve-task"',
-        '"goal"',
-        '"limit"',
-        '"evolve"',
-        '"evolve-status"',
-        '"evolve-verify"',
-        '"evolve-harness"',
-        '"evolve-harness-status"',
-        '"evolve-harness-resume"',
-        '"evolve-harness-retry"',
-        '"evolve-code"',
-        '"evolve-code-resume"',
-        '"evolve-code-retry"',
-        '"evolve-code-status"',
-        '"evolve-code-verify"',
-    ):
-        assert command in implementation
+    for command in ("goal", "limit", "history", "progress"):
+        assert f'command("{command}"' in implementation
     assert "pi.registerCommand(name" in implementation
-    assert "registerNoArgumentCommand(" in implementation
-    assert 'const MODE_NAME = "Agentvolve";' in implementation
+    for removed in ("registerNoArgumentCommand", "executePopulation", "commandWithLoader", "launchDetachedAction", "showPopulationStatus"):
+        assert removed not in implementation
     assert 'from "./population_evolution_support.ts"' in implementation
     assert 'from "./agentvolve_dashboard.ts"' in implementation
     assert "export async function codingWorkflowStatus" in support
@@ -285,7 +259,8 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert "export function tasksDirectory" in support
     assert "ctx.ui" not in support
     assert "registerCommand" not in support
-    assert 'name: "population_evolution"' in implementation
+    assert 'name: "population_evolution"' not in implementation
+    assert "export function decodeOperatorTrace" in support
     assert 'name: "darwinian_coding"' in implementation
     assert 'label: "Agentvolve"' in implementation
     for action in (
@@ -298,14 +273,12 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     ):
         assert action in implementation
     assert "No task or worker was started by activation" in implementation
-    assert "profile = await chooseTaskProfile(ctx)" in implementation
-    assert "const reviewed = await reviewSessionTaskDraft(ctx, generated)" in implementation
+    assert "await chooseTaskProfile(ctx, repository, operationSignal)" in implementation
     assert "Register and run this reviewed task?" in implementation
-    assert 'await pi.exec("uv", args' in implementation
+    assert 'await pi.exec("uv", [' in implementation
     assert 'await pi.exec("systemctl", ["--user", "restart", service]' in implementation
     assert "pi.setModel(" not in implementation
     assert "pi.setThinkingLevel(" not in implementation
-    assert 'type AgentvolveModelMode = "routed"' in implementation
     assert "Agentvolve · choose model mode" not in implementation
     assert "new SelectList(" not in implementation
     assert "launchDetachedWorkflow" in implementation
@@ -314,7 +287,9 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert "showAgentvolveDashboard" in implementation
     assert "setInterval(() => void this.refresh()" in dashboard
     assert 'matchesKey(data, "escape")' in dashboard
-    assert 'this.theme.fg("accent", "Committed lineage / evidence")' in dashboard
+    assert "Evolution trace" in dashboard
+    assert "changeTracePage" in dashboard
+    assert "rounds.slice(-7)" not in dashboard
     assert 'this.theme.fg("accent", "Completed-stage reports")' in dashboard
     assert "start_new_session=True" in worker
     assert "pass_fds=(lock.fileno(),)" in worker
@@ -326,22 +301,17 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'STATUS_AUTHORITY = "projection-only"' in worker
     assert 'VIEW_AUTHORITY = "projection-only"' in operator_view
     assert '"detached-operator-worker-v1"' in operator_view
-    assert (
-        '"Create a reviewed task from this Pi session and start it"' in implementation
-    )
-    assert "ctx.sessionManager.buildContextEntries()" in implementation
+    assert "ctx.sessionManager.getBranch()" in implementation
     assert 'entry.message.role !== "user"' in implementation
     assert "agentvolve-workflow-configuration" in implementation
     assert "apps.coding_agent.task_profile_tool" in implementation
     assert "METERING_EVOLUTION_HARNESS_DESCRIPTOR" in implementation
-    assert 'ctx.mode === "rpc"' in implementation
-    assert "No reviewed task profile" in implementation
+    assert "AgentvolveInputRequired" in implementation
     assert "for (let stage = 1; stage <= 6; stage += 1)" in implementation
-    assert "`${marker} [${stage}/6] ${label}`" in implementation
-    assert '"view-history"' in implementation
+    assert "`${marker} [${stage}/6] ${PROCESS_LABELS[stage]}`" in implementation
     assert "WORKFLOW_MONITOR_INTERVAL_MS = 2000" in support
     assert 'ACTIVE_WORKFLOW_STATUSES = new Set(["queued", "running"])' in implementation
-    assert "!ACTIVE_WORKFLOW_STATUSES.has(summary.status)" in implementation
+    assert "ACTIVE_WORKFLOW_STATUSES.has(summary.status)" in implementation
     assert "latestUnfinishedCodingRun" not in support
     assert "await startWorkflowMonitor(ctx)" in implementation
     assert "ctx.ui.setWidget(WIDGET_KEY, undefined)" in implementation
