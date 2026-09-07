@@ -156,6 +156,57 @@ export interface OperatorTraceView {
 	rounds: Array<OperatorRoundView & { kind: CodingKind; run_root: string }>;
 }
 
+export interface InspectionItem extends Record<string, unknown> {
+	label: string;
+	kind: CodingKind;
+	run_root: string;
+	reused: boolean;
+	parent_label: string | null;
+	tree_prefix?: string;
+	status?: string;
+	state?: string;
+}
+
+export interface OperatorTreeView {
+	view_schema: "agentvolve-tree-view-v1";
+	authority: "projection-only";
+	mode: "tree" | "loops";
+	workflow_root: string;
+	items: InspectionItem[];
+	offset: number;
+	page_size: number;
+	next_offset: number | null;
+	total_items: number;
+	warnings: string[];
+}
+
+export interface OperatorCandidateReport {
+	view_schema: "agentvolve-candidate-report-v1";
+	authority: "projection-only";
+	mode: "candidate" | "loop";
+	workflow_root: string;
+	node: InspectionItem;
+	evidence: Record<string, unknown> | null;
+	events: Array<Record<string, unknown> & { step: string; summary: string; record_id: string | null }>;
+	offset: number;
+	page_size: number;
+	next_offset: number | null;
+	total_events: number;
+	diff: {
+		available: boolean;
+		base_commit: string | null;
+		commit: string | null;
+		lines: string[];
+		offset: number;
+		page_size: number;
+		next_offset: number | null;
+		total_lines: number;
+		warning: string | null;
+	} | null;
+	warnings: string[];
+	verification: string;
+}
+
 export function repositoryRoot(): string {
 	return resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 }
@@ -582,6 +633,48 @@ export function decodeOperatorHistory(value: Record<string, unknown>): OperatorH
 		throw new Error("operator history returned an unexpected schema");
 	}
 	return value as unknown as OperatorHistoryView;
+}
+
+function inspectionItem(value: unknown, loop: boolean): boolean {
+	const item = requiredObject(value, "inspection item");
+	return typeof item.label === "string" && (loop ? /^[HS]R[1-9][0-9]*$/ : /^[HS](?:0|[1-9][0-9]*)$/).test(item.label) &&
+		["harness", "solution"].includes(String(item.kind)) && typeof item.run_root === "string" &&
+		typeof item.reused === "boolean" && nullableString(item.parent_label) &&
+		(loop ? typeof item.state === "string" : ["retained", "eliminated", "selected", "not-yet-archived"].includes(String(item.status)));
+}
+
+function inspectionBase(value: Record<string, unknown>): boolean {
+	return value.authority === "projection-only" && typeof value.workflow_root === "string" &&
+		Array.isArray(value.warnings) && value.warnings.every((item) => typeof item === "string");
+}
+
+export function decodeOperatorTree(value: Record<string, unknown>): OperatorTreeView {
+	if (!inspectionBase(value) || value.view_schema !== "agentvolve-tree-view-v1" ||
+		!["tree", "loops"].includes(String(value.mode)) || !validPage(value, "total_items", 20) ||
+		!Array.isArray(value.items) || value.items.length > 20 || !value.items.every((item) => inspectionItem(item, value.mode === "loops"))) {
+		throw new Error("operator tree returned an unexpected schema");
+	}
+	return value as unknown as OperatorTreeView;
+}
+
+export function decodeCandidateReport(value: Record<string, unknown>): OperatorCandidateReport {
+	if (!inspectionBase(value) || value.view_schema !== "agentvolve-candidate-report-v1" ||
+		!["candidate", "loop"].includes(String(value.mode)) || !inspectionItem(value.node, value.mode === "loop") ||
+		!validPage(value, "total_events", 10) || typeof value.verification !== "string" ||
+		!Array.isArray(value.events) || value.events.length > 10 || !value.events.every((item) => {
+			const event = requiredObject(item, "candidate event");
+			return typeof event.step === "string" && typeof event.summary === "string" && nullableString(event.record_id);
+		})) throw new Error("candidate report returned an unexpected schema");
+	if (value.evidence !== null) requiredObject(value.evidence, "candidate evidence");
+	if (value.diff !== null) {
+		const diff = requiredObject(value.diff, "candidate diff");
+		if (!validPage(diff, "total_lines", 40) || typeof diff.available !== "boolean" ||
+			!nullableString(diff.base_commit) || !nullableString(diff.commit) || !nullableString(diff.warning) ||
+			!Array.isArray(diff.lines) || diff.lines.length > 40 || !diff.lines.every((line) => typeof line === "string")) {
+			throw new Error("candidate report returned an invalid diff page");
+		}
+	}
+	return value as unknown as OperatorCandidateReport;
 }
 
 function validPage(value: Record<string, unknown>, totalKey: string, pageSize: number): boolean {

@@ -33,14 +33,17 @@ Pi configuration, not ambient settings, sessions, extensions, or skills.
 
 ## Agentvolve in Pi
 
-The integration has four owners:
+The integration separates UI, execution, and read-only evidence views:
 
 - `population_evolution_extension.ts`: Pi commands, high-level tool, task review,
   session configuration, and active-only compact widget;
 - `population_evolution_support.ts`: runtime paths, discovery, and projection decoding;
 - `agentvolve_dashboard.ts`: terminal progress and paginated evolution traces;
-- `apps.coding_agent.agentvolve_worker` and `operator_view`: detached execution
-  and read-only filesystem/JSON projections, respectively.
+- `agentvolve_candidate_browser.ts`: branching trees, selectable child reports,
+  loop/attempt steps, and paginated historical diffs;
+- `apps.coding_agent.agentvolve_worker`: detached execution;
+- `apps.coding_agent.operator_view` and `candidate_view`: read-only progress,
+  history, ancestry, and per-candidate/loop filesystem/JSON projections.
 
 ### Installation and trust
 
@@ -105,6 +108,13 @@ Git objects and ledgers remain the full evidence; diff previews are bounded.
 
 Dashboard keys: `[`/`]` change trace pages; arrows or PageUp/PageDown scroll;
 `r` refreshes; `d` expands/collapses the bounded diff; `Esc`/`q` returns to Pi.
+Press **t** for actual H*/S* candidate trees and select any child to inspect its
+recorded development outcomes, identities, archive state/reason, loop steps, and
+parent-relative diff. Choose loops/attempts for failed or pending proposals. Report
+keys n/p page steps and ]/[ page diffs. Unselected children never get invented
+protected-final results; reused H nodes keep their original source. Details and
+bounds are in [candidate inspection](../../../docs/coding-agent/inspection.md).
+
 Refresh is every two seconds. RPC clients receive progress/trace projections
 and service history/trace selection dialogs. Closing Pi or the dashboard does
 not stop or own the worker. The worker and operator model/PID are separately

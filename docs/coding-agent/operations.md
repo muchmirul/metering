@@ -193,7 +193,13 @@ solution generation (20 per page). Reused harness evidence is clearly labelled.
 The dashboard refreshes every two seconds. `[`/`]` page generations;
 arrows/PageUp/PageDown scroll full stage summaries and result paths; `r`
 refreshes, `d` expands the bounded diff, and `Esc`/`q` returns without stopping the
-worker. The compact widget remains active-only and clears when no worker runs.
+worker. Press **t** to open candidate trees: stable H*/S* labels, actual parent
+branches, current archive status/reasons, and selectable reports for every child.
+The same browser exposes loop/attempt reports, including failed proposals without
+child nodes. Within reports use n/p for steps, ]/[ for historical diff pages, and
+Escape to return. Final counts appear only for candidates actually final-tested.
+See [complete inspection semantics and CLI](inspection.md).
+The compact widget remains active-only and clears when no worker runs.
 
 Recovery and verification use the explicit worker CLI above, not additional
 slash commands. Resume cannot repeat an indeterminate model call; retry needs a

@@ -140,7 +140,13 @@ all runs in pages of 50 and every recorded harness/solution generation in pages
 of 20, with stage reports and results. Reused harness evidence is labelled, not
 counted as new work. The dashboard refreshes every two seconds; `[`/`]` page
 traces, arrows/PageUp/PageDown scroll, `d` expands the bounded diff, and `Esc`/`q`
-returns without stopping the worker. The compact widget appears only for a
+returns without stopping the worker. Press **t** to browse actual H*/S* candidate
+trees and select **any child**, not just the winner: inspect identities, archive
+status/reasons, recorded loop steps and public checks, resources, and its paged
+historical diff. A loops/attempts view includes failed and pending proposals
+without inventing child nodes. Unselected candidates do not receive fabricated
+protected-final results. See [candidate inspection](docs/coding-agent/inspection.md).
+The compact widget appears only for a
 currently queued/running detached workflow and disappears when none is active.
 
 Old `/evolve*`, `/agentvolve*`, and `/view-*` slash commands, the reference Pi

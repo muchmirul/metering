@@ -9,12 +9,15 @@ import { BorderedLoader, type ExtensionAPI, type ExtensionContext, type SessionE
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
+import { showCandidateBrowser } from "./agentvolve_candidate_browser.ts";
 import { showAgentvolveDashboard } from "./agentvolve_dashboard.ts";
 import {
 	boundedDiagnostic,
 	codingWorkflowStatus,
 	configuredRuntimeSelection,
 	configuredTaskProfile,
+	decodeCandidateReport,
+	decodeOperatorTree,
 	decodeOperatorHistory,
 	decodeOperatorProgress,
 	decodeOperatorTrace,
@@ -508,6 +511,20 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	async function showCandidateTrees(ctx: ExtensionContext, selector: string): Promise<void> {
+		const inspect = async (action: string, arguments_: string[]) => {
+			const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", action, runsDirectory(), selector, ...arguments_],
+				{ cwd: repositoryRoot(), timeout: 30_000 });
+			return decodeOutput(result);
+		};
+		await showCandidateBrowser(ctx, {
+			tree: async (offset, loops) => decodeOperatorTree(await inspect(loops ? "loops" : "tree", [String(offset)])),
+			report: async (label, eventOffset, diffOffset, loop) => decodeCandidateReport(await inspect(loop ? "loop" : "candidate",
+				[label, String(eventOffset), ...(loop ? [] : [String(diffOffset)])])),
+			record: (view) => pi.appendEntry("agentvolve-candidate-inspection", view),
+		});
+	}
+
 	async function showProgress(ctx: ExtensionContext, selector = ""): Promise<void> {
 		const history = await operatorHistory();
 		if (!selector && !history.runs.length) {
@@ -526,16 +543,24 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				ctx.ui.notify(JSON.stringify(page), "info");
 				const options = [
 					...(page.offset > 0 ? ["Previous generations"] : []),
-					...(page.next_offset !== null ? ["Next generations"] : []), "Return",
+					...(page.next_offset !== null ? ["Next generations"] : []), "Candidate trees / child reports", "Return",
 				];
-				if (options.length === 1) return;
 				const choice = await ctx.ui.select("Evolution trace", options);
-				if (choice === "Previous generations") page = await operatorTrace(selected, Math.max(0, page.offset - page.page_size));
+				if (choice === "Candidate trees / child reports") await showCandidateTrees(ctx, selected);
+				else if (choice === "Previous generations") page = await operatorTrace(selected, Math.max(0, page.offset - page.page_size));
 				else if (choice === "Next generations" && page.next_offset !== null) page = await operatorTrace(selected, page.next_offset);
 				else return;
 			}
 		}
-		await showAgentvolveDashboard(ctx, operatorModelLabel(ctx), progress, () => operatorProgress(selected), trace, (offset) => operatorTrace(selected, offset));
+		let current = progress;
+		let currentTrace = trace;
+		for (;;) {
+			const action = await showAgentvolveDashboard(ctx, operatorModelLabel(ctx), current, () => operatorProgress(selected), currentTrace, (offset) => operatorTrace(selected, offset));
+			if (action !== "tree") return;
+			await showCandidateTrees(ctx, selected);
+			current = await operatorProgress(selected);
+			currentTrace = await operatorTrace(selected);
+		}
 	}
 
 	async function showHistory(ctx: ExtensionContext, selector = ""): Promise<void> {

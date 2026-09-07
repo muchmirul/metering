@@ -264,5 +264,37 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             )
             assert verified.returncode == 0, verified.stderr
             assert json.loads(verified.stdout)["status"] == "verified"
+
+            # Inspect actual local-model descendants, not a synthetic projection fixture.
+            from apps.coding_agent.candidate_view import report_view, tree_view
+
+            nodes = []
+            offset = 0
+            while True:
+                page = tree_view(runs_directory, workflow_root.name, offset)
+                nodes.extend(page["items"])
+                if page["next_offset"] is None:
+                    break
+                offset = page["next_offset"]
+            assert any(node["label"].startswith("S") and node["parent_label"] for node in nodes)
+            assert any(node["label"].startswith("H") and node["reused"] for node in nodes)
+            for node in nodes:
+                event_offset = 0
+                diff_offset = 0
+                while True:
+                    candidate = report_view(runs_directory, workflow_root.name, node["label"], event_offset, diff_offset)
+                    assert candidate["node"]["candidate_id"] == node["candidate_id"]
+                    if node["status"] != "selected":
+                        assert candidate["evidence"]["final"] is None
+                    if node["parent_label"]:
+                        assert candidate["diff"]["available"], candidate["diff"]
+                    if candidate["next_offset"] is not None:
+                        event_offset = candidate["next_offset"]
+                    elif candidate["diff"]["next_offset"] is not None:
+                        diff_offset = candidate["diff"]["next_offset"]
+                    else:
+                        break
+            selected = next(node for node in nodes if node["kind"] == "solution" and node["status"] == "selected")
+            assert selected["candidate_id"] == report["selected_solution"]["candidate_id"]
         finally:
             close_rpc(process)

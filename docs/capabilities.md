@@ -142,7 +142,11 @@ evaluator authority from prose. While active, its monitor polls shared runs
 across activated Pi sessions; the `[1/6]`–`[6/6]` widget is visible only for a
 queued or running detached worker and clears when none is active.
 `/history` pages through all runs and recorded harness/solution generations,
-with stage reports and results. `/progress` inspects the most recent run, not an
+with stage reports and results. Its tree browser adds stable experiment-local
+H*/S* labels, actual ancestry, archive status/reasons, per-child evidence reports,
+recorded loop steps and failed/pending attempts, and paginated historical diffs.
+It never claims protected-final results for untested children. `/progress`
+inspects the most recent run, not an
 older abandoned run. Nested assay calls remain pinned to the canonical runtime.
 Old slash commands and compatibility Pi tool actions are removed; shared engines,
 worker CLI recovery/verification, and existing run artifacts are unchanged.

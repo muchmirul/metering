@@ -63,6 +63,10 @@ rounds, attempts, retries, archive evidence, completed-stage summaries, and the
 final commit/patch report. Diff previews remain bounded. Scroll with arrows or
 PageUp/PageDown; `Esc`/`q` returns to Pi without stopping the worker. Old slash
 commands are removed; the explicit worker CLI still supplies recovery and verify.
+Press **t** for [candidate trees and per-child reports](inspection.md), including
+recorded loop steps, excluded candidates, historical diffs, and failed/pending
+attempts. Archive membership and final testing remain distinct from pairwise
+selection; no unrecorded assay outcomes are invented.
 
 Read the same projection without Pi:
 

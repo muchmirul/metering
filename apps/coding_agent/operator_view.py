@@ -359,7 +359,9 @@ def _git_environment() -> dict[str, str]:
     return environment
 
 
-def _git_output(repository: Path, arguments: list[str]) -> str:
+def _git_output(
+    repository: Path, arguments: list[str], *, max_output_bytes: int = MAX_GIT_OUTPUT_BYTES
+) -> str:
     git = shutil.which("git")
     if git is None:
         raise OperatorViewError("Git is unavailable for candidate diff projection")
@@ -388,7 +390,7 @@ def _git_output(repository: Path, arguments: list[str]) -> str:
             process,
             None,
             timeout_seconds=5,
-            max_output_bytes=MAX_GIT_OUTPUT_BYTES,
+            max_output_bytes=max_output_bytes,
         )
     except (OSError, OutputLimitError, subprocess.TimeoutExpired, UnicodeError) as exc:
         raise OperatorViewError(
@@ -897,12 +899,9 @@ def _select_latest(runs_directory: Path) -> tuple[str, Path]:
     return entries[0]
 
 
-def progress_view(
-    runs_directory: Path,
-    selector: str | None = None,
-    *,
-    include_diff: bool = True,
-) -> dict[str, object]:
+def _selected_run(
+    runs_directory: Path, selector: str | None
+) -> tuple[str, Path]:
     runs_directory = runs_directory.expanduser().absolute()
     if runs_directory.is_symlink() or not runs_directory.is_dir():
         raise OperatorViewError(
@@ -921,6 +920,19 @@ def progress_view(
         if not root.is_dir():
             raise OperatorViewError(f"selected Agentvolve run is unavailable: {root}")
         kind = "workflow" if WORKFLOW_NAME.fullmatch(root.name) else "legacy"
+        if kind == "legacy" and not LEGACY_RUN_NAME.fullmatch(root.name):
+            raise OperatorViewError("selected Agentvolve run name is unsupported")
+    return kind, root
+
+
+def progress_view(
+    runs_directory: Path,
+    selector: str | None = None,
+    *,
+    include_diff: bool = True,
+) -> dict[str, object]:
+    runs_directory = runs_directory.expanduser().absolute()
+    kind, root = _selected_run(runs_directory, selector)
     return (
         _workflow_progress(runs_directory, root, include_diff=include_diff)
         if kind == "workflow"
@@ -938,13 +950,12 @@ def _page(offset: int, total: int, size: int) -> dict[str, object]:
     }
 
 
-def trace_view(
-    runs_directory: Path, selector: str, offset: int = 0
-) -> dict[str, object]:
-    """Page all recorded generations, keeping reused Level-2 evidence distinct."""
+def trace_sources(
+    runs_directory: Path, selector: str
+) -> tuple[Path, list[tuple[str, Path, bool]]]:
+    """Resolve only a selected run and its bound harness/solution sources."""
     runs_directory = runs_directory.expanduser().absolute()
-    progress = progress_view(runs_directory, selector, include_diff=False)
-    root = Path(cast(str, progress["workflow_root"]))
+    _kind, root = _selected_run(runs_directory, selector)
     sources: list[tuple[str, Path, bool]] = []
     if WORKFLOW_NAME.fullmatch(root.name):
         request = load_workflow_request(root)
@@ -959,8 +970,16 @@ def trace_view(
         sources.append(("solution", solution, False))
     else:
         match = LEGACY_RUN_NAME.fullmatch(root.name)
-        assert match is not None  # progress_view already checked the selected name
+        assert match is not None  # _selected_run already checked the selected name
         sources.append((match.group("kind"), root, False))
+    return root, sources
+
+
+def trace_view(
+    runs_directory: Path, selector: str, offset: int = 0
+) -> dict[str, object]:
+    """Page all recorded generations, keeping reused Level-2 evidence distinct."""
+    root, sources = trace_sources(runs_directory, selector)
     experiments: list[dict[str, object]] = []
     rounds: list[dict[str, object]] = []
     for kind, run_root, reused in sources:
@@ -1046,9 +1065,15 @@ def main(argv: list[str] | None = None) -> int:
             result = history_view(Path(arguments[1]), int(arguments[2]) if len(arguments) == 3 else 0)
         elif len(arguments) in {3, 4} and arguments[0] == "trace":
             result = trace_view(Path(arguments[1]), arguments[2], int(arguments[3]) if len(arguments) == 4 else 0)
+        elif arguments and arguments[0] in {"tree", "candidate", "loops", "loop"}:
+            from apps.coding_agent.candidate_view import inspect_view
+
+            result = inspect_view(arguments)
         else:
             raise OperatorViewError(
-                "usage: operator_view.py progress RUNS [RUN_NAME] | history RUNS [OFFSET] | trace RUNS RUN_NAME [OFFSET]"
+                "usage: operator_view.py progress RUNS [RUN_NAME] | history RUNS [OFFSET] | trace RUNS RUN_NAME [OFFSET] | "
+                "tree RUNS RUN [OFFSET] | candidate RUNS RUN H0|S0 [EVENT_OFFSET] [DIFF_OFFSET] | "
+                "loops RUNS RUN [OFFSET] | loop RUNS RUN HR1|SR1 [EVENT_OFFSET]"
             )
     except (OSError, OperatorViewError, TypeError, ValueError) as exc:
         print(str(exc) or type(exc).__name__, file=sys.stderr)

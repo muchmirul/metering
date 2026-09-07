@@ -88,7 +88,10 @@ A completed Level-1 run provides:
 - the Git, Population, Driver, mutation, evaluation, and final receipts needed
   for offline verification.
 
-Applying the patch is always a separate operator action.
+Applying the patch is always a separate operator action. Every candidate—not
+only the selected result—has a read-only report in the [tree/loop browser](inspection.md).
+Press **t** from `/progress` or a selected `/history` run to inspect H*/S* ancestry,
+archive outcomes, public check results, attempts, and historical changes.
 
 The implementation lives in [`apps/coding_agent/`](../../apps/coding_agent/README.md),
 while Level 2 lives in [`apps/harness/`](../../apps/harness/README.md).

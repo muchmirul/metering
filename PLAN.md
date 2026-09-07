@@ -681,6 +681,35 @@ run artifacts are not rewritten. The dashboard distinctly labels the current Pi 
 model and manifest-pinned worker model/PID/liveness; monitoring never authorizes
 effects.
 
+Candidate inspection adds read-only tree and per-candidate/loop report projections,
+not new slash commands or search policy. H*/S* aliases follow immutable Population
+registration order within each harness/solution experiment; trees traverse actual
+parent references and include seeds and excluded children. Latest development
+archive members/exclusions determine retained/eliminated status and its recorded
+reason, independently of pairwise Selection Gate decisions. Registered candidates
+without an archive decision are explicitly not-yet-archived. A selected marker
+requires a recorded final-role candidate evaluation, not an assumed passing result.
+
+Every registered child has a report of immutable identities, cumulative development
+evaluation counts/resources, recorded loop steps, public check outcomes from matching
+Controller receipts, archive snapshots, proposal explanations labelled model-authored,
+and paginated parent-relative Git changes. Parent allocations, proposal/retry
+reservations, registration, independent evaluation, pairwise selection, archive
+membership, and next allocations remain individually inspectable. Loop inspection
+includes pending/failed attempts and diagnostic-only failures without inventing child
+nodes. Old missing diagnostics or receipts remain explicitly unavailable. Protected
+profiles are never opened by these views; unselected children have no claimed final
+assay. Reused harness sources keep their original identities and attribution.
+
+Views validate canonical hash-linked records, pending identities, safe source paths,
+and matched diagnostic/Controller digests. They do not replay experimental authority
+or write run artifacts. Tree/loop pages contain twenty entries, report event pages
+ten, and diff pages forty 200-character display fragments under a 32 MiB bounded Git
+read. Oversized or undecodable diffs are explicit failures, not silently complete
+previews. Pi's candidate browser supports keyboard and fullscreen selector clicks;
+report pagination, scrolling, and refresh are read-only. Existing task/run identities,
+recurrence, assays, verification, and the installed Metering API are unchanged.
+
 Loading the extension alone performs no model, service, worker, or experiment
 effect. The operator model cannot silently become the experiment model; changing
 the latter requires a separately reviewed runtime manifest and constitutes a
