@@ -646,6 +646,18 @@ JSON correction, fixed registration, and preflight remain mandatory. TUI and RPC
 both service the direct review protocol; neither treats prose as evaluator
 authority. Removed slash commands and low-level tool actions are not aliases.
 
+The interactive Pi release is separate from the experiment's exact implementation
+pin. The fixed Pi operator launcher probes the required CLI contract and resolves
+the exact pinned release before model-service or workflow effects: explicit
+command overrides must match; otherwise use a matching PATH executable or an
+operator-installed version cache. There is no hardcoded release ceiling, automatic
+installation, wildcard runtime identity, or claim of compatibility with unknown
+breaking releases. The resolved absolute command is inherited by the unchanged
+worker and exact-version connectors. Updated interactive Pi can therefore drive
+older pinned runs without rewriting their runtime or sealed harness. Actual
+experiment upgrades still require a new runtime identity and compatible sealed
+harness. Explicit recovery resolves the original pin without granting retries.
+
 Start validates the task, runtime, protected-final structure, Git binding,
 selected harness when supplied, runtime executable, and local-model readiness
 before creating workflow state. The explicit Pi start action may start and await
@@ -682,7 +694,7 @@ model and manifest-pinned worker model/PID/liveness; monitoring never authorizes
 effects.
 
 Candidate inspection adds read-only tree and per-candidate/loop report projections,
-not new slash commands or search policy. H*/S* aliases follow immutable Population
+not new slash commands or search policy. Existing numeric H*/S* aliases follow immutable Population
 registration order within each harness/solution experiment; trees traverse actual
 parent references and include seeds and excluded children. Latest development
 archive members/exclusions determine retained/eliminated status and its recorded
@@ -702,13 +714,53 @@ profiles are never opened by these views; unselected children have no claimed fi
 assay. Reused harness sources keep their original identities and attribution.
 
 Views validate canonical hash-linked records, pending identities, safe source paths,
-and matched diagnostic/Controller digests. They do not replay experimental authority
+and matched diagnostic/Controller digests. Auxiliary JSON is read once under its
+2 MiB cap, so the digest checks the actual parsed document. Diagnostics also have
+a 32 MiB/10-second aggregate scan bound. They do not replay experimental authority
 or write run artifacts. Tree/loop pages contain twenty entries, report event pages
 ten, and diff pages forty 200-character display fragments under a 32 MiB bounded Git
 read. Oversized or undecodable diffs are explicit failures, not silently complete
 previews. Pi's candidate browser supports keyboard and fullscreen selector clicks;
 report pagination, scrolling, and refresh are read-only. Existing task/run identities,
 recurrence, assays, verification, and the installed Metering API are unchanged.
+
+The file-aware trace viewer is an additive, explicitly opened loopback-only
+web view, not a search engine or artifact store. Git remains the authority for
+candidate files; canonical ledgers and receipts remain evidence authority. The
+existing Population SQLite schema is unchanged. Viewer caches are disposable,
+bounded, and outside historical runs. The terminal browser and four commands
+remain available; loading Pi does not launch the viewer.
+
+Graph labels combine lineage depth and a stable branch suffix: S0, S1a, S1b,
+S2a. The first child continues its parent's branch; another child receives the
+next unused suffix in registration order (a..z, aa..). Labels never depend on
+retention or layout, and chronological round numbers remain separate. Existing
+H*/S* registration aliases, candidate IDs, and commit identities are preserved.
+Reused harnesses retain their original source and are not solution ancestors.
+
+The viewer connects candidate ancestry, exact tracked-file snapshots, and recorded
+loop/evaluation evidence. File identity includes source, candidate, commit, raw
+path identity, Git blob, and mode. Candidate files are read only from known Git
+objects, never executed or followed as host paths. Source content is inert text;
+symlinks/submodules are not traversed. Additions, changes, deletions, binary data,
+encoding/size limitations, and inferred renames are explicit. File history follows
+recorded candidate ancestry at an exact path, not a guessed rename identity.
+Candidate-level results do not establish file-level causation.
+
+A bounded evidence snapshot binds source ledger heads, pending identities,
+captured public loop details (including receipt availability), and task/worker
+summaries. Later reads cannot silently repair or change an old snapshot's reports.
+This is a captured projection rather than an atomic cross-file transaction; a
+mid-append inconsistency fails explicitly and refresh preserves the previous view.
+Graph, report, file-history, comparison, and JSON/CSV/image exports retain that
+snapshot attribution. Historical archive membership is explicitly separated from
+latest recorded evaluation summaries. Projection integrity is not full offline
+verification. Protected task contents remain unavailable and unselected children
+never inherit the selected candidate's final evidence. The HTTP boundary serves
+only fixed local assets and bounded queries for one selected run, with a random
+capability, strict Host/Origin checks, no CORS, no mutation endpoints, and finite
+idle/lifetime limits. Browser assets are locally built from pinned dependencies;
+there are no CDN scripts or remote data requests.
 
 Loading the extension alone performs no model, service, worker, or experiment
 effect. The operator model cannot silently become the experiment model; changing

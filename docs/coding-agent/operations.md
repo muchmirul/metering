@@ -20,6 +20,12 @@ Candidate containers use `--pull never` and have no network. Project dependencie
 and check executables must already be present in the approved image or repository
 archive. See the [isolation guide](../../apps/harness/isolation/README.md).
 
+The Pi operator now performs [version resolution and CLI-contract preflight](pi-versions.md)
+before service/workflow launch. An updated interactive Pi can use an older
+experiment's exact worker release from a separate version cache. A missing or
+incompatible executable fails before a new pending proposal is created. No
+version check, old manifest, or sealed runtime is weakened.
+
 ## Level 2: harness
 
 Run the deterministic fixture:
@@ -198,8 +204,19 @@ branches, current archive status/reasons, and selectable reports for every child
 The same browser exposes loop/attempt reports, including failed proposals without
 child nodes. Within reports use n/p for steps, ]/[ for historical diff pages, and
 Escape to return. Final counts appear only for candidates actually final-tested.
-See [complete inspection semantics and CLI](inspection.md).
+See [complete terminal inspection semantics and CLI](inspection.md).
+Press **g** for the optional [Trace Viewer](trace-viewer.md): a local graph of
+candidates and their actual Git files, with per-file tracing, comparisons, and
+exports. Build the documented frontend assets before first use. The service is
+explicitly opened, read-only, capability-protected, and finite-lived; it is not
+an Agentvolve worker and closing it never stops evolution.
 The compact widget remains active-only and clears when no worker runs.
+
+For upgrade-safe Pi recovery, use
+`python -m connectors.fixed.pi.runtime resume WORKFLOW` or
+`python -m connectors.fixed.pi.runtime retry WORKFLOW 'approved reason'`.
+These resolve the original runtime's executable before delegating to the same
+worker; they never grant retry authority or extend budgets.
 
 Recovery and verification use the explicit worker CLI above, not additional
 slash commands. Resume cannot repeat an indeterminate model call; retry needs a

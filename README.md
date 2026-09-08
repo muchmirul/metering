@@ -146,6 +146,17 @@ status/reasons, recorded loop steps and public checks, resources, and its paged
 historical diff. A loops/attempts view includes failed and pending proposals
 without inventing child nodes. Unselected candidates do not receive fabricated
 protected-final results. See [candidate inspection](docs/coding-agent/inspection.md).
+[Pi upgrades](docs/coding-agent/pi-versions.md) no longer require your interactive
+Pi to equal the experiment's release: the launcher resolves its exact worker pin
+from PATH or an explicitly prepared version cache before starting work. It does
+not rewrite old runtimes or promise compatibility with unknown breaking releases.
+
+Press **g** for the optional local [Trace Viewer](docs/coding-agent/trace-viewer.md):
+a clickable graph with stable depth/branch labels, real file nodes, exact source
+and byte downloads, per-file history/comparisons, archive snapshots, and exports.
+Build its local assets once with `npm ci --prefix apps/coding_agent/trace_ui` and
+`npm run build --prefix apps/coding_agent/trace_ui`. Git/evidence stay authoritative;
+no existing run is migrated or modified. The terminal view remains available.
 The compact widget appears only for a
 currently queued/running detached workflow and disappears when none is active.
 

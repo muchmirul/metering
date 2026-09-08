@@ -7,6 +7,7 @@ export interface InspectionLoaders {
 	tree: (offset: number, loops: boolean) => Promise<OperatorTreeView>;
 	report: (label: string, eventOffset: number, diffOffset: number, loop: boolean) => Promise<OperatorCandidateReport>;
 	record: (view: OperatorTreeView | OperatorCandidateReport) => void;
+	openGraph?: () => Promise<void>;
 }
 
 type ReportAction = "events-next" | "events-previous" | "diff-next" | "diff-previous" | "refresh" | "back";
@@ -116,12 +117,13 @@ export async function showCandidateBrowser(ctx: ExtensionContext, loaders: Inspe
 		// Pi's built-in selector supports keyboard selection and fullscreen mouse clicks.
 		const selected = await ctx.ui.select(`Agentvolve ${loops ? "loops / attempts" : "candidate trees"} · ${tree.total_items ? offset + 1 : 0}–${offset + tree.items.length} of ${tree.total_items}`, [
 			...labels, ...(offset > 0 ? ["Previous page"] : []), ...(tree.next_offset !== null ? ["Next page"] : []),
-			loops ? "Show candidate trees" : "Show loops / attempts", "Refresh tree", "Back to progress",
+			loops ? "Show candidate trees" : "Show loops / attempts", ...(loaders.openGraph ? ["Open Trace Viewer"] : []), "Refresh tree", "Back to progress",
 		]);
 		if (!selected || selected === "Back to progress") return;
 		if (selected === "Next page" && tree.next_offset !== null) { offset = tree.next_offset; continue; }
 		if (selected === "Previous page") { offset = Math.max(0, offset - tree.page_size); continue; }
 		if (selected.startsWith("Show ")) { loops = !loops; offset = 0; continue; }
+		if (selected === "Open Trace Viewer") { await loaders.openGraph?.(); continue; }
 		if (selected === "Refresh tree") continue;
 		const item = tree.items[labels.indexOf(selected)];
 		if (!item) throw new Error("Candidate selection did not resolve");

@@ -9,6 +9,7 @@ import { BorderedLoader, type ExtensionAPI, type ExtensionContext, type SessionE
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
+import { openTraceViewer } from "./agentvolve_trace_viewer.ts";
 import { showCandidateBrowser } from "./agentvolve_candidate_browser.ts";
 import { showAgentvolveDashboard } from "./agentvolve_dashboard.ts";
 import {
@@ -338,9 +339,12 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	async function launchDetachedWorkflow(ctx: ExtensionContext, profile: string, signal: AbortSignal): Promise<WorkerResponse> {
 		signal.throwIfAborted();
+		const preflight = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "check", runtimeManifest()],
+			{ cwd: repositoryRoot(), signal, timeout: 30_000 });
+		decodeOutput(preflight);
 		await ensureLocalRuntime(await configuredRuntimeSelection(), signal);
 		const harness = await selectedHarnessDescriptor();
-		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.agentvolve_worker", "start", runsDirectory(),
+		const result = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "start", runsDirectory(),
 			configuredTaskProfile(profile), runtimeManifest(), ...(harness ? [harness] : [])],
 			{ cwd: repositoryRoot(), signal, timeout: 30_000 });
 		const worker = decodeWorkerResponse(decodeOutput(result));
@@ -522,6 +526,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			report: async (label, eventOffset, diffOffset, loop) => decodeCandidateReport(await inspect(loop ? "loop" : "candidate",
 				[label, String(eventOffset), ...(loop ? [] : [String(diffOffset)])])),
 			record: (view) => pi.appendEntry("agentvolve-candidate-inspection", view),
+			openGraph: () => openTraceViewer(pi, ctx, selector),
 		});
 	}
 
@@ -543,10 +548,11 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				ctx.ui.notify(JSON.stringify(page), "info");
 				const options = [
 					...(page.offset > 0 ? ["Previous generations"] : []),
-					...(page.next_offset !== null ? ["Next generations"] : []), "Candidate trees / child reports", "Return",
+					...(page.next_offset !== null ? ["Next generations"] : []), "Candidate trees / child reports", "Open Trace Viewer", "Return",
 				];
 				const choice = await ctx.ui.select("Evolution trace", options);
 				if (choice === "Candidate trees / child reports") await showCandidateTrees(ctx, selected);
+				else if (choice === "Open Trace Viewer") await openTraceViewer(pi, ctx, selected);
 				else if (choice === "Previous generations") page = await operatorTrace(selected, Math.max(0, page.offset - page.page_size));
 				else if (choice === "Next generations" && page.next_offset !== null) page = await operatorTrace(selected, page.next_offset);
 				else return;
@@ -556,8 +562,9 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		let currentTrace = trace;
 		for (;;) {
 			const action = await showAgentvolveDashboard(ctx, operatorModelLabel(ctx), current, () => operatorProgress(selected), currentTrace, (offset) => operatorTrace(selected, offset));
-			if (action !== "tree") return;
-			await showCandidateTrees(ctx, selected);
+			if (action === "graph") await openTraceViewer(pi, ctx, selected);
+			else if (action === "tree") await showCandidateTrees(ctx, selected);
+			else return;
 			current = await operatorProgress(selected);
 			currentTrace = await operatorTrace(selected);
 		}

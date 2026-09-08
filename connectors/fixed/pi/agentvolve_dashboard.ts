@@ -72,7 +72,7 @@ class AgentvolveDashboard {
 	private readonly theme: Theme;
 	private readonly operatorModel: string;
 	private readonly load: () => Promise<OperatorProgressView>;
-	private readonly close: (action?: "tree") => void;
+	private readonly close: (action?: "tree" | "graph") => void;
 	private readonly requestRender: () => void;
 	private readonly viewportRows: () => number;
 	private progress: OperatorProgressView;
@@ -95,7 +95,7 @@ class AgentvolveDashboard {
 		load: () => Promise<OperatorProgressView>,
 		requestRender: () => void,
 		viewportRows: () => number,
-		close: (action?: "tree") => void,
+		close: (action?: "tree" | "graph") => void,
 		trace: OperatorTraceView,
 		loadTrace: (offset: number) => Promise<OperatorTraceView>,
 	) {
@@ -150,6 +150,11 @@ class AgentvolveDashboard {
 	}
 
 	handleInput(data: string): void {
+		if (data === "g" || data === "G") {
+			this.dispose();
+			this.close("graph");
+			return;
+		}
 		if (data === "t" || data === "T") {
 			this.dispose();
 			this.close("tree");
@@ -260,7 +265,7 @@ class AgentvolveDashboard {
 		const lines: string[] = [border(`╭${"─".repeat(inner)}╮`)];
 		const wrappedRows = (text: string) => wrapTextWithAnsi(safeLine(text), inner - 2).map((line) => row(` ${line}`));
 		lines.push(row(` ${this.theme.fg("accent", this.theme.bold("🧬 Agentvolve progress / history"))}`));
-		lines.push(row(" t candidate trees / child reports · [ ] generations · ↑↓ scroll · esc/q return"));
+		lines.push(row(" g Trace Viewer · t terminal trees · [ ] generations · ↑↓ scroll · esc/q return"));
 		lines.push(row(` operator  ${this.theme.fg("text", safeLine(this.operatorModel))}`));
 		const workerModel = this.progress.worker.model;
 		const workerLabel = workerModel
@@ -364,7 +369,7 @@ class AgentvolveDashboard {
 		const below = Math.max(0, content.length - capacity - this.scrollOffset);
 		return [
 			lines[0]!,
-			row(` ${this.theme.fg("dim", `↑${this.scrollOffset} ↓${below} · t trees/reports · arrows scroll`)}`),
+			row(` ${this.theme.fg("dim", `↑${this.scrollOffset} ↓${below} · g graph · t tree · arrows scroll`)}`),
 			...content.slice(this.scrollOffset, this.scrollOffset + capacity),
 			lines.at(-1)!,
 		];
@@ -386,12 +391,12 @@ export async function showAgentvolveDashboard(
 	load: () => Promise<OperatorProgressView>,
 	trace: OperatorTraceView,
 	loadTrace: (offset: number) => Promise<OperatorTraceView>,
-): Promise<"tree" | undefined> {
+): Promise<"tree" | "graph" | undefined> {
 	if (ctx.mode !== "tui") {
 		ctx.ui.notify("/progress dashboard requires interactive Pi", "error");
 		return;
 	}
-	return ctx.ui.custom<"tree" | undefined>((tui, theme, _keybindings, done) => {
+	return ctx.ui.custom<"tree" | "graph" | undefined>((tui, theme, _keybindings, done) => {
 		const dashboard = new AgentvolveDashboard(
 			theme,
 			operatorModel,

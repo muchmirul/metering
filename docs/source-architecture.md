@@ -156,6 +156,15 @@ absolute path in Pi's global settings. The connector keeps Pi/TUI effects in
 read-only trees and child/loop reports from `apps.coding_agent.candidate_view`;
 that view derives aliases, archive outcomes, and history from canonical records
 without invoking the search engine or opening protected profiles.
+`connectors.fixed.pi.runtime` resolves/probes exact Pi worker versions offline
+before delegation. This is operator transport preparation, not a change to the
+worker, Population, assays, replay, or recorded runtime identities.
+`agentvolve_trace_viewer.ts` explicitly launches the optional local graphical
+viewer. `apps.coding_agent.trace_view` binds evidence snapshots; `trace_labels`
+assigns stable branch aliases; `file_view`, `git_inventory`, and `inspection_git`
+provide bounded, byte-exact Git inspection; `trace_server` owns only the scoped
+HTTP service. `trace_ui` contains the separately built TypeScript/Cytoscape.js UI.
+The existing Population SQLite schema and experiment engines are unchanged.
 Its four-command `/goal`, `/limit`,
 `/history`, `/progress` UI and model-facing actions
 present one streamlined conversational workflow, no-effect activation, direct

@@ -145,7 +145,11 @@ queued or running detached worker and clears when none is active.
 with stage reports and results. Its tree browser adds stable experiment-local
 H*/S* labels, actual ancestry, archive status/reasons, per-child evidence reports,
 recorded loop steps and failed/pending attempts, and paginated historical diffs.
-It never claims protected-final results for untested children. `/progress`
+The optional [Trace Viewer](coding-agent/trace-viewer.md) adds a local clickable
+graph, stable depth/branch labels, real Git file nodes, exact source/downloads,
+file history/comparison, archive filters, and projection exports. Its bounded
+loopback service starts only on explicit opening; it changes no evidence or
+Population SQLite schema. It never claims protected-final results for untested children. `/progress`
 inspects the most recent run, not an
 older abandoned run. Nested assay calls remain pinned to the canonical runtime.
 Old slash commands and compatibility Pi tool actions are removed; shared engines,

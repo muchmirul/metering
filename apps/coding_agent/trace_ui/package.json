@@ -1,0 +1,20 @@
+{
+  "name": "agentvolve-trace-viewer",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && node build.mjs",
+    "test": "playwright test",
+    "format:check": "prettier --check src tests index.html style.css build.mjs playwright.config.ts tsconfig.json package.json"
+  },
+  "dependencies": {
+    "cytoscape": "3.34.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "esbuild": "0.28.2",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  }
+}

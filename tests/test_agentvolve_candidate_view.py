@@ -274,6 +274,16 @@ def test_workflow_reports_keep_reused_harness_and_solution_separate(tmp_path: Pa
     assert report["node"]["reused"] is True
     assert report["evidence"]["final"] is None
 
+    from apps.coding_agent.trace_view import TraceSnapshot
+
+    trace = TraceSnapshot(tmp_path / "runs", workflow.name)
+    graph = trace.graph()
+    assert [source["reused"] for source in graph["sources"]] == [True, False]
+    assert graph["sources"][0]["run_root"] == str(harness)
+    assert {node["display_label"] for node in graph["nodes"]} == {"H0", "H1a", "H1b", "H2a", "S0", "S1a", "S1b", "S2a"}
+    for node in graph["nodes"]:
+        assert trace.files[node["kind"]].inventory(node["candidate_id"])
+
 
 def test_diff_limits_long_lines_and_missing_controller_are_explicit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     from apps.coding_agent import candidate_view

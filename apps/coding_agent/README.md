@@ -25,6 +25,7 @@ Use the dedicated [Agentvolve documentation](../../docs/coding-agent/README.md):
 - [simple architecture and execution flow](../../docs/coding-agent/how-it-works.md);
 - [six-stage workflow](../../docs/coding-agent/workflow.md);
 - [operations and commands](../../docs/coding-agent/operations.md);
+- [Trace Viewer: graph, Git files, history, and exports](../../docs/coding-agent/trace-viewer.md);
 - [goal-or-limit stopping policies](../../docs/coding-agent/stopping.md);
 - [task-profile reference](../../docs/coding-agent/task-profile.md); and
 - [architecture and threat model](../../docs/coding-agent/architecture.md).
@@ -64,7 +65,12 @@ kernel state, and unexported files are not inherited.
 `start`, `resume`, `retry`, `stop`, and `verify` operations. It emits only a
 bounded launch response; canonical status and logs live under the workflow root.
 `python -m apps.coding_agent.operator_view` exposes read-only `progress` and
-`history` JSON for Pi or another future coding-agent adapter. See the
+`history` JSON for Pi or another future coding-agent adapter.
+`python -m apps.coding_agent.trace_server launch RUNS RUN_NAME` explicitly opens
+an optional, finite-lived loopback trace service. Build its pinned frontend once
+with `npm ci --prefix apps/coding_agent/trace_ui` and
+`npm run build --prefix apps/coding_agent/trace_ui`; Pi opens it with **g** from
+progress/history. The terminal browser remains available with **t**. See the
 [operations guide](../../docs/coding-agent/operations.md) for exact commands.
 
 ## Modules
@@ -73,6 +79,13 @@ bounded launch response; canonical status and logs live under the workflow root.
 |---|---|
 | `agentvolve_worker.py` | detached six-stage workflow jobs, process lock/liveness, and final workflow report |
 | `operator_view.py` | read-only progress/history, lineage, bounded candidate diffs, and stage reports |
+| `candidate_view.py` | terminal candidate trees, reports, and recorded loop steps |
+| `trace_labels.py` | stable depth/branch display aliases without changing candidate identity |
+| `trace_view.py` | bounded evidence snapshots, graph/file-history projections, and CSV export |
+| `file_view.py` | file inventories, exact blobs, diff pages, and separate rename inference |
+| `git_inventory.py`, `inspection_git.py` | bounded Git byte transport and verified commit/tree-to-file mapping |
+| `trace_server.py` | explicit capability-scoped, finite-lived loopback service; no worker/evaluator routes |
+| `trace_ui/` | separately built TypeScript/Cytoscape.js UI and real-browser tests |
 | `process_tracker.py` | projection-only `[n/6]` status |
 | `protocol.py` | task and protected-final profile validation |
 | `preflight.py` | private operator preparation before Level-1 inference, without executing checks |

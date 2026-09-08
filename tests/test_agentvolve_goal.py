@@ -121,7 +121,9 @@ export default function(pi: any) {
     uv.write_text(f'''#!{sys.executable}
 import json, os, sys
 args = sys.argv[1:]
-if args[:5] == ["run", "python", "-m", "apps.coding_agent.agentvolve_worker", "start"]:
+if args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "check"]:
+    print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1", "authority":"diagnostic-only"}}))
+elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "start"]:
     with open(os.environ["GOAL_LAUNCH_LOG"], "a") as log:
         log.write(json.dumps(args) + "\\n")
     print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "action":"start", "pid":12345, "state":"queued", "workflow_id":"fixture", "workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))

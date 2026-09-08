@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agentvolve Trace Viewer</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>Agentvolve <span>Trace Viewer</span></h1>
+      <p id="task">Loading recorded evidence…</p>
+      <p id="source" class="muted"></p>
+    </header>
+    <nav aria-label="Trace controls">
+      <label
+        >Experiment
+        <select id="kind">
+          <option value="harness">Harness</option>
+          <option value="solution">Solution</option>
+        </select></label
+      >
+      <label
+        >Archive
+        <select id="archive">
+          <option value="">Latest</option>
+        </select></label
+      >
+      <label
+        >Find candidate
+        <input id="search" placeholder="Label or full identity" type="search"
+      /></label>
+      <button id="fit">Fit graph</button
+      ><button id="refresh">Refresh evidence</button
+      ><button id="loops">Loops / attempts</button>
+      <label
+        >Export
+        <select id="export">
+          <option value="">Choose format…</option>
+          <option value="json">Snapshot JSON</option>
+          <option value="csv">Candidate CSV</option>
+          <option value="png">Visible graph PNG</option>
+          <option value="trace">Current file-history JSON</option>
+        </select></label
+      >
+    </nav>
+    <p id="error" role="alert" hidden></p>
+    <p id="busy" role="status" hidden>Reading immutable evidence…</p>
+    <main>
+      <aside id="files-pane">
+        <h2>Snapshot files</h2>
+        <label
+          >Candidate
+          <select id="candidate"></select
+        ></label>
+        <label
+          >Compare with
+          <select id="base">
+            <option value="">Recorded parent</option>
+          </select></label
+        >
+        <label
+          >Graph file nodes
+          <select id="file-mode">
+            <option value="hidden">Hidden</option>
+            <option value="changed">Changed files</option>
+            <option value="all">All files on page</option>
+          </select></label
+        >
+        <div id="file-meta" class="muted"></div>
+        <div id="file-list"></div>
+        <div id="file-pages" class="pages"></div>
+        <button id="renames">Inspect inferred renames</button>
+      </aside>
+      <section id="graph-pane" aria-label="Candidate ancestry graph">
+        <div class="graph-heading">
+          <h2 id="graph-title">Candidate ancestry</h2>
+          <button id="clear-history" hidden>Return to ancestry</button>
+        </div>
+        <p id="graph-note" class="muted"></p>
+        <div id="graph"></div>
+        <p class="legend">
+          Circles: candidates · rectangles: files · solid arrows: ancestry ·
+          dashed arrows: contains<br />Gold border: final-selected (not
+          necessarily passing) · white halo: inspecting · faded: excluded
+        </p>
+      </section>
+      <aside id="detail-pane">
+        <h2 id="inspecting">Choose a candidate</h2>
+        <div id="summary"></div>
+        <div id="detail"></div>
+      </aside>
+    </main>
+    <footer>
+      <strong>Read-only.</strong> Candidate-level results do not establish
+      file-level causation. No source execution, retries, edits, or final
+      tests.<br /><span id="snapshot"></span><br /><span
+        id="verification"
+      ></span>
+    </footer>
+    <dialog id="loop-dialog">
+      <div class="dialog-heading">
+        <h2>Recorded loops / attempts</h2>
+        <button id="close-dialog">Close</button>
+      </div>
+      <select id="loop-select" aria-label="Choose a recorded loop"></select>
+      <div id="loop-events"></div>
+    </dialog>
+  </body>
+</html>

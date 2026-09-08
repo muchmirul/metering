@@ -39,6 +39,8 @@ The integration separates UI, execution, and read-only evidence views:
   session configuration, and active-only compact widget;
 - `population_evolution_support.ts`: runtime paths, discovery, and projection decoding;
 - `agentvolve_dashboard.ts`: terminal progress and paginated evolution traces;
+- `runtime.py`: offline exact-version resolution and bounded CLI-contract preflight before delegating to the unchanged worker;
+- `agentvolve_trace_viewer.ts`: explicit, finite-lived loopback Trace Viewer launch;
 - `agentvolve_candidate_browser.ts`: branching trees, selectable child reports,
   loop/attempt steps, and paginated historical diffs;
 - `apps.coding_agent.agentvolve_worker`: detached execution;
@@ -108,6 +110,20 @@ Git objects and ledgers remain the full evidence; diff previews are bounded.
 
 Dashboard keys: `[`/`]` change trace pages; arrows or PageUp/PageDown scroll;
 `r` refreshes; `d` expands/collapses the bounded diff; `Esc`/`q` returns to Pi.
+See [Pi upgrades and experiment versions](../../../docs/coding-agent/pi-versions.md)
+for the optional version cache, explicit overrides, and early compatibility checks.
+Interactive Pi upgrades do not rewrite a sealed runtime; older workers resolve
+their original version. New experiment versions still need a reviewed matching
+runtime/harness. There is no automatic package installation or version bypass.
+
+Press **g** for the [Trace Viewer](../../../docs/coding-agent/trace-viewer.md), a
+local Cytoscape.js graph with branch labels, exact Git files, per-file history,
+comparison, archive filters, and exports. Its frontend requires a one-time
+`npm ci` and `npm run build` under `apps/coding_agent/trace_ui`. Loading Pi and
+model-facing status/history actions never launch this service. It uses a private
+loopback capability, expires on idle/lifetime limits, and cannot mutate runs.
+The capability URL is not persisted as an experiment or projection record.
+
 Press **t** for actual H*/S* candidate trees and select any child to inspect its
 recorded development outcomes, identities, archive state/reason, loop steps, and
 parent-relative diff. Choose loops/attempts for failed or pending proposals. Report

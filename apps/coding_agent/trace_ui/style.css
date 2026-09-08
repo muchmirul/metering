@@ -1,0 +1,304 @@
+:root {
+  color-scheme: dark;
+  font:
+    14px system-ui,
+    sans-serif;
+  background: #0b111b;
+  color: #e7edf7;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+header {
+  padding: 16px 22px;
+  border-bottom: 1px solid #293749;
+}
+h1 {
+  font-size: 21px;
+  margin: 0;
+}
+h1 span {
+  font-weight: 400;
+  color: #9badc5;
+}
+h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+h3 {
+  font-size: 15px;
+}
+p {
+  overflow-wrap: anywhere;
+}
+header p {
+  margin: 7px 0 0;
+}
+nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: end;
+  padding: 12px 20px;
+  background: #121c2a;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: #aebed2;
+  font-size: 12px;
+}
+button,
+input,
+select {
+  background: #1b2a3d;
+  color: #e7edf7;
+  border: 1px solid #3b4f68;
+  border-radius: 5px;
+  padding: 8px;
+  font: inherit;
+  max-width: 100%;
+}
+button {
+  cursor: pointer;
+}
+button:hover,
+button:focus-visible {
+  background: #29425e;
+  border-color: #86bfff;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #86bfff;
+}
+nav input {
+  width: 180px;
+}
+main {
+  display: grid;
+  grid-template-columns: 250px minmax(300px, 1fr) 370px;
+  min-height: 580px;
+  height: calc(100vh - 260px);
+}
+aside {
+  padding: 16px;
+  overflow: auto;
+  min-width: 0;
+  background: #121c2a;
+}
+#files-pane {
+  border-right: 1px solid #293749;
+}
+#detail-pane {
+  border-left: 1px solid #293749;
+}
+aside label {
+  margin: 0 0 12px;
+}
+#graph-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #111a27;
+}
+.graph-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px 0;
+}
+.graph-heading h2 {
+  margin: 0;
+}
+#graph-note {
+  padding: 0 16px;
+  font-size: 12px;
+}
+/* Canvas coordinates are a viewport, not document dimensions. Resizes must not
+   let a previous canvas size overflow the page before its next render frame. */
+#graph {
+  flex: 1;
+  min-height: 200px;
+  min-width: 0;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+.legend {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #adbed2;
+  padding: 8px 16px;
+  border-top: 1px solid #293749;
+  margin: 0;
+}
+.muted {
+  font-size: 12px;
+  color: #9badc5;
+  overflow-wrap: anywhere;
+}
+.pages {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 10px 0;
+}
+.pages span {
+  font-size: 12px;
+  color: #aebed2;
+}
+.file-row {
+  display: block;
+  text-align: left;
+  width: 100%;
+  margin: 4px 0;
+  padding: 6px;
+  overflow-wrap: anywhere;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.modified {
+  border-left: 3px solid #f1cb7b;
+}
+.added {
+  border-left: 3px solid #64d8af;
+}
+.deleted {
+  border-left: 3px solid #ff8d9d;
+}
+details {
+  margin: 8px 0;
+}
+details details {
+  padding-left: 8px;
+}
+summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  color: #bcd0e8;
+  line-height: 1.6;
+}
+dl {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr);
+  gap: 7px;
+  font-size: 12px;
+}
+dt {
+  color: #9badc5;
+}
+dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  background: #0b111b;
+  border: 1px solid #293749;
+  border-radius: 5px;
+  padding: 10px;
+  max-height: 55vh;
+  overflow: auto;
+}
+.source-code {
+  white-space: pre;
+  overflow-wrap: normal;
+  unicode-bidi: plaintext;
+}
+.notice {
+  padding: 10px;
+  background: #322a16;
+  color: #ffe1a4;
+  border-radius: 4px;
+  font-size: 12px;
+}
+#error {
+  margin: 10px 20px;
+  padding: 12px;
+  background: #472235;
+  border: 1px solid #bf6682;
+  border-radius: 4px;
+}
+#busy {
+  margin: 8px 20px;
+  color: #9dccff;
+}
+footer {
+  padding: 14px 20px;
+  border-top: 1px solid #293749;
+  font-size: 11px;
+  color: #9badc5;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+dialog {
+  max-width: 850px;
+  width: 90vw;
+  max-height: 85vh;
+  background: #121c2a;
+  color: #e7edf7;
+  border: 1px solid #4b617c;
+  border-radius: 8px;
+  padding: 20px;
+}
+dialog::backdrop {
+  background: #0009;
+}
+.dialog-heading {
+  display: flex;
+  justify-content: space-between;
+}
+#loop-select {
+  width: 100%;
+  margin: 10px 0;
+}
+@media (max-width: 1100px) {
+  main {
+    grid-template-columns: 210px minmax(300px, 1fr);
+    height: auto;
+  }
+  #graph-pane {
+    height: 65vh;
+  }
+  #detail-pane {
+    grid-column: 1 / -1;
+    max-height: 65vh;
+  }
+  #files-pane {
+    max-height: 65vh;
+  }
+}
+@media (max-width: 650px) {
+  main {
+    display: flex;
+    flex-direction: column;
+  }
+  #graph-pane {
+    order: -1;
+  }
+  #files-pane,
+  #detail-pane {
+    max-height: none;
+  }
+  nav {
+    padding: 10px;
+  }
+  header {
+    padding: 12px;
+  }
+}

@@ -66,7 +66,9 @@ commands are removed; the explicit worker CLI still supplies recovery and verify
 Press **t** for [candidate trees and per-child reports](inspection.md), including
 recorded loop steps, excluded candidates, historical diffs, and failed/pending
 attempts. Archive membership and final testing remain distinct from pairwise
-selection; no unrecorded assay outcomes are invented.
+selection; no unrecorded assay outcomes are invented. The optional graphical
+[Trace Viewer](trace-viewer.md), opened with **g**, adds real file nodes and exact
+file-version tracing. It is a separate read-only viewer, not an evolution action.
 
 Read the same projection without Pi:
 

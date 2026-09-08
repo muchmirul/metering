@@ -6,6 +6,21 @@ workflow.
 for commands, the [task-profile reference](task-profile.md) for configuration,
 and the [stopping-policy guide](stopping.md) for goal-or-limit semantics.
 
+## Read-only inspection boundary
+
+The optional [Trace Viewer](trace-viewer.md) is opened explicitly from existing
+history/progress UI. Its loopback service owns no worker, evaluator, archive,
+retry, verification, or patch-application action. Git commit/tree/blob identities
+bind actual files; captured canonical evidence projections bind reports. Stable
+branch aliases and graph positions are presentation only. Reused harnesses retain
+their original source identity rather than becoming solution ancestors.
+
+Fixed locally built assets, scoped capability authentication, strict Host/Origin
+checks, bounded reads, inert source rendering, and finite service lifetime form
+the viewer boundary. It never opens protected profiles or follows candidate
+symlinks/submodules. No Population SQLite schema or historical run is rewritten.
+Projection snapshots and exports do not claim full offline verification.
+
 ## Evolutionary semantics
 
 A candidate's lifetime is one isolated Pi/harness execution. Its transcript,

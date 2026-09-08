@@ -146,7 +146,13 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             "are authorized"
         )
 
-    pi_bin = os.environ.get("PI_BIN", "pi")
+    # The operator may be newer than the exact worker pin. Probe without inference.
+    checked = subprocess.run(
+        [sys.executable, "-m", "connectors.fixed.pi.runtime", "check", str(runtime)],
+        cwd=ROOT, capture_output=True, text=True, timeout=30,
+    )
+    assert checked.returncode == 0, checked.stderr
+    pi_bin = os.environ.get("METERING_EVOLUTION_OPERATOR_PI_BIN", "pi")
     deployed = subprocess.run(
         [pi_bin, "-e", str(EXTENSION), "--list-models"],
         cwd=ROOT,
@@ -178,7 +184,6 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime),
             "METERING_EVOLUTION_TASKS_DIR": str(tasks_directory),
             "METERING_EVOLUTION_TASK_PROFILE": str(source_profile),
-            "PI_BIN": pi_bin,
         }
         process = subprocess.Popen(
             [pi_bin, "--mode", "rpc", "--no-session", "-e", str(EXTENSION)],
@@ -224,7 +229,7 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
                     assert retries < max_retries, status
                     retries += 1
                     retry = subprocess.run(
-                        [sys.executable, "-m", "apps.coding_agent.agentvolve_worker", "retry", str(workflow_root),
+                        [sys.executable, "-m", "connectors.fixed.pi.runtime", "retry", str(workflow_root),
                          f"{retry_reason} (task {index + 1}, retry {retries})"],
                         cwd=ROOT, capture_output=True, text=True, timeout=120, env=environment,
                     )
@@ -296,5 +301,21 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
                         break
             selected = next(node for node in nodes if node["kind"] == "solution" and node["status"] == "selected")
             assert selected["candidate_id"] == report["selected_solution"]["candidate_id"]
+
+            # The graphical trace must resolve the actual local-model commits and files.
+            from apps.coding_agent.file_view import path_key
+            from apps.coding_agent.trace_view import TraceSnapshot
+
+            trace = TraceSnapshot(runs_directory, workflow_root.name)
+            assert {node["candidate_id"] for node in trace.graph()["nodes"]} == {node["candidate_id"] for node in nodes}
+            for node in nodes:
+                files = trace.files[node["kind"]]
+                inventory = files.inventory(node["candidate_id"])
+                assert inventory
+                entrypoint = path_key(node["entrypoint"].encode("utf-8"))
+                assert entrypoint in inventory
+                assert isinstance(files.blob(node["candidate_id"], entrypoint), bytes)
+                history = trace.file_history(node["kind"], entrypoint)
+                assert any(item["candidate_id"] == node["candidate_id"] and item["file"] for item in history["items"])
         finally:
             close_rpc(process)

@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import re
+import time
 from pathlib import Path
 
 from apps._support.diagnostics import operator_excerpt
-from apps._support.wire import canonical_digest
+from apps._support.wire import canonical_digest, canonical_json, decode_json_object
 from apps.coding_agent.operator_view import (
     HEX_ID,
     OperatorViewError,
-    _document,
     _field,
     _git_output,
     _integer,
@@ -66,9 +66,20 @@ def _small_document(root: Path, relative: str) -> dict | None:
     path = _safe_path(root, relative)
     if not path.exists():
         return None
-    if path.stat().st_size > 2 * 1024 * 1024:
-        raise OperatorViewError(f"candidate report document exceeds its bound: {path}")
-    return _document(path, relative)
+    if not path.is_file():
+        raise OperatorViewError(f"candidate report is not a regular file: {path}")
+    try:
+        with path.open("rb") as stream:
+            raw = stream.read(2 * 1024 * 1024 + 1)
+        if len(raw) > 2 * 1024 * 1024:
+            raise OperatorViewError(f"candidate report document exceeds its bound: {path}")
+        source = raw.decode("ascii")
+    except (OSError, UnicodeError) as exc:
+        raise OperatorViewError(f"cannot read candidate report: {path}") from exc
+    document = decode_json_object(source, OperatorViewError)
+    if source != canonical_json(document) + "\n":
+        raise OperatorViewError(f"candidate report is not canonical: {path}")
+    return document
 
 
 def _event(step: str, summary: str, reference: object = None, **data: object) -> dict:
@@ -123,6 +134,7 @@ class ExperimentView:
             raise OperatorViewError("protected final records do not identify one registered candidate")
         self.selected = next(iter(final_candidates), None)
         self._diagnostics: dict[str, list[dict]] | None = None
+        self._frozen_loops: dict[str, list[dict]] | None = None
 
     def label(self, identity: object) -> str:
         return self.labels.get(str(identity), "unavailable")
@@ -184,31 +196,56 @@ class ExperimentView:
     def diagnostics(self) -> dict[str, list[dict]]:
         if self._diagnostics is not None:
             return self._diagnostics
-        self._diagnostics = {}
+        diagnostics: dict[str, list[dict]] = {}
         directory = _safe_path(self.root, "state/diagnostics")
         if not directory.exists():
-            return self._diagnostics
+            self._diagnostics = diagnostics
+            return diagnostics
         paths = sorted(directory.iterdir())
         if len(paths) > 4096:
             raise OperatorViewError("diagnostic directory exceeds the operator-view bound")
+        total_bytes = 0
+        deadline = time.monotonic() + 10
         for path in paths:
             if path.suffix != ".json" or not SHA256.fullmatch(path.stem):
                 continue
+            total_bytes += path.lstat().st_size
+            if total_bytes > 32 * 1024 * 1024 or time.monotonic() > deadline:
+                raise OperatorViewError("diagnostic scan exceeds its byte/time bound")
             document = _small_document(self.root, f"state/diagnostics/{path.name}")
             if document is None:
                 continue
-            if hashlib.sha256(path.read_bytes()).hexdigest() != path.stem:
+            if hashlib.sha256((canonical_json(document) + "\n").encode("ascii")).hexdigest() != path.stem:
                 raise OperatorViewError("diagnostic digest does not match its contents")
             if document.get("diagnostic_schema") != "population-driver-failure-v1" or document.get("authority") != "diagnostic-only":
                 raise OperatorViewError("unexpected Controller diagnostic schema")
-            self._diagnostics.setdefault(str(document.get("attempt_id")), []).append({
+            diagnostics.setdefault(str(document.get("attempt_id")), []).append({
                 "intent_id": document.get("intent_id"), "sha256": path.stem,
                 "elapsed_milliseconds": _integer(document.get("elapsed_milliseconds")),
                 "error": {key: operator_excerpt(str(value))[:1000] for key, value in _object(document.get("error")).items()
                           if key in {"kind", "summary", "returncode", "detail_excerpt", "stderr_excerpt"}},
                 "authority": "diagnostic-only",
             })
-        return self._diagnostics
+        self._diagnostics = diagnostics
+        return diagnostics
+
+    def freeze_details(self) -> str:
+        """Capture each loop's public details once; return their projection digest."""
+        if self._frozen_loops is None:
+            self.loop_rows()
+            frozen = {}
+            total_bytes = 0
+            deadline = time.monotonic() + 20
+            for row in [*self.rounds, *([self.pending] if self.pending else [])]:
+                if time.monotonic() > deadline:
+                    raise OperatorViewError("public loop snapshot exceeds its time bound")
+                events = self.loop_events(row)
+                total_bytes += len(canonical_json(events))
+                if total_bytes > 32 * 1024 * 1024:
+                    raise OperatorViewError("public loop snapshot exceeds its byte bound")
+                frozen[f"{self.prefix}R{row['round']}"] = events
+            self._frozen_loops = frozen
+        return canonical_digest(self._frozen_loops)
 
     def loop_rows(self) -> list[dict]:
         rows = [*self.rounds, *([self.pending] if self.pending else [])]
@@ -233,8 +270,7 @@ class ExperimentView:
             document = _small_document(self.root, f"state/receipts/{name}")
             if document is None:
                 raise OperatorViewError("referenced Controller receipt is missing")
-            path = _safe_path(self.root, f"state/receipts/{name}")
-            if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            if hashlib.sha256((canonical_json(document) + "\n").encode("ascii")).hexdigest() != digest:
                 raise OperatorViewError("Controller receipt digest does not match")
             if document.get("attempt_id") not in {attempt.get("attempt_id") for attempt in _list(row.get("attempts")) if type(attempt) is dict} or name != f"{document.get('attempt_id')}.controller.json":
                 raise OperatorViewError("Controller receipt belongs to another attempt")
@@ -262,6 +298,8 @@ class ExperimentView:
     def loop_events(self, row: dict) -> list[dict]:
         number = row.get("round")
         label = f"{self.prefix}R{number}"
+        if self._frozen_loops is not None:
+            return self._frozen_loops[label]
         allocation = row.get("parent_allocation_record_id")
         allocated = self.body(allocation, "allocation")
         parent_record = self.candidates.get(str(row.get("parent_candidate_id")))

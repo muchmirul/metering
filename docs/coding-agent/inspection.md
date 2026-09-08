@@ -1,5 +1,15 @@
 # Inspect every candidate and evolution loop
 
+Auxiliary receipts/diagnostics are read once with a 2 MiB document cap and checked
+against their recorded content identities. Diagnostic scans additionally cap
+aggregate bytes at 32 MiB and elapsed time at ten seconds; oversized evidence is
+an explicit inspection error, not a partial report advertised as complete.
+
+For the clickable graph, exact file browsing, depth/branch labels such as S2c,
+file history, and exports, see [Trace Viewer](trace-viewer.md). Press **g** in the
+progress dashboard, or choose **Open Trace Viewer** in the tree/RPC menu. This
+page documents the retained terminal view and its original registration aliases.
+
 Open `/history`, choose a task's run, and press **t** in the dashboard. The same
 browser is available from `/progress`. This adds no slash commands and starts no
 worker, model, evaluator, retry, or verification job.

@@ -11,6 +11,9 @@ htmlcov/
 .venv/
 build/
 dist/
+node_modules/
+playwright-report/
+test-results/
 
 # Local coding-agent instructions
 /AGENTS.md

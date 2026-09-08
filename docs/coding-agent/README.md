@@ -92,6 +92,11 @@ Applying the patch is always a separate operator action. Every candidate—not
 only the selected result—has a read-only report in the [tree/loop browser](inspection.md).
 Press **t** from `/progress` or a selected `/history` run to inspect H*/S* ancestry,
 archive outcomes, public check results, attempts, and historical changes.
+See [Pi upgrades](pi-versions.md) to keep interactive Pi updates separate from
+exact, reproducible experiment versions.
+For a clickable, file-aware graph, press **g** for [Trace Viewer](trace-viewer.md).
+It adds S1a/S1b-style branch labels, exact Git source/byte inspection, per-file
+history and comparisons, and exports while preserving the original evidence.
 
 The implementation lives in [`apps/coding_agent/`](../../apps/coding_agent/README.md),
 while Level 2 lives in [`apps/harness/`](../../apps/harness/README.md).
