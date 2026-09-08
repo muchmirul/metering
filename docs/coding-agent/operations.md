@@ -98,6 +98,33 @@ uv run python apps/coding_agent/solution_experiment.py \
 
 ## Status, resume, and retry
 
+In Pi, say **“manage the interrupted Agentvolve workflow”**. The
+`darwinian_coding` action `workflow_manage` opens paginated workflow selection
+and a direct operation review. You may resume, explicitly authorize one reserved
+retry, stop a live worker, verify completed work, or close inactive work as
+incomplete. Retry and closure require a reason entered by the operator, not
+supplied by the model. Cancelling starts nothing. No extra slash commands are
+registered; reload Pi once after upgrading the extension.
+
+`/goal` and conversational task starts check the registry before task drafting or
+model-service effects. An unfinished detached workflow opens this recovery dialog
+instead of sending you to a terminal. Closing it continues the new task's normal
+review; any other choice leaves the new goal pending. Existing unmanaged legacy
+experiments are counted and left unchanged in `/history`, not treated as owners of
+the detached registry. Their absence of a final report is not proof of a live
+worker, failure, or success; new startup does not recover them automatically.
+Deliberate legacy recovery still uses the compatibility entrypoints below.
+
+**Close is not success.** `close WORKFLOW REASON` acquires the exclusive workflow
+lock, refuses running or completed work, and writes `closed.json` with schema
+`agentvolve-workflow-closure-v1`, the original workflow ID, timestamp, and operator
+reason. It does not rewrite any existing experimental or status files, reclaim
+budgets, or declare a protected assay. The workflow remains visible as
+`closed-incomplete` and cannot resume/retry; a new goal requires a new reviewed
+experiment. This adds orchestration metadata only, not a migration of old runs.
+
+Compatibility commands, when deliberately operating on a legacy experiment:
+
 ```bash
 uv run python apps/harness/experiment.py status HARNESS_RUN_ROOT
 uv run python apps/coding_agent/solution_experiment.py status SOLUTION_RUN_ROOT
@@ -142,14 +169,24 @@ uv run python -m apps.coding_agent.agentvolve_worker resume WORKFLOW_ROOT
 uv run python -m apps.coding_agent.agentvolve_worker retry WORKFLOW_ROOT 'reviewed reason'
 uv run python -m apps.coding_agent.agentvolve_worker stop WORKFLOW_ROOT
 uv run python -m apps.coding_agent.agentvolve_worker verify WORKFLOW_ROOT
+uv run python -m apps.coding_agent.agentvolve_worker close WORKFLOW_ROOT 'operator reason'
+
+# Read-only startup and operation-menu hints (no files are created):
+uv run python -m apps.coding_agent.agentvolve_worker registry RUNS_DIRECTORY
+uv run python -m apps.coding_agent.agentvolve_worker control WORKFLOW_ROOT
 
 uv run python -m apps.coding_agent.operator_view progress RUNS_DIRECTORY [RUN_NAME]
 uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY [OFFSET]
 uv run python -m apps.coding_agent.operator_view trace RUNS_DIRECTORY RUN_NAME [OFFSET]
 ```
 
-Each effectful worker command returns one bounded JSON launch response. Progress
-and history return one bounded projection document. The Pi start command readies
+Each effectful worker command returns one bounded JSON response. `close` returns
+`state: closed-incomplete` and PID 0 because it launches nothing. Start responses
+add `legacy_unfinished_count`, a diagnostic count rather than evidence of liveness.
+`registry` returns a blocking detached workflow, if any, plus that count; `control`
+returns lock/completion/closure/retry hints. These projections do not authorize
+recovery; the effectful worker checks again. Progress and history return one
+bounded projection document. The Pi start command readies
 the fixed local service when its manifest requires one; another adapter must make
 that reviewed endpoint ready before calling `start`. Adapters must not infer
 experimental authority from either document.
@@ -218,8 +255,9 @@ For upgrade-safe Pi recovery, use
 These resolve the original runtime's executable before delegating to the same
 worker; they never grant retry authority or extend budgets.
 
-Recovery and verification use the explicit worker CLI above, not additional
-slash commands. Resume cannot repeat an indeterminate model call; retry needs a
+Recovery and verification use the fixed worker CLI above, either through the
+operator-reviewed session management dialog or directly, not additional slash
+commands. Resume cannot repeat an indeterminate model call; retry needs a
 reserved pending intent and operator reason. Stop does not declare success.
 Verification is a detached offline replay after completion. Inherited workflow
 locks still prevent concurrent workers.
@@ -238,8 +276,10 @@ update command automation.
 
 The model-facing `darwinian_coding` tool supports only no-effect
 `workflow_activate`, operator-reviewed `workflow_from_session`, detached
-`workflow_start`, read-only `workflow_status` and `workflow_history`, and
-`workflow_verify`. It
+`workflow_start`, read-only `workflow_status` and `workflow_history`,
+`workflow_verify`, and operator-reviewed `workflow_manage`. Management selects
+a detached workflow from history rather than accepting a model-chosen path.
+It
 cannot carry task text, evaluator commands, candidates, output paths,
 task-profile paths, protected checks, or retry authority as action arguments.
 The current user remains the source of session task text and the direct reviewer

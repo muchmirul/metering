@@ -226,8 +226,7 @@ export function runtimeManifest(): string {
 	);
 }
 
-export async function configuredRuntimeSelection(): Promise<RuntimeSelection> {
-	const path = runtimeManifest();
+export async function configuredRuntimeSelection(path = runtimeManifest()): Promise<RuntimeSelection> {
 	if (!existsSync(path)) throw new Error(`reviewed runtime manifest is unavailable: ${path}`);
 	const value: unknown = JSON.parse(await readFile(path, "utf8"));
 	if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -463,6 +462,11 @@ async function workerWorkflowStatus(root: string): Promise<ModeSummary> {
 		throw new Error("Agentvolve worker status has an unexpected identity");
 	}
 	let state = text(status.state) ?? "unknown";
+	if (existsSync(join(root, "closed.json"))) {
+		const closure = JSON.parse(await readFile(join(root, "closed.json"), "utf8"));
+		if (closure?.closure_schema !== "agentvolve-workflow-closure-v1" || closure?.authority !== "operator-orchestration-only" || closure?.workflow_id !== status.workflow_id) throw new Error("Agentvolve workflow closure has an unexpected identity");
+		state = "closed-incomplete";
+	}
 	if (["queued", "running"].includes(state)) {
 		const updated = integer(status.updated_unix_ns);
 		const heartbeatAge = updated === undefined ? Number.POSITIVE_INFINITY : Date.now() - updated / 1_000_000;

@@ -91,7 +91,8 @@ Normal conversation remains supported: ask to activate Agentvolve (no task,
 model, service, or worker starts), clarify a coding goal, then explicitly ask it
 to solve it. The `darwinian_coding` tool exposes only `workflow_activate`,
 `workflow_from_session`, `workflow_start`, `workflow_status`, `workflow_history`,
-and `workflow_verify`. The action schema accepts no task text, command, evaluator,
+`workflow_verify`, and operator-reviewed `workflow_manage`. The action schema
+accepts no task text, command, evaluator,
 candidate, profile path, retry reason, or output path. Starts still require a
 limit and direct operator approval. Pi keeps its current model/thinking level;
 the separate worker stays bound to the reviewed runtime manifest.
@@ -153,9 +154,14 @@ RPC approval. Pi's unrelated built-in commands remain available.
 
 Shared Population/harness/solution engines, immutable candidates, Docker tests,
 protected assays, fixed reference CLI, and worker recovery/verification remain.
-Use the explicit worker CLI documented in the
-[operations guide](../../../docs/coding-agent/operations.md) for resume, reasoned
-retry, stop, or offline verify. Retry still needs an authoritative pending intent
+Say “manage the interrupted Agentvolve workflow” to use the
+`workflow_manage` tool's direct run/operation review, or use the explicit worker
+CLI documented in the [operations guide](../../../docs/coding-agent/operations.md)
+for resume, reasoned retry, stop, offline verify, or closure as incomplete.
+`/goal` offers recovery for blocking detached workflows before drafting a new task.
+Unmanaged legacy history no longer blocks fresh startup. Closing an inactive
+workflow preserves existing evidence, records `closed.json`, and permanently
+prevents its continuation without claiming success. Retry still needs an authoritative pending intent
 and finite reservation. No existing run files are rewritten or migrated.
 Selected commits and patches are never automatically applied.
 

@@ -63,7 +63,11 @@ active, the monitor polls the shared run directory across sessions; its compact
 running and clears when no worker is active. `/progress` inspects the latest
 run, including a finished run; `/history` browses past runs, all recorded
 generations in bounded pages, completed-stage reports, and results. Operators do not choose between internal
-harness and solution levels. The worker status, tracker, graph, diff preview,
+harness and solution levels. Say “manage the interrupted Agentvolve workflow”
+for directly approved resume, reserved retry, stop, verification, or permanent
+closure as incomplete. New goals offer that recovery dialog for blocking detached
+workflows; unmanaged legacy history no longer blocks new startup. Closure preserves
+existing evidence and does not claim success. See [recovery](operations.md#status-resume-and-retry). The worker status, tracker, graph, diff preview,
 and reports are convenience projections. Candidate Git objects, canonical
 hash-linked JSONL, exact allocations, and content-addressed receipts remain the
 authoritative evidence. Level-1 recurrence can stop at a numeric round cap or at

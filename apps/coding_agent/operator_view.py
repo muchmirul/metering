@@ -23,6 +23,7 @@ from apps.coding_agent.agentvolve_worker import (
     WORKFLOW_NAME,
     AgentvolveWorkerError,
     load_worker_status,
+    load_workflow_closure,
     load_workflow_request,
     worker_is_alive,
 )
@@ -606,7 +607,7 @@ def _stages(
             status = "reused"
         elif complete_workflow or number < stage:
             status = "complete"
-        elif state in {"failed", "inconsistent", "interrupted", "stalled", "stopped"}:
+        elif state in {"closed-incomplete", "failed", "inconsistent", "interrupted", "stalled", "stopped"}:
             status = "failed"
         elif state == "waiting-retry":
             status = "waiting-retry"
@@ -637,10 +638,14 @@ def _workflow_progress(
     try:
         request = load_workflow_request(workflow_root)
         status = load_worker_status(workflow_root)
+        closure = load_workflow_closure(workflow_root)
     except AgentvolveWorkerError as exc:
         raise OperatorViewError(str(exc)) from exc
     if status is None:
-        raise OperatorViewError("Agentvolve workflow has no worker status")
+        if closure is None:
+            raise OperatorViewError("Agentvolve workflow has no worker status")
+        # Startup may fail before the first status write. Closure still belongs in history.
+        status = {"stage": 1, "state": "closed-incomplete", "updated_unix_ns": closure["closed_unix_ns"]}
     harness_root = _path_value(
         request, "harness_run_root", runs_directory, optional=True
     )
@@ -708,6 +713,9 @@ def _workflow_progress(
         )
     elif status_error is not None and state in {"failed", "stopped", "waiting-retry"}:
         activity = f"{activity} Detail: {status_error}"
+    if closure is not None:
+        state = "closed-incomplete"
+        activity = f"Operator closed this workflow without success: {_safe_text(closure['reason'], 1_000)}. Evidence is preserved; this workflow cannot resume."
     diff, warnings = _optional_diff(active_root, driver, include_diff=include_diff)
     result = None
     if solution_summary is not None:

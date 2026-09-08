@@ -63,7 +63,8 @@ class RPC:
 
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is not installed")
-def test_goal_requires_limit_and_approval_then_keeps_limit(tmp_path: Path):
+@pytest.mark.parametrize("legacy_history", [False, True])
+def test_goal_requires_limit_and_approval_then_keeps_limit(tmp_path: Path, legacy_history: bool):
     repository = tmp_path / "repo"
     repository.mkdir()
     (repository / "main.py").write_text("print('ok')\n")
@@ -150,6 +151,10 @@ else:
         rpc = RPC(process)
         rpc.prompt("/progress")
         assert not runs.exists()
+        if legacy_history:
+            stale = runs / "harness-pi-20260902T200200234Z"
+            stale.mkdir(parents=True)
+            (stale / "old-evidence.txt").write_text("Preserve this interrupted experiment.\n")
         rpc.prompt("Prior user context, not the task")
         while rpc.event(time.monotonic() + 10).get("type") != "agent_end":
             pass
@@ -191,6 +196,8 @@ else:
 
         events = rpc.prompt("/goal", approve)
         assert launch_log.exists(), events
+        if legacy_history:
+            assert any("unfinished legacy runs remain unchanged" in event.get("message", "") for event in events)
         launches = [json.loads(line) for line in launch_log.read_text().splitlines()]
         assert len(launches) == 1
         profile = json.loads(Path(launches[0][6]).read_text())
@@ -231,7 +238,12 @@ else:
         events = rpc.prompt("/goal New independently checked goal", approve_template)
         assert len(launch_log.read_text().splitlines()) == 2, events
         assert [event["method"] for event in seen] == ["select", "confirm"]
-        assert not runs.exists(), "Test double must not create real workflow state"
+        if legacy_history:
+            assert list(runs.iterdir()) == [stale]
+            assert (stale / "old-evidence.txt").read_text() == "Preserve this interrupted experiment.\n"
+            assert list(stale.iterdir()) == [stale / "old-evidence.txt"]
+        else:
+            assert not runs.exists(), "Test double must not create real workflow state"
     finally:
         process.terminate()
         process.wait(timeout=10)

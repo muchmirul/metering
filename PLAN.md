@@ -669,8 +669,26 @@ may reference an original sealed descriptor via
 `METERING_EVOLUTION_HARNESS_DESCRIPTOR`; copying or rewriting its
 repository-bound provenance is forbidden. A registry lock serializes start, and
 one inherited per-workflow advisory lock plus PID start-time identity prevents
-duplicate detached workers and unsafe stop signalling. The registry refuses to
-hide or bypass any unfinished workflow.
+duplicate detached workers and unsafe stop signalling. An unfinished detached
+workflow still blocks new startup until it completes or the operator explicitly
+closes its inactive orchestration as incomplete. Read-only `registry` and `control`
+projections offer recovery before drafting a new task or starting a model service;
+worker effects recheck locks, request identity, and pending authority. Unmanaged
+legacy experiment directories do not own this detached registry. New starts disclose
+their unfinished count, leave their evidence at its original paths and visible in
+history, and neither resume them nor infer that they are inactive or successful.
+
+The additive `close WORKFLOW REASON` operation requires an available exclusive
+workflow lock and a bounded non-empty operator reason. It writes one canonical
+`closed.json` (`agentvolve-workflow-closure-v1`) binding the immutable workflow ID,
+closure time, reason, and orchestration-only authority. It never changes existing
+jobs, status files, candidate Git objects, ledgers, pending intents, receipts,
+protected seals, or selected artifacts. Closing is permanent for this workflow:
+resume/retry/worker execution refuse it, no success or final report is manufactured,
+and history reports `closed-incomplete`. It is not an experimental final seal or
+permission to rerun a protected assay. A new task still needs its own direct review
+and finite budget. Unsafe, malformed, or mismatched closure records fail explicitly;
+a status projection alone cannot release the registry blocker.
 
 The Pi process launches but never owns or attaches to the separate worker. The
 worker invokes the fixed experiment entrypoints and atomically advances
@@ -773,8 +791,18 @@ separate detached offline replay of an otherwise complete workflow.
 
 The model-facing `darwinian_coding` tool adds fixed no-effect
 `workflow_activate`, operator-reviewed `workflow_from_session`,
-`workflow_start`, read-only `workflow_status` and `workflow_history`, and
-`workflow_verify` actions. The old harness/solution action enum and reference
+`workflow_start`, read-only `workflow_status` and `workflow_history`,
+`workflow_verify`, and operator-reviewed `workflow_manage` actions. Management
+selects a detached workflow through bounded history pages, offers only applicable
+resume/retry/stop/verify/close operations, collects any reason directly from the
+operator, and requires confirmation before effects. Cancellation, non-UI invocation,
+and session restore grant no authority. Resume/retry resolve and ready the original
+runtime, not the current session's configuration; original pending reservations,
+limits and protected-final restrictions remain authoritative. `/goal` and
+conversational starts invoke the same recovery dialog when a current workflow
+blocks startup, before task drafting. Closing the blocker continues new-task review;
+resuming, retrying, stopping or cancelling leaves the new goal pending rather than
+launching an additional task. The old harness/solution action enum and reference
 `population_evolution` Pi tool are removed, along with their unused UI helpers.
 Shared Population, harness/solution engines, fixed reference CLI, worker
 recovery/verification, and recorded evidence remain intact.

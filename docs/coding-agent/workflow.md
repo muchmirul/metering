@@ -46,8 +46,10 @@ that original run.
 ## Viewing status
 
 Mode activation has no pre-start menu and starts no worker. A reviewed task may
-open only the clarification, task-summary selection, or approval interaction
-needed to bind the canonical input. `/goal` keeps Pi's current operator
+open the clarification, task-summary selection, or approval interaction
+needed to bind the canonical input. A blocking detached workflow first opens a
+directly approved recovery/close dialog. Unmanaged legacy runs stay in history
+without blocking a new task; they are never automatically resumed. `/goal` keeps Pi's current operator
 model and, once a task is approved, launches a manifest-pinned evolution worker
 in a separate process. Pi returns immediately. While operator mode is active,
 the compact tracker polls the shared run directory every two seconds, including
@@ -62,7 +64,8 @@ labelled. The dashboard separates operator/worker identities, shows committed
 rounds, attempts, retries, archive evidence, completed-stage summaries, and the
 final commit/patch report. Diff previews remain bounded. Scroll with arrows or
 PageUp/PageDown; `Esc`/`q` returns to Pi without stopping the worker. Old slash
-commands are removed; the explicit worker CLI still supplies recovery and verify.
+commands are removed; conversational `workflow_manage` supplies reviewed recovery,
+stop, verification, and closure as incomplete through the fixed worker CLI.
 Press **t** for [candidate trees and per-child reports](inspection.md), including
 recorded loop steps, excluded candidates, historical diffs, and failed/pending
 attempts. Archive membership and final testing remain distinct from pairwise
@@ -79,8 +82,10 @@ uv run python -m apps.coding_agent.operator_view trace RUNS_DIRECTORY RUN_NAME [
 ```
 
 Detached workflows contain canonical `workflow.json`, ordinal jobs, and a held
-`worker.lock`. `worker-status.json` and `workflow-report.json` are
-projection/orchestration records. Each underlying run also contains canonical
+`worker.lock`. An explicitly closed inactive workflow adds `closed.json`, an
+orchestration-only closure that prevents reopening without pretending it completed.
+Existing experimental files remain untouched. `worker-status.json` and
+`workflow-report.json` are projection/orchestration records. Each underlying run also contains canonical
 `process-status.json`:
 
 ```json

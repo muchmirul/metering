@@ -135,6 +135,15 @@ coding goal, and explicitly ask it to solve it. Pi keeps its current model while
 a separate detached worker uses the canonical runtime's provider/model/reasoning
 and finite budgets. Pi remains usable while evolution continues.
 
+You can also say **“manage the interrupted Agentvolve workflow”** to resume,
+authorize a reserved retry, stop, or close an inactive workflow as incomplete.
+The session asks you to select the run and approve the operation; no terminal
+command is required. `/goal` offers the same recovery when a current workflow
+blocks startup. Closing preserves all evidence and history but permanently ends
+that workflow without claiming success. Old unmanaged legacy runs remain visible
+in `/history` and no longer block a separately reviewed new goal; no directory
+switching, deletion, automatic retry, or evidence migration is needed.
+
 `/progress` inspects the latest run, including a completed run. `/history` browses
 all runs in pages of 50 and every recorded harness/solution generation in pages
 of 20, with stage reports and results. Reused harness evidence is labelled, not
@@ -164,8 +173,9 @@ Old `/evolve*`, `/agentvolve*`, and `/view-*` slash commands, the reference Pi
 tool, and low-level compatibility tool handlers are removed. Reload Pi with
 `/reload` and migrate scripts to the four-command flow and RPC approval. Shared
 engines, existing evidence, and explicit worker CLI recovery/verification remain
-unchanged; see the [operations guide](docs/coding-agent/operations.md). No run
-migration is required.
+available; the additive session management and `close` operation are documented
+in the [operations guide](docs/coding-agent/operations.md). Reload once to expose
+`workflow_manage` to the session model. No run migration is required.
 
 The dashboard and worker status are projections only. Candidate Git objects,
 hash-linked ledgers, exact allocations, receipts, and seals remain authoritative.

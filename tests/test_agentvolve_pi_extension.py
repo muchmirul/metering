@@ -248,8 +248,11 @@ export default function (pi: ExtensionAPI) {
             "workflow_status",
             "workflow_history",
             "workflow_verify",
+            "workflow_manage",
         ):
             assert action in encoded_tool
+        assert set(tool_metadata["parameters"]["properties"]) == {"action"}
+        assert tool_metadata["parameters"]["additionalProperties"] is False
         assert "action schema accepts no" in encoded_tool
         assert "harness_run" not in encoded_tool
         assert "solution_run" not in encoded_tool

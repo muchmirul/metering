@@ -9,6 +9,7 @@ import { BorderedLoader, type ExtensionAPI, type ExtensionContext, type SessionE
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
+import { manageWorkflow, registryStatus } from "./agentvolve_recovery.ts";
 import { openTraceViewer } from "./agentvolve_trace_viewer.ts";
 import { showCandidateBrowser } from "./agentvolve_candidate_browser.ts";
 import { showAgentvolveDashboard } from "./agentvolve_dashboard.ts";
@@ -64,15 +65,19 @@ class AgentvolveInputRequired extends Error {}
 
 const CODING_TOOL_DESCRIPTION = [
 	"Activate Agentvolve, prepare an operator-reviewed coding goal, start its detached workflow, or inspect history,",
-	"progress, and offline verification. Its action schema accepts no task text, command, evaluator, candidate,",
-	"profile path, retry reason, or output path. A start requires a user-set generation limit and direct approval.",
+	"progress, and offline verification. Manage interrupted workflows through an operator-approved session dialog.",
+	"Its action schema accepts no task text, command, evaluator, candidate, profile path, retry reason, or output path.",
+	"A start requires a user-set generation limit and direct approval.",
 ].join(" ");
 const CODING_TOOL_GUIDELINE = [
 	"Use darwinian_coding workflow_activate for conversational activation; it starts no task.",
 	"Use workflow_from_session only after the user explicitly asks Agentvolve to solve a clear coding goal in their",
 	"messages; ask normal clarifying questions when needed. Use workflow_start for an already configured goal or",
 	"reviewed task. Both require a limit and direct task approval. Use workflow_status for the most recent run and",
-	"workflow_history for prior runs. The only Agentvolve slash commands are /goal, /limit, /history, and /progress.",
+	"workflow_history for prior runs. Use workflow_manage when the user asks to resume, retry, stop, or close an",
+	"unfinished workflow; fixed dialogs select the run and collect direct approval and any operator reason.",
+	"Never auto-retry, delete evidence, or switch run directories to bypass interrupted work.",
+	"The only Agentvolve slash commands are /goal, /limit, /history, and /progress.",
 	"Never replace Agentvolve's immutable candidates and independent assays with ordinary in-place edits.",
 ].join(" ");
 
@@ -337,12 +342,16 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		return root ? join(root, "selected-harness.json") : undefined;
 	}
 
-	async function launchDetachedWorkflow(ctx: ExtensionContext, profile: string, signal: AbortSignal): Promise<WorkerResponse> {
-		signal.throwIfAborted();
-		const preflight = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "check", runtimeManifest()],
+	async function prepareRuntime(manifest: string, signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
+		const preflight = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "check", manifest],
 			{ cwd: repositoryRoot(), signal, timeout: 30_000 });
 		decodeOutput(preflight);
-		await ensureLocalRuntime(await configuredRuntimeSelection(), signal);
+		await ensureLocalRuntime(await configuredRuntimeSelection(manifest), signal);
+	}
+
+	async function launchDetachedWorkflow(ctx: ExtensionContext, profile: string, signal: AbortSignal): Promise<WorkerResponse> {
+		await prepareRuntime(runtimeManifest(), signal);
 		const harness = await selectedHarnessDescriptor();
 		const result = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "start", runsDirectory(),
 			configuredTaskProfile(profile), runtimeManifest(), ...(harness ? [harness] : [])],
@@ -495,6 +504,15 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			await activateAgentvolveMode(ctx);
 			if (goal) persistWorkflowConfiguration({ ...workflowConfiguration, goal });
 			const maxRounds = await requireLimit(ctx, operationSignal);
+			let registry = await registryStatus(pi, operationSignal);
+			while (registry.blocker) {
+				const outcome = await manageWorkflow(pi, ctx, prepareRuntime, registry.blocker.workflow_root, operationSignal);
+				ctx.ui.notify(outcome.message, "info");
+				await refreshWorkflowMonitor(ctx);
+				if (outcome.status !== "closed-incomplete") throw new AgentvolveInputRequired("No new task started. Your goal remains pending while the existing workflow is managed; ask again when ready.");
+				registry = await registryStatus(pi, operationSignal);
+			}
+			if (registry.legacy_unfinished_count) ctx.ui.notify(`${registry.legacy_unfinished_count} unfinished legacy runs remain unchanged in /history. They do not block this separately reviewed task and will not be resumed automatically.`, "info");
 			const repository = await currentRepository(ctx, operationSignal);
 			const template = fromSession ? undefined : await chooseTaskProfile(ctx, repository, operationSignal);
 			let profile: string | null;
@@ -598,7 +616,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	function command(name: string, description: string, handler: (args: string, ctx: ExtensionContext) => Promise<void>): void {
 		pi.registerCommand(name, { description, handler: async (args, ctx) => {
 			try { await handler(unquoteArgument(args), ctx); }
-			catch (error) { ctx.ui.notify(String(error), error instanceof AgentvolveInputRequired ? "warning" : "error"); }
+			catch (error) { ctx.ui.notify(error instanceof Error ? error.message : String(error), error instanceof AgentvolveInputRequired ? "warning" : "error"); }
 		} });
 	}
 
@@ -632,7 +650,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		promptGuidelines: [CODING_TOOL_GUIDELINE],
 		parameters: Type.Object({ action: StringEnum([
 			"workflow_activate", "workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify",
-		] as const) }),
+			"workflow_manage",
+		] as const) }, { additionalProperties: false }),
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			onUpdate?.({ content: [{ type: "text", text: `Agentvolve ${params.action}…` }], details: { action: params.action } });
 			if (params.action === "workflow_activate") {
@@ -648,6 +667,20 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				if (!history.runs.length) return { content: [{ type: "text", text: "No Agentvolve runs yet." }], details: { active: modeActive, status: "idle" } };
 				const progress = await operatorProgress();
 				return { content: [{ type: "text", text: operatorProgressSummary(progress) }], details: progress };
+			}
+			if (params.action === "workflow_manage") {
+				if (preparing) return { content: [{ type: "text", text: "Finish or cancel the current task/workflow review first." }], details: { status: "review-in-progress" } };
+				preparing = true;
+				operationController = new AbortController();
+				const operationSignal = signal ? AbortSignal.any([signal, operationController.signal]) : operationController.signal;
+				try {
+					const result = await manageWorkflow(pi, ctx, prepareRuntime, undefined, operationSignal);
+					await refreshWorkflowMonitor(ctx);
+					return { content: [{ type: "text", text: result.message }], details: result };
+				} finally {
+					preparing = false;
+					operationController = undefined;
+				}
 			}
 			if (params.action === "workflow_verify") {
 				const root = await latestWorkerWorkflowRoot();
@@ -694,6 +727,6 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	pi.on("session_shutdown", async () => { operationController?.abort(); stopWorkflowMonitor(); });
 	pi.on("before_agent_start", async (event) => {
 		if (!modeActive) return;
-		return { systemPrompt: `${event.systemPrompt}\n\n[AGENTVOLVE]\nAgentvolve operator mode is active. ${CODING_TOOL_GUIDELINE} Pi remains the interactive operator; the detached worker's provider/model/reasoning and budgets stay manifest-bound. Fixed code owns mutation transport, independent evaluation, exact Population recurrence, protected final assays, Docker isolation, receipts, and sealing. The shared engine and worker CLI retain explicit recovery and verification; removed slash commands are not available.` };
+		return { systemPrompt: `${event.systemPrompt}\n\n[AGENTVOLVE]\nAgentvolve operator mode is active. ${CODING_TOOL_GUIDELINE} Pi remains the interactive operator; the detached worker's provider/model/reasoning and budgets stay manifest-bound. Fixed code owns mutation transport, independent evaluation, exact Population recurrence, protected final assays, Docker isolation, receipts, and sealing. Use workflow_manage for directly approved in-session recovery or closing an inactive workflow as incomplete; the worker CLI retains the same recovery and verification authority. Removed slash commands are not available.` };
 	});
 }

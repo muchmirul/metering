@@ -62,8 +62,14 @@ kernel state, and unexported files are not inherited.
 `fixture` and `pi`; selected code is never applied automatically.
 
 `python -m apps.coding_agent.agentvolve_worker` provides detached full-workflow
-`start`, `resume`, `retry`, `stop`, and `verify` operations. It emits only a
-bounded launch response; canonical status and logs live under the workflow root.
+`start`, `resume`, `retry`, `stop`, and `verify` operations, plus `close` for
+explicitly ending inactive work as incomplete without altering its evidence.
+Read-only `registry` and `control` commands support in-session recovery menus.
+The additive `closed.json` orchestration record permanently prevents workflow
+continuation, not experimental replay through existing compatibility entrypoints.
+Commands emit one bounded response; canonical status and logs live under the
+workflow root. Start discloses unmanaged legacy unfinished runs without blocking
+on or changing them. Current unfinished workflows still require recovery or closure.
 `python -m apps.coding_agent.operator_view` exposes read-only `progress` and
 `history` JSON for Pi or another future coding-agent adapter.
 `python -m apps.coding_agent.trace_server launch RUNS RUN_NAME` explicitly opens

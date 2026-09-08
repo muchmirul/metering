@@ -153,7 +153,13 @@ Population SQLite schema. It never claims protected-final results for untested c
 inspects the most recent run, not an
 older abandoned run. Nested assay calls remain pinned to the canonical runtime.
 Old slash commands and compatibility Pi tool actions are removed; shared engines,
-worker CLI recovery/verification, and existing run artifacts are unchanged.
+worker CLI recovery/verification, and existing experimental artifacts remain.
+Conversational `workflow_manage` adds direct operator-reviewed resume, reserved
+retry, stop, verify, and closure as incomplete. `/goal` offers recovery for an
+unfinished detached workflow before preparing a new task. Unmanaged legacy history
+no longer blocks startup or requires directory switching. Explicitly closing an
+inactive workflow adds only `closed.json`, preserves all existing evidence, and
+prevents reopening without claiming success; budgets and final seals are unchanged.
 
 Implemented candidate forms are:
 

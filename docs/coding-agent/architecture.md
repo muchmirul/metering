@@ -65,7 +65,15 @@ detached session and returns control to Pi. The worker alone sequences harness
 and solution effects using the canonical runtime manifest. It owns a
 workflow-scoped inherited file lock, bounded logs, heartbeat/liveness identity,
 and canonical ordinal start/resume/retry/verify jobs. Closing Pi or the live
-dashboard does not attach to, cancel, or change that worker.
+dashboard does not attach to, cancel, or change that worker. Unmanaged legacy
+experiment directories remain history, not detached-registry locks. Current
+unfinished workflows require explicit recovery or closure before a new start.
+The in-session `workflow_manage` dialog invokes fixed operations only after direct
+operator review and rechecks state; it cannot supply a model-authored retry reason
+or change the original runtime or budgets. `closed.json` is an immutable
+orchestration-only closure of inactive incomplete work. It prevents future workflow
+jobs and releases its startup blocker, but never rewrites experimental evidence or
+manufactures a success/final seal. Projection status alone cannot close a workflow.
 
 The boundary is portable filesystem JSON. A thin agent adapter needs only to
 launch fixed worker actions and render `apps.coding_agent.operator_view` output;

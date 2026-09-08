@@ -532,43 +532,139 @@ def _referenced_run_roots(runs_directory: Path) -> set[Path]:
     return roots
 
 
-def _refuse_conflicting_work(runs_directory: Path) -> None:
-    referenced = _referenced_run_roots(runs_directory)
-    for workflow in runs_directory.iterdir():
-        if (
-            not workflow.is_dir()
-            or workflow.is_symlink()
-            or not WORKFLOW_NAME.fullmatch(workflow.name)
-        ):
-            continue
-        request = load_workflow_request(workflow)
+def _operator_reason(reason: object) -> str:
+    if type(reason) is not str or not reason.strip() or "\x00" in reason or len(reason) > 2_000:
+        raise AgentvolveWorkerError("operator reason must be non-empty text of at most 2000 characters without NUL")
+    return reason
+
+
+def load_workflow_closure(workflow_root: Path) -> dict[str, object] | None:
+    """Read an explicit orchestration closure, never an experimental success seal."""
+    path = workflow_root / "closed.json"
+    reject_symlink(path, "Agentvolve workflow closure", AgentvolveWorkerError)
+    if not path.exists():
+        return None
+    document = _canonical_document(path, "Agentvolve workflow closure")
+    if (
+        set(document) != {"closure_schema", "authority", "workflow_id", "closed_unix_ns", "reason"}
+        or document.get("closure_schema") != "agentvolve-workflow-closure-v1"
+        or document.get("authority") != WORKFLOW_AUTHORITY
+        or document.get("workflow_id") != load_workflow_request(workflow_root)["workflow_id"]
+        or type(document.get("closed_unix_ns")) is not int
+        or cast(int, document["closed_unix_ns"]) <= 0
+    ):
+        raise AgentvolveWorkerError("Agentvolve workflow closure is malformed or targets another workflow")
+    _operator_reason(document.get("reason"))
+    return document
+
+
+def _lock_is_held(workflow_root: Path) -> bool:
+    """Probe an existing lock without creating or trusting a status projection."""
+    path = workflow_root / "worker.lock"
+    reject_symlink(path, "Agentvolve worker lock", AgentvolveWorkerError)
+    try:
+        stream = path.open("rb")
+    except FileNotFoundError:
+        return False
+    with stream:
         try:
-            probe = _open_lock(workflow)
-        except AgentvolveWorkerError as exc:
-            raise AgentvolveWorkerError(
-                f"another Agentvolve worker is active or its lock is unsafe: {workflow}"
-            ) from exc
-        else:
-            probe.close()
-        solution_root = _absolute_path(
-            cast(str, request["solution_run_root"]),
-            "Agentvolve workflow solution run root",
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+    return False
+
+
+def workflow_control_state(workflow_root: Path) -> dict[str, object]:
+    """Read-only menu hints. Effectful operations must check authority again."""
+    workflow_root = workflow_root.expanduser().absolute()
+    reject_symlink(workflow_root, "Agentvolve workflow", AgentvolveWorkerError)
+    request = load_workflow_request(workflow_root)
+    harness = _request_path_value(request, "harness_run_root", optional=True)
+    solution = cast(Path, _request_path_value(request, "solution_run_root"))
+    complete = _completed_run(solution, "solution")
+    active_root = solution if solution.is_dir() and not complete else harness
+    _pending, retry_required = _pending_state(active_root) if active_root is not None and not complete else (None, False)
+    return {
+        "control_schema": "agentvolve-workflow-control-v1",
+        "authority": STATUS_AUTHORITY,
+        "workflow_root": str(workflow_root),
+        "workflow_id": request["workflow_id"],
+        "runtime_manifest": request["runtime_manifest"],
+        "active": _lock_is_held(workflow_root),
+        "complete": complete,
+        "closed": load_workflow_closure(workflow_root) is not None,
+        "retry_required": retry_required,
+    }
+
+
+def registry_status(runs_directory: Path) -> dict[str, object]:
+    """Inspect startup blockers without inference, writes, or legacy recovery."""
+    runs_directory = runs_directory.expanduser().absolute()
+    reject_symlink(runs_directory, "Agentvolve runs directory", AgentvolveWorkerError)
+    blocker = None
+    legacy_count = 0
+    if runs_directory.exists():
+        _validate_runs_directory(runs_directory, create=False)
+        referenced = _referenced_run_roots(runs_directory)
+        for run in sorted(runs_directory.iterdir()):
+            if not run.is_dir() or run.is_symlink():
+                continue
+            if WORKFLOW_NAME.fullmatch(run.name):
+                control = workflow_control_state(run)
+                if control["active"] or not (control["complete"] or control["closed"]):
+                    # A live lock takes precedence over an older inactive blocker.
+                    if blocker is None or control["active"]:
+                        blocker = control
+            elif RUN_NAME.fullmatch(run.name) and run.absolute() not in referenced and not (run / "experiment-report.json").is_file():
+                legacy_count += 1
+    return {
+        "registry_schema": "agentvolve-registry-status-v1",
+        "authority": STATUS_AUTHORITY,
+        "blocker": blocker,
+        "legacy_unfinished_count": legacy_count,
+    }
+
+
+def _refuse_conflicting_work(runs_directory: Path) -> int:
+    view = registry_status(runs_directory)
+    blocker = view["blocker"]
+    if type(blocker) is dict:
+        if blocker["active"]:
+            raise AgentvolveWorkerError(f"another Agentvolve worker is active: {blocker['workflow_root']}")
+        raise AgentvolveWorkerError(
+            "unfinished Agentvolve workflow requires resume, explicit retry, or close as incomplete: "
+            f"{blocker['workflow_root']}. Ask Agentvolve to manage the workflow in this session."
         )
-        if not _completed_run(solution_root, "solution"):
-            raise AgentvolveWorkerError(
-                f"unfinished Agentvolve workflow requires resume or retry: {workflow}"
-            )
-    for run in runs_directory.iterdir():
-        if (
-            run.is_dir()
-            and not run.is_symlink()
-            and RUN_NAME.fullmatch(run.name)
-            and run.absolute() not in referenced
-            and not (run / "experiment-report.json").is_file()
-        ):
-            raise AgentvolveWorkerError(
-                f"unfinished legacy Agentvolve run requires its compatibility recovery command: {run}"
-            )
+    return cast(int, view["legacy_unfinished_count"])
+
+
+def close_workflow(workflow_root: Path, reason: str) -> dict[str, object]:
+    """Permanently close inactive orchestration while leaving all run evidence intact."""
+    reason = _operator_reason(reason)
+    workflow_root = workflow_root.expanduser().absolute()
+    reject_symlink(workflow_root, "Agentvolve workflow", AgentvolveWorkerError)
+    request = load_workflow_request(workflow_root)
+    lock = _open_lock(workflow_root)
+    try:
+        if load_workflow_closure(workflow_root) is not None:
+            raise AgentvolveWorkerError("Agentvolve workflow is already closed")
+        solution = cast(Path, _request_path_value(request, "solution_run_root"))
+        if _completed_run(solution, "solution"):
+            raise AgentvolveWorkerError("completed Agentvolve workflow cannot be closed as incomplete")
+        _write_canonical(workflow_root / "closed.json", {
+            "closure_schema": "agentvolve-workflow-closure-v1",
+            "authority": WORKFLOW_AUTHORITY,
+            "workflow_id": request["workflow_id"],
+            "closed_unix_ns": time.time_ns(),
+            "reason": reason,
+        })
+    finally:
+        lock.close()
+    return {
+        "action": "close", "state": "closed-incomplete", "pid": 0,
+        "worker_response_schema": "agentvolve-worker-response-v1",
+        "workflow_id": request["workflow_id"], "workflow_root": str(workflow_root),
+    }
 
 
 def start_workflow(
@@ -594,7 +690,7 @@ def start_workflow(
     _preflight_workflow(task_profile, runtime_manifest, harness_descriptor)
     registry_lock = _open_registry_lock(runs_directory)
     try:
-        _refuse_conflicting_work(runs_directory)
+        legacy_count = _refuse_conflicting_work(runs_directory)
         workflow_root = _new_path(runs_directory, "workflow")
         harness_root = (
             None
@@ -620,7 +716,7 @@ def start_workflow(
         request = {**identity, "workflow_id": canonical_digest(identity)}
         _write_canonical(_request_path(workflow_root), request)
         job = _next_job(workflow_root, str(request["workflow_id"]), "start", None)
-        return _spawn_worker(workflow_root, job)
+        return {**_spawn_worker(workflow_root, job), "legacy_unfinished_count": legacy_count}
     finally:
         registry_lock.close()
 
@@ -638,6 +734,8 @@ def launch_existing(
     lock = _open_lock(workflow_root)
     try:
         request = load_workflow_request(workflow_root)
+        if load_workflow_closure(workflow_root) is not None:
+            raise AgentvolveWorkerError("Agentvolve workflow was closed as incomplete; create a separately reviewed task")
         if action == "retry" and (
             reason is None or not reason.strip() or "\x00" in reason
         ):
@@ -899,6 +997,8 @@ def _write_completion_report(workflow_root: Path, request: dict[str, object]) ->
 
 def _execute_job(workflow_root: Path, job_path: Path) -> None:
     request = load_workflow_request(workflow_root)
+    if load_workflow_closure(workflow_root) is not None:
+        raise AgentvolveWorkerError("Agentvolve workflow was closed as incomplete")
     job = _load_job(job_path)
     if request["workflow_id"] != job["workflow_id"]:
         raise AgentvolveWorkerError(
@@ -1137,7 +1237,13 @@ def main(argv: list[str] | None = None) -> int:
     if arguments and arguments[0] == "_work":
         return _work_main(arguments[1:])
     try:
-        if len(arguments) in {4, 5} and arguments[0] == "start":
+        if len(arguments) == 2 and arguments[0] == "registry":
+            result = registry_status(_absolute_path(arguments[1], "Agentvolve runs directory"))
+        elif len(arguments) == 2 and arguments[0] == "control":
+            result = workflow_control_state(_absolute_path(arguments[1], "Agentvolve workflow root"))
+        elif len(arguments) == 3 and arguments[0] == "close":
+            result = close_workflow(_absolute_path(arguments[1], "Agentvolve workflow root"), arguments[2])
+        elif len(arguments) in {4, 5} and arguments[0] == "start":
             harness = (
                 None
                 if len(arguments) == 4
@@ -1167,7 +1273,8 @@ def main(argv: list[str] | None = None) -> int:
             raise AgentvolveWorkerError(
                 "usage: agentvolve_worker.py start RUNS TASK.json RUNTIME.json "
                 "[SELECTED-HARNESS.json] | resume WORKFLOW | retry WORKFLOW REASON | "
-                "verify WORKFLOW | stop WORKFLOW"
+                "verify WORKFLOW | stop WORKFLOW | close WORKFLOW REASON | "
+                "registry RUNS | control WORKFLOW"
             )
     except (AgentvolveWorkerError, OSError, TypeError, ValueError) as exc:
         print(str(exc) or type(exc).__name__, file=sys.stderr)
