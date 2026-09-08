@@ -130,6 +130,13 @@ nothing. The last `/limit` (1–256 generations) persists for later tasks and se
 restores; it never changes an already running task. A successful launch clears
 the pending goal, not the limit.
 
+Task review shows development timeout reservations, not elapsed runtime: one
+120-second check currently requires **3,680 reserved seconds per generation**
+(**7,360 for two**, without retries). An insufficient budget prompts for an
+operator-entered correction before approval; cancellation starts nothing. Fixed
+preflight rejects budgets that cannot fund even one generation. Partially funded
+caps are allowed and disclosed. Existing budgets are never increased in place.
+
 Conversation still works: ask to activate Agentvolve (starts no task), clarify a
 coding goal, and explicitly ask it to solve it. Pi keeps its current model while
 a separate detached worker uses the canonical runtime's provider/model/reasoning
@@ -205,7 +212,11 @@ Old runs retain legacy replay semantics. Failed Controller attempts now retain
 bounded operator diagnostics; ordinary resume still never repeats indeterminate
 model calls. See [task contracts](docs/coding-agent/task-profile.md) and
 [recovery/compatibility](docs/coding-agent/operations.md). Retention, stopping,
-search-budget accounting, and the installed Metering API are unchanged.
+search-budget accounting, and the installed Metering API are unchanged. If
+budget stopping leaves no development archive, no final assay is attempted and
+the actual stop reason is reported. A usable archive still permits final selection.
+Progress also explains historical zero-round budget failures without modifying
+their evidence; resuming cannot enlarge a frozen budget.
 
 Read the dedicated [Agentvolve guide](docs/coding-agent/README.md), including
 the [component map](docs/coding-agent/components.md),

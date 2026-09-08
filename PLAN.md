@@ -546,7 +546,9 @@ its disclosed protected-final policy; it does not invent hidden coverage.
 `/goal` plus `/limit` may mechanically derive a fresh profile from an explicitly
 selected already reviewed task profile, preserving its paths, checks,
 protected-final binding, and stopping policy while updating the exact goal,
-clean HEAD, round limit, and draws. The task identity is the SHA-256 of its
+clean HEAD, round limit, and draws. Wall limits are preserved by default; a
+separately operator-entered correction belongs only to the newly reviewed profile,
+never its template or an existing run. The task identity is the SHA-256 of its
 normalized canonical form.
 
 Coding mutation is archive-in/archive-out. Fixed host code resolves the exact
@@ -892,6 +894,24 @@ The implemented first increment has these contracts:
   attest model availability, image dependencies, or arbitrary check quality.
   Canonical normalization now checks JSON types exactly; malformed boolean/float
   schema versions previously accepted through Python equality are rejected.
+- Development-budget preparation uses the existing Controller timeout calculation
+  plus the evidence-adapter timeout. New starts reject a wall budget that cannot
+  reserve even one round, with the configured and required seconds; partially
+  funded generation caps remain allowed with an explicit warning. Pi review shows
+  per-round and full-cap reservations without retries, and prompts for direct
+  operator input if no round is affordable. Cancelling starts no worker; corrected
+  budgets produce new task identities only. These are worst-case development
+  reservations, not elapsed time, a total-workflow limit, or new Driver accounting.
+  The read-only `task_profile_tool budget` projection contains only public timeout
+  and limit numbers; no check, model, candidate, or protected-profile effects occur.
+- If development stops without any archive, the Level-1 wrapper reports the
+  Driver's actual stop reason and round/proposal counts instead of attempting
+  final selection. A budget stop with a usable archive still proceeds to final.
+  Progress explains historical zero-round budget failures from their recorded
+  timeouts without rewriting evidence. Existing profile parsing, identities,
+  replay, pending reservations, and final seals are unchanged; an impossible
+  immutable budget requires explicit incomplete closure and a separately reviewed
+  replacement task, not an automatic retry or budget increase.
 - Optional per-check `stdout-json-v1` adds operator-supplied `expected_stdout`.
   A fresh sandbox receives only the argv, never this expected object. Its actual
   stdout must be one complete strict JSON object with exactly the declared values

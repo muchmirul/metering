@@ -20,8 +20,9 @@ Set `/limit N generations` (1–256), then `/goal TEXT`; a missing limit is
 prompted before drafting. The last limit persists, including after a launch or
 session restore; changing it never changes a running task. When a reviewed
 contract is selected, fixed code derives a fresh profile and keeps its
-entrypoint, allowed paths, checks, final binding, final draw, wall limit, and
-stopping policy; resolves the current clean repository `HEAD`; writes `N - 1`
+entrypoint, allowed paths, checks, final binding, final draw, and
+stopping policy; preserves the wall limit unless the operator explicitly enters
+a correction for the new profile; resolves the current clean repository `HEAD`; writes `N - 1`
 fixed rational recurrence draws; and preserves the template's finite retry
 reservation count. The derived profile is written below the task directory's
 `generated/` subdirectory.
@@ -154,6 +155,55 @@ rounds, while the example `stopping` policy may end the run sooner with
 draws and at least 100 proposal-call reservations. Protected-final checks never
 participate in the goal predicate.
 
+## Development timeout reservations
+
+`max_wall_seconds` is the Driver's development timeout-reservation budget, not
+elapsed model time or a total-workflow deadline. Fixed review/preflight computes
+the same Controller reservation used by the Driver and adds the evidence-adapter
+timeout. More development checks or longer check timeouts can increase it.
+
+With one 120,000 ms check, the existing timeouts are 1,800 seconds for the
+proposer, 600 for the runner, and 300 for the evaluator. Controller margins and
+matched parent/challenger execution require 3,380 seconds, plus 300 for evidence:
+**3,680 seconds per generation; 7,360 for two without retries**. Harness work,
+protected-final work, and extra retry reservations are not part of this estimate.
+
+New registration, derivation, worker starts, and Level-1 starts reject budgets
+that cannot reserve one round with `wall_reservation_limit` and numeric details.
+A budget that funds one but not all requested rounds is accepted with a warning:
+the generation limit remains a cap, not a guarantee. No Driver timeout, reservation,
+retry, retention, or stopping rule changes.
+
+Pi calculates this before registration/derivation, shows the per-generation and
+full-cap amounts at review, and prompts for explicit integer seconds when no
+round is affordable. Cancelling starts no worker. Corrections apply only to a
+new reviewed profile, never the template or an existing run. CLI derivation
+preserves the template budget unless its optional final argument is supplied:
+
+```text
+uv run python -m apps.coding_agent.task_profile_tool derive TEMPLATE.task.json GOAL.txt MAX_ROUNDS TASK-DIRECTORY [MAX_WALL_SECONDS]
+```
+
+The read-only operator boundary is `task_profile_tool budget REVIEW.json`, where
+`REVIEW.json` is exactly:
+
+```json
+{"check_timeouts_ms":[120000],"max_rounds":2,"max_wall_seconds":1800}
+```
+
+It returns `agentvolve-development-reservation-v1` diagnostic JSON with the
+Controller/evidence/per-round reservations, requested-cap total, and
+`funded_rounds_without_retries` (zero here). It validates exact JSON types,
+duplicate/extra keys, check-count/timeout bounds, and finite round/wall limits.
+It reads no task/final profile and executes no check, model, or candidate.
+An affordable or unaffordable valid review exits 0; malformed input exits 2
+with an error on stderr. This is a diagnostic, not permission to launch.
+
+Existing profiles still parse with the same identities and offline replay;
+new-start rejection does not migrate their evidence. A frozen, unfundable run
+cannot advance by resuming: use explicitly approved incomplete closure, then a
+separately reviewed replacement task. Do not edit its limits in place.
+
 ## Protected-final profile
 
 The final profile is also canonical JSON plus one newline:
@@ -209,7 +259,8 @@ Before Level-1 inference, fixed code requires:
 - no `.git`, traversal, backslashes, NUL, symlink, or device semantics;
 - non-empty reviewed argv commands, at most 256 arguments of 4,096 characters each;
 - unique case IDs within each suite;
-- finite positive per-check and global bounds;
+- finite positive per-check and global bounds, with enough development wall
+  reservation for at least one round at new-start preflight;
 - exactly `max_rounds - 1` recurrence draws;
 - at least `max_rounds` proposal-call reservations; and
 - when present, a versioned stopping policy whose `minimum_replicates` does not
@@ -227,7 +278,10 @@ The declared final policy is lexicographic:
 3. use `final_draw` only to break a canonical candidate-ID tie.
 
 The exact corresponding Population allocation is recorded before protected
-checks run. Final evidence never changes the selected candidate.
+checks run. Final evidence never changes the selected candidate. If development
+stops without an archive, the wrapper reports the actual Driver stop reason and
+round/proposal counts without final selection or protected execution. A budget
+stop with a usable archive still proceeds to final.
 
 For workspace and trust details, see the [architecture and threat model](architecture.md).
 For commands, see the [operations guide](operations.md).

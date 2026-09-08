@@ -17,6 +17,7 @@ from apps._support.wire import (
     write_document,
 )
 from apps.agent_protocol import ProtocolError, require_exact_keys
+from apps.coding_agent.experiment_config import development_reservation
 from apps.coding_agent.harness_workspace_editor import CodingMutationError
 from apps.coding_agent.protocol import CodingTaskError, load_task_profile
 from apps.coding_agent.preflight import preflight_task
@@ -239,6 +240,8 @@ def derive_profile(
     goal_path: Path,
     max_rounds: int,
     output_directory: Path,
+    *,
+    max_wall_seconds: int | None = None,
 ) -> dict[str, object]:
     template_path = template_path.expanduser().absolute()
     template = load_task_profile(template_path)
@@ -291,7 +294,9 @@ def derive_profile(
         "limits": {
             "max_proposal_calls": max_proposal_calls,
             "max_rounds": max_rounds,
-            "max_wall_seconds": template_limits["max_wall_seconds"],
+            "max_wall_seconds": template_limits["max_wall_seconds"] if max_wall_seconds is None else _integer(
+                max_wall_seconds, "max_wall_seconds", 1, 10**9
+            ),
         },
         "repository": {
             "base_commit": commit,
@@ -321,10 +326,31 @@ def derive_profile(
     }
 
 
+def budget_review(path: Path) -> dict[str, object]:
+    """Read only public timeout/limit numbers; never profiles, checks or candidates."""
+    if path.is_symlink() or not path.is_file():
+        raise TaskRegistrationError("budget review must be a regular file")
+    with path.open("rb") as stream:
+        source = stream.read(16_385)
+    if len(source) > 16_384:
+        raise TaskRegistrationError("budget review exceeds 16384 bytes")
+    document = decode_json_object(source.decode("utf-8"), TaskRegistrationError)
+    try:
+        require_exact_keys(document, {"check_timeouts_ms", "max_rounds", "max_wall_seconds"}, "budget review")
+    except ProtocolError as exc:
+        raise TaskRegistrationError(str(exc)) from exc
+    return development_reservation(
+        cast(list[int], document["check_timeouts_ms"]),
+        cast(int, document["max_rounds"]), cast(int, document["max_wall_seconds"]),
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     try:
-        if len(arguments) in {2, 4} and arguments[0] == "preflight":
+        if len(arguments) == 2 and arguments[0] == "budget":
+            result = budget_review(Path(arguments[1]))
+        elif len(arguments) in {2, 4} and arguments[0] == "preflight":
             result = preflight_task(
                 load_task_profile(Path(arguments[1])),
                 runtime=load_runtime_manifest(Path(arguments[2]))
@@ -334,24 +360,26 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif len(arguments) == 3 and arguments[0] == "create":
             result = create_profile(Path(arguments[1]), Path(arguments[2]))
-        elif len(arguments) == 5 and arguments[0] == "derive":
+        elif len(arguments) in {5, 6} and arguments[0] == "derive":
             try:
                 max_rounds = int(arguments[3])
+                max_wall_seconds = int(arguments[5]) if len(arguments) == 6 else None
             except ValueError as exc:
                 raise TaskRegistrationError(
-                    "generation limit must be an integer"
+                    "generation limit and optional wall budget must be integers"
                 ) from exc
             result = derive_profile(
                 Path(arguments[1]),
                 Path(arguments[2]),
                 max_rounds,
                 Path(arguments[4]),
+                max_wall_seconds=max_wall_seconds,
             )
         else:
             raise TaskRegistrationError(
                 "usage: task_profile_tool.py create SESSION-DRAFT.json TASK-DIRECTORY | "
-                "derive TEMPLATE.task.json GOAL.txt MAX_ROUNDS TASK-DIRECTORY | "
-                "preflight TASK.json [RUNTIME.json SELECTED-HARNESS.json]"
+                "derive TEMPLATE.task.json GOAL.txt MAX_ROUNDS TASK-DIRECTORY [MAX_WALL_SECONDS] | "
+                "preflight TASK.json [RUNTIME.json SELECTED-HARNESS.json] | budget REVIEW.json"
             )
     except (
         CodingMutationError,

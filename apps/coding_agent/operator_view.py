@@ -31,6 +31,7 @@ from apps.coding_agent.process_tracker import (
     STAGE_LABELS,
     load_process_status,
 )
+from apps.population_driver.population_driver_protocol import controller_timeout_seconds
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -303,6 +304,23 @@ def _driver_projection(
         activity = "Controller receipt committed; adapting trusted evidence"
     elif pending_stage == "evidence_complete":
         activity = "Evidence receipt committed; appending Population records"
+    elif not rounds and pending is None and _field(_field(configuration, "generation"), "evaluation") == "darwinian-coding/development-v1":
+        # Explain historical zero-round failures from the recorded timeouts, not
+        # current defaults or mutable worker-status text. This never resumes a run.
+        wall_limit = _integer(_field(limits, "max_wall_seconds"))
+        evidence_timeout = _integer(_field(_field(configuration, "evidence_adapter"), "timeout_seconds"))
+        try:
+            if wall_limit is None or evidence_timeout is None:
+                raise ValueError("missing integer timeout")
+            required = controller_timeout_seconds(cast(dict[str, object], configuration)) + evidence_timeout
+        except (KeyError, TypeError, ValueError) as exc:
+            raise OperatorViewError("recorded coding development timeouts are malformed") from exc
+        if required > wall_limit:
+            activity = (
+                f"wall_reservation_limit: first development round requires {required} reserved seconds, "
+                f"but the frozen budget is {wall_limit}. No proposal round started. "
+                "Resume cannot increase this budget; close as incomplete and review a new task."
+            )
     return {
         "activity": activity,
         "archive_member_count": len(latest_archive),

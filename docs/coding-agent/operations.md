@@ -65,7 +65,14 @@ It checks protected structure privately and exposes no protected contents.
 means exit status is the criterion, not proof that assertions ran. Prefer the
 explicit [external output contract](task-profile.md#externally-checked-output-values)
 when expected answer values are available. Preflight does not run checks or prove
-that runtime dependencies or the model endpoint are available.
+that runtime dependencies or the model endpoint are available. It also rejects
+a development wall budget that cannot reserve one generation, reporting the
+configured and required seconds. Partial-cap funding remains allowed with a
+warning. [Task review](task-profile.md#development-timeout-reservations) discloses
+the existing reservation calculation; Pi prompts for an operator-entered budget
+correction before approving a new task, without editing any existing profile/run.
+If development has no archive, its real stop reason is reported without attempting
+protected-final work. A budget stop with an archive still permits final selection.
 
 The deterministic fixture form is:
 

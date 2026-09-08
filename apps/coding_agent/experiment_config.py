@@ -8,11 +8,16 @@ from pathlib import Path
 from typing import cast
 
 from apps._support.wire import canonical_digest
-from apps.coding_agent.protocol import task_documents
+from apps.coding_agent.protocol import CodingTaskError, task_documents
+from apps.controller.contract import agent_generation_timeout_seconds
 from apps.harness.runtime_manifest import RuntimeManifest
 from apps.population.contract import RESOURCE_NAMES
 
 ROOT = Path(__file__).resolve().parents[2]
+
+PROPOSAL_TIMEOUT_SECONDS = 1800
+EVALUATOR_TIMEOUT_SECONDS = 300
+EVIDENCE_TIMEOUT_SECONDS = 300
 
 
 GIT_ADAPTER = ROOT / "artifacts" / "git" / "git_candidate_adapter.py"
@@ -64,7 +69,47 @@ def task_runner_timeout(tasks: list[dict[str, object]]) -> int:
         )
         for task in tasks
     )
+    return _runner_timeout(maximum_ms)
+
+
+def _runner_timeout(maximum_ms: int) -> int:
     return max(600, (maximum_ms + 999) // 1_000 + 120)
+
+
+def development_reservation(
+    check_timeouts_ms: list[int], max_rounds: int, max_wall_seconds: int
+) -> dict[str, object]:
+    """Disclose the existing Driver reservation, not new limits or elapsed cost."""
+    if (
+        type(check_timeouts_ms) is not list
+        or not 1 <= len(check_timeouts_ms) <= 256
+        or any(type(value) is not int or not 10 <= value <= 3_600_000 for value in check_timeouts_ms)
+    ):
+        raise CodingTaskError("check_timeouts_ms must contain 1–256 integer timeouts from 10 through 3600000")
+    for name, value, maximum in (
+        ("max_rounds", max_rounds, 256),
+        ("max_wall_seconds", max_wall_seconds, 10**9),
+    ):
+        if type(value) is not int or not 1 <= value <= maximum:
+            raise CodingTaskError(f"{name} must be an integer from 1 through {maximum}")
+    controller = agent_generation_timeout_seconds(
+        proposer_timeout_seconds=PROPOSAL_TIMEOUT_SECONDS,
+        runner_timeout_seconds=_runner_timeout(max(check_timeouts_ms)),
+        evaluator_timeout_seconds=EVALUATOR_TIMEOUT_SECONDS,
+        task_count=len(check_timeouts_ms),
+    )
+    per_round = controller + EVIDENCE_TIMEOUT_SECONDS
+    return {
+        "reservation_schema": "agentvolve-development-reservation-v1",
+        "authority": "diagnostic-only",
+        "max_wall_seconds": max_wall_seconds,
+        "max_rounds": max_rounds,
+        "controller_timeout_seconds": controller,
+        "evidence_timeout_seconds": EVIDENCE_TIMEOUT_SECONDS,
+        "round_reservation_seconds": per_round,
+        "requested_rounds_seconds": per_round * max_rounds,
+        "funded_rounds_without_retries": min(max_rounds, max_wall_seconds // per_round),
+    }
 
 
 def coding_runtime_identity(
@@ -98,13 +143,13 @@ def solution_driver_request(
         "allocation_draws": profile["allocation_draws"],
         "evidence_adapter": {
             "command": control_command(EVIDENCE),
-            "timeout_seconds": 300,
+            "timeout_seconds": EVIDENCE_TIMEOUT_SECONDS,
         },
         "generation": {
             "evaluation": "darwinian-coding/development-v1",
             "evaluator": {
                 "command": control_command(EVALUATOR),
-                "timeout_seconds": 300,
+                "timeout_seconds": EVALUATOR_TIMEOUT_SECONDS,
             },
             "runner": {
                 "command": control_command(GIT_ADAPTER),
@@ -147,7 +192,7 @@ def solution_driver_request(
                 "goal": profile["goal"],
                 "task_id": profile["task_id"],
             },
-            "timeout_seconds": 1800,
+            "timeout_seconds": PROPOSAL_TIMEOUT_SECONDS,
         },
         "schema_version": 1,
     }

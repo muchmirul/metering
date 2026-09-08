@@ -15,7 +15,12 @@ Metering's installed API. Conversational activation starts no task. Interactive
 `/goal` and `/limit` derive a run profile only from a reviewed discovered
 profile and a clean Git `HEAD`; user-message-only session task generation shows
 a complete human-readable contract for direct operator approval and creates an
-operator-reviewed draft, not model-owned evaluation authority.
+operator-reviewed draft, not model-owned evaluation authority. Fixed preflight
+rejects development wall budgets that cannot reserve even one generation. Task
+review shows the unchanged reservation calculation and collects any budget
+correction explicitly for a new task only. A stop before an archive exists
+reports the Driver reason without attempting protected-final selection; an
+available archive still permits final work after budget stopping.
 
 ## Documentation
 

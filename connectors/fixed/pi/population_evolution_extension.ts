@@ -61,6 +61,14 @@ interface WorkerResponse {
 	workflow_root: string;
 }
 
+interface DevelopmentReservation {
+	max_wall_seconds: number;
+	max_rounds: number;
+	round_reservation_seconds: number;
+	requested_rounds_seconds: number;
+	funded_rounds_without_retries: number;
+}
+
 class AgentvolveInputRequired extends Error {}
 
 const CODING_TOOL_DESCRIPTION = [
@@ -95,7 +103,7 @@ The object must have exactly these fields:
 - limits: max_proposal_calls and max_rounds equal to the supplied generation limit; max_wall_seconds a finite positive integer for direct operator review
 - stopping: {"minimum_replicates":1,"type":"all-development-cases-pass-v1"}
 - final_policy: "replay-development-checks-v1"
-Do not invent evaluator files, paths absent from the supplied Git list, hidden criteria, or a solution. If information is insufficient, return {"clarification":"one concise question for the user"} instead of a task draft.`;
+Do not invent evaluator files, paths absent from the supplied Git list, hidden criteria, or a solution. Do not substitute a repository-wide test command for a goal-specific check unless the user messages establish that it covers the requested behavior. If information is insufficient, return {"clarification":"one concise question for the user"} instead of a task draft. Fixed code will calculate the timeout reservation and ask the operator to correct an insufficient wall budget before registration.`;
 
 function contentText(content: unknown): string[] {
 	if (typeof content === "string") return [content];
@@ -141,7 +149,7 @@ function generationLimit(value: string): number {
 	return limit;
 }
 
-function taskReview(document: Record<string, unknown>, draft: boolean, baseCommit?: string): string {
+function taskReview(document: Record<string, unknown>, draft: boolean, budget: DevelopmentReservation, baseCommit?: string): string {
 	const repository = draft ? {
 		path: document.repository_path,
 		entrypoint: document.entrypoint,
@@ -166,7 +174,10 @@ function taskReview(document: Record<string, unknown>, draft: boolean, baseCommi
 				`\n    Output contract: ${JSON.stringify(check.output_contract ?? "exit-status-only")}` +
 				(check.expected_stdout === undefined ? "" : `\n    Expected stdout: ${JSON.stringify(check.expected_stdout)}`);
 		}),
-		`Limits: ${limits.max_rounds} generations, ${limits.max_proposal_calls} proposal calls, ${limits.max_wall_seconds} wall seconds`,
+		`Limits: ${limits.max_rounds} generations, ${limits.max_proposal_calls} proposal calls, ${limits.max_wall_seconds} development timeout-reservation seconds`,
+		`Reservation: ${budget.round_reservation_seconds} seconds per generation; ${budget.requested_rounds_seconds} for the generation cap without retries.`,
+		`This budget can fund at most ${budget.funded_rounds_without_retries} of ${budget.max_rounds} generations without retries. The cap is not a promise to execute every generation.`,
+		"Reservations are not elapsed runtime or a total-workflow deadline; harness work, protected-final work and retry needs are not covered by this per-generation estimate.",
 		`Stopping: ${JSON.stringify(document.stopping ?? "numeric-limit-only")}`,
 		draft
 			? "Final policy: replay-development-checks-v1. The protected final repeats these checks and adds no hidden coverage."
@@ -403,13 +414,48 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		return profile.path;
 	}
 
-	async function deriveGoalTask(template: string, goal: string, maxRounds: number, signal: AbortSignal): Promise<string> {
+	async function reviewDevelopmentBudget(ctx: ExtensionContext, document: Record<string, unknown>, maxRounds: number, signal: AbortSignal): Promise<DevelopmentReservation> {
+		if (!Array.isArray(document.development_checks)) throw new Error("Development checks must be an array.");
+		const timeouts = document.development_checks.map((check) => reviewObject(check, "development check").timeout_ms);
+		let maxWallSeconds = reviewObject(document.limits, "limits").max_wall_seconds;
+		const temporary = await mkdtemp(join(tmpdir(), "agentvolve-budget-"));
+		try {
+			const path = join(temporary, "budget.json");
+			for (;;) {
+				signal.throwIfAborted();
+				await writeFile(path, JSON.stringify({ check_timeouts_ms: timeouts, max_rounds: maxRounds, max_wall_seconds: maxWallSeconds }) + "\n", "utf8");
+				const result = decodeOutput(await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.task_profile_tool", "budget", path],
+					{ cwd: repositoryRoot(), signal, timeout: 30_000 }));
+				if (result.reservation_schema !== "agentvolve-development-reservation-v1" || result.authority !== "diagnostic-only" ||
+					result.max_rounds !== maxRounds || result.max_wall_seconds !== maxWallSeconds ||
+					!["controller_timeout_seconds", "evidence_timeout_seconds", "round_reservation_seconds", "requested_rounds_seconds", "funded_rounds_without_retries"].every((key) => Number.isSafeInteger(result[key]) && (result[key] as number) >= 0)) throw new Error("Unexpected development reservation response.");
+				const budget = result as unknown as DevelopmentReservation;
+				if (budget.round_reservation_seconds <= 0 || budget.requested_rounds_seconds !== budget.round_reservation_seconds * maxRounds ||
+					budget.funded_rounds_without_retries !== Math.min(maxRounds, Math.floor(budget.max_wall_seconds / budget.round_reservation_seconds))) throw new Error("Inconsistent development reservation response.");
+				if (budget.funded_rounds_without_retries > 0) return budget;
+				const value = await ctx.ui.input(
+					`Agentvolve budget cannot fund one generation: ${maxWallSeconds} seconds configured; at least ${budget.round_reservation_seconds} required (${budget.requested_rounds_seconds} for ${maxRounds} generations without retries).`,
+					"Enter an approved development reservation budget in seconds, or cancel", { signal });
+				if (value === undefined) throw new AgentvolveInputRequired("Budget review cancelled; no task registered or worker started. Existing profiles and run limits are unchanged.");
+				const chosen = /^\d+$/.test(value.trim()) ? Number(value.trim()) : Number.NaN;
+				if (!Number.isSafeInteger(chosen) || chosen < budget.round_reservation_seconds || chosen > 1_000_000_000) {
+					ctx.ui.notify(`Enter integer seconds from ${budget.round_reservation_seconds} through 1000000000, or cancel. No budget was changed.`, "warning");
+					continue;
+				}
+				maxWallSeconds = chosen;
+			}
+		} finally {
+			await rm(temporary, { recursive: true, force: true });
+		}
+	}
+
+	async function deriveGoalTask(template: string, goal: string, maxRounds: number, maxWallSeconds: number, signal: AbortSignal): Promise<string> {
 		const temporary = await mkdtemp(join(tmpdir(), "agentvolve-goal-"));
 		try {
 			const goalPath = join(temporary, "goal.txt");
 			await writeFile(goalPath, goal, "utf8");
 			const output = join(tasksDirectory(), "generated");
-			const command = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.task_profile_tool", "derive", template, goalPath, String(maxRounds), output],
+			const command = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.task_profile_tool", "derive", template, goalPath, String(maxRounds), output, String(maxWallSeconds)],
 				{ cwd: repositoryRoot(), signal, timeout: 30_000 });
 			const registration = decodeOutput(command);
 			if (registration.registration_schema !== "agentvolve-task-derivation-v1" || typeof registration.profile !== "string") throw new Error("Task derivation returned an unexpected result");
@@ -469,8 +515,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const limits = reviewObject(document.limits, "limits");
 			limits.max_rounds = maxRounds;
 			limits.max_proposal_calls = maxRounds;
+			const budget = await reviewDevelopmentBudget(ctx, document, maxRounds, signal);
+			limits.max_wall_seconds = budget.max_wall_seconds;
 			reviewed = JSON.stringify(document, null, 2);
-			if (await ctx.ui.confirm("Register and run this reviewed task?", taskReview(document, true, baseCommit), { signal })) break;
+			if (await ctx.ui.confirm("Register and run this reviewed task?", taskReview(document, true, budget, baseCommit), { signal })) break;
 			const action = await ctx.ui.select("Task not approved", ["Edit task details (advanced JSON)", "Cancel without starting"], { signal });
 			if (action !== "Edit task details (advanced JSON)") return null;
 			const edited = await ctx.ui.editor("Edit Agentvolve task details (goal and generation limit stay user-bound)", reviewed);
@@ -520,9 +568,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				const source = reviewObject(JSON.parse(await readFile(template, "utf8")), "task profile");
 				const taskGoal = goal ?? source.goal;
 				if (typeof taskGoal !== "string" || !taskGoal.trim()) throw new AgentvolveInputRequired("Describe the problem with /goal.");
-				profile = await deriveGoalTask(template, taskGoal, maxRounds, operationSignal);
+				const budget = await reviewDevelopmentBudget(ctx, source, maxRounds, operationSignal);
+				profile = await deriveGoalTask(template, taskGoal, maxRounds, budget.max_wall_seconds, operationSignal);
 				const derived = reviewObject(JSON.parse(await readFile(profile, "utf8")), "derived task");
-				if (!(await ctx.ui.confirm("Run this reviewed Agentvolve task?", taskReview(derived, false), { signal: operationSignal }))) return null;
+				if (!(await ctx.ui.confirm("Run this reviewed Agentvolve task?", taskReview(derived, false, budget), { signal: operationSignal }))) return null;
 			} else profile = await generateSessionTaskDraft(ctx, repository, goal, maxRounds, operationSignal);
 			if (!profile) return null;
 			operationSignal.throwIfAborted();

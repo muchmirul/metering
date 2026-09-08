@@ -87,6 +87,14 @@ Advanced JSON correction is optional. Fixed registration validates the clean
 Git binding and canonical profile. Generated finals explicitly replay public
 checks; use a separately reviewed profile for held-out coverage.
 
+Fixed code computes development timeout reservations before registration or
+profile derivation. Review shows per-generation and full-cap amounts without
+retries, not elapsed time or a total-workflow budget. If no generation fits,
+an input dialog asks the operator for a sufficient integer-second budget or
+cancellation; there is no automatic increase. A correction applies only to the
+new reviewed task, never an old profile/run. A partially funded cap remains
+allowed and is disclosed. Preflight rechecks affordability before worker launch.
+
 Normal conversation remains supported: ask to activate Agentvolve (no task,
 model, service, or worker starts), clarify a coding goal, then explicitly ask it
 to solve it. The `darwinian_coding` tool exposes only `workflow_activate`,

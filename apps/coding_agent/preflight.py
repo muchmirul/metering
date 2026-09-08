@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import cast
 
+from apps.coding_agent.experiment_config import development_reservation
 from apps.coding_agent.harness_workspace_editor import load_harness_descriptor
 from apps.coding_agent.protocol import CodingTaskError, load_final_profile
 from apps.harness.runtime_manifest import RuntimeManifest
@@ -23,6 +24,18 @@ def preflight_task(
     runtime: RuntimeManifest | None = None,
     harness_source: Path | None = None,
 ) -> dict[str, object]:
+    limits = cast(dict[str, int], profile["limits"])
+    budget = development_reservation(
+        [cast(int, check["timeout_ms"]) for check in cast(list[dict[str, object]], profile["development_checks"])],
+        limits["max_rounds"], limits["max_wall_seconds"],
+    )
+    if budget["funded_rounds_without_retries"] == 0:
+        raise CodingTaskError(
+            f"wall_reservation_limit: max_wall_seconds={limits['max_wall_seconds']} cannot fund the first "
+            f"development round; at least {budget['round_reservation_seconds']} seconds are required "
+            f"({budget['requested_rounds_seconds']} for the {limits['max_rounds']}-round cap without retries). "
+            "Review a sufficient budget in a new task; existing run limits will not be changed."
+        )
     repository = cast(dict[str, str], profile["repository"])
     source = Path(repository["path"])
     if source.is_symlink() or not source.is_dir():
@@ -69,7 +82,13 @@ def preflight_task(
         if any("check_schema" not in check for check in checks)
         else []
     )
+    if cast(int, budget["funded_rounds_without_retries"]) < limits["max_rounds"]:
+        warnings.append(
+            f"wall reservation funds only {budget['funded_rounds_without_retries']} of {limits['max_rounds']} "
+            "development rounds without retries; the generation cap is not a promise to run every round"
+        )
     document: dict[str, object] = {
+        "development_reservation": budget,
         "preflight_schema": "agentvolve-operator-preflight-v1",
         "authority": "diagnostic-only",
         "task_id": profile["task_id"],

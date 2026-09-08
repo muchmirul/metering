@@ -180,6 +180,12 @@ def _run_protected_final(
     development: dict[str, object],
     coding_runtime_id: str,
 ) -> dict[str, object]:
+    if development["archive_count"] == 0:
+        raise SolutionExperimentError(
+            f"coding development stopped: {development['status']}; {development['completed_rounds']} completed rounds, "
+            f"{development['proposal_calls']} proposal calls, no development archive. "
+            "Protected final selection and checks were not started. Review a new task if its frozen limits cannot fund a round."
+        )
     population = population_root(root / "state")
     experiment_id = str(development["experiment_id"])
     draw = cast(dict[str, int], profile["final_draw"])

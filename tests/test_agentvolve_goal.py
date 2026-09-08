@@ -64,7 +64,8 @@ class RPC:
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is not installed")
 @pytest.mark.parametrize("legacy_history", [False, True])
-def test_goal_requires_limit_and_approval_then_keeps_limit(tmp_path: Path, legacy_history: bool):
+@pytest.mark.parametrize("underfunded", [False, True])
+def test_goal_requires_limit_and_approval_then_keeps_limit(tmp_path: Path, legacy_history: bool, underfunded: bool):
     repository = tmp_path / "repo"
     repository.mkdir()
     (repository / "main.py").write_text("print('ok')\n")
@@ -83,7 +84,7 @@ def test_goal_requires_limit_and_approval_then_keeps_limit(tmp_path: Path, legac
         "goal": "MODEL MUST NOT OVERRIDE USER GOAL", "entrypoint": "main.py",
         "allowed_paths": ["main.py"],
         "development_checks": [{"argv": ["python3", "main.py"], "case_id": "main", "timeout_ms": 1000}],
-        "limits": {"max_rounds": 99, "max_proposal_calls": 99, "max_wall_seconds": 60},
+        "limits": {"max_rounds": 99, "max_proposal_calls": 99, "max_wall_seconds": 1800 if underfunded else 100000},
         "stopping": {"type": "all-development-cases-pass-v1", "minimum_replicates": 1},
         "final_policy": "replay-development-checks-v1",
     }
@@ -167,6 +168,9 @@ else:
 
         def decline(event: dict) -> dict:
             if event["method"] == "input":
+                if event["title"].startswith("Agentvolve budget"):
+                    assert underfunded and "3680" in event["title"] and "25760" in event["title"]
+                    return {"value": "30000"}
                 return {"value": "7 generations"}
             if event["method"] == "confirm":
                 reviews.append(event)
@@ -185,13 +189,27 @@ else:
         assert "Prior user context" in recorded_prompt
         assert "ASSISTANT_ANSWER_MUST_NOT_BECOME_TASK" not in recorded_prompt
 
+        if underfunded:
+            events = rpc.prompt("/goal")  # cancel the budget correction
+            assert any(event.get("title", "").startswith("Agentvolve budget") for event in events)
+            assert not launch_log.exists() and list(tasks.iterdir()) == []
+
+        budget_inputs = 0
+
         def approve(event: dict) -> dict:
-            assert event["method"] != "input", "Saved /limit was lost"
+            nonlocal budget_inputs
+            if event["method"] == "input":
+                assert underfunded and event["title"].startswith("Agentvolve budget"), "Saved /limit was lost"
+                budget_inputs += 1
+                return {"value": {1: "1800", 2: "1.5"}.get(budget_inputs, "30000")}
             if event["method"] == "select":
                 return {"value": event["options"][0]}
             assert event["method"] == "confirm"
             reviews.append(event)
             assert not launch_log.exists(), "Worker launched before approval"
+            assert "3680 seconds per generation" in event["message"]
+            assert "25760" in event["message"]
+            assert ("30000" if underfunded else "100000") in event["message"]
             return {"confirmed": True}
 
         events = rpc.prompt("/goal", approve)
@@ -204,6 +222,8 @@ else:
         assert profile["goal"] == "Make main pass the reviewed check"
         assert profile["limits"]["max_rounds"] == 7
         assert profile["limits"]["max_proposal_calls"] == 7
+        assert profile["limits"]["max_wall_seconds"] == (30000 if underfunded else 100000)
+        assert budget_inputs == (3 if underfunded else 0)
         configurations = [entry["data"] for entry in rpc.entries() if entry.get("customType") == "agentvolve-workflow-configuration"]
         assert configurations[-1] == {"maxRounds": 7}
         rpc.prompt("/limit 3")
@@ -215,6 +235,17 @@ else:
         process.wait(timeout=10)
         assert process.stderr is not None
         assert process.stderr.read() == b""
+
+    # Simulate a separately stored, pre-upgrade template with an impossible budget.
+    # Its correction must create a new profile rather than modifying this source.
+    legacy_template = None
+    legacy_template_bytes = None
+    if underfunded:
+        template_document = json.loads(json.dumps(profile))
+        template_document["limits"]["max_wall_seconds"] = 1800
+        legacy_template = tasks / "000-underfunded.task.json"
+        legacy_template_bytes = (json.dumps(template_document, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode("ascii")
+        legacy_template.write_bytes(legacy_template_bytes)
 
     # Reloading/restoring configuration is not a launch. The next reviewed goal uses the saved limit.
     process = start()
@@ -228,7 +259,13 @@ else:
         def approve_template(event: dict) -> dict:
             seen.append(event)
             if event["method"] == "select":
+                if underfunded:
+                    assert "000-underfunded" in event["options"][0]
                 return {"value": event["options"][0]}
+            if event["method"] == "input":
+                assert underfunded and event["title"].startswith("Agentvolve budget")
+                assert "3680" in event["title"] and "11040" in event["title"]
+                return {"value": "11040"}
             assert event["method"] == "confirm"
             assert "3 generations" in json.dumps(event)
             assert "New independently checked goal" in json.dumps(event)
@@ -237,7 +274,12 @@ else:
 
         events = rpc.prompt("/goal New independently checked goal", approve_template)
         assert len(launch_log.read_text().splitlines()) == 2, events
-        assert [event["method"] for event in seen] == ["select", "confirm"]
+        assert [event["method"] for event in seen] == (["select", "input", "confirm"] if underfunded else ["select", "confirm"])
+        if underfunded:
+            assert legacy_template.read_bytes() == legacy_template_bytes
+            second = json.loads(launch_log.read_text().splitlines()[-1])
+            assert Path(second[6]) != legacy_template
+            assert json.loads(Path(second[6]).read_text())["limits"]["max_wall_seconds"] == 11040
         if legacy_history:
             assert list(runs.iterdir()) == [stale]
             assert (stale / "old-evidence.txt").read_text() == "Preserve this interrupted experiment.\n"

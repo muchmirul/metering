@@ -59,6 +59,15 @@ The run stops at whichever occurs first:
 The finite numeric fallback is mandatory. Agentvolve never accepts an unbounded
 "continue until done" request.
 
+The wall limit reserves worst-case development timeouts; it is not elapsed
+runtime or a total-workflow deadline. With one check of at most 480 seconds,
+the current reservation is 3,680 seconds per generation: the 100,000-second
+examples above can fund at most 27 of their 100-round cap without retries.
+New-start preflight rejects budgets that cannot fund even one round and warns
+about partially funded caps. Pi shows the calculation and asks for an explicit
+budget correction when needed; no existing run is changed. See
+[reservation details](task-profile.md#development-timeout-reservations).
+
 ## What the words do
 
 `goal` is bounded text passed to the fixed proposer as mutation guidance. It is
@@ -116,6 +125,13 @@ are not a hidden random seed. A caller may choose other valid rational draws.
 If the goal is first proven on the last permitted round,
 `development_goal_reached` is the reported development status. Offline
 verification replays the same predicate from canonical records.
+
+A numeric or budget stop with a usable archive still permits final selection and
+protected evaluation. When development stops before any archive exists, the
+wrapper preserves the Driver's actual reason and completed-round/proposal counts;
+it does not attempt final selection or manufacture success. Progress explains
+historical zero-round wall-budget failures from their recorded timeouts. Their
+budgets, evidence and replay remain unchanged.
 
 ## Interactive-game use
 

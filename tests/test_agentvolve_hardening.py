@@ -353,6 +353,23 @@ def test_structured_output_workflow_replays_without_execution_or_writes(
     assert {p: p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
 
 
+def test_budget_stop_with_a_retained_archive_still_runs_and_replays_final(tmp_path, sealed_harness):
+    path = _profile(tmp_path / "task")
+    document = json.loads(path.read_text())
+    document["limits"].update(max_rounds=2, max_proposal_calls=2, max_wall_seconds=3680)
+    document["allocation_draws"] = [{"numerator": 0, "denominator": 1}]
+    _write_document(path, document)
+    root = tmp_path / "run"
+    report = solution_runtime.run_experiment(
+        "fixture", path, root, ROOT / "apps/harness/profiles/runtime-fixture.json", sealed_harness
+    )
+    assert report["development"]["status"] == "wall_reservation_limit"
+    assert report["development"]["completed_rounds"] == 1
+    assert report["development"]["proposal_calls"] == 1
+    assert report["final"]["passed_count"] == report["final"]["task_count"] == 1
+    assert solution_runtime.verify_experiment(root)["status"] == "verified"
+
+
 @pytest.mark.parametrize("phase", ["before-copy", "after-declaration"])
 def test_protected_interruption_keeps_selection_and_never_reopens_search(
     tmp_path, monkeypatch, sealed_harness, phase
