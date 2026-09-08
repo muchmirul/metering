@@ -378,3 +378,36 @@ not part of unattended deterministic CI: it requires Docker, cgroup v2, the
 reviewed image, a running pinned local endpoint, a verified sealed harness, and
 substantial model time. Skipping it must be reported; a source assertion is not
 a substitute for a claimed live acceptance result.
+
+### Recorded three-task local acceptance: 2026-09-08
+
+The approved clamp, slugify, and maze-route fixtures completed under the
+configured local Qwen endpoint (`pi-v1` / `llamacpp` / `local`, worker Pi
+0.84.4, medium reasoning), driven by interactive Pi 0.85.1 and the existing
+sealed harness. Each task used **one generation and one proposal**, passed
+**1/1 protected check commands** with zero safety failures, and passed offline
+verification plus candidate/trace inspection. No retry was used, no budget was
+changed, and no selected patch was applied to a source repository.
+
+| Task | Workflow | Selected commit |
+|---|---|---|
+| Clamp | `workflow-pi-20260908T092605156Z` | `5d187df40f76101e492cf5d51ada0c6058be5242` |
+| Slugify | `workflow-pi-20260908T124648904Z` | `75268c9bdd5cd3c7987debee7b7a6b9dead2461d` |
+| Maze route | `workflow-pi-20260908T124844479Z` | `91127dfe1942d23d04b035a88dce7a6e2dec83ea` |
+
+The initial standalone pytest invocation failed **after clamp completed and
+verified**, because its late inspection import could not resolve source-only
+`apps`. The test now adds the checkout path and imports inspection dependencies
+before any launch; an isolated, no-execution regression covers this setup.
+An explicitly approved continuation reused the original per-task test statements
+in the **same batch run directory**, verified clamp read-only, and launched only
+the two unstarted tasks. That continuation passed **3 tests**; clamp inference
+was not repeated, and the original failing log/XML were preserved.
+
+Evidence and the continuation script are outside Git at
+`/mnt/Tforce/dev/metering-agentvolve-live-20260908T092601Z-n3qbdla2/`.
+`completed-batch-summary.json` distinguishes the initial test-driver failure
+from the completed live batch. The separate failed `solve maze.html` workflow
+remains untouched. These fixture profiles use legacy exit-status checks, not
+external stdout-value contracts; passing them makes no broader correctness
+claim. The runtime's model alias also does not fully bind weights or sampling.

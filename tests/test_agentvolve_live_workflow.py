@@ -15,6 +15,14 @@ from typing import Any
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+# Fail on inspection dependency errors before launching any live work.
+from apps.coding_agent.candidate_view import report_view, tree_view  # noqa: E402
+from apps.coding_agent.file_view import path_key  # noqa: E402
+from apps.coding_agent.trace_view import TraceSnapshot  # noqa: E402
+
 EXTENSION = ROOT / ".pi" / "extensions" / "population-evolution.ts"
 SOLUTION = ROOT / "apps" / "coding_agent" / "solution_experiment.py"
 DEFAULT_RUNTIME = (
@@ -271,8 +279,6 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             assert json.loads(verified.stdout)["status"] == "verified"
 
             # Inspect actual local-model descendants, not a synthetic projection fixture.
-            from apps.coding_agent.candidate_view import report_view, tree_view
-
             nodes = []
             offset = 0
             while True:
@@ -303,9 +309,6 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             assert selected["candidate_id"] == report["selected_solution"]["candidate_id"]
 
             # The graphical trace must resolve the actual local-model commits and files.
-            from apps.coding_agent.file_view import path_key
-            from apps.coding_agent.trace_view import TraceSnapshot
-
             trace = TraceSnapshot(runs_directory, workflow_root.name)
             assert {node["candidate_id"] for node in trace.graph()["nodes"]} == {node["candidate_id"] for node in nodes}
             for node in nodes:

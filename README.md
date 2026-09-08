@@ -264,6 +264,8 @@ not change command paths, recorded schemas, or require run migration.
 Agentvolve workflow changes additionally use the opt-in, three-task local-model
 acceptance test documented in `docs/coding-agent/operations.md`; it deploy-loads
 the Pi extension, runs each approved task, and offline-verifies every result.
+It supports standalone invocation and imports its source-only inspection
+modules before launching work, so dependency errors do not waste model calls.
 
 The wheel must contain only the installed `metering` package. Source-only
 applications and connectors are distributed through the source archive.
