@@ -65,7 +65,8 @@ class RPC:
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is not installed")
 @pytest.mark.parametrize("legacy_history", [False, True])
 @pytest.mark.parametrize("underfunded", [False, True])
-def test_goal_requires_limit_and_approval_then_keeps_limit(tmp_path: Path, legacy_history: bool, underfunded: bool):
+@pytest.mark.parametrize("outside_repository", [False, True])
+def test_goal_requires_limit_and_approval_then_keeps_limit(tmp_path: Path, legacy_history: bool, underfunded: bool, outside_repository: bool):
     repository = tmp_path / "repo"
     repository.mkdir()
     (repository / "main.py").write_text("print('ok')\n")
@@ -141,11 +142,19 @@ else:
         "GOAL_LAUNCH_LOG": str(launch_log), "GOAL_PROMPT_LOG": str(prompt_log), "GOAL_DRAFT": json.dumps(draft),
     })
     session = tmp_path / "session.jsonl"
+    if outside_repository:
+        # Legacy sessions with an operator-selected target need no setup/migration.
+        session.write_text("\n".join(json.dumps(entry) for entry in [
+            {"type": "session", "version": 3, "id": "repo-session", "timestamp": "2026-09-09T00:00:00Z", "cwd": str(tmp_path)},
+            {"type": "custom", "id": "1234abcd", "parentId": None, "timestamp": "2026-09-09T00:00:00Z",
+             "customType": "agentvolve-workflow-configuration", "data": {"repository": str(repository)}},
+        ]) + "\n")
 
     def start() -> subprocess.Popen[bytes]:
         return subprocess.Popen(["pi", "--mode", "rpc", "--session", str(session), "--no-extensions",
             "-e", str(EXTENSION), "-e", str(provider), "--provider", "goal-fixture", "--model", "fixture"],
-            cwd=repository, env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            cwd=tmp_path if outside_repository else repository, env=environment,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     process = start()
     try:
@@ -165,7 +174,6 @@ else:
             events = rpc.prompt(f"/limit {invalid}")
             assert any("1 through 256" in str(event) for event in events)
         reviews = []
-
         def decline(event: dict) -> dict:
             if event["method"] == "input":
                 if event["title"].startswith("Agentvolve budget"):
@@ -220,12 +228,13 @@ else:
         assert len(launches) == 1
         profile = json.loads(Path(launches[0][6]).read_text())
         assert profile["goal"] == "Make main pass the reviewed check"
+        assert profile["repository"]["path"] == str(repository)
         assert profile["limits"]["max_rounds"] == 7
         assert profile["limits"]["max_proposal_calls"] == 7
         assert profile["limits"]["max_wall_seconds"] == (30000 if underfunded else 100000)
         assert budget_inputs == (3 if underfunded else 0)
         configurations = [entry["data"] for entry in rpc.entries() if entry.get("customType") == "agentvolve-workflow-configuration"]
-        assert configurations[-1] == {"maxRounds": 7}
+        assert configurations[-1] == {"maxRounds": 7, "repository": str(repository)}
         rpc.prompt("/limit 3")
         assert json.loads(Path(launches[0][6]).read_text()) == profile
         rpc.prompt("/goal")  # no implicit restart after successful launch
@@ -253,7 +262,7 @@ else:
         rpc = RPC(process)
         assert len(launch_log.read_text().splitlines()) == 1
         configurations = [entry["data"] for entry in rpc.entries() if entry.get("customType") == "agentvolve-workflow-configuration"]
-        assert configurations[-1] == {"maxRounds": 3}
+        assert configurations[-1] == {"maxRounds": 3, "repository": str(repository)}
         seen = []
 
         def approve_template(event: dict) -> dict:
@@ -286,6 +295,40 @@ else:
             assert list(stale.iterdir()) == [stale / "old-evidence.txt"]
         else:
             assert not runs.exists(), "Test double must not create real workflow state"
+
+        if outside_repository and not underfunded and not legacy_history:
+            other = tmp_path / "other repo"
+            subprocess.run(["git", "clone", "-q", str(repository), str(other)], check=True, capture_output=True)
+            (other / "subdir").mkdir()
+
+            def change_repository(event: dict) -> dict:
+                if event["method"] == "select":
+                    if event["title"].startswith("Use a reviewed task"):
+                        return {"value": "Prepare a new task from this goal"}
+                    if event["title"] == "Task not approved":
+                        return {"value": "Change destination (optional)"}
+                    assert event["title"] == "Change task destination (optional)"
+                    return {"value": "Enter another repository path"}
+                if event["method"] == "input":
+                    assert event["title"] == "Optional existing repository path"
+                    return {"value": f'"{other}/subdir"'}
+                assert event["method"] == "confirm"
+                return {"confirmed": False}
+
+            rpc.prompt("/goal Work on the other repository", change_repository)
+            assert len(launch_log.read_text().splitlines()) == 2
+
+            def approve_other(event: dict) -> dict:
+                assert event["method"] == "confirm", "Normal task flow must not request a path"
+                assert str(other) in event["message"]
+                return {"confirmed": True}
+
+            rpc.prompt("/goal", approve_other)
+            assert len(launch_log.read_text().splitlines()) == 3
+            third = json.loads(launch_log.read_text().splitlines()[-1])
+            assert json.loads(Path(third[6]).read_text())["repository"]["path"] == str(other)
+            configurations = [entry["data"] for entry in rpc.entries() if entry.get("customType") == "agentvolve-workflow-configuration"]
+            assert configurations[-1] == {"maxRounds": 3, "repository": str(other)}
     finally:
         process.terminate()
         process.wait(timeout=10)

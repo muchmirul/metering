@@ -11,10 +11,20 @@ session-generated draft; all four routes produce this same schema and authority.
 
 `METERING_EVOLUTION_TASKS_DIR` defaults to the checkout sibling
 `metering-live-tasks`. The Pi adapter discovers at most 200 direct
-`*.task.json` files there. `/goal` offers current-repository contract summaries
-for direct selection, even when only one matches, or prepares a new draft. TUI
-and RPC both require task approval; an explicitly configured profile must match
-the current repository. Fixed Python validation remains decisive at start.
+`*.task.json` files there. Casual task starts do not request a repository path.
+Fixed code proposes the remembered existing project, configured task's repository,
+or current Git root, with destination approval included in the task review. With
+none, it proposes a private workspace under `TASK-DIRECTORY/workspaces/task-UUID`.
+Existing projects need a clean committed HEAD; they are never initialized,
+committed, or stashed automatically. An invalid target offers an explicit fresh
+workspace alternative without copying the project. Declining draft review exposes
+an optional change-destination dialog. Pi's cwd stays unchanged; existing sessions
+need no migration.
+
+`/goal` offers selected-repository contract summaries for direct selection, even
+when only one matches, or prepares a new draft. TUI and RPC both require task
+approval; an explicitly configured profile must match the selected repository.
+Fixed Python validation remains decisive at start.
 
 Set `/limit N generations` (1–256), then `/goal TEXT`; a missing limit is
 prompted before drafting. The last limit persists, including after a launch or
@@ -30,9 +40,11 @@ reservation count. The derived profile is written below the task directory's
 With no selected contract, `/goal` and model-facing `workflow_from_session`
 use the explicit reviewed draft path. The outer model receives user messages only, never assistant
 answers or tool output, plus the current commit's bounded tracked-file list. The
-operator first sees a human-readable review containing the complete goal,
-repository, entrypoint, writable paths, check argv, budgets, stopping policy,
-and final policy. Canonical JSON is an optional advanced correction surface,
+operator first sees a human-readable review containing the complete original
+goal, organized requirements, explicit inferred assumptions, repository, entrypoint,
+writable paths, check argv, budgets, stopping policy, and final policy. Routine
+setup defaults may be proposed, but essential missing facts or independently
+checkable success criteria require clarification; no user facts are fabricated. Canonical JSON is an optional advanced correction surface,
 not required conversational input. The exact slash-command goal, repository,
 and saved generation limit are user-bound, not selectable by the drafting model.
 Declining, cancelling, or an invalid task starts no worker. Fixed code requires a clean Git
@@ -43,7 +55,42 @@ checks in fresh protected-final containers; this gives final execution/sealing
 but intentionally makes no hidden-coverage claim. Use a separately authored
 profile when held-out cases matter.
 
-Neither route can infer whether a check actually represents a natural-language
+### New private workspace preparation
+
+When there is no existing project, the task review proposes a private workspace
+and clearly labels its base as a new empty seed to be created after approval.
+The draft can name at most 64 sorted unique output **files**, including its
+entrypoint, and goal-specific self-contained check argv. It cannot assume that
+nonexistent test scripts exist. Python standard-library checks are a routine
+proposal when the request leaves technology open; runtime compatibility and
+acceptance meaning still require review.
+
+The fixed preparer is:
+
+```text
+uv run python -m apps.coding_agent.task_profile_tool workspace REVIEWED-WORKSPACE-DRAFT.json TASK-DIRECTORY
+```
+
+This draft has the ordinary session-draft fields plus `requirements` and
+`assumptions`: arrays of at most 32 non-empty strings, each at most 1,000 characters;
+requirements must be non-empty. The model cannot choose the host destination:
+Pi supplies the private task-UUID path. Fixed code rejects an existing destination,
+symlinked workspace parent, unsafe paths, file/directory collisions, or writable
+TASK.md paths. After approval it writes only TASK.md containing the reviewed brief
+and empty output files, commits the initial seed without user Git hooks, and
+registers the same `darwinian-coding-task-v1` profile. Generated checks never run
+on the host. No dependencies or solutions are installed during preparation.
+
+Cancellation before approval creates no workspace or task. A later preparation
+failure retains created files with an explicit path diagnostic; it does not retry
+automatically. After a successful launch, the private destination is no longer the
+default for an unrelated later goal; evidence and files remain at their original
+paths. Existing project selections and the generation limit remain session-bound.
+The requirements/assumptions are review metadata (and private seed content), not
+new task-profile fields, evaluator authority, or a completion claim. Existing
+profiles and run schemas are unchanged.
+
+Neither route can prove whether a check actually represents a natural-language
 goal. That remains operator responsibility. Missing or ambiguous executable
 checks are errors, not permission for the proposer to judge itself.
 

@@ -285,11 +285,13 @@ function streamFake(model: any, context: any) {
     const message = assistant(model);
     stream.push({ type: \"start\", partial: message });
     const last = context.messages.at(-1);
-    if (last?.role === \"user\") {
+    const drafting = context.systemPrompt?.startsWith(\"You create an Agentvolve task draft\");
+    if (!drafting && last?.role === \"user\") {
       const request = JSON.stringify(last);
       const action = request.includes(\"history\") ? \"workflow_history\"
         : request.includes(\"progress\") ? \"workflow_status\"
         : request.includes(\"start\") ? \"workflow_start\"
+        : request.includes(\"session goal\") ? \"workflow_from_session\"
         : \"workflow_activate\";
       const call = { type: \"toolCall\", id: `${action}-1`, name: \"darwinian_coding\",
         arguments: { action } };
@@ -298,7 +300,9 @@ function streamFake(model: any, context: any) {
       stream.push({ type: \"toolcall_end\", contentIndex: 0, toolCall: call, partial: message });
       message.stopReason = \"toolUse\";
     } else {
-      const block = { type: \"text\", text: \"Agentvolve is active.\" };
+      const block = { type: \"text\", text: drafting
+        ? JSON.stringify({clarification: \"What independently checkable behavior should this task provide?\"})
+        : \"Agentvolve is active.\" };
       message.content.push(block);
       stream.push({ type: \"text_start\", contentIndex: 0, partial: message });
       stream.push({ type: \"text_delta\", contentIndex: 0, delta: block.text, partial: message });
@@ -384,6 +388,9 @@ export default function (pi: ExtensionAPI) {
         assert tool_results[-1]["details"]["status"] == "operator-mode"
         assert "No task or worker was started" in tool_results[-1]["content"][0]["text"]
 
+        send(process.stdin, {"id": "limit", "type": "prompt", "message": "/limit 2"})
+        assert response(process.stdout, "limit")["success"] is True
+
         for request_id, request_text, action, detail_key, detail_value in (
             ("progress", "show progress", "workflow_status", "status", "idle"),
             ("history", "show history", "workflow_history", "runs", []),
@@ -391,6 +398,13 @@ export default function (pi: ExtensionAPI) {
                 "start",
                 "start the workflow",
                 "workflow_start",
+                "status",
+                "needs-task-clarification",
+            ),
+            (
+                "session-goal",
+                "solve the session goal with Agentvolve",
+                "workflow_from_session",
                 "status",
                 "needs-task-clarification",
             ),
@@ -415,6 +429,9 @@ export default function (pi: ExtensionAPI) {
             assert latest_call["arguments"] == {"action": action}
             assert latest_result["isError"] is False
             assert latest_result["details"][detail_key] == detail_value
+            if action in {"workflow_start", "workflow_from_session"}:
+                assert "What independently checkable behavior" in latest_result["content"][0]["text"]
+                assert not (tasks / "workspaces").exists()
 
         send(process.stdin, {"id": "entries", "type": "get_entries"})
         entries = response(process.stdout, "entries")["data"]["entries"]  # type: ignore[index]

@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
@@ -22,6 +24,7 @@ from apps.coding_agent.harness_workspace_editor import CodingMutationError
 from apps.coding_agent.protocol import CodingTaskError, load_task_profile
 from apps.coding_agent.preflight import preflight_task
 from apps.harness.runtime_manifest import load_runtime_manifest
+from apps.harness.workspace import normalized_path
 from artifacts.git.git_repository import GitCandidateError, run_git
 
 DRAFT_SCHEMA = "agentvolve-session-task-draft-v1"
@@ -58,7 +61,7 @@ def _absolute_directory(value: object, location: str) -> Path:
     return path
 
 
-def _draft(path: Path) -> dict[str, object]:
+def _draft(path: Path, *, workspace: bool = False) -> dict[str, object]:
     try:
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
@@ -79,12 +82,13 @@ def _draft(path: Path) -> dict[str, object]:
                 "repository_path",
                 "schema_version",
                 "stopping",
+                *({"requirements", "assumptions"} if workspace else set()),
             },
             "session task draft",
         )
     except ProtocolError as exc:
         raise TaskRegistrationError(str(exc)) from exc
-    if document["draft_schema"] != DRAFT_SCHEMA or document["schema_version"] != 1:
+    if document["draft_schema"] != DRAFT_SCHEMA or type(document["schema_version"]) is not int or document["schema_version"] != 1:
         raise TaskRegistrationError("session task draft schema is unsupported")
     name = document["name"]
     if type(name) is not str or not _NAME.fullmatch(name) or len(name) > 80:
@@ -235,6 +239,77 @@ def create_profile(draft_path: Path, output_directory: Path) -> dict[str, object
     }
 
 
+def create_workspace_profile(draft_path: Path, output_directory: Path) -> dict[str, object]:
+    """Create an approved empty seed, never a solution or a host-executed check."""
+    draft = _draft(draft_path, workspace=True)
+    output_directory = output_directory.expanduser()
+    if not output_directory.is_absolute() or output_directory.resolve() != output_directory:
+        raise TaskRegistrationError("workspace task directory must be an absolute path without symlink ancestors")
+    root_text = draft["repository_path"]
+    if type(root_text) is not str:
+        raise TaskRegistrationError("workspace repository path must be a string")
+    root = Path(root_text)
+    workspace_parent = output_directory / "workspaces"
+    if (
+        root.as_posix() != root_text or root.parent != workspace_parent
+        or not re.fullmatch(r"task-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", root.name)
+        or workspace_parent.is_symlink() or root.exists() or root.is_symlink()
+    ):
+        raise TaskRegistrationError("workspace must be a new task-UUID directory under TASK-DIRECTORY/workspaces")
+    goal = draft["goal"]
+    if type(goal) is not str or not goal.strip() or len(goal) > 65_536 or "\x00" in goal:
+        raise TaskRegistrationError("workspace goal must be bounded non-empty text")
+    brief: dict[str, list[str]] = {}
+    for key in ("requirements", "assumptions"):
+        items = draft.pop(key)
+        if (
+            type(items) is not list or len(items) > 32
+            or (key == "requirements" and not items)
+            or any(type(item) is not str or not item.strip() or len(item) > 1000 or "\x00" in item for item in items)
+        ):
+            raise TaskRegistrationError(f"workspace {key} must be a bounded array of non-empty statements")
+        brief[key] = items
+    raw_paths = draft["allowed_paths"]
+    if type(raw_paths) is not list or not 1 <= len(raw_paths) <= 64:
+        raise TaskRegistrationError("workspace allowed_paths must contain 1 through 64 output files")
+    paths = [normalized_path(path, "workspace output file") for path in raw_paths]
+    if paths != sorted(set(paths)) or draft["entrypoint"] not in paths:
+        raise TaskRegistrationError("workspace output files must be sorted and unique and include the entrypoint")
+    if any(
+        len(path) > 1024 or path == "TASK.md" or path.startswith("TASK.md/")
+        or any(other.startswith(path + "/") for other in paths)
+        for path in paths
+    ):
+        raise TaskRegistrationError("workspace paths conflict or include the fixed TASK.md brief")
+    # No model-authored file contents, shell commands, Git hooks, or checks run here.
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    try:
+        workspace_parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        root.mkdir(mode=0o700)  # Exclusive: never overwrite/reinitialize a target.
+        text = "# Reviewed task\n\n## Original request\n\n" + goal + "\n\n## Requirements\n\n"
+        text += "\n".join(f"- {item}" for item in brief["requirements"])
+        text += "\n\n## Inferred assumptions\n\n" + ("\n".join(f"- {item}" for item in brief["assumptions"]) or "None.")
+        text += "\n\nOutput files start empty. Completion requires the separately reviewed independent checks.\n"
+        (root / "TASK.md").write_text(text, encoding="utf-8")
+        for path in paths:
+            target = root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.touch(exist_ok=False)
+        run_git(["init", "-q", "-b", "main", "--template="], cwd=root, environment=environment, timeout_seconds=10)
+        run_git(["add", "--", "TASK.md", *paths], cwd=root, environment=environment, timeout_seconds=10)
+        run_git([
+            "-c", "user.name=Agentvolve workspace", "-c", "user.email=agentvolve@localhost",
+            "-c", "commit.gpgSign=false", "commit", "-qm", "Prepare reviewed empty task workspace",
+        ], cwd=root, environment=environment, timeout_seconds=10)
+        with tempfile.TemporaryDirectory(prefix="workspace-registration-", dir=output_directory) as temporary:
+            prepared = Path(temporary) / "draft.json"
+            prepared.write_text(canonical_json(draft) + "\n", encoding="ascii")
+            result = create_profile(prepared, output_directory)
+    except (OSError, ValueError, GitCandidateError) as exc:
+        raise TaskRegistrationError(f"Workspace preparation failed; any created files are retained at {root}: {exc}") from exc
+    return {**result, "workspace_created": True, "workspace_repository": str(root)}
+
+
 def derive_profile(
     template_path: Path,
     goal_path: Path,
@@ -360,6 +435,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         elif len(arguments) == 3 and arguments[0] == "create":
             result = create_profile(Path(arguments[1]), Path(arguments[2]))
+        elif len(arguments) == 3 and arguments[0] == "workspace":
+            result = create_workspace_profile(Path(arguments[1]), Path(arguments[2]))
         elif len(arguments) in {5, 6} and arguments[0] == "derive":
             try:
                 max_rounds = int(arguments[3])
@@ -378,6 +455,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             raise TaskRegistrationError(
                 "usage: task_profile_tool.py create SESSION-DRAFT.json TASK-DIRECTORY | "
+                "workspace REVIEWED-WORKSPACE-DRAFT.json TASK-DIRECTORY | "
                 "derive TEMPLATE.task.json GOAL.txt MAX_ROUNDS TASK-DIRECTORY [MAX_WALL_SECONDS] | "
                 "preflight TASK.json [RUNTIME.json SELECTED-HARNESS.json] | budget REVIEW.json"
             )

@@ -224,11 +224,28 @@ The only Agentvolve slash commands are:
 ```
 
 `/limit` saves 1–256 generations for future tasks. `/goal` asks for a limit if
-missing, then offers reviewed current-repository contracts or prepares a new
-user-only draft. Even a sole discovered contract requires selection. Direct
+missing, then prepares the task from casual user input without asking for a
+repository path. It organizes requirements, labels inferred assumptions, and
+requests only essential missing task meaning/data/acceptance criteria. Task review
+proposes the remembered project, configured task's repository, or current Git root;
+with no project, it proposes a private `TASK-DIRECTORY/workspaces/task-UUID` seed.
+Only after approval, fixed setup creates TASK.md plus empty output files and a
+clean Git commit, then registers the profile and starts the detached workflow.
+Generated checks never run on the host, and setup does not implement a solution.
+
+Existing projects still need a clean committed HEAD. They are never initialized,
+committed, stashed, or copied automatically. An invalid project offers an explicitly
+approved fresh workspace instead. Declining a draft review exposes an optional
+change-destination dialog; only that optional route asks for typed paths. Pi's cwd
+and ordinary tools never move; shell `cd` cannot change the session binding. Even a sole discovered contract requires selection. Direct
 human-readable task approval is mandatory in both TUI and RPC before start.
 Cancelling or invalid input starts no worker. Pending goals may be resubmitted
-with `/goal` alone; successful launch clears the goal but retains the last limit.
+with `/goal` alone; successful launch clears the goal but retains the last limit
+and existing-project selection. Later unrelated casual tasks receive fresh private
+workspaces; previous files/evidence remain untouched. Cancelling before approval
+creates no workspace; later preparation failures retain created files and report
+their path without retrying. Reload the extension once to enable casual preparation
+in an existing session; there is no run or session migration.
 Session restore starts no task. Changing `/limit` never changes a running task
 and is refused during task review.
 
@@ -293,7 +310,9 @@ The current user remains the source of session task text and the direct reviewer
 of the generated contract.
 
 For Pi RPC automation, send `/limit`, then `/goal`, and service the direct task
-selection/approval UI protocol. Never synthesize approval for an unreviewed task.
+task selection and approval UI protocol. Destination approval is included in the
+full task review; ordinary casual starts require no path input. Never synthesize
+approval for an unreviewed target or task.
 Launch returns after detachment; wait for the bound workflow's terminal status,
 not merely the command response. Progress/history/trace projections are JSON and
 can be inspected without attaching to the worker.

@@ -122,13 +122,31 @@ extension exposes exactly four Agentvolve commands:
 /progress
 ```
 
-`/goal` asks for a limit if none is saved, offers a reviewed current-repository
-contract or a new user-message-only draft, and requires direct task approval
-before launching. Review includes paths, checks, budgets, stopping, and final
-policy; JSON is only an optional advanced correction surface. Cancelling starts
-nothing. The last `/limit` (1–256 generations) persists for later tasks and session
-restores; it never changes an already running task. A successful launch clears
-the pending goal, not the limit.
+**Use Agentvolve in a casual Pi session—no repository or path entry required.**
+Describe the task normally, even with messy wording, and explicitly ask Agentvolve
+to solve it. It organizes requirements, labels inferred defaults as assumptions,
+and drafts executable checks for your review. It asks only essential task
+clarifications, plus a generation limit if none is saved; unknown facts are not
+invented. `/goal TEXT` uses the same preparation flow.
+
+A remembered project, explicitly configured task repository, or current Git
+project is proposed automatically. With no project, task approval creates a
+private workspace under `metering-live-tasks/workspaces/task-UUID/` by default.
+Its initial commit contains the reviewed `TASK.md` and **empty output files**, not
+a solution. The detached worker still owns mutation and independent evaluation.
+Pi's cwd never changes. Existing projects need a clean committed HEAD and are
+never initialized, committed, or stashed automatically. An invalid project offers
+an explicitly approved fresh workspace instead, without copying the old project.
+
+Review selects the destination and includes the original request, requirements,
+assumptions, paths, checks, budgets, stopping, and final policy. Declining lets you
+optionally change destination or edit JSON; neither is required for normal use.
+Cancelling before approval creates no workspace and starts no worker. The last
+`/limit` (1–256) persists across goals/restores; a successful launch clears the
+pending goal. Existing project selections persist; later unrelated casual tasks
+get fresh private workspaces. Existing runs/sessions need no migration.
+Run `/reload` once to load this behavior. Register the reviewed absolute extension
+path in `~/.pi/agent/settings.json`'s `extensions` array for use in every session.
 
 Task review shows development timeout reservations, not elapsed runtime: one
 120-second check currently requires **3,680 reserved seconds per generation**

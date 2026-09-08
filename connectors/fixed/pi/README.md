@@ -71,18 +71,42 @@ fixed isolation boundary and do not inherit the operator session.
 /progress                      inspect the most recent run
 ```
 
-`/goal` activates operator mode, asks for a limit if none is saved, and offers
-current-repository reviewed task contracts or a new session-derived draft. Even
+`/goal` and conversational starts work in casual sessions without requesting a
+repository path. Fixed code proposes the remembered project, configured task's
+repository, or current Git root. With none, the task review proposes a private
+`TASK-DIRECTORY/workspaces/task-UUID` workspace. After approval only, fixed setup
+creates TASK.md with the reviewed request/requirements/assumptions, empty output
+files, and a clean Git seed. It never generates a solution or runs checks on the
+host; the detached worker still owns immutable mutation and independent assays.
+Cancelled drafts create no workspace. Failed preparation retains any created
+files and reports their path rather than automatically retrying or deleting them.
+
+Existing projects must be clean and committed. An invalid target offers an
+explicit fresh-workspace alternative, without copying/repairing the old project.
+Declining draft review exposes an optional change-destination dialog; only that
+optional flow accepts typed paths. Task approval selects the proposed destination
+and remembers existing projects across goals/reloads. Private workspaces stay
+bound to their task; a later unrelated casual task gets a new one. Pi's cwd is
+unchanged, and old session configurations remain valid.
+
+It offers the selected repository's reviewed task contracts or a new
+session-derived draft. Even
 a sole discovered contract requires explicit selection; its checks must fit the
 new goal. Direct task approval is mandatory before launch in both TUI and RPC.
 Cancel or invalid input starts no worker. A pending goal may be resubmitted with
-argument-free `/goal`; successful launch clears that goal but retains the limit.
+argument-free `/goal`; successful launch clears that goal but retains the limit
+and any existing-project selection.
 `/limit` affects future tasks only. Restoring a session starts no task.
 
 A new draft uses only user messages and tracked filenames, never assistant
 answers or tool output. The exact slash-command goal, repository, and generation
-cap remain user-bound. The human-readable review includes the complete goal,
-Git base, writable paths, check argv, budgets, stopping policy, and final policy.
+cap remain user-bound. Messy requests are organized into requirements and explicit
+assumptions; essential missing facts/acceptance criteria require clarification.
+Existing-project drafts use tracked paths and existing checks. New-workspace
+drafts can propose output files and self-contained check argv for review, not
+nonexistent test files or fabricated solutions. The human-readable review includes
+the complete goal, brief, Git base (or new-seed notice), writable paths, check argv,
+budgets, stopping policy, and final policy.
 Advanced JSON correction is optional. Fixed registration validates the clean
 Git binding and canonical profile. Generated finals explicitly replay public
 checks; use a separately reviewed profile for held-out coverage.
@@ -182,7 +206,7 @@ Advanced caller-reviewed absolute overrides:
 - `METERING_EVOLUTION_RUNTIME_MANIFEST`;
 - `METERING_EVOLUTION_RUNS_DIR`;
 - `METERING_EVOLUTION_TASKS_DIR`;
-- `METERING_EVOLUTION_TASK_PROFILE` (must target the current Git repository);
+- `METERING_EVOLUTION_TASK_PROFILE` (must target the operator-selected Git repository);
 - `METERING_EVOLUTION_HARNESS_DESCRIPTOR` (original sealed source, never rewritten).
 
 For a `llamacpp` worker, readiness defaults to `llama-qwen38.service`,

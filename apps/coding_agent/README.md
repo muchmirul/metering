@@ -15,7 +15,11 @@ Metering's installed API. Conversational activation starts no task. Interactive
 `/goal` and `/limit` derive a run profile only from a reviewed discovered
 profile and a clean Git `HEAD`; user-message-only session task generation shows
 a complete human-readable contract for direct operator approval and creates an
-operator-reviewed draft, not model-owned evaluation authority. Fixed preflight
+operator-reviewed draft, not model-owned evaluation authority. Casual sessions need
+no repository/path setup: when no project is selected, approval creates a private
+Git seed containing the reviewed TASK.md and empty output files, then registers
+the same task profile. It never implements a solution during preparation. Existing
+projects are never initialized or committed automatically. Fixed preflight
 rejects development wall budgets that cannot reserve even one generation. Task
 review shows the unchanged reservation calculation and collects any budget
 correction explicitly for a new task only. A stop before an archive exists
@@ -101,7 +105,7 @@ progress/history. The terminal browser remains available with **t**. See the
 | `protocol.py` | task and protected-final profile validation |
 | `preflight.py` | private operator preparation before Level-1 inference, without executing checks |
 | `checks.py` | versioned external stdout comparison; explicit legacy exit-status semantics |
-| `task_profile_tool.py` | reviewed session-draft registration and goal/limit profile derivation |
+| `task_profile_tool.py` | reviewed session-draft registration, private empty-workspace preparation, and goal/limit profile derivation |
 | `harness_workspace_editor.py` | verified harness materialization and isolated mutation |
 | `candidate_runner.py` | fresh-container solution execution |
 | `solution_evaluator.py` | receipt/contract binding and externally derived outcomes |

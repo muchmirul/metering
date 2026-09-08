@@ -262,7 +262,7 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
                 and entry.get("customType")
                 == "agentvolve-workflow-configuration"
             ]
-            assert configurations[-1] == {"maxRounds": rounds}
+            assert configurations[-1] == {"maxRounds": rounds, "repository": str(repository)}
             assert (run_root / "selected-solution.json").is_file()
             assert (run_root / "selected.patch").is_file()
 

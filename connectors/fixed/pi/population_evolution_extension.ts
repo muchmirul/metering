@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -50,6 +50,9 @@ const ACTIVE_WORKFLOW_STATUSES = new Set(["queued", "running"]);
 interface WorkflowConfiguration {
 	goal?: string;
 	maxRounds?: number;
+	repository?: string;
+	managedWorkspace?: boolean;
+	freshWorkspace?: boolean;
 }
 
 interface WorkerResponse {
@@ -81,7 +84,11 @@ const CODING_TOOL_GUIDELINE = [
 	"Use darwinian_coding workflow_activate for conversational activation; it starts no task.",
 	"Use workflow_from_session only after the user explicitly asks Agentvolve to solve a clear coding goal in their",
 	"messages; ask normal clarifying questions when needed. Use workflow_start for an already configured goal or",
-	"reviewed task. Both require a limit and direct task approval. Use workflow_status for the most recent run and",
+	"reviewed task. Both work in casual Pi sessions without a repository path prompt: task review selects the",
+	"current/remembered project or an automatically prepared private workspace. Organize messy user requests,",
+	"state inferred assumptions, and ask only essential clarifications. Never invent user facts or solve by",
+	"ordinary edits instead of Agentvolve. Pi's cwd is unchanged; shell cd does not change the session.",
+	"Both require a user-set limit and direct task approval. Use workflow_status for the most recent run and",
 	"workflow_history for prior runs. Use workflow_manage when the user asks to resume, retry, stop, or close an",
 	"unfinished workflow; fixed dialogs select the run and collect direct approval and any operator reason.",
 	"Never auto-retry, delete evidence, or switch run directories to bypass interrupted work.",
@@ -91,19 +98,24 @@ const CODING_TOOL_GUIDELINE = [
 
 const SESSION_TASK_SYSTEM_PROMPT = `You create an Agentvolve task draft from user messages and a Git file list.
 Return exactly one JSON object and no markdown. Never include or infer a solution. Use the current explicit goal, or the most recent clear coding goal in the supplied user messages. Setup and Agentvolve-interface discussion are context, not a task.
+Accept casual, messy, misspelled requests. Organize them into concise requirements, preserve the user's intent, and fill routine implementation defaults as explicit assumptions. Never fabricate user facts, supplied data, credentials, or permissions. Ask a concise question only if essential task meaning, input data, or independently checkable success criteria are missing; do not ask for a repository path or require formal task wording.
 The object must have exactly these fields:
 - draft_schema: "agentvolve-session-task-draft-v1"
 - schema_version: 1
 - name: a short lowercase-hyphenated name
 - repository_path: the supplied absolute repository path
 - goal: a self-contained task description without a solution
-- entrypoint: one tracked relative POSIX path that must still exist after mutation
-- allowed_paths: sorted unique tracked relative POSIX paths the candidate may change
-- development_checks: one or more objects with argv (a shell-free string array using checks already present in the repository), case_id, and timeout_ms
+- requirements: an array of concise requirement statements (at most 32, 1000 characters each)
+- assumptions: an array of explicit inferred defaults (same bounds; empty if none)
+- entrypoint: one relative POSIX file path that must still exist after mutation
+- allowed_paths: sorted unique relative POSIX paths the candidate may change
+- development_checks: one or more objects with argv (a shell-free string array), case_id, and timeout_ms; prefer check_schema: "stdout-json-v1" with expected_stdout when actual answer values can be checked externally
 - limits: max_proposal_calls and max_rounds equal to the supplied generation limit; max_wall_seconds a finite positive integer for direct operator review
 - stopping: {"minimum_replicates":1,"type":"all-development-cases-pass-v1"}
 - final_policy: "replay-development-checks-v1"
-Do not invent evaluator files, paths absent from the supplied Git list, hidden criteria, or a solution. Do not substitute a repository-wide test command for a goal-specific check unless the user messages establish that it covers the requested behavior. If information is insufficient, return {"clarification":"one concise question for the user"} instead of a task draft. Fixed code will calculate the timeout reservation and ask the operator to correct an insufficient wall budget before registration.`;
+For an existing repository, entrypoint and allowed_paths must come from the supplied Git list and checks must already exist; never invent files or claim repository-wide tests cover a new goal without evidence.
+For a NEW managed workspace, no project setup is required from the user. Choose at most 64 safe output FILE paths (not directory prefixes), include entrypoint in allowed_paths, and never use TASK.md or its descendants. Fixed code will create only empty starter files plus TASK.md containing this reviewed request, requirements, and assumptions. Define goal-specific, self-contained check argv for operator review (for example python -c importing the future solution). Do not refer to nonexistent test files, install dependencies, embed a solution, or use unconditional success / existence-only checks as a substitute for requested behavior. Prefer Python standard library or self-contained text/HTML when the request leaves technology open. Checks execute only in the reviewed sandbox after approval, never on the host. The proposed checks are not proof of completion or hidden coverage.
+If essential information is insufficient, return {"clarification":"one concise question for the user"} instead of a task draft. Fixed code will calculate the timeout reservation and ask the operator to correct an insufficient wall budget before registration.`;
 
 function contentText(content: unknown): string[] {
 	if (typeof content === "string") return [content];
@@ -149,6 +161,14 @@ function generationLimit(value: string): number {
 	return limit;
 }
 
+function taskBrief(document: Record<string, unknown>): string[] {
+	return ["requirements", "assumptions"].flatMap((key) => {
+		const items = document[key] ?? [];
+		if (!Array.isArray(items) || items.length > 32 || items.some((item) => typeof item !== "string" || !item.trim() || item.length > 1000 || item.includes("\0"))) throw new Error(`Task ${key} must contain at most 32 bounded, non-empty statements.`);
+		return items.length ? [`\n${key === "requirements" ? "Requirements" : "Inferred assumptions (review these)"}:`, ...items.map((item) => `  - ${item}`)] : [];
+	});
+}
+
 function taskReview(document: Record<string, unknown>, draft: boolean, budget: DevelopmentReservation, baseCommit?: string): string {
 	const repository = draft ? {
 		path: document.repository_path,
@@ -162,8 +182,10 @@ function taskReview(document: Record<string, unknown>, draft: boolean, budget: D
 	if (!Array.isArray(paths) || !paths.length) throw new Error("At least one writable path is required.");
 	const lines = [
 		`Goal: ${JSON.stringify(document.goal)}`,
-		`Repository: ${JSON.stringify(repository.path)}`,
-		`Base commit: ${JSON.stringify(repository.base_commit)}`,
+		...taskBrief(document),
+		`\nRepository: ${JSON.stringify(repository.path)}`,
+		`Base commit: ${repository.base_commit === undefined ? "new empty seed, created only after approval" : JSON.stringify(repository.base_commit)}`,
+		...(repository.base_commit === undefined ? ["A private Git workspace will be prepared automatically. TASK.md will preserve the reviewed request and brief; output files start empty. Nothing is implemented during setup."] : []),
 		`Entrypoint: ${JSON.stringify(repository.entrypoint)}`,
 		"Writable paths:",
 		...paths.map((path) => `  - ${JSON.stringify(path)}`),
@@ -171,7 +193,7 @@ function taskReview(document: Record<string, unknown>, draft: boolean, budget: D
 		...checks.map((value) => {
 			const check = reviewObject(value, "development check");
 			return `  - ${JSON.stringify(check.case_id)}: ${JSON.stringify(check.argv)} (${JSON.stringify(check.timeout_ms)} ms)` +
-				`\n    Output contract: ${JSON.stringify(check.output_contract ?? "exit-status-only")}` +
+				`\n    Output contract: ${JSON.stringify(check.check_schema ?? "exit-status-only")}` +
 				(check.expected_stdout === undefined ? "" : `\n    Expected stdout: ${JSON.stringify(check.expected_stdout)}`);
 		}),
 		`Limits: ${limits.max_rounds} generations, ${limits.max_proposal_calls} proposal calls, ${limits.max_wall_seconds} development timeout-reservation seconds`,
@@ -369,7 +391,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			{ cwd: repositoryRoot(), signal, timeout: 30_000 });
 		const worker = decodeWorkerResponse(decodeOutput(result));
 		pi.appendEntry("agentvolve-worker-launch", worker);
-		persistWorkflowConfiguration({ maxRounds: workflowConfiguration.maxRounds });
+		persistWorkflowConfiguration({ maxRounds: workflowConfiguration.maxRounds,
+			...(!workflowConfiguration.managedWorkspace && workflowConfiguration.repository ? { repository: workflowConfiguration.repository } : {}) });
 		await startWorkflowMonitor(ctx);
 		ctx.ui.notify(`Agentvolve worker started separately.\nworkflow: ${worker.workflow_root}\nUse /progress or /history while continuing this Pi session.`, "info");
 		return worker;
@@ -384,10 +407,60 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		return maxRounds;
 	}
 
-	async function currentRepository(ctx: ExtensionContext, signal: AbortSignal): Promise<string> {
-		const result = await pi.exec("git", ["-C", ctx.cwd, "rev-parse", "--show-toplevel"], { signal, timeout: 10_000 });
-		if (result.killed || result.code !== 0) throw new AgentvolveInputRequired("Open a clean Git repository before using /goal.");
-		return resolve(result.stdout.trim());
+	async function chooseRepository(ctx: ExtensionContext, signal: AbortSignal, manual = false): Promise<string | undefined> {
+		if (workflowConfiguration.freshWorkspace && !manual) return undefined;
+		const current = await pi.exec("git", ["-C", ctx.cwd, "rev-parse", "--show-toplevel"], { signal, timeout: 10_000 });
+		signal.throwIfAborted();
+		if (current.killed) throw new AgentvolveInputRequired(`Git discovery timed out in ${JSON.stringify(ctx.cwd)}; no workflow started.`);
+		let configuredRepository: string | undefined;
+		const configured = process.env.METERING_EVOLUTION_TASK_PROFILE?.trim();
+		if (configured) {
+			const document = reviewObject(JSON.parse(await readFile(configuredTaskProfile(configured), "utf8")), "configured task");
+			const target = reviewObject(document.repository, "configured repository");
+			if (typeof target.path !== "string" || !isAbsolute(target.path)) throw new AgentvolveInputRequired("The configured task needs an absolute repository path.");
+			configuredRepository = target.path;
+		}
+		const repositories = [...new Set([
+			...(workflowConfiguration.repository ? [workflowConfiguration.repository] : []),
+			...(configuredRepository ? [configuredRepository] : []),
+			...(current.code === 0 ? [resolve(current.stdout.trim())] : []),
+		])];
+		// The normal flow has no setup dialog: the full task review approves this target.
+		let directory = repositories[0];
+		if (manual) {
+			const labels = repositories.map((path) => `Use ${JSON.stringify(path)}`);
+			const selected = await ctx.ui.select("Change task destination (optional)",
+				[...labels, "Create a private workspace", "Enter another repository path"], { signal });
+			if (!selected) throw new AgentvolveInputRequired("Destination unchanged; no workflow started.");
+			if (selected === "Create a private workspace") {
+				persistWorkflowConfiguration({ goal: workflowConfiguration.goal, maxRounds: workflowConfiguration.maxRounds, freshWorkspace: true });
+				return undefined;
+			}
+			directory = repositories[labels.indexOf(selected)];
+			if (!directory) {
+				const value = await ctx.ui.input("Optional existing repository path", `Absolute, ~/path, or relative to ${ctx.cwd}`, { signal });
+				if (value === undefined) throw new AgentvolveInputRequired("Destination unchanged; no workflow started.");
+				const path = unquoteArgument(value);
+				if (!path || path.includes("\0")) throw new AgentvolveInputRequired("Enter a non-empty repository path; no workflow started.");
+				directory = path === "~" ? homedir() : path.startsWith("~/") ? resolve(homedir(), path.slice(2)) : resolve(ctx.cwd, path);
+			}
+		}
+		if (!directory) return undefined;
+		const result = await pi.exec("git", ["-C", directory, "rev-parse", "--show-toplevel"], { signal, timeout: 10_000 });
+		signal.throwIfAborted();
+		if (result.killed || result.code !== 0) {
+			throw new AgentvolveInputRequired(`Cannot open Git repository at ${JSON.stringify(directory)}: ${result.killed ? "Git timed out" : boundedDiagnostic(result.stderr || result.stdout)}. Submit /goal again to choose a repository.`);
+		}
+		const repository = resolve(result.stdout.trim());
+		const status = await pi.exec("git", ["-C", repository, "status", "--porcelain"], { signal, timeout: 10_000 });
+		signal.throwIfAborted();
+		if (status.killed || status.code !== 0) throw new AgentvolveInputRequired(`Cannot check Git status in ${JSON.stringify(repository)}: ${status.killed ? "Git timed out" : boundedDiagnostic(status.stderr || status.stdout)}`);
+		if (status.stdout.trim()) throw new AgentvolveInputRequired(`Repository ${JSON.stringify(repository)} has uncommitted changes (including untracked files). Commit or stash them yourself, or choose another repository with /goal. Nothing was changed or started.`);
+		const head = await pi.exec("git", ["-C", repository, "rev-parse", "HEAD^{commit}"], { signal, timeout: 10_000 });
+		signal.throwIfAborted();
+		if (head.killed || head.code !== 0 || !/^[0-9a-f]{40}$/.test(head.stdout.trim())) throw new AgentvolveInputRequired(`Repository ${JSON.stringify(repository)} needs a readable committed HEAD before Agentvolve can bind a task. No workflow started.`);
+		if (manual) persistWorkflowConfiguration({ goal: workflowConfiguration.goal, maxRounds: workflowConfiguration.maxRounds, repository });
+		return repository;
 	}
 
 	async function chooseTaskProfile(ctx: ExtensionContext, repository: string, signal: AbortSignal): Promise<string | undefined> {
@@ -397,7 +470,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const document = reviewObject(JSON.parse(await readFile(path, "utf8")), "configured task");
 			const target = reviewObject(document.repository, "configured repository");
 			if (typeof target.path !== "string" || resolve(target.path) !== repository) {
-				throw new AgentvolveInputRequired("The configured task belongs to another repository; correct METERING_EVOLUTION_TASK_PROFILE first.");
+				throw new AgentvolveInputRequired("The configured task belongs to another repository; select its target repository with /goal or correct METERING_EVOLUTION_TASK_PROFILE first.");
 			}
 			return path;
 		}
@@ -465,19 +538,24 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
-	async function generateSessionTaskDraft(ctx: ExtensionContext, repository: string, goal: string | undefined, maxRounds: number, signal: AbortSignal): Promise<string | null> {
+	async function generateSessionTaskDraft(ctx: ExtensionContext, repository: string, goal: string | undefined, maxRounds: number, signal: AbortSignal, newWorkspace = false): Promise<string | null> {
 		if (!ctx.model) throw new AgentvolveInputRequired("Select a Pi model before preparing a new task.");
 		const conversation = sessionUserConversation(ctx.sessionManager.getBranch());
 		if (!goal && !conversation) throw new AgentvolveInputRequired("Describe a coding problem with /goal first.");
-		const head = await pi.exec("git", ["-C", repository, "rev-parse", "HEAD^{commit}"], { signal, timeout: 10_000 });
-		if (head.killed || head.code !== 0 || !/^[0-9a-f]{40}$/.test(head.stdout.trim())) throw new Error("Cannot bind the reviewed Git commit.");
-		const baseCommit = head.stdout.trim();
-		const result = await pi.exec("git", ["-C", repository, "ls-tree", "-rz", "--name-only", baseCommit], { signal, timeout: 10_000 });
-		if (result.killed || result.code !== 0) throw new Error(boundedDiagnostic(result.stderr || result.stdout));
-		const files = result.stdout.split("\0").filter(Boolean).slice(0, 2_000);
-		if (!files.length) throw new AgentvolveInputRequired("The current Git commit has no tracked files.");
+		let baseCommit: string | undefined;
+		let files: string[] = [];
+		if (!newWorkspace) {
+			const head = await pi.exec("git", ["-C", repository, "rev-parse", "HEAD^{commit}"], { signal, timeout: 10_000 });
+			if (head.killed || head.code !== 0 || !/^[0-9a-f]{40}$/.test(head.stdout.trim())) throw new Error("Cannot bind the reviewed Git commit.");
+			baseCommit = head.stdout.trim();
+			const result = await pi.exec("git", ["-C", repository, "ls-tree", "-rz", "--name-only", baseCommit], { signal, timeout: 10_000 });
+			if (result.killed || result.code !== 0) throw new Error(boundedDiagnostic(result.stderr || result.stdout));
+			files = result.stdout.split("\0").filter(Boolean).slice(0, 2_000);
+			if (!files.length) throw new AgentvolveInputRequired("The current Git commit has no tracked files.");
+		}
 		const prompt = [
-			`Repository: ${repository}`, `Generation limit: ${maxRounds}`, "Tracked files:", JSON.stringify(files),
+			`Repository: ${repository}`, `Workspace mode: ${newWorkspace ? "NEW managed workspace; created only after approval" : "existing repository"}`,
+			`Generation limit: ${maxRounds}`, "Tracked files:", JSON.stringify(files),
 			"User messages from the active branch (assistant and tool output excluded):", conversation,
 			...(goal ? ["Current /goal, supplied directly by the user:", goal] : []),
 		].join("\n");
@@ -512,6 +590,9 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			// These values belong to the user, not the drafting model or advanced editor.
 			document.repository_path = repository;
 			if (goal) document.goal = goal;
+			document.requirements ??= [document.goal];
+			document.assumptions ??= [];
+			taskBrief(document);
 			const limits = reviewObject(document.limits, "limits");
 			limits.max_rounds = maxRounds;
 			limits.max_proposal_calls = maxRounds;
@@ -519,7 +600,11 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			limits.max_wall_seconds = budget.max_wall_seconds;
 			reviewed = JSON.stringify(document, null, 2);
 			if (await ctx.ui.confirm("Register and run this reviewed task?", taskReview(document, true, budget, baseCommit), { signal })) break;
-			const action = await ctx.ui.select("Task not approved", ["Edit task details (advanced JSON)", "Cancel without starting"], { signal });
+			const action = await ctx.ui.select("Task not approved", ["Change destination (optional)", "Edit task details (advanced JSON)", "Cancel without starting"], { signal });
+			if (action === "Change destination (optional)") {
+				await chooseRepository(ctx, signal, true);
+				throw new AgentvolveInputRequired("Destination updated. Submit /goal or ask Agentvolve again to prepare the task; no workflow started.");
+			}
 			if (action !== "Edit task details (advanced JSON)") return null;
 			const edited = await ctx.ui.editor("Edit Agentvolve task details (goal and generation limit stay user-bound)", reviewed);
 			if (edited === undefined) return null;
@@ -529,12 +614,16 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		const temporary = await mkdtemp(join(tmpdir(), "agentvolve-session-task-"));
 		try {
 			const draftPath = join(temporary, "draft.json");
-			await writeFile(draftPath, `${reviewed}\n`, "utf8");
-			const command = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.task_profile_tool", "create", draftPath, tasksDirectory()],
+			const document = JSON.parse(reviewed);
+			pi.appendEntry("agentvolve-task-brief", { goal: document.goal, repository, requirements: document.requirements, assumptions: document.assumptions });
+			if (!newWorkspace) { delete document.requirements; delete document.assumptions; }
+			await writeFile(draftPath, `${JSON.stringify(document)}\n`, "utf8");
+			persistWorkflowConfiguration({ ...workflowConfiguration, repository, managedWorkspace: newWorkspace || workflowConfiguration.managedWorkspace, freshWorkspace: false });
+			const command = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.task_profile_tool", newWorkspace ? "workspace" : "create", draftPath, tasksDirectory()],
 				{ cwd: repositoryRoot(), signal, timeout: 30_000 });
 			const registration = decodeOutput(command);
 			if (registration.registration_schema !== "agentvolve-task-registration-v1" || typeof registration.profile !== "string") throw new Error("Task registration returned an unexpected result");
-			if (registration.base_commit !== baseCommit) throw new AgentvolveInputRequired("Repository HEAD changed during task review; no worker started. Submit /goal again.");
+			if (!newWorkspace && registration.base_commit !== baseCommit) throw new AgentvolveInputRequired("Repository HEAD changed during task review; no worker started. Submit /goal again.");
 			pi.appendEntry("agentvolve-task-registration", { ...registration, sessionId: ctx.sessionManager.getSessionId() });
 			return registration.profile;
 		} finally {
@@ -561,8 +650,17 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				registry = await registryStatus(pi, operationSignal);
 			}
 			if (registry.legacy_unfinished_count) ctx.ui.notify(`${registry.legacy_unfinished_count} unfinished legacy runs remain unchanged in /history. They do not block this separately reviewed task and will not be resumed automatically.`, "info");
-			const repository = await currentRepository(ctx, operationSignal);
-			const template = fromSession ? undefined : await chooseTaskProfile(ctx, repository, operationSignal);
+			let selectedRepository: string | undefined;
+			try { selectedRepository = await chooseRepository(ctx, operationSignal); }
+			catch (error) {
+				if (!(error instanceof AgentvolveInputRequired)) throw error;
+				if (!(await ctx.ui.confirm("Use a new private workspace instead?",
+					`${error.message}\n\nThe existing project will remain unchanged and will NOT be copied. A fresh task still needs review and approval.`, { signal: operationSignal }))) throw error;
+				persistWorkflowConfiguration({ goal: workflowConfiguration.goal, maxRounds: workflowConfiguration.maxRounds, freshWorkspace: true });
+			}
+			const newWorkspace = selectedRepository === undefined;
+			const repository = selectedRepository ?? join(tasksDirectory(), "workspaces", `task-${uuidv7()}`);
+			const template = fromSession || newWorkspace ? undefined : await chooseTaskProfile(ctx, repository, operationSignal);
 			let profile: string | null;
 			if (template) {
 				const source = reviewObject(JSON.parse(await readFile(template, "utf8")), "task profile");
@@ -572,7 +670,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				profile = await deriveGoalTask(template, taskGoal, maxRounds, budget.max_wall_seconds, operationSignal);
 				const derived = reviewObject(JSON.parse(await readFile(profile, "utf8")), "derived task");
 				if (!(await ctx.ui.confirm("Run this reviewed Agentvolve task?", taskReview(derived, false, budget), { signal: operationSignal }))) return null;
-			} else profile = await generateSessionTaskDraft(ctx, repository, goal, maxRounds, operationSignal);
+				persistWorkflowConfiguration({ ...workflowConfiguration, repository });
+			} else profile = await generateSessionTaskDraft(ctx, repository, goal, maxRounds, operationSignal, newWorkspace);
 			if (!profile) return null;
 			operationSignal.throwIfAborted();
 			return await launchDetachedWorkflow(ctx, profile, operationSignal);
@@ -762,6 +861,9 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				workflowConfiguration = {
 					...(typeof data.goal === "string" ? { goal: data.goal } : {}),
 					...(typeof data.maxRounds === "number" && Number.isInteger(data.maxRounds) && data.maxRounds >= 1 && data.maxRounds <= 256 ? { maxRounds: data.maxRounds } : {}),
+					...(typeof data.repository === "string" && isAbsolute(data.repository) ? { repository: data.repository } : {}),
+					...(data.managedWorkspace === true ? { managedWorkspace: true } : {}),
+					...(data.freshWorkspace === true ? { freshWorkspace: true } : {}),
 				};
 			} else if (entry.customType === "agentvolve-mode") modeActive = data.active === true;
 			else if (entry.customType === "agentvolve-stage-report" && typeof data.workflowId === "string" && Number.isInteger(data.stage)) reportedStages.add(`${data.workflowId}:${data.stage}`);

@@ -624,7 +624,9 @@ workflow only after direct approval. `/limit N [generations]` persists a finite
 1–256 generation cap for future tasks. If missing, `/goal` asks for the limit
 before task preparation; cancellation, missing information, or invalid input
 starts no worker. Successful launch clears the pending goal but retains the last
-limit. Argument-free `/goal` may resubmit an unlaunched pending goal, never
+limit and existing-project selection. Automatically created private workspaces
+remain task-local; a later unrelated casual task gets a fresh workspace.
+Argument-free `/goal` may resubmit an unlaunched pending goal, never
 implicitly restart a completed one. Configuration restoration starts no task;
 changing `/limit` never changes an immutable running task. Concurrent preparation
 is rejected, and a limit cannot change while its task is under review.
@@ -637,9 +639,55 @@ in Pi's global settings for use from every working directory.
 
 `/goal` discovers at most 200 direct `*.task.json` files under the absolute
 `METERING_EVOLUTION_TASKS_DIR` (default checkout sibling `metering-live-tasks`).
-It offers current-repository summaries for direct selection, even for a sole
+Task starts work in casual extension-enabled Pi sessions, including outside Git,
+without mandatory repository selection or path input. After registry recovery,
+fixed code proposes the remembered existing project, explicitly configured task's
+repository, or current-cwd Git root, in that order. The direct task-review dialog
+selects/approves that destination. Existing targets are revalidated before drafting;
+unreadable, dirty, or uncommitted projects are never repaired, stashed, or committed.
+An explicit confirmation can instead propose a fresh workspace, clearly disclosing
+that the old project is not copied. Declining draft review offers an optional
+change-destination dialog (current/remembered project, private workspace, or a
+manually entered absolute/home-relative/cwd-relative path); normal use skips it.
+
+With no project, fixed code proposes a private TASK-DIRECTORY/workspaces/task-UUID
+path, never chosen by the model. Only after direct task approval, the additive
+`task_profile_tool workspace` action creates that exclusive directory, a fixed
+TASK.md containing the original request/requirements/assumptions, empty starter
+output files, and a clean initial Git commit, then registers the unchanged task
+profile. It accepts at most 64 sorted unique safe output file paths including the
+entrypoint, rejects overlapping file/directory paths and writes to TASK.md, and
+never overwrites an existing destination, executes generated checks on the host,
+installs dependencies, or implements a solution. Later preparation errors retain
+created files with an explicit diagnostic; there is no automatic retry or cleanup
+of evidence. Cancelled/unapproved drafts create no workspace, task, or worker.
+The approved destination is persisted before registration so failures remain
+attached to it. A successful private-workspace launch clears that task-local
+selection, but keeps the limit; existing project selections persist across starts
+and reloads. Old session configurations without these optional fields remain valid.
+No existing task/run schema, candidate, assay, or receipt is migrated.
+
+Casual/misspelled user requests are organized into displayed requirements and
+explicit inferred assumptions. Essential missing task meaning, input facts, or
+independent acceptance criteria require clarification; routine setup does not.
+The raw slash goal remains exact and user-bound. The draft's bounded requirements
+and assumptions are review metadata, persisted as a session brief and (for new
+workspaces) fixed seed content, not evaluator authority or a proof of completion.
+Existing-repository drafts still use tracked paths and existing checks. New
+workspace drafts may propose new output filenames and self-contained check argv
+for direct review; they cannot invent nonexistent test files or use trivial
+success checks as substitutes for the requested behavior. Finals explicitly
+replay these checks rather than claiming hidden coverage. The unchanged worker
+still creates immutable solution descendants and performs independent assays.
+
+Conversational starts and /goal share this preparation. Pi's cwd is unchanged,
+shell cd is never session selection, and model action arguments gain no path or
+authority. Mandatory user-set generation limits, task approval, fixed registration,
+preflight, registry recovery, and manifest-bound execution remain in force.
+
+It offers selected-repository summaries for direct selection, even for a sole
 match, or prepares a new draft. An explicitly configured profile must target
-the current repository. Selected contracts are mechanically derived and reviewed
+the selected repository. Selected contracts are mechanically derived and reviewed
 before launch; their checks must actually represent the new goal. With no
 selected contract, `/goal` uses the user-message-only draft path, as does
 `workflow_from_session`. The exact slash goal, Git repository, and generation

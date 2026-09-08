@@ -130,7 +130,13 @@ changing the source repository. Its strict `darwinian-coding-task-v1` profile
 owns allowed paths, argv checks, draws, budgets, and optional goal-or-limit
 stopping. Plain Pi exposes conversational activation and exactly `/goal`,
 `/limit`, `/history`, and `/progress`. `/goal` requests a missing limit and direct
-task approval before starting; the saved limit persists across goals. No-effect
+task approval before starting; the saved limit persists across goals. Starts can
+work in casual extension-enabled sessions without repository/path setup. Messy
+requests are organized into requirements, explicit assumptions, and reviewed
+checks. Task approval selects an existing project or, with none, prepares a
+private Git seed containing TASK.md and empty output files. No solution/checks
+execute during setup. Existing projects must be clean and committed and are
+never initialized/committed automatically; Pi's cwd is unchanged. No-effect
 activation leaves Pi as the operator. Fixed code can discover reviewed profiles,
 derive the exact goal, clean `HEAD`, finite generations, and draws, and start
 without a copied profile path. TUI and RPC require explicit contract selection

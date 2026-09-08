@@ -51,8 +51,15 @@ In an extension-enabled Pi session, the operator may say â€œactivate Agentvolveâ
 then describe and clarify a coding goal in ordinary conversation. Activation
 starts no task. The four commands are `/goal`, `/limit`, `/history`, and
 `/progress`. Set `/limit N`, then submit `/goal PROBLEM`; `/goal` asks for a limit
-if missing and requires direct approval of the task's paths, checks, budgets,
-and policies before launching. The last limit persists for future tasks. Pi can
+if missing and works from casual sessions without repository/path input. Messy
+requests become organized requirements, explicit assumptions, and proposed checks
+for direct review. It proposes an existing project when available; otherwise,
+approval creates a private Git seed with TASK.md and empty output files before
+launching the detached workflow. Existing projects need a clean committed HEAD
+and are never initialized/committed automatically. Task review selects the
+destination; declining offers an optional change. The limit and existing-project
+selection persist; unrelated later casual tasks get fresh workspaces. Pi's cwd
+does not change, and essential missing facts are clarified rather than invented. Pi can
 also prepare a reviewed canonical task from user-only session messages after an
 explicit conversational solve request.
 There is no model picker: Pi keeps its normal interactive `/model` and starts a
