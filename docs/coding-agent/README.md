@@ -53,14 +53,19 @@ starts no task. The four commands are `/goal`, `/limit`, `/history`, and
 `/progress`. Set `/limit N`, then submit `/goal PROBLEM`; `/goal` asks for a limit
 if missing and works from casual sessions without repository/path input. Messy
 requests become organized requirements, explicit assumptions, and proposed checks
-for direct review. It proposes an existing project when available; otherwise,
+for direct review. It resolves referenced files and known project names, inspects
+actual bounded source snapshots, and binds their provenance/content and read-only
+permissions into the reviewed task. Source instructions are never executed.
+Malformed drafting output offers correction/cancellation rather than a raw JSON
+error. See [source limits](task-profile.md#source-grounded-preparation).
+It proposes an existing project when available; otherwise,
 approval creates a private Git seed with TASK.md and empty output files before
 launching the detached workflow. Existing projects need a clean committed HEAD
 and are never initialized/committed automatically. Task review selects the
 destination; declining offers an optional change. The limit and existing-project
 selection persist; unrelated later casual tasks get fresh workspaces. Pi's cwd
 does not change, and essential missing facts are clarified rather than invented. Pi can
-also prepare a reviewed canonical task from user-only session messages after an
+also prepare a reviewed canonical task from user messages and inspected sources after an
 explicit conversational solve request.
 There is no model picker: Pi keeps its normal interactive `/model` and starts a
 separate detached worker whose identity and budgets remain pinned to the

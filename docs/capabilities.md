@@ -133,7 +133,13 @@ stopping. Plain Pi exposes conversational activation and exactly `/goal`,
 task approval before starting; the saved limit persists across goals. Starts can
 work in casual extension-enabled sessions without repository/path setup. Messy
 requests are organized into requirements, explicit assumptions, and reviewed
-checks. Task approval selects an existing project or, with none, prepares a
+checks. Literal file/project references are resolved before remembered defaults;
+bounded fixed inspection supplies actual Git/local/public-URL text snapshots.
+Sources and the reviewed brief are task-ID-bound proposal input, not permission
+to execute source instructions. Read-only inputs cannot overlap writable paths;
+malformed drafting JSON offers correction/cancellation without automatic retries.
+See [source grounding limits](coding-agent/task-profile.md#source-grounded-preparation).
+Task approval selects an existing project or, with none, prepares a
 private Git seed containing TASK.md and empty output files. No solution/checks
 execute during setup. Existing projects must be clean and committed and are
 never initialized/committed automatically; Pi's cwd is unchanged. No-effect
@@ -141,7 +147,7 @@ activation leaves Pi as the operator. Fixed code can discover reviewed profiles,
 derive the exact goal, clean `HEAD`, finite generations, and draws, and start
 without a copied profile path. TUI and RPC require explicit contract selection
 and approval. A
-user-message-only session task path asks conversational clarifications when
+user-message/source-grounded session task path asks conversational clarifications when
 needed, displays a complete human-readable contract for mandatory review, and
 keeps JSON as an optional advanced correction surface. It does not invent
 evaluator authority from prose. While active, its monitor polls shared runs

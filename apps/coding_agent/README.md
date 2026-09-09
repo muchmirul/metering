@@ -13,13 +13,18 @@ required.
 It never modifies the source repository, installs the result, or changes
 Metering's installed API. Conversational activation starts no task. Interactive
 `/goal` and `/limit` derive a run profile only from a reviewed discovered
-profile and a clean Git `HEAD`; user-message-only session task generation shows
+profile and a clean Git `HEAD`; user-message plus source-grounded task generation shows
 a complete human-readable contract for direct operator approval and creates an
 operator-reviewed draft, not model-owned evaluation authority. Casual sessions need
 no repository/path setup: when no project is selected, approval creates a private
 Git seed containing the reviewed TASK.md and empty output files, then registers
 the same task profile. It never implements a solution during preparation. Existing
-projects are never initialized or committed automatically. Fixed preflight
+projects are never initialized or committed automatically. Bounded fixed input
+inspection reads pinned Git files and explicit local/public-URL documents, never
+source instructions. Optional reviewed context binds the brief, source snapshots
+and read-only paths into the task and proposer input; old profiles retain their
+identities. See [source grounding](../../docs/coding-agent/task-profile.md#source-grounded-preparation).
+Fixed preflight
 rejects development wall budgets that cannot reserve even one generation. Task
 review shows the unchanged reservation calculation and collects any budget
 correction explicitly for a new task only. A stop before an archive exists
@@ -106,6 +111,8 @@ progress/history. The terminal browser remains available with **t**. See the
 | `preflight.py` | private operator preparation before Level-1 inference, without executing checks |
 | `checks.py` | versioned external stdout comparison; explicit legacy exit-status semantics |
 | `task_profile_tool.py` | reviewed session-draft registration, private empty-workspace preparation, and goal/limit profile derivation |
+| `task_sources.py` | bounded inert Git/local/public-HTTP input snapshots; no candidate/check execution |
+| `task_context.py` | pure source/brief context validation and read-only write-path separation |
 | `harness_workspace_editor.py` | verified harness materialization and isolated mutation |
 | `candidate_runner.py` | fresh-container solution execution |
 | `solution_evaluator.py` | receipt/contract binding and externally derived outcomes |

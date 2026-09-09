@@ -530,9 +530,11 @@ operator-approved repository, exact base commit and entrypoint, sorted allowed
 write paths, non-empty development checks as argv arrays, a normalized absolute
 path plus SHA-256 for a separately permissioned protected-final profile,
 per-check timeouts, exact recurrence and final tie draws, a bounded worded goal,
-finite round/proposal/wall limits, and an optional evaluator-backed goal-or-limit
-stopping policy. Profiles without the additive policy retain numeric limit-only
-behavior. Fixed code opens the protected profile only
+finite round/proposal/wall limits, an optional evaluator-backed goal-or-limit
+stopping policy, and optional versioned reviewed task context. Context binds
+requirements, assumptions, read-only paths and exact source snapshots; it is
+proposal input, never evaluation authority. Profiles without these additive
+fields retain their previous identities and behavior. Fixed code opens the protected profile only
 after development stops. A model cannot directly authorize or alter either
 profile. The `/goal` draft path and fixed model-facing
 `workflow_from_session` action may generate a task-description draft from user
@@ -641,8 +643,13 @@ in Pi's global settings for use from every working directory.
 `METERING_EVOLUTION_TASKS_DIR` (default checkout sibling `metering-live-tasks`).
 Task starts work in casual extension-enabled Pi sessions, including outside Git,
 without mandatory repository selection or path input. After registry recovery,
-fixed code proposes the remembered existing project, explicitly configured task's
-repository, or current-cwd Git root, in that order. The direct task-review dialog
+fixed code first resolves literal user file/directory references and known project
+names (remembered/configured/current projects, discovered task repositories, and
+the extension checkout only when explicitly named). The latest reference-bearing
+user context is inspected without a filesystem crawl. Ambiguous referenced
+projects require direct selection. Otherwise it proposes the remembered existing
+project, explicitly configured task's repository, or current-cwd Git root, in
+that order. The direct task-review dialog
 selects/approves that destination. Existing targets are revalidated before drafting;
 unreadable, dirty, or uncommitted projects are never repaired, stashed, or committed.
 An explicit confirmation can instead propose a fresh workspace, clearly disclosing
@@ -670,15 +677,71 @@ No existing task/run schema, candidate, assay, or receipt is migrated.
 Casual/misspelled user requests are organized into displayed requirements and
 explicit inferred assumptions. Essential missing task meaning, input facts, or
 independent acceptance criteria require clarification; routine setup does not.
-The raw slash goal remains exact and user-bound. The draft's bounded requirements
-and assumptions are review metadata, persisted as a session brief and (for new
-workspaces) fixed seed content, not evaluator authority or a proof of completion.
-Existing-repository drafts still use tracked paths and existing checks. New
-workspace drafts may propose new output filenames and self-contained check argv
-for direct review; they cannot invent nonexistent test files or use trivial
-success checks as substitutes for the requested behavior. Finals explicitly
+The raw slash goal remains exact and user-bound. Requirements and assumptions
+are persisted in the reviewed context, session brief and (for new workspaces)
+fixed seed content, never evaluator authority or a proof of completion. Existing
+repository entrypoints remain tracked, but need not be writable; new requested
+output paths and self-contained check argv are permitted. Existing checks must
+be inspected before asserting their behavior. No draft may invent nonexistent
+test scripts or use trivial success checks instead of the requested behavior.
+Read-only inputs cannot overlap any allowed write prefix. Finals explicitly
 replay these checks rather than claiming hidden coverage. The unchanged worker
 still creates immutable solution descendants and performs independent assays.
+
+Source-grounded preparation reads actual inputs before drafting, not assistant
+answers or prior tool output. Fixed code prefetches referenced tracked files from
+one pinned Git commit. The private drafter may request further unread tracked
+paths, literal user-supplied local-file references, or exact user-supplied URLs,
+but cannot choose arbitrary host paths, commands or new URLs. Outside-project
+paths and URLs are not fetched merely because they were mentioned: they may be
+examples or requested future outputs, rather than inputs. It must see
+the declared entrypoint and known check scripts before finalizing a draft.
+Inspection is limited to six drafting calls over 180 seconds, sixteen snapshots,
+64 KiB per snapshot and 128 KiB total source content. File inventories over the
+2,000-file candidate bound fail instead of silently truncating.
+
+Git reads accept only regular immutable blobs; local reads reject symlinks,
+nonregular files, binary/non-UTF-8 data and oversized inputs. Protected/operator
+profiles and known private operator locations are excluded from source intake.
+HTTP(S) intake accepts only public addresses on standard ports, pins the validated
+address while retaining TLS hostname verification, rejects credentials and ignores proxy configuration,
+revalidates up to three redirects, and bounds download size (512 KiB) and time.
+HTML-text snapshots include inert text and inline script/style data but omit
+attributes, images, external scripts and dynamic DOM; this is not a browser.
+Unreadable, unsupported or oversized inputs fail explicitly, never as complete
+empty/truncated sources. Source instructions are untrusted data and cannot grant
+execution, network expansion, approval or evaluator authority. No input/check is
+executed during preparation. Dependency availability is still not certified by
+structural preflight; requested real libraries may not be replaced by replicas.
+
+The additive `context` field uses `agentvolve-task-context-v1` with exactly
+requirements, assumptions, read_only_paths and URI-sorted sources (plus its
+context_schema). A source contains uri, representation (`utf-8` or `html-text`),
+sha256 and content. The digest identifies the exact snapshot representation, not
+source authenticity or semantic understanding. Git URIs also identify the commit.
+Fixed inspection, not model/editor JSON, supplies snapshots. Review displays
+provenance/digests and read-only paths; the exact context enters canonical task
+identity and proposer input. Offline replay verifies its digest and write-path
+separation without refetching URLs. Prior profiles without context retain exact
+legacy identities/replay; new context-bearing profiles require the updated
+implementation. Grounded templates cannot silently rebind a changed HEAD.
+New session registration checks the reviewed base before writing a task profile.
+
+Malformed or duplicate-key draft JSON is rejected without a raw parser dump or
+automatic model retry. Structurally invalid contracts (including missing/string
+check timeouts, empty checks, unsupported fields and stopping policies) use the
+same correction/destination/cancellation dialog, before budget review or approval.
+Read-only `validate-draft` reuses the canonical profile normalizer without creating
+profiles, reading finals, running Git/checks or certifying dependencies. Invalid
+values are never filled/coerced to manufacture a valid contract. Fixed code retains
+bounded model outputs (262,144 characters with an explicit truncation flag), inspected
+snapshots and validation diagnostics in diagnostic-only Pi session entries; these
+are not task approval or evolution receipts. Corrected drafts still undergo the
+same source binding, permission, generation-limit and approval checks. The drafting
+prompt explicitly describes the unchanged stdout-json-v1 non-empty-object envelope:
+scalar/list solver returns must be wrapped by the check command and its expected
+value. Scalar, array and empty expected_stdout roots remain invalid; no coercion
+or weaker exit-status check substitutes for a requested external comparison.
 
 Conversational starts and /goal share this preparation. Pi's cwd is unchanged,
 shell cd is never session selection, and model action arguments gain no path or
@@ -689,7 +752,7 @@ It offers selected-repository summaries for direct selection, even for a sole
 match, or prepares a new draft. An explicitly configured profile must target
 the selected repository. Selected contracts are mechanically derived and reviewed
 before launch; their checks must actually represent the new goal. With no
-selected contract, `/goal` uses the user-message-only draft path, as does
+selected contract, `/goal` uses the user-message/source-grounded draft path, as does
 `workflow_from_session`. The exact slash goal, Git repository, and generation
 cap are user-bound, not model-authored. Human-readable approval, optional advanced
 JSON correction, fixed registration, and preflight remain mandatory. TUI and RPC
@@ -889,6 +952,16 @@ project Pi extension and runs at least three operator-approved tasks through the
 pinned local llama.cpp runtime, requiring every protected case and offline replay
 to pass. This expensive check is separate from deterministic CI and fails unless
 its explicit runtime, sealed harness, and task-profile inputs are present.
+A ten-task easy Python catalog and preparation-only fixture helper provide
+independent external output checks and separate final inputs; the generation cap
+must be supplied explicitly (1–4), with no default or launch. The same Pi acceptance
+can target another explicitly named provider only under its reviewed runtime and
+compatible sealed harness. Multi-runtime batches may share one specified run
+registry; an interrupted run still requires approved recovery, never a replacement
+registry. Fixture preparation or deterministic transport tests are not live success
+and different task subsets do not establish a fair model-performance comparison.
+Source distributions include the fixture helper/catalog, not generated frontend
+dependencies or browser-test state; the installed measurement API is unchanged.
 
 Agentvolve does not guarantee universal or monotonic improvement.
 A live result applies only to its exact model, runtime, task profile, checks, and

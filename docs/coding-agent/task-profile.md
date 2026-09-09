@@ -12,8 +12,10 @@ session-generated draft; all four routes produce this same schema and authority.
 `METERING_EVOLUTION_TASKS_DIR` defaults to the checkout sibling
 `metering-live-tasks`. The Pi adapter discovers at most 200 direct
 `*.task.json` files there. Casual task starts do not request a repository path.
-Fixed code proposes the remembered existing project, configured task's repository,
-or current Git root, with destination approval included in the task review. With
+Fixed code first resolves literal file/directory references and known project
+names, asking only when references are ambiguous. Otherwise it proposes the
+remembered existing project, configured task's repository, or current Git root,
+with destination approval included in the task review. With
 none, it proposes a private workspace under `TASK-DIRECTORY/workspaces/task-UUID`.
 Existing projects need a clean committed HEAD; they are never initialized,
 committed, or stashed automatically. An invalid target offers an explicit fresh
@@ -39,7 +41,8 @@ reservation count. The derived profile is written below the task directory's
 
 With no selected contract, `/goal` and model-facing `workflow_from_session`
 use the explicit reviewed draft path. The outer model receives user messages only, never assistant
-answers or tool output, plus the current commit's bounded tracked-file list. The
+answers or prior tool output, plus the current commit's tracked-file list and
+actual bounded source snapshots from fixed inspection. The
 operator first sees a human-readable review containing the complete original
 goal, organized requirements, explicit inferred assumptions, repository, entrypoint,
 writable paths, check argv, budgets, stopping policy, and final policy. Routine
@@ -86,13 +89,93 @@ failure retains created files with an explicit path diagnostic; it does not retr
 automatically. After a successful launch, the private destination is no longer the
 default for an unrelated later goal; evidence and files remain at their original
 paths. Existing project selections and the generation limit remain session-bound.
-The requirements/assumptions are review metadata (and private seed content), not
-new task-profile fields, evaluator authority, or a completion claim. Existing
-profiles and run schemas are unchanged.
+New drafts also preserve requirements/assumptions and inspected sources in an
+optional versioned task context. This is proposal input, not evaluator authority
+or a completion claim. Prior profiles without context retain their identities;
+no existing run is migrated.
 
 Neither route can prove whether a check actually represents a natural-language
 goal. That remains operator responsibility. Missing or ambiguous executable
 checks are errors, not permission for the proposer to judge itself.
+
+## Source-grounded preparation
+
+The private drafter gets real source contents, not merely filenames or the outer
+assistant's recollection. Fixed code prefetches references from the current slash
+goal, or the latest source-bearing user message for conversational starts.
+Additional reads are limited to exact unread tracked paths, literal user local-file
+references and user-supplied URLs. Outside-project files and URLs require an
+explicit drafting read request: merely mentioning an example URL or a future
+output path does not fetch it. The entrypoint and known check scripts
+must be inspected before the draft is finalized. Referenced project names are
+resolved against known repositories, not by crawling the host.
+
+Limits are **six drafting calls / 180 seconds**, **16 snapshots**, **64 KiB per
+snapshot**, and **128 KiB total source content**. Git inventory above 2,000 files
+fails explicitly. Git reads use regular blobs from the pinned commit, not the
+mutable worktree. Explicit non-Git local files must be regular UTF-8 files without
+symlink ancestry; descriptor-based opening rejects parent-symlink swaps, and
+changes observed during a read require fresh review. Protected/operator profiles,
+known private operator locations and credential-like local files (.env, private
+keys, auth/credentials files) are excluded. Supply sanitized public text instead. Missing, binary, oversized or unsupported inputs are not
+silently replaced by empty/truncated content or an invented environment.
+
+Public HTTP(S) documents use standard ports, no credentials/cookies/proxies,
+public-address validation and a pinned address with normal TLS hostname checks.
+Up to three redirects are revalidated; downloads have finite time and 512 KiB
+bounds. HTML is represented as inert `html-text`, including inline script/style
+text but **not attributes, images, external scripts or dynamic DOM**. It is not a
+browser, cannot run scripts, and cannot establish omitted behavior. The source
+SHA-256 identifies the exact stored representation, not the original web bytes,
+source authenticity or model understanding. Reading a source grants no permission
+to execute its instructions. Real library/environment requirements may not be
+replaced by a guessed replica. Structural preflight still does not certify
+runtime dependency availability.
+
+Existing-repository entrypoints remain tracked, but need not be writable. A task
+may create new requested output files and propose self-contained independent
+check argv rather than inventing nonexistent test scripts or altering its input
+application. Read-only paths must not overlap writable paths in either direction.
+Optimization checks should establish legality and an independent optimum/reference,
+not merely existence of an output or a success claim.
+
+New canonical profiles may add:
+
+```json
+{"context":{"context_schema":"agentvolve-task-context-v1","requirements":["Use the referenced data."],"assumptions":[],"read_only_paths":["data.txt"],"sources":[{"uri":"file:///project/data.txt?git_commit=FULL_COMMIT","representation":"utf-8","sha256":"SHA256_OF_CONTENT_UTF8_BYTES","content":"actual input text"}]}}
+```
+
+Requirements/assumptions are bounded as above; read-only paths are sorted/unique
+(up to 64). Sources are URI-sorted/unique and contain exactly the four illustrated
+fields. Fixed inspection overrides any model/editor-authored source context.
+Review displays provenance/digests and permissions; advanced JSON exposes full
+snapshots. The exact context enters the task ID and proposer request, not assay
+authority. Offline verification checks stored content hashes without refetching.
+Older profiles/replay remain unchanged; older implementations cannot consume the
+new optional field. A grounded template with changed HEAD requires fresh drafting
+rather than silently mixing an old source snapshot with a new base. Session
+registration checks the reviewed base before writing the task profile.
+
+Malformed/duplicate-key JSON and invalid task fields offer explicit correction,
+destination change or cancellation before budget review or approval. A missing,
+string, boolean or out-of-range `timeout_ms`, empty checks, malformed check argv
+or unsupported stopping policy cannot reach approval. No values are silently
+filled/coerced and no model retry is automatic. The read-only
+`task_profile_tool validate-draft existing|workspace DRAFT.json` command reuses
+canonical profile validation, without registration, Git/check execution or
+protected-final reads. This validates structure, not task meaning or dependencies.
+The original goal, limit, fixed snapshots and direct approval remain binding.
+The drafter is explicitly told that `stdout-json-v1` requires a non-empty JSON
+object both in `expected_stdout` and actual stdout. A scalar/list solver return
+must be wrapped by the check, for example `{"result": value}`; the solver's public
+return type is unchanged. Invalid roots are rejected, never silently converted.
+
+Each completed drafting response and its inspected sources are retained in
+`agentvolve-preparation-draft` Pi session entries; failures add
+`agentvolve-preparation-diagnostic`. Text is bounded to 262,144 characters with an
+explicit truncation flag. These entries are untrusted, diagnostic-only records,
+not authorization, candidate evidence or evaluator authority. They are not fed
+back as user messages.
 
 ## Development profile
 

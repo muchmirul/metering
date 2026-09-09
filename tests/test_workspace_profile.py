@@ -9,7 +9,7 @@ import pytest
 from test_task_profile_tool import draft_document, git, write_draft
 
 from apps.coding_agent.protocol import load_task_profile
-from apps.coding_agent.task_profile_tool import TaskRegistrationError, create_workspace_profile
+from apps.coding_agent.task_profile_tool import TaskRegistrationError, create_workspace_profile, validate_draft
 
 
 UUID = "01234567-89ab-4def-8123-456789abcdef"
@@ -34,6 +34,8 @@ def test_workspace_creates_clean_empty_seed_and_preserves_reviewed_brief(tmp_pat
     document["development_checks"][0]["argv"] = ["python", "-c", f"open({str(marker)!r}, 'w').write('not allowed during preparation')"]
     source = tmp_path / "draft.json"
     write_draft(source, document)
+    assert validate_draft(source, workspace=True)["authority"] == "diagnostic-only"
+    assert not tasks.exists() and not marker.exists()
     result = create_workspace_profile(source, tasks)
     assert result["workspace_created"] is True
     assert result["workspace_repository"] == str(root)
@@ -62,6 +64,8 @@ def test_workspace_rejects_unsafe_or_conflicting_outputs_before_writing(tmp_path
     document.update(allowed_paths=paths, entrypoint=paths[0] if paths else "answer.txt")
     source = tmp_path / "draft.json"
     write_draft(source, document)
+    with pytest.raises(ValueError):
+        validate_draft(source, workspace=True)
     with pytest.raises(ValueError):
         create_workspace_profile(source, tasks)
     assert not root.exists() and not tasks.exists()

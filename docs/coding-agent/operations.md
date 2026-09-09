@@ -208,9 +208,10 @@ experiment.
 The normal flow may begin entirely in conversation: ask Pi to activate
 Agentvolve, describe the coding goal in ordinary language, answer any needed
 clarifying question, and explicitly ask it to solve the task. Model-facing
-activation starts no worker. Session task preparation uses only user messages
-and tracked path names, shows a human-readable review of repository, paths,
-checks, budgets, stopping, and final policy, and registers canonical JSON only
+activation starts no worker. Session task preparation uses user messages and
+actual bounded source snapshots, shows a human-readable review of repository,
+source provenance/digests, read-only/writable paths, checks, budgets, stopping,
+and final policy, and registers canonical JSON only
 after direct operator approval. Advanced JSON editing remains available when a
 generated draft needs correction.
 
@@ -227,7 +228,8 @@ The only Agentvolve slash commands are:
 missing, then prepares the task from casual user input without asking for a
 repository path. It organizes requirements, labels inferred assumptions, and
 requests only essential missing task meaning/data/acceptance criteria. Task review
-proposes the remembered project, configured task's repository, or current Git root;
+resolves literal file/directory references and known project names first (asking
+when ambiguous), then falls back to remembered/configured/current projects;
 with no project, it proposes a private `TASK-DIRECTORY/workspaces/task-UUID` seed.
 Only after approval, fixed setup creates TASK.md plus empty output files and a
 clean Git commit, then registers the profile and starts the detached workflow.
@@ -397,6 +399,135 @@ not part of unattended deterministic CI: it requires Docker, cgroup v2, the
 reviewed image, a running pinned local endpoint, a verified sealed harness, and
 substantial model time. Skipping it must be reported; a source assertion is not
 a substitute for a claimed live acceptance result.
+
+### Ten-task live batches
+
+The fixed [easy-task catalog](../../tests/fixtures/agentvolve_easy_tasks.json)
+contains clamp, bracket balance, run-length encoding, interval merging, stable
+uniqueness, transpose, rotation, flattening, word counts, and directed shortest
+routes. These are small standard-library Python tasks expected to need few
+generations, not a promise that every model will solve them. Prepare fixtures
+only after choosing a cap explicitly:
+
+```text
+uv run python tests/agentvolve_live_cases.py NEW_BATCH_DIRECTORY MAX_ROUNDS
+```
+
+`MAX_ROUNDS` must be 1–4; there is no default. This creates ten clean private
+seeds with **empty** solver.py files and separately authored public/protected
+contracts. It runs no model, candidate, or generated check. The original seed
+registration templates are preserved unchanged. The new `review-manifest.json`
+is labelled `operator-review-required`, not approved or passed. Review its ten
+goals, exact profiles, budgets and runtime assignment before authorizing a live
+batch. External `stdout-json-v1` checks compare actual values and recursive
+Python return types; final inputs differ from public examples and are withheld
+from proposal/development. Passing finite examples still does not prove general
+correctness or prevent all evaluator interference.
+
+For each approved model subset, use the acceptance command above with its exact
+`METERING_EVOLUTION_LIVE_TASK_PROFILES`, reviewed
+`METERING_EVOLUTION_RUNTIME_MANIFEST`, and compatible sealed
+`METERING_EVOLUTION_LIVE_HARNESS`. The default expected provider is `llamacpp`;
+another provider requires explicitly setting `METERING_EVOLUTION_LIVE_PROVIDER`
+to the exact provider in that runtime. Changing Pi's interactive model or its
+“routed” operator label does **not** change the worker. A different runtime
+identity needs its own compatible sealed harness; never relabel a local seal.
+
+Set one absolute `METERING_EVOLUTION_LIVE_RUNS_DIR` for all subsets of a batch.
+Keep retries at zero unless separately authorized with available reservations.
+A failure/pending intent blocks the next start and requires operator-reviewed
+recovery/closure; do not select another registry to continue around it. Keep all
+logs, receipts and failures. Report task/model, completed generations, proposal
+calls, public/final outcomes and offline verification from recorded evidence,
+not merely successful launch. Using different task subsets for different models
+is a coverage test, not a controlled model-performance comparison.
+
+### Real-model drafting smoke (no execution approval)
+
+```bash
+METERING_RUN_AGENTVOLVE_PREPARATION_LIVE=1 uv run --extra test pytest -q tests/test_agentvolve_preparation_live.py
+```
+
+This separately tests the repaired preparation path with actual inference. The
+default operator model is `llamacpp/local`; optional
+`METERING_PREPARATION_LIVE_PROVIDER` and `METERING_PREPARATION_LIVE_MODEL` select
+an explicitly chosen drafting model. A clean synthetic project outside Pi's cwd
+contains a fresh unpredictable token. The test requires that token in the
+model-authored output check, correct source digest/commit, and read-only input
+permissions. It always **declines** task execution: no task profile, workflow,
+candidate mutation, final assay, or automatic retry is authorized. Its fixture
+review cap is not approval of any real evolution budget.
+
+On 2026-09-08 the local drafting smoke passed in **62.49 seconds**. Evidence is
+preserved at `/mnt/Tforce/dev/agentvolve-preparation-live-HsfXkJ/`, including the
+pytest log/XML and review events. This establishes one actual source-grounded
+draft, not successful solution evolution or completion of the ten-task batch.
+A later final-tree smoke **failed in 10.65 seconds**, before task review: budget
+validation rejected model-proposed check timeout data. Its evidence is retained
+at `/mnt/Tforce/dev/agentvolve-preparation-final-XqHBra/`. The original model draft
+was not yet recorded, so the exact invalid value cannot be reconstructed from
+that log. Follow-up code now records bounded drafts/snapshots and validates the
+entire contract before approval, with explicit correction/cancellation instead
+of an unrecoverable error. Deterministic regressions cover missing/string/boolean/
+zero timeouts and other malformed fields. That local failed inference was not
+retried; these regressions are not a passing replacement local live run. The
+routed-only follow-up below is separate. The original two-model ten-task batch
+and updated three-task local workflow acceptance remain unrun.
+
+### Recorded five-task routed acceptance: 2026-09-09
+
+The operator approved routed-only testing with **at most four generations per task** and
+**at most three repair/test cycles**, with no automatic workflow retries. Cycle 1
+completed all five distinct tasks under `openai-codex/gpt-6-astra`, **medium worker
+reasoning**, and pinned Pi **0.85.1**. Every task used **one generation and one
+proposal**, passed its public and protected external stdout/type checks with
+**zero safety failures**, and passed independent offline verification and actual
+candidate/trace inspection. The live pytest entry exercises all five workflows:
+**1 test passed in 221.44 seconds**, excluding one-time harness setup. No further
+cycle was spent after this clean five-task result.
+
+| Task | Workflow | Protected inputs | Selected commit |
+|---|---|---:|---|
+| Matrix transpose | `workflow-pi-20260909T001933659Z` | 3 | `ebdf0178b61a2c93e51f0c67c7ff712813628467` |
+| List rotation | `workflow-pi-20260909T002012566Z` | 4 | `1aabab071841b830525a082f72da49c692446f0b` |
+| Nested-list flattening | `workflow-pi-20260909T002053454Z` | 3 | `3ec765159046152c9e1c1c2d320ee5eeabda4e4b` |
+| ASCII word counts | `workflow-pi-20260909T002140378Z` | 4 | `4cd8477d5462a5f0a587bbd9b39d8cb88f362427` |
+| Shortest directed route | `workflow-pi-20260909T002225294Z` | 3 | `97e7f9a9dc7da13c06baec2f3a60e4adf70cd8ce` |
+
+Each task has **one** protected check command containing the listed distinct
+inputs: **17 protected inputs total**, not 17 separately sealed commands. There
+are also four public examples per task. Original seeds remain clean and
+`solver.py` stays empty in every seed; all selected solutions are separate Git
+artifacts. No solution patch was applied, old evidence was unchanged, and the
+same `/mnt/Tforce/dev/metering-live-runs` registry was used throughout.
+
+The new routed harness at `harness-pi-20260909T000047618Z` completed two setup
+generations/two proposals, passed **3/3 protected harness checks** with zero safety
+failures, and passed separate offline verification. It uses runtime ID
+`2e198db2bbd3db782fd88995ec464911eb4c0e67c5922caa66a49446d388c704`.
+Local runtime files/seals were not relabelled or changed. All five solution
+workflows reused this newly sealed harness; they performed no additional Level-2
+search. Runtime JSON is in the batch directory, not a new global default.
+
+Before that cycle, a genuine routed drafting smoke failed in **15.25 seconds**:
+the model read the source but emitted scalar `expected_stdout`. Strict validation
+correctly offered correction before approval. Its evidence remains at
+`/mnt/Tforce/dev/agentvolve-routed-preparation-m4a0ZQ/`. The prompt now explicitly
+states the unchanged non-empty-object envelope and how a check wraps a scalar/list
+return. No validator or acceptance criterion was weakened. After this fix, the
+routed preparation smoke passed in **14.69 seconds**, with execution declined.
+Deterministic regressions additionally cover scalar/array/empty expected roots and
+direct correction without automatic model retry. Full regressions passed **605
+tests, 3 skipped**. The skipped local acceptance is not replaced by routed results.
+
+Complete evidence is at `/mnt/Tforce/dev/agentvolve-routed-five-59in4t7t/`:
+`completed-cycle-1-summary.json` binds the five results, unchanged-seed checks,
+per-task verification files, tested-code hashes and the original drafting failure.
+It also records a corrected read-only reporting-probe field typo; no experiment
+was repeated for that probe. Logs/XML, profiles and harness verification are
+retained. Passing these finite cases does **not** prove universal correctness,
+absence of all bugs, or a fair local-versus-routed performance comparison. This
+fixture route task is not the pending `maze.html` task.
 
 ### Recorded three-task local acceptance: 2026-09-08
 

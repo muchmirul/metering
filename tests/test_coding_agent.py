@@ -410,8 +410,9 @@ def test_recorded_evaluator_accepts_only_same_interpreter_alias(
         solution_receipts.verified_recorded_evaluator_command(generation)
 
 
+@pytest.mark.parametrize("with_context", [False, True])
 def test_agentvolve_stops_on_verified_goal_before_numeric_limit(
-    tmp_path: Path,
+    tmp_path: Path, with_context: bool,
 ) -> None:
     harness_root = tmp_path / "harness-evolution"
     run_experiment("fixture", harness_root, None, assay="coding-agent-v1")
@@ -421,6 +422,18 @@ def test_agentvolve_stops_on_verified_goal_before_numeric_limit(
         max_proposal_calls=3,
         stop_on_goal=True,
     )
+    if with_context:
+        from apps.coding_agent.task_sources import git_snapshot
+
+        profile = json.loads(profile_path.read_text())
+        repository = profile["repository"]
+        profile["context"] = {
+            "context_schema": "agentvolve-task-context-v1",
+            "requirements": ["Repair the actual referenced implementation."],
+            "assumptions": [], "read_only_paths": [],
+            "sources": [git_snapshot(Path(repository["path"]), repository["base_commit"], "solver.py")],
+        }
+        profile_path.write_text(canonical_json(profile) + "\n")
     solution_root = tmp_path / "solution-evolution"
 
     report = run_solution_experiment(

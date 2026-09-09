@@ -27,6 +27,7 @@ def git_bytes(
     limit: int,
     timeout: float = 5,
     input_bytes: bytes | None = None,
+    worktree: bool = False,
 ) -> bytes:
     if repository.is_symlink() or not repository.is_dir():
         raise OperatorViewError("candidate Git repository is absent or unsafe")
@@ -52,7 +53,7 @@ def git_bytes(
         process = subprocess.Popen(
             [
                 git,
-                "--git-dir",
+                "-C" if worktree else "--git-dir",
                 str(repository),
                 "-c",
                 "core.hooksPath=/dev/null",

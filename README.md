@@ -129,8 +129,10 @@ and drafts executable checks for your review. It asks only essential task
 clarifications, plus a generation limit if none is saved; unknown facts are not
 invented. `/goal TEXT` uses the same preparation flow.
 
-A remembered project, explicitly configured task repository, or current Git
-project is proposed automatically. With no project, task approval creates a
+Referenced files/directories and known project names (for example, `maze.html
+in metering repo`) are resolved before remembered defaults. Ambiguous references
+ask for a choice, not a filesystem search. Otherwise a remembered project,
+explicitly configured task repository, or current Git project is proposed automatically. With no project, task approval creates a
 private workspace under `metering-live-tasks/workspaces/task-UUID/` by default.
 Its initial commit contains the reviewed `TASK.md` and **empty output files**, not
 a solution. The detached worker still owns mutation and independent evaluation.
@@ -145,6 +147,17 @@ Cancelling before approval creates no workspace and starts no worker. The last
 `/limit` (1–256) persists across goals/restores; a successful launch clears the
 pending goal. Existing project selections persist; later unrelated casual tasks
 get fresh private workspaces. Existing runs/sessions need no migration.
+Preparation now reads actual pinned Git files, explicit local UTF-8 inputs, and
+bounded public HTTP(S) documents. The drafter can request additional tracked
+files or user-supplied URLs; it cannot run source instructions or browse freely.
+Reviewed requirements, assumptions, source snapshots/digests and read-only paths
+are bound into the task and passed to the worker. New output files and
+self-contained checks are allowed without modifying input data. Malformed JSON
+or invalid task fields (such as check timeouts) offer correction/change-destination/
+cancellation **before approval**, rather than a raw parser/registration failure.
+Bounded drafts and source snapshots remain in diagnostic-only session records;
+there is no automatic retry or silent repair. See the [source-grounding limits](docs/coding-agent/task-profile.md#source-grounded-preparation).
+
 Run `/reload` once to load this behavior. Register the reviewed absolute extension
 path in `~/.pi/agent/settings.json`'s `extensions` array for use in every session.
 
@@ -284,6 +297,16 @@ acceptance test documented in `docs/coding-agent/operations.md`; it deploy-loads
 the Pi extension, runs each approved task, and offline-verifies every result.
 It supports standalone invocation and imports its source-only inspection
 modules before launching work, so dependency errors do not waste model calls.
+A [ten-task easy catalog](tests/fixtures/agentvolve_easy_tasks.json) and
+preparation-only helper support explicitly approved small live batches with
+separate final inputs. Routed workers require their own reviewed runtime and
+compatible sealed harness; the operator's “routed” mode is not a worker model.
+See [live batch preparation](docs/coding-agent/operations.md#ten-task-live-batches).
+The [2026-09-09 routed acceptance](docs/coding-agent/operations.md#recorded-five-task-routed-acceptance-2026-09-09)
+completed five distinct tasks, each in one generation, with protected checks and
+offline verification passing. The drafting prompt's stdout-object instructions
+were corrected first; strict validation was not relaxed. These finite routed
+results do not replace local acceptance or prove the system is bug-free.
 
 The wheel must contain only the installed `metering` package. Source-only
 applications and connectors are distributed through the source archive.

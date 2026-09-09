@@ -47,6 +47,7 @@ export interface DiscoveredTaskProfile {
 	name: string;
 	path: string;
 	repository: string;
+	protectedFinal?: string;
 }
 
 export interface OperatorStageView {
@@ -336,6 +337,7 @@ export async function discoverTaskProfiles(): Promise<DiscoveredTaskProfile[]> {
 				name: entry.name.slice(0, -".task.json".length),
 				path,
 				repository: repository.path,
+				...(typeof (document.final_assay as Record<string, unknown> | undefined)?.path === "string" ? { protectedFinal: (document.final_assay as { path: string }).path } : {}),
 			});
 		} catch {
 			// Invalid files are not selectable; fixed profile validation still runs before execution.

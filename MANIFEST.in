@@ -3,7 +3,11 @@ include PLAN.md
 include RELEASING.md
 recursive-include docs *.md
 recursive-include apps *.py *.md *.json *.txt *.lock
+prune apps/coding_agent/trace_ui/node_modules
+prune apps/coding_agent/trace_ui/test-results
 include apps/harness/isolation/Containerfile
 recursive-include artifacts *.py *.md
 recursive-include connectors *.py *.ts *.md
 recursive-include .pi *.ts
+include tests/agentvolve_live_cases.py
+include tests/fixtures/agentvolve_easy_tasks.json

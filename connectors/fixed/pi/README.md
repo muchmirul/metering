@@ -72,8 +72,9 @@ fixed isolation boundary and do not inherit the operator session.
 ```
 
 `/goal` and conversational starts work in casual sessions without requesting a
-repository path. Fixed code proposes the remembered project, configured task's
-repository, or current Git root. With none, the task review proposes a private
+repository path. Fixed code resolves literal input paths and known project names
+before falling back to the remembered project, configured task's repository, or
+current Git root; ambiguous references require a choice. With none, the task review proposes a private
 `TASK-DIRECTORY/workspaces/task-UUID` workspace. After approval only, fixed setup
 creates TASK.md with the reviewed request/requirements/assumptions, empty output
 files, and a clean Git seed. It never generates a solution or runs checks on the
@@ -98,13 +99,23 @@ argument-free `/goal`; successful launch clears that goal but retains the limit
 and any existing-project selection.
 `/limit` affects future tasks only. Restoring a session starts no task.
 
-A new draft uses only user messages and tracked filenames, never assistant
-answers or tool output. The exact slash-command goal, repository, and generation
+A new draft uses user messages plus actual source snapshots from bounded fixed
+inspection, never assistant answers or prior tool output. Git input is commit-pinned;
+explicit local UTF-8 files and public HTTP(S) text documents can also be inspected.
+The drafter can request additional tracked files or literal user file/URL references, not arbitrary
+host paths, commands or network destinations. Sources are untrusted data, not instructions. The exact slash-command goal, repository, and generation
 cap remain user-bound. Messy requests are organized into requirements and explicit
 assumptions; essential missing facts/acceptance criteria require clarification.
-Existing-project drafts use tracked paths and existing checks. New-workspace
-drafts can propose output files and self-contained check argv for review, not
-nonexistent test files or fabricated solutions. The human-readable review includes
+Existing-project entrypoints stay tracked; new output paths and self-contained
+check argv are permitted without modifying input data. Existing checks must be
+inspected. No draft may invent nonexistent test scripts or fabricate a solution.
+Reviewed context binds requirements, assumptions, source representations/digests
+and non-overlapping read-only paths into the canonical task and worker input.
+Malformed/duplicate JSON and invalid task fields offer correction, destination
+change or cancellation before approval, never silent coercion or a model retry.
+The fixed read-only draft validator reuses canonical profile rules. Bounded raw
+drafts, inspected snapshots and errors remain in diagnostic-only session entries. [Source limits and compatibility](../../../docs/coding-agent/task-profile.md#source-grounded-preparation)
+apply equally to TUI and RPC. The human-readable review includes
 the complete goal, brief, Git base (or new-seed notice), writable paths, check argv,
 budgets, stopping policy, and final policy.
 Advanced JSON correction is optional. Fixed registration validates the clean

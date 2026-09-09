@@ -20,6 +20,7 @@ from apps.coding_agent.task_profile_tool import (  # noqa: E402
     TaskRegistrationError,
     create_profile,
     derive_profile,
+    validate_draft,
 )
 
 
@@ -82,6 +83,42 @@ def draft_document(root: Path) -> dict[str, object]:
 
 def write_draft(path: Path, document: dict[str, object]) -> None:
     path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize("mode", ["valid", "missing-timeout", "string-timeout", "bool-timeout", "zero-timeout", "empty-checks", "empty-argv", "duplicate-check", "bad-stopping", "scalar-stdout", "array-stdout", "empty-stdout"])
+def test_draft_validation_reuses_profile_rules_without_effects(tmp_path: Path, monkeypatch, mode: str):
+    marker = tmp_path / "must-not-execute"
+    document = draft_document(tmp_path / "not-created")
+    check = document["development_checks"][0]
+    check["argv"] = ["python", "-c", f"open({str(marker)!r}, 'w').write('forbidden')"]
+    if mode == "missing-timeout":
+        del check["timeout_ms"]
+    elif mode in {"string-timeout", "bool-timeout", "zero-timeout"}:
+        check["timeout_ms"] = {"string-timeout": "1000", "bool-timeout": True, "zero-timeout": 0}[mode]
+    elif mode == "empty-checks":
+        document["development_checks"] = []
+    elif mode == "empty-argv":
+        check["argv"] = []
+    elif mode == "duplicate-check":
+        document["development_checks"].append(check.copy())
+    elif mode == "bad-stopping":
+        document["stopping"]["minimum_replicates"] = 5
+    elif mode in {"scalar-stdout", "array-stdout", "empty-stdout"}:
+        check.update(check_schema="stdout-json-v1", expected_stdout={"scalar-stdout": "value", "array-stdout": ["value"], "empty-stdout": {}}[mode])
+    path = tmp_path / "draft.json"
+    write_draft(path, document)
+    payload = path.read_bytes()
+    monkeypatch.setattr("apps.coding_agent.task_profile_tool.run_git", lambda *_args, **_kwargs: pytest.fail("Validation must not run Git"))
+    if mode == "valid":
+        assert validate_draft(path) == {"authority": "diagnostic-only", "draft_validation_schema": "agentvolve-task-draft-validation-v1"}
+        result = subprocess.run([sys.executable, "-m", "apps.coding_agent.task_profile_tool", "validate-draft", "existing", str(path)], cwd=ROOT, capture_output=True, text=True)
+        assert result.returncode == 0 and result.stderr == ""
+        assert json.loads(result.stdout)["authority"] == "diagnostic-only"
+    else:
+        with pytest.raises(ValueError):
+            validate_draft(path)
+    assert path.read_bytes() == payload, "Do not repair malformed model output silently"
+    assert list(tmp_path.iterdir()) == [path], "No registration, workspace, final assay or check execution"
 
 
 def test_create_profile_binds_reviewed_clean_repository(tmp_path: Path):
@@ -159,6 +196,19 @@ def test_derive_profile_rejects_dirty_repository(tmp_path: Path):
         derive_profile(
             Path(str(registration["profile"])), goal, 4, tmp_path / "generated"
         )
+
+
+def test_registration_does_not_execute_repository_fsmonitor(tmp_path: Path):
+    source, _ = repository(tmp_path)
+    marker = tmp_path / "monitor-must-not-run"
+    monitor = tmp_path / "monitor.sh"
+    monitor.write_text(f"#!/bin/sh\nprintf forbidden > '{marker}'\n")
+    monitor.chmod(0o755)
+    git(source, "config", "core.fsmonitor", str(monitor))
+    draft = tmp_path / "draft.json"
+    write_draft(draft, draft_document(source))
+    create_profile(draft, tmp_path / "registered")
+    assert not marker.exists()
 
 
 def test_create_profile_rejects_uncommitted_session_input(tmp_path: Path):

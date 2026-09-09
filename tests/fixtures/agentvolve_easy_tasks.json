@@ -1,0 +1,62 @@
+[
+  {
+    "name": "clamp-number",
+    "goal": "Implement solver.py solve(value). value is [x, low, high], integers with low <= high. Return x clamped to the inclusive interval. Use Python standard library only.",
+    "development": {"inputs": [[5,0,10],[-3,0,10],[18,0,10],[4,4,4]], "answers": [5,0,10,4]},
+    "final": {"inputs": [[-8,-5,-1],[-3,-5,-1],[0,-5,-1],[1000000,-7,1000000],[2,3,3]], "answers": [-5,-3,-1,1000000,3]}
+  },
+  {
+    "name": "balanced-brackets",
+    "goal": "Implement solver.py solve(value) for a string. Return a boolean: parentheses (), square brackets [] and braces {} must be balanced and correctly nested. Ignore all other characters. Empty text is balanced. Use Python standard library only.",
+    "development": {"inputs": ["", "([]{})", "([)]", ")(", "hello(a)[b]"], "answers": [true,true,false,false,true]},
+    "final": {"inputs": ["{[()()]}", "((", "text ]", "a{b[c(d)e]f}g", "{[(])}"], "answers": [true,false,false,true,false]}
+  },
+  {
+    "name": "run-length-encoding",
+    "goal": "Implement solver.py solve(value) for a string. Return consecutive run-length encoding as a list of [character, count] lists. Preserve character case, Unicode characters and run order. Empty string returns []. Use Python standard library only.",
+    "development": {"inputs": ["", "aaabbc", "aba", "AAAA"], "answers": [[],[["a",3],["b",2],["c",1]],[["a",1],["b",1],["a",1]],[["A",4]]]},
+    "final": {"inputs": ["aAa", "   x", "éé🙂🙂🙂", "12221"], "answers": [[["a",1],["A",1],["a",1]],[[" ",3],["x",1]],[["é",2],["🙂",3]],[["1",1],["2",3],["1",1]]]}
+  },
+  {
+    "name": "merge-intervals",
+    "goal": "Implement solver.py solve(value). value is an unsorted list of integer [start,end] closed intervals with start <= end. Return sorted merged intervals as lists; merge overlaps and touching endpoints. Empty input returns []. Use Python standard library only.",
+    "development": {"inputs": [[],[[5,7],[1,3],[2,4]],[[1,2],[2,3]],[[1,10],[2,3]]], "answers": [[],[[1,4],[5,7]],[[1,3]],[[1,10]]]},
+    "final": {"inputs": [[[5,5],[0,0]],[[8,10],[1,2],[2,8]],[[3,4],[1,2]],[[0,2],[-3,-1],[-1,0]]], "answers": [[[0,0],[5,5]],[[1,10]],[[1,2],[3,4]],[[-3,2]]]}
+  },
+  {
+    "name": "stable-unique",
+    "goal": "Implement solver.py solve(value) for a list of integers. Return each distinct integer exactly once in first-occurrence order, without sorting. Empty input returns []. Use Python standard library only.",
+    "development": {"inputs": [[],[3,1,3,2,1],[7,7,7],[2,1]], "answers": [[],[3,1,2],[7],[2,1]]},
+    "final": {"inputs": [[0,-1,0,-1,2],[9,8,7,9,6,8],[1000000,0,1000000],[-3,-2,-1]], "answers": [[0,-1,2],[9,8,7,6],[1000000,0],[-3,-2,-1]]}
+  },
+  {
+    "name": "matrix-transpose",
+    "goal": "Implement solver.py solve(value) for a rectangular list of integer rows. Return its transpose as a list of lists. A matrix with zero rows or zero columns returns []. Use Python standard library only.",
+    "development": {"inputs": [[],[[],[]],[[1,2,3],[4,5,6]],[[7]]], "answers": [[],[],[[1,4],[2,5],[3,6]],[[7]]]},
+    "final": {"inputs": [[[1],[2],[3]],[[1,2,3,4]],[[-1,0],[2,-3],[4,5]]], "answers": [[[1,2,3]],[[1],[2],[3],[4]],[[-1,2,4],[0,-3,5]]]}
+  },
+  {
+    "name": "rotate-list",
+    "goal": "Implement solver.py solve(value). value is an object with integer list items and integer k. Return items rotated right by k positions; negative k rotates left. Reduce large rotations modulo length. Empty list returns []. Use Python standard library only.",
+    "development": {"inputs": [{"items":[1,2,3,4],"k":1},{"items":[1,2,3],"k":-1},{"items":[],"k":7},{"items":[1,2],"k":0}], "answers": [[4,1,2,3],[2,3,1],[],[1,2]]},
+    "final": {"inputs": [{"items":[1,2,3],"k":100},{"items":[1,2,3,4],"k":-6},{"items":[9],"k":-999},{"items":[2,2,1],"k":3}], "answers": [[3,1,2],[3,4,1,2],[9],[2,2,1]]}
+  },
+  {
+    "name": "flatten-integers",
+    "goal": "Implement solver.py solve(value). value is a list containing integers or further lists, with finite nesting. Return all integers in left-to-right depth-first order as one flat list. Empty nested lists contribute nothing. Use Python standard library only.",
+    "development": {"inputs": [[],[1,[2,3],4],[[[]]],[[1],[],[2,[3]]]], "answers": [[],[1,2,3,4],[],[1,2,3]]},
+    "final": {"inputs": [[[[[-1]]],0,[2,[3,[]]]],[[],1,[],[[],2]],[[1,1],[1,[1]]]], "answers": [[-1,0,2,3],[1,2],[1,1,1,1]]}
+  },
+  {
+    "name": "word-histogram",
+    "goal": "Implement solver.py solve(value) for a string. A word is a maximal run of ASCII letters A-Z or a-z; all other characters, including digits, are separators. Count words case-insensitively and return an object mapping lowercase words to integer counts. Empty input returns {}. Use Python standard library only.",
+    "development": {"inputs": ["", "Hello hello, WORLD!", "a1B2a", "..."], "answers": [{},{"hello":2,"world":1},{"a":2,"b":1},{}]},
+    "final": {"inputs": ["ONE_one-One", "x\ny\tx", "12345", "A cab CAB a"], "answers": [{"one":3},{"x":2,"y":1},{},{"a":2,"cab":2}]}
+  },
+  {
+    "name": "shortest-directed-route",
+    "goal": "Implement solver.py solve(value). value has edges (directed [from,to] pairs of string labels), start and goal. Return a minimum-edge route as a list including both endpoints, or [] if unreachable. For equal-length routes choose the lexicographically smallest full route. start == goal returns [start], even with no edges. Repeated edges and cycles are allowed. Use Python standard library only.",
+    "development": {"inputs": [{"edges":[["a","b"],["b","c"]],"start":"a","goal":"c"},{"edges":[],"start":"a","goal":"b"},{"edges":[],"start":"x","goal":"x"},{"edges":[["a","c"],["a","b"],["b","d"],["c","d"]],"start":"a","goal":"d"}], "answers": [["a","b","c"],[],["x"],["a","b","d"]]},
+    "final": {"inputs": [{"edges":[["a","b"],["b","a"],["a","c"],["c","d"],["b","d"],["a","b"]],"start":"a","goal":"d"},{"edges":[["a","b"]],"start":"b","goal":"a"},{"edges":[["a","b"],["b","c"],["a","c"]],"start":"a","goal":"c"}], "answers": [["a","b","d"],[],["a","c"]]}
+  }
+]

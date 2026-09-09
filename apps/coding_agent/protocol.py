@@ -11,6 +11,7 @@ from typing import cast
 from apps._support.wire import canonical_digest, canonical_json, decode_json_object
 from apps.agent_protocol import ProtocolError, require_exact_keys
 from apps.coding_agent.checks import CheckError, validate_output_contract
+from apps.coding_agent.task_context import normalize_task_context, require_read_only_paths
 from apps.harness.workspace import WorkspaceError, normalized_path
 from apps.population.contract import PopulationError, normalize_draw
 from apps.population_driver.population_driver_protocol import normalize_stopping_policy
@@ -183,6 +184,13 @@ def load_task_profile(
         raise CodingTaskError(
             "coding task profile must be canonical JSON followed by newline"
         )
+    return normalize_task_profile(document, allow_legacy_inline_final=allow_legacy_inline_final)
+
+
+def normalize_task_profile(
+    document: dict[str, object], *, allow_legacy_inline_final: bool = False
+) -> dict[str, object]:
+    """Validate public task structure in memory; perform no source/final reads or execution."""
     common_keys = {
         "allocation_draws",
         "allowed_paths",
@@ -194,7 +202,7 @@ def load_task_profile(
         "schema_version",
         "task_schema",
     }
-    keys = set(document)
+    keys = set(document) - {"context"}
     current_keys = {*common_keys, "final_assay"}
     legacy_keys = {*common_keys, "final_checks"}
     stopping_keys = {"stopping"}
@@ -281,6 +289,13 @@ def load_task_profile(
     }
     if stopping is not None:
         normalized["stopping"] = stopping
+    if "context" in document:
+        try:
+            context = normalize_task_context(document["context"])
+            require_read_only_paths(context, cast(list[str], normalized["allowed_paths"]))
+        except ValueError as exc:
+            raise CodingTaskError(str(exc)) from exc
+        normalized["context"] = context
     if legacy:
         normalized["final_checks"] = _checks(
             document["final_checks"], "coding task.final_checks"

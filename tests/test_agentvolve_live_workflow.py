@@ -1,4 +1,4 @@
-"""Opt-in deployed-Pi acceptance for the complete Agentvolve workflow."""
+"""Opt-in deployed-Pi acceptance under one explicitly pinned worker runtime."""
 
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # Fail on inspection dependency errors before launching any live work.
+from apps._support.wire import canonical_json  # noqa: E402
+from apps.coding_agent.protocol import load_task_profile  # noqa: E402
 from apps.coding_agent.candidate_view import report_view, tree_view  # noqa: E402
 from apps.coding_agent.file_view import path_key  # noqa: E402
 from apps.coding_agent.trace_view import TraceSnapshot  # noqa: E402
@@ -35,6 +37,16 @@ def required_path(name: str, fallback: Path | None = None) -> Path:
     path = Path(raw).expanduser().absolute() if raw else fallback
     assert path is not None and path.is_file(), f"{name} must name an existing file"
     return path
+
+
+def require_approved_contract(directory: Path, expected: dict) -> None:
+    matching = []
+    for path in directory.glob("*.task.json"):
+        task = load_task_profile(path)
+        del task["task_id"]
+        if task["goal"] == expected["goal"]:
+            matching.append(canonical_json(task))
+    assert matching == [canonical_json(expected)], "Prepared contract differs from the operator-approved profile"
 
 
 def rpc_request(
@@ -74,6 +86,10 @@ def rpc_request(
             expected_rounds = getattr(process, "_agentvolve_reviewed_rounds")
             assert json.dumps(expected_goal, ensure_ascii=False) in event["message"]
             assert f"{expected_rounds} generations" in event["message"]
+            # Goal/round labels alone do not authorize different checks, paths,
+            # budgets or a moved base. Match the entire freshly derived contract
+            # to the preapproved source before returning any positive approval.
+            require_approved_contract(getattr(process, "_agentvolve_prepared_directory"), getattr(process, "_agentvolve_reviewed_contract"))
             process.stdin.write(json.dumps({"type": "extension_ui_response", "id": event["id"], "confirmed": True}) + "\n")
             process.stdin.flush()
         elif event.get("type") == "extension_ui_request" and event.get("method") in {"input", "select", "editor"}:
@@ -123,9 +139,9 @@ def workflow_error(events: list[dict[str, Any]]) -> str:
 @pytest.mark.live_agents
 @pytest.mark.skipif(
     os.environ.get("METERING_RUN_AGENTVOLVE_E2E") != "1",
-    reason="set METERING_RUN_AGENTVOLVE_E2E=1 for multi-task local inference",
+    reason="set METERING_RUN_AGENTVOLVE_E2E=1 for approved multi-task real inference",
 )
-def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
+def test_deployed_agentvolve_solves_and_verifies_approved_tasks(
     tmp_path: Path,
 ) -> None:
     profiles = [
@@ -144,7 +160,8 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
     harness = required_path("METERING_EVOLUTION_LIVE_HARNESS")
     runtime_document = json.loads(runtime.read_text(encoding="ascii"))
     assert runtime_document["model"]["connector"] == "pi-v1"
-    assert runtime_document["model"]["provider"] == "llamacpp"
+    expected_provider = os.environ.get("METERING_EVOLUTION_LIVE_PROVIDER", "llamacpp")
+    assert runtime_document["model"]["provider"] == expected_provider
     max_retries = int(os.environ.get("METERING_EVOLUTION_LIVE_MAX_RETRIES", "0"))
     retry_reason = os.environ.get("METERING_EVOLUTION_LIVE_RETRY_REASON", "").strip()
     assert max_retries >= 0
@@ -170,14 +187,17 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
         timeout=120,
     )
     assert deployed.returncode == 0, deployed.stderr
-    assert "llamacpp" in deployed.stdout
+    assert expected_provider in deployed.stdout
 
     tasks_directory = tmp_path / "tasks"
     tasks_directory.mkdir()
     for index, profile in enumerate(profiles):
         shutil.copy2(profile, tasks_directory / f"task-{index}.task.json")
-    runs_directory = tmp_path / "runs"
-    runs_directory.mkdir()
+    shared_runs = os.environ.get("METERING_EVOLUTION_LIVE_RUNS_DIR")
+    runs_directory = Path(shared_runs).expanduser().absolute() if shared_runs else tmp_path / "runs"
+    runs_directory.mkdir(parents=True, exist_ok=True)
+    # Use the same explicitly selected registry for multi-runtime batches. A
+    # pending run still blocks the next task; never create a new registry to bypass it.
 
     for index, source_profile in enumerate(profiles):
         profile = json.loads(source_profile.read_text(encoding="ascii"))
@@ -205,6 +225,8 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
         )
         setattr(process, "_agentvolve_reviewed_goal", goal)
         setattr(process, "_agentvolve_reviewed_rounds", rounds)
+        setattr(process, "_agentvolve_reviewed_contract", profile)
+        setattr(process, "_agentvolve_prepared_directory", tasks_directory / "generated")
         try:
             limit_response, limit_events = rpc_prompt(
                 process,
@@ -278,7 +300,7 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             assert verified.returncode == 0, verified.stderr
             assert json.loads(verified.stdout)["status"] == "verified"
 
-            # Inspect actual local-model descendants, not a synthetic projection fixture.
+            # Inspect actual model descendants, not a synthetic projection fixture.
             nodes = []
             offset = 0
             while True:
@@ -308,7 +330,7 @@ def test_deployed_agentvolve_solves_and_verifies_three_local_tasks(
             selected = next(node for node in nodes if node["kind"] == "solution" and node["status"] == "selected")
             assert selected["candidate_id"] == report["selected_solution"]["candidate_id"]
 
-            # The graphical trace must resolve the actual local-model commits and files.
+            # The graphical trace must resolve the actual model commits and files.
             trace = TraceSnapshot(runs_directory, workflow_root.name)
             assert {node["candidate_id"] for node in trace.graph()["nodes"]} == {node["candidate_id"] for node in nodes}
             for node in nodes:
