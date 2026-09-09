@@ -28,9 +28,9 @@ when only one matches, or prepares a new draft. TUI and RPC both require task
 approval; an explicitly configured profile must match the selected repository.
 Fixed Python validation remains decisive at start.
 
-Set `/limit N generations` (1–256), then `/goal TEXT`; a missing limit is
-prompted before drafting. The last limit persists, including after a launch or
-session restore; changing it never changes a running task. When a reviewed
+`/limit N generations` (1–256) saves a suggestion. Every `/goal TEXT` asks for the
+exact cap for that job before drafting, even after a launch/session restore with
+a saved value; changing the suggestion never changes a running task. When a reviewed
 contract is selected, fixed code derives a fresh profile and keeps its
 entrypoint, allowed paths, checks, final binding, final draw, and
 stopping policy; preserves the wall limit unless the operator explicitly enters

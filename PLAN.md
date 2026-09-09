@@ -622,9 +622,10 @@ it is always a separate caller action.
 
 The reviewed Pi extension registers exactly `/goal`, `/limit`, `/history`, and
 `/progress`. `/goal TEXT` prepares a reviewed coding task and starts its detached
-workflow only after direct approval. `/limit N [generations]` persists a finite
-1–256 generation cap for future tasks. If missing, `/goal` asks for the limit
-before task preparation; cancellation, missing information, or invalid input
+workflow only after direct approval. `/limit N [generations]` persists a suggested
+1–256 generation cap, not authority for another job. Every submission asks the
+operator to enter its exact cap before preparation, even when a suggestion exists;
+cancellation, missing information, or invalid input
 starts no worker. Successful launch clears the pending goal but retains the last
 limit and existing-project selection. Automatically created private workspaces
 remain task-local; a later unrelated casual task gets a fresh workspace.
@@ -633,33 +634,37 @@ implicitly restart a completed one. Configuration restoration starts no task;
 changing `/limit` never changes an immutable running task. Concurrent preparation
 is rejected, and a limit cannot change while its task is under review.
 
-Agentvolve operator mode is off in each new Pi session; ordinary coding retains
-exactly the configured tools (excluded tools are never enabled). Neutral tool
-guidance is always available; restrictions against ordinary in-place solving
-apply only while operator mode is active. Model-facing `workflow_activate`
-(“Activate Agentvolve”) and `workflow_deactivate` (“Deactivate Agentvolve”) set
-this session's mode idempotently. Explicit `/goal` and conversational Agentvolve
-starts still activate operator mode and require a finite limit and direct task
-approval. There is no Agentvolve model picker: Pi keeps its interactive model
-and thinking level. Activation alone starts no model, service, task, or worker.
-A successful deactivation ends operator-only restrictions immediately, including
-within the current turn, and clears only the session monitor/widget;
-it never signals/stops workers, invokes recovery, changes run artifacts/evidence,
-or resets saved goals, limits, or project selection. Pending read-only monitor
-operations may finish, but their invalidated epoch cannot publish reports/UI or
-restart polling. Explicitly requested task preparation/recovery is not cancelled
-by a mode change.
+Agentvolve is a specialized delegated job using the existing detached worker and
+isolated noninteractive pi-v1 calls, never a mode embedded in interactive Pi.
+This replaces the session-toggle architecture, not an additional option.
+Activation/deactivation tool actions, mode state, persistence and restoration are
+removed. Historical mode records and messages never restrict ordinary main-Pi
+assistance, including after reload/resume/fork. A neutral per-turn directive
+classifies old mode output as historical and preserves configured tools. No tool
+list, interactive model or thinking level is changed; excluded tools stay excluded.
+Submission goals, diagnostics and mutable status stay in job/tool data; they are
+not interpolated into the interactive assistant's system instructions.
+Loading the extension starts no task, model or service.
 
-Mode persistence is session-wide: the last boolean in append order wins, across
-`/tree` branches and compaction, on reload/resume. New mode records bind the Pi
-session UUID. `/new`, `/fork`, `/clone`, and CLI `--fork` start off; copied records
-from another UUID cannot enable them. Legacy unscoped `agentvolve-mode` booleans
-remain readable. In a session with a parent header, legacy records are accepted
-only when timestamped strictly after that session's creation; inherited or
-ambiguous legacy records fail closed to off. No parent file is read or migrated.
-Goal/limit/project restoration retains its existing branch-local semantics;
-mode changes do not rewrite that configuration or any historical run. A caller may explicitly register the reviewed absolute extension path
-in Pi's global settings for use from every working directory.
+Each explicit submission records `agentvolve-submission-v1` orchestration-only
+session entries with a session UUID and distinct attempt ID. Preparing,
+not-launched/cancelled/failed, uncertain-dispatch and launched states are distinct.
+Only a validated successful start acknowledgement binds its workflow ID and root.
+Dispatch is recorded as uncertain before invoking the fixed launcher; a missing,
+malformed, interrupted or failed acknowledgement cannot prove nothing launched.
+There is no automatic rediscovery or retry: inspect explicit history and use
+reviewed recovery under the unchanged registry locks. A failed/cancelled newer
+request never reports an older job as its result. Registration alone is not launch.
+
+The latest owned submission in session append order survives reload/resume,
+compaction and /tree navigation. Interrupted preparation restores as not-launched;
+uncertain dispatch remains uncertain. Restoration never restarts a task.
+New/fork/clone sessions do not inherit job ownership, including after subsequent
+reload. Historical launches without submission records are not guessed into a
+binding; inspect them explicitly in /history. Goal/limit/project suggestions keep
+branch-local restoration. No old evidence or session records are rewritten.
+A caller may explicitly register the reviewed absolute extension path in Pi's
+settings, but this patch does not deploy global configuration.
 
 `/goal` discovers at most 200 direct `*.task.json` files under the absolute
 `METERING_EVOLUTION_TASKS_DIR` (default checkout sibling `metering-live-tasks`).
@@ -794,12 +799,22 @@ experiment upgrades still require a new runtime identity and compatible sealed
 harness. Explicit recovery resolves the original pin without granting retries.
 
 Start validates the task, runtime, protected-final structure, Git binding,
-selected harness when supplied, runtime executable, and local-model readiness
-before creating workflow state. The explicit Pi start action may start and await
-the fixed local service required by that manifest; loading or viewing never does.
-Start reuses an explicitly configured already sealed compatible harness or
-creates a Level-2 run when none is supplied, then continues through Level 1 and
-the protected final assay. An isolated run registry
+selected harness, runtime executable, and local-model readiness before creating
+workflow state. Pi never starts or restarts a model service: readiness failure
+returns an operator diagnosis requiring separately arranged safe startup.
+Per-job task review displays the worker provider/model/reasoning, exact Pi command
+and version, runtime ID, kernel/resource bounds, model-call/time limits, separate
+worker configuration path/models digest, and verified reused harness identity,
+distinct from the interactive model used only to draft the contract. The read-only
+`connectors.fixed.pi.runtime review RUNTIME HARNESS` verifies compatible sealed
+coding-harness provenance and requires a separate explicit METERING_PI_CONFIG_DIR.
+The adapter rechecks the review before dispatch and refuses changed configuration.
+New Pi jobs require METERING_EVOLUTION_HARNESS_DESCRIPTOR: no newest-harness guess
+and no implicit Level-2 setup. With no compatible seal, separately review/budget
+and execute the documented Level-2 CLI setup and verify its original descriptor.
+Legacy worker CLI start without a descriptor and original replay remain supported
+for deliberately approved Level-2 workflows, not implicit Pi submission costs.
+An explicitly selected run registry
 may reference an original sealed descriptor via
 `METERING_EVOLUTION_HARNESS_DESCRIPTOR`; copying or rewriting its
 repository-bound provenance is forbidden. A registry lock serializes start, and
@@ -807,7 +822,7 @@ one inherited per-workflow advisory lock plus PID start-time identity prevents
 duplicate detached workers and unsafe stop signalling. An unfinished detached
 workflow still blocks new startup until it completes or the operator explicitly
 closes its inactive orchestration as incomplete. Read-only `registry` and `control`
-projections offer recovery before drafting a new task or starting a model service;
+projections offer recovery before drafting a new task;
 worker effects recheck locks, request identity, and pending authority. Unmanaged
 legacy experiment directories do not own this detached registry. New starts disclose
 their unfinished count, leave their evidence at its original paths and visible in
@@ -828,15 +843,19 @@ a status projection alone cannot release the registry blocker.
 The Pi process launches but never owns or attaches to the separate worker. The
 worker invokes the fixed experiment entrypoints and atomically advances
 status/heartbeat and terminal report projections. Closing Pi or a dashboard does
-not stop it. Every
-Agentvolve-activated Pi session polls the shared run directory, persists the
-bound workflow reference, and shows its compact six-stage widget only while the
-latest detached workflow is genuinely queued or running. Abandoned legacy run
-directories and terminal workflows are not displayed as current progress. A
-workflow observed while active emits each completed stage report at most once on
-its active branch. Session shutdown stops only the monitor, not a launched worker.
-`/progress` explicitly inspects the most recent run, including a finished run;
-an older unfinished run cannot displace it. `/history [RUN_NAME]` browses all
+not stop it. The session monitor, /progress and workflow_status follow only the
+exact bound submission, including terminal status, never the newest registry run.
+Only a queued/running bound job gets the compact six-stage widget. Missing,
+mismatched or unreadable references report an error, never a fallback. Job changes
+and session shutdown invalidate in-flight reads before they can publish reports,
+UI or restart polling. Completed stages are reported once per recorded workflow
+stage. Session shutdown cancels unfinished preparation, not launched workers;
+ordinary task-source edits and interactive model changes do not rebind the worker
+to another base commit or runtime. Host Pi retains its configured permissions;
+controller/configuration paths, job artifacts and evidence must remain untouched.
+`workflow_verify` validates and targets the bound job, not a latest-root helper.
+Explicit history selection may inspect any run but never rebinds ownership.
+`/history [RUN_NAME]` browses all
 workflow and legacy experiment runs in pages of 50. A selected run exposes all
 recorded harness and solution generations in pages of 20, stage report summaries,
 and results. Reused harness traces are labelled separately and never claimed as
@@ -924,8 +943,7 @@ call/time reservation. Stop signals only a lock-owning process whose PID identit
 still matches and does not manufacture a clean checkpoint. Verification is a
 separate detached offline replay of an otherwise complete workflow.
 
-The model-facing `darwinian_coding` tool adds fixed no-effect
-`workflow_activate` and `workflow_deactivate`, operator-reviewed `workflow_from_session`,
+The model-facing `darwinian_coding` tool retains only operator-reviewed `workflow_from_session`,
 `workflow_start`, read-only `workflow_status` and `workflow_history`,
 `workflow_verify`, and operator-reviewed `workflow_manage` actions. Management
 selects a detached workflow through bounded history pages, offers only applicable
@@ -945,9 +963,19 @@ Its action schema accepts no task text, command, evaluator, candidate, profile
 path, retry reason, or output path. `workflow_start` uses configured profiles or
 fixed discovery and returns a non-effectful clarification state when no task can
 be resolved. The detached worker and bounded progress/history JSON commands form
-the same adapter boundary for future coding-agent clients. Pi is operator,
-mutation transport, and UI, never evaluator, selector, ledger authority, worker
-runtime, or sandbox boundary.
+the same adapter boundary for future coding-agent clients. Interactive Pi is
+clarification/review UI; separate fixed Pi calls provide mutation transport.
+Neither is evaluator, selector, ledger authority or a host sandbox.
+
+Controller installation, runtime/configuration, credential and source-provenance
+paths remain operator-managed. Pinned Pi version/configuration isolation is NOT
+immutable control-plane deployment or a sandbox for host Pi. Workers still load
+trusted code from installed source paths; editing their live engine checkout or
+routing configuration while running is not safe. A separate reviewed stable
+installation is operationally required. No automatic snapshot, deployment engine,
+daemon, result apply/merge, or host-session sharing is introduced. Endpoint aliases
+do not completely bind upstream weights/sampling. Existing runs/evidence, legacy
+replay, public measurement API, numerical semantics and package contents stay unchanged.
 
 Experiment implementations separate fixed configuration, runtime effects,
 artifact operations, receipt validation, and offline replay behind the existing

@@ -2,7 +2,6 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 
 import { type Message, StringEnum, uuidv7 } from "@earendil-works/pi-ai";
 import { BorderedLoader, type ExtensionAPI, type ExtensionContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
@@ -16,7 +15,6 @@ import { showCandidateBrowser } from "./agentvolve_candidate_browser.ts";
 import { showAgentvolveDashboard } from "./agentvolve_dashboard.ts";
 import {
 	boundedDiagnostic,
-	codingWorkflowStatus,
 	configuredRuntimeSelection,
 	configuredTaskProfile,
 	decodeCandidateReport,
@@ -26,12 +24,8 @@ import {
 	decodeOperatorTrace,
 	decodeOutput,
 	discoverTaskProfiles,
-	latestSealedHarnessRoot,
-	latestWorkerWorkflowRoot,
 	llamaCppModelReady,
 	llamaCppService,
-	LOCAL_RUNTIME_TIMEOUT_MS,
-	type ModeSummary,
 	type OperatorHistoryView,
 	type OperatorProgressView,
 	type OperatorTraceView,
@@ -76,33 +70,37 @@ interface DevelopmentReservation {
 class AgentvolveInputRequired extends Error {}
 
 const CODING_TOOL_DESCRIPTION = [
-	"Activate or deactivate Agentvolve for this session, prepare an operator-reviewed coding goal, start its detached workflow, or inspect history,",
-	"progress, and offline verification. Manage interrupted workflows through an operator-approved session dialog.",
+	"Prepare a directly reviewed Agentvolve job, start its detached workflow, or inspect job progress, history and offline verification.",
+	"Manage selected interrupted workflows through an operator-approved dialog.",
 	"Its action schema accepts no task text, command, evaluator, candidate, profile path, retry reason, or output path.",
-	"A start requires a user-set generation limit and direct approval.",
+	"Each job requires a directly entered generation cap and task/runtime/harness approval.",
 ].join(" ");
 const CODING_TOOL_GUIDELINE = [
-	"Agentvolve is off by default; ordinary coding uses the session's configured coding tools.",
-	"Use darwinian_coding workflow_activate when the user says Activate Agentvolve, and workflow_deactivate",
-	"when they say Deactivate Agentvolve. These change only this session's operator mode, never start or stop workers.",
-	"Use darwinian_coding workflow_from_session or workflow_start only for an explicit Agentvolve solve request;",
-	"both require a user-set limit and direct task approval. workflow_status and workflow_history inspect runs;",
-	"workflow_manage requires direct approval for recovery. The only Agentvolve slash commands are /goal, /limit, /history, and /progress.",
-].join(" ");
-const OPERATOR_MODE_GUIDELINE = [
-	"Use workflow_from_session only after the user explicitly asks Agentvolve to solve a clear coding goal in their",
-	"messages; ask normal clarifying questions when needed. Use workflow_start for an already configured goal or",
-	"reviewed task. Both work in casual Pi sessions without a repository path prompt: task review selects the",
-	"current/remembered project or an automatically prepared private workspace. Organize messy user requests,",
-	"state inferred assumptions, and ask only essential clarifications. Never invent user facts or solve by",
-	"ordinary edits instead of Agentvolve. Pi's cwd is unchanged; shell cd does not change the session.",
-	"Both require a user-set limit and direct task approval. Use workflow_status for the most recent run and",
-	"workflow_history for prior runs. Use workflow_manage when the user asks to resume, retry, stop, or close an",
-	"unfinished workflow; fixed dialogs select the run and collect direct approval and any operator reason.",
+	"Use darwinian_coding workflow_from_session or workflow_start only for an explicit Agentvolve solve request.",
+	"Agentvolve is a delegated job with isolated noninteractive Pi calls, not a mode of this assistant.",
+	"Ordinary configured tools remain available before, during and after any job or failure.",
+	"workflow_status and workflow_verify target this session's exact submission, never the latest registry run.",
+	"workflow_history inspects other runs without binding them; workflow_manage requires direct job-selected recovery approval.",
 	"Never auto-retry, delete evidence, or switch run directories to bypass interrupted work.",
-	"The only Agentvolve slash commands are /goal, /limit, /history, and /progress.",
-	"Never replace Agentvolve's immutable candidates and independent assays with ordinary in-place edits.",
+	"The only Agentvolve slash commands are /goal, /limit, /history, and /progress. Applying results is separate.",
 ].join(" ");
+
+interface Submission {
+	schema: "agentvolve-submission-v1";
+	sessionId: string;
+	attemptId: string;
+	state: "preparing" | "not-launched" | "cancelled" | "failed" | "uncertain-dispatch" | "launched";
+	goal?: string;
+	diagnostic?: string;
+	workflow?: WorkerResponse;
+}
+
+interface ExecutionReview {
+	manifest: string;
+	harness: string;
+	document: Record<string, unknown>;
+	summary: string;
+}
 
 const SESSION_TASK_SYSTEM_PROMPT = `You create an Agentvolve task draft from user messages and inspected, versioned source snapshots.
 Return exactly one JSON object and no markdown. Never include or infer a solution. Use the current explicit goal, or the most recent clear coding goal in the supplied user messages. Distinguish interface/setup discussion from an explicit request to repair Agentvolve itself; an explicitly requested code repair IS a coding task.
@@ -269,22 +267,25 @@ function operatorProgressSummary(progress: OperatorProgressView): string {
 function decodeWorkerResponse(value: Record<string, unknown>): WorkerResponse {
 	if (value.worker_response_schema !== "agentvolve-worker-response-v1" ||
 		typeof value.action !== "string" || typeof value.pid !== "number" || typeof value.state !== "string" ||
-		typeof value.workflow_id !== "string" || typeof value.workflow_root !== "string") {
+		typeof value.workflow_id !== "string" || !/^[0-9a-f]{64}$/.test(value.workflow_id) ||
+		typeof value.workflow_root !== "string" || !isAbsolute(value.workflow_root) || resolve(value.workflow_root) !== value.workflow_root ||
+		!/^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$/.test(basename(value.workflow_root)) ||
+		resolve(value.workflow_root, "..") !== resolve(runsDirectory()) ||
+		!Number.isSafeInteger(value.pid) || value.pid < 0) {
 		throw new Error("Agentvolve worker returned an unexpected response");
 	}
 	return value as unknown as WorkerResponse;
 }
 
 export default function populationEvolutionExtension(pi: ExtensionAPI): void {
-	let modeActive = false;
-	let activeModelLabel: string | undefined;
+	let submission: Submission | undefined;
+	let sessionOpen = true;
 	let workflowConfiguration: WorkflowConfiguration = {};
 	let preparing = false;
 	let operationController: AbortController | undefined;
 	let monitor: ReturnType<typeof setInterval> | undefined;
 	let monitorRefreshing = false;
 	let monitorEpoch = 0;
-	let monitoredWorkflowRoot: string | undefined;
 	let reportedStages = new Set<string>();
 
 	function persistWorkflowConfiguration(next: WorkflowConfiguration): void {
@@ -292,27 +293,29 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		pi.appendEntry("agentvolve-workflow-configuration", next);
 	}
 
-	function renderModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
-		const active = modeActive && summary && ACTIVE_WORKFLOW_STATUSES.has(summary.status);
-		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(active ? "warning" : "accent",
-			`agentvolve: ${active ? summary.process : modeActive ? `operator · ${activeModelLabel}` : "off · normal coding"}`));
+	function renderJobWidget(ctx: ExtensionContext, summary?: OperatorProgressView, error?: string): void {
+		const active = summary && ACTIVE_WORKFLOW_STATUSES.has(summary.state);
+		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(error ? "error" : active ? "warning" : "accent",
+			`agentvolve: ${error ?? (summary ? `${summary.stage_label} · ${summary.state}` : submission?.state ?? "no submitted job")}`));
 		if (!active) {
 			ctx.ui.setWidget(WIDGET_KEY, undefined);
 			return;
 		}
-		const current = Number(summary.process?.match(/^\[(\d+)\/6\]/)?.[1]);
-		const lines = [ctx.ui.theme.fg("accent", "🧬 Agentvolve"), `operator: ${activeModelLabel}`];
+		const current = summary.stage;
+		const model = summary.worker.model;
+		const lines = [ctx.ui.theme.fg("accent", "🧬 Agentvolve"), `interactive: ${operatorModelLabel(ctx)}`,
+			`worker: ${model ? `${model.connector} · ${model.provider}/${model.model} · ${model.reasoning}` : "identity unavailable"}`];
 		for (let stage = 1; stage <= 6; stage += 1) {
 			const marker = stage < current ? "✓" : stage === current ? "▶" : "○";
 			lines.push(ctx.ui.theme.fg(stage === current ? "warning" : "dim", `${marker} [${stage}/6] ${PROCESS_LABELS[stage]}`));
 		}
-		lines.push(`${summary.status} · ${summary.runRoot}`);
+		lines.push(`${summary.state} · ${summary.workflow_root}`);
 		ctx.ui.setWidget(WIDGET_KEY, lines, { placement: "belowEditor" });
 	}
 
-	async function operatorProgress(selector = ""): Promise<OperatorProgressView> {
-		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", "progress", runsDirectory(),
-			...(selector ? [selector] : [])], { cwd: repositoryRoot(), timeout: 15_000 });
+	async function operatorProgress(selector: string): Promise<OperatorProgressView> {
+		if (!selector) throw new Error("An explicit workflow reference is required; no latest-run fallback.");
+		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", "progress", runsDirectory(), selector], { cwd: repositoryRoot(), timeout: 15_000 });
 		return decodeOperatorProgress(decodeOutput(result));
 	}
 
@@ -328,19 +331,38 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		return decodeOperatorTrace(decodeOutput(result));
 	}
 
+	function persistSubmission(next: Submission): void {
+		submission = next;
+		pi.appendEntry("agentvolve-submission", next);
+	}
+
+	function submissionSummary(): string {
+		return submission ? `Agentvolve submission ${submission.attemptId}: ${submission.state}. ${submission.diagnostic ?? ""}\n${submission.goal ?? "Task from user messages"}\nOlder jobs remain in /history; none is substituted for this request.`
+			: "No job is bound to this session. Use /history to explicitly inspect existing runs; /goal prepares a new reviewed job.";
+	}
+
+	function boundWorkflow(): WorkerResponse {
+		if (submission?.state !== "launched" || !submission.workflow) throw new AgentvolveInputRequired(submissionSummary());
+		return submission.workflow;
+	}
+
+	async function boundProgress(): Promise<OperatorProgressView> {
+		const epoch = monitorEpoch;
+		const worker = boundWorkflow();
+		const progress = await operatorProgress(worker.workflow_root);
+		if (!sessionOpen || epoch !== monitorEpoch) throw new AgentvolveInputRequired("Job view invalidated by a new submission or session shutdown.");
+		if (progress.workflow_id !== worker.workflow_id || progress.workflow_root !== worker.workflow_root) throw new Error("Referenced job returned a different identity; no fallback is permitted.");
+		return progress;
+	}
+
 	async function refreshWorkflowMonitor(ctx: ExtensionContext): Promise<void> {
-		if (!modeActive || monitorRefreshing) return;
+		if (!sessionOpen || submission?.state !== "launched" || monitorRefreshing) return;
 		const epoch = monitorEpoch;
 		monitorRefreshing = true;
 		try {
-			const summary = await codingWorkflowStatus();
-			if (!modeActive || epoch !== monitorEpoch) return;
-			renderModeWidget(ctx, summary);
-			const active = ACTIVE_WORKFLOW_STATUSES.has(summary.status);
-			if (active) monitoredWorkflowRoot = summary.runRoot;
-			if (monitoredWorkflowRoot !== summary.runRoot) return;
-			const progress = await operatorProgress(summary.runRoot);
-			if (!modeActive || epoch !== monitorEpoch) return;
+			const progress = await boundProgress();
+			if (!sessionOpen || epoch !== monitorEpoch) return;
+			renderJobWidget(ctx, progress);
 			for (const stage of progress.stages) {
 				if (!["complete", "reused"].includes(stage.status)) continue;
 				const key = `${progress.workflow_id}:${stage.number}`;
@@ -349,9 +371,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				pi.appendEntry("agentvolve-stage-report", { ...stage, workflowId: progress.workflow_id, stage: stage.number });
 				if (stage.number === 6) ctx.ui.notify(`Agentvolve finished: ${stage.summary}`, "info");
 			}
-			if (!active) monitoredWorkflowRoot = undefined;
-		} catch {
-			if (epoch === monitorEpoch) renderModeWidget(ctx);
+		} catch (error) {
+			if (sessionOpen && epoch === monitorEpoch) renderJobWidget(ctx, undefined, `referenced job unavailable: ${boundedDiagnostic(String(error))}`);
 		} finally {
 			if (epoch === monitorEpoch) monitorRefreshing = false;
 		}
@@ -362,61 +383,35 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		monitor = undefined;
 		monitorEpoch += 1;
 		monitorRefreshing = false;
-		monitoredWorkflowRoot = undefined;
 	}
 
 	async function startWorkflowMonitor(ctx: ExtensionContext): Promise<void> {
 		stopWorkflowMonitor();
-		if (!modeActive) return;
+		if (!sessionOpen || submission?.state !== "launched") return;
 		const epoch = monitorEpoch;
 		await refreshWorkflowMonitor(ctx);
-		if (epoch !== monitorEpoch) return;
+		if (!sessionOpen || epoch !== monitorEpoch) return;
 		monitor = setInterval(() => void refreshWorkflowMonitor(ctx), WORKFLOW_MONITOR_INTERVAL_MS);
-	}
-
-	function persistMode(ctx: ExtensionContext, active: boolean): void {
-		pi.appendEntry("agentvolve-mode", { active, sessionId: ctx.sessionManager.getSessionId() });
-	}
-
-	async function activateAgentvolveMode(ctx: ExtensionContext): Promise<void> {
-		if (modeActive) return;
-		persistMode(ctx, true);
-		modeActive = true;
-		activeModelLabel = operatorModelLabel(ctx);
-		await startWorkflowMonitor(ctx);
-	}
-
-	function deactivateAgentvolveMode(ctx: ExtensionContext): void {
-		if (modeActive) persistMode(ctx, false);
-		modeActive = false;
-		// Invalidate pending reads as well as the timer. Do not abort the separate
-		// preparation/recovery controller or signal any worker/process.
-		stopWorkflowMonitor();
-		renderModeWidget(ctx);
 	}
 
 	async function ensureLocalRuntime(selection: RuntimeSelection, signal?: AbortSignal): Promise<void> {
 		if (selection.provider !== "llamacpp" || await llamaCppModelReady(selection, signal)) return;
-		const service = llamaCppService();
-		const restart = await pi.exec("systemctl", ["--user", "restart", service], { signal, timeout: 30_000 });
-		if (restart.killed || restart.code !== 0) throw new Error(boundedDiagnostic(restart.stderr || restart.stdout) || `cannot start ${service}`);
-		const deadline = Date.now() + LOCAL_RUNTIME_TIMEOUT_MS;
-		while (Date.now() < deadline) {
-			signal?.throwIfAborted();
-			if (await llamaCppModelReady(selection, signal)) return;
-			await delay(1000, undefined, { signal });
-		}
-		throw new Error(`${selection.provider}/${selection.model} did not become ready through ${service}`);
+		throw new AgentvolveInputRequired(`${selection.provider}/${selection.model} is not ready. Inspect ${llamaCppService()} and the reviewed endpoint/configuration. Arrange safe startup separately with the operator; Agentvolve never starts or restarts a shared model service.`);
 	}
 
-	async function selectedHarnessDescriptor(): Promise<string | undefined> {
-		const supplied = process.env.METERING_EVOLUTION_HARNESS_DESCRIPTOR?.trim();
-		if (supplied) {
-			if (!isAbsolute(supplied) || !existsSync(supplied)) throw new Error("configured harness descriptor must be an existing absolute path");
-			return supplied;
-		}
-		const root = await latestSealedHarnessRoot();
-		return root ? join(root, "selected-harness.json") : undefined;
+	async function executionReview(ctx: ExtensionContext, signal: AbortSignal): Promise<ExecutionReview> {
+		const manifest = runtimeManifest();
+		const harness = process.env.METERING_EVOLUTION_HARNESS_DESCRIPTOR?.trim();
+		if (!harness || !isAbsolute(harness) || !existsSync(harness)) throw new AgentvolveInputRequired(
+			"Set METERING_EVOLUTION_HARNESS_DESCRIPTOR to an explicit compatible sealed selected-harness.json. No newest-harness guessing or implicit Level-2 setup is allowed. If none exists, separately review/budget apps/harness/experiment.py coding-pi NEW_HARNESS_ROOT RUNTIME.json, verify that run, then configure its original descriptor. Do not change registries to bypass blockers.");
+		const document = decodeOutput(await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "review", manifest, harness],
+			{ cwd: repositoryRoot(), signal, timeout: 120_000 }));
+		if (document.review_schema !== "agentvolve-execution-review-v1" || document.authority !== "diagnostic-only" ||
+			typeof document.runtime_id !== "string" || typeof document.harness_candidate_id !== "string" ||
+			typeof document.worker_configuration !== "string" || !Array.isArray(document.command) ||
+			typeof document.model !== "object" || document.model === null) throw new Error("Unexpected worker execution review.");
+		const summary = `Interactive drafting only: ${operatorModelLabel(ctx)}\nDelegated worker execution (not the interactive model):\n${JSON.stringify(document, null, 2)}\nRuntime manifest: ${manifest}\nReused verified harness: ${harness}\nNo Level-2 search is authorized by this job. Worker calls use isolated Pi configuration and no host session/tools.\nConfiguration and controller paths remain operator-managed: use a separate reviewed stable installation; do not edit its live engine/configuration while workers run. Version isolation is not a host sandbox.`;
+		return { manifest, harness, document, summary };
 	}
 
 	async function prepareRuntime(manifest: string, signal?: AbortSignal): Promise<void> {
@@ -427,25 +422,32 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		await ensureLocalRuntime(await configuredRuntimeSelection(manifest), signal);
 	}
 
-	async function launchDetachedWorkflow(ctx: ExtensionContext, profile: string, signal: AbortSignal): Promise<WorkerResponse> {
-		await prepareRuntime(runtimeManifest(), signal);
-		const harness = await selectedHarnessDescriptor();
+	async function launchDetachedWorkflow(ctx: ExtensionContext, profile: string, signal: AbortSignal, review: ExecutionReview): Promise<WorkerResponse> {
+		const current = await executionReview(ctx, signal);
+		if (current.manifest !== review.manifest || current.harness !== review.harness || JSON.stringify(current.document) !== JSON.stringify(review.document)) throw new AgentvolveInputRequired("Worker configuration changed during review; submit again for fresh approval. No workflow dispatched.");
+		await prepareRuntime(review.manifest, signal);
+		signal.throwIfAborted();
+		const epoch = monitorEpoch;
+		persistSubmission({ ...submission!, state: "uncertain-dispatch", diagnostic: "Dispatch attempted; launch acknowledgement not yet validated. Inspect /history and manage the exact run before any retry." });
 		const result = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "start", runsDirectory(),
-			configuredTaskProfile(profile), runtimeManifest(), ...(harness ? [harness] : [])],
+			configuredTaskProfile(profile), review.manifest, review.harness],
 			{ cwd: repositoryRoot(), signal, timeout: 30_000 });
+		if (!sessionOpen || epoch !== monitorEpoch) throw new AgentvolveInputRequired("Dispatch acknowledgement arrived after session shutdown; inspect explicit history. Do not restart the task.");
 		const worker = decodeWorkerResponse(decodeOutput(result));
+		if (worker.action !== "start" || worker.state !== "queued" || worker.pid <= 0) throw new Error("Unexpected launch acknowledgement; dispatch remains uncertain.");
+		persistSubmission({ ...submission!, state: "launched", diagnostic: undefined, workflow: worker });
 		pi.appendEntry("agentvolve-worker-launch", worker);
 		persistWorkflowConfiguration({ maxRounds: workflowConfiguration.maxRounds,
 			...(!workflowConfiguration.managedWorkspace && workflowConfiguration.repository ? { repository: workflowConfiguration.repository } : {}) });
-		await startWorkflowMonitor(ctx);
+		void startWorkflowMonitor(ctx);
 		ctx.ui.notify(`Agentvolve worker started separately.\nworkflow: ${worker.workflow_root}\nUse /progress or /history while continuing this Pi session.`, "info");
 		return worker;
 	}
 
 	async function requireLimit(ctx: ExtensionContext, signal: AbortSignal): Promise<number> {
-		if (workflowConfiguration.maxRounds !== undefined) return workflowConfiguration.maxRounds;
-		const value = await ctx.ui.input("Agentvolve needs a generation limit before preparing this task", "1–256 generations", { signal });
-		if (value === undefined) throw new AgentvolveInputRequired("No limit was set; nothing started. Set /limit and submit /goal again.");
+		const value = await ctx.ui.input("Enter the exact generation cap approved for THIS job (1–256)",
+			workflowConfiguration.maxRounds === undefined ? "1–256 generations" : `Saved /limit ${workflowConfiguration.maxRounds} is a suggestion only; enter this job's cap`, { signal });
+		if (value === undefined) throw new AgentvolveInputRequired("No cap was approved for this job; nothing dispatched. Submit /goal again and enter its exact cap.");
 		const maxRounds = generationLimit(value);
 		persistWorkflowConfiguration({ ...workflowConfiguration, maxRounds });
 		return maxRounds;
@@ -594,7 +596,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
-	async function generateSessionTaskDraft(ctx: ExtensionContext, repository: string, goal: string | undefined, maxRounds: number, signal: AbortSignal, newWorkspace = false): Promise<string | null> {
+	async function generateSessionTaskDraft(ctx: ExtensionContext, repository: string, goal: string | undefined, maxRounds: number, signal: AbortSignal, execution: ExecutionReview, newWorkspace = false): Promise<string | null> {
 		if (!ctx.model) throw new AgentvolveInputRequired("Select a Pi model before preparing a new task.");
 		const userTexts = sessionUserTexts(ctx.sessionManager.getBranch());
 		const conversation = userTexts.map((text) => `User: ${text}`).join("\n\n");
@@ -738,7 +740,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const budget = await reviewDevelopmentBudget(ctx, document, maxRounds, signal);
 			reviewObject(document.limits, "limits").max_wall_seconds = budget.max_wall_seconds;
 			reviewed = JSON.stringify(document, null, 2);
-			if (await ctx.ui.confirm("Register and run this reviewed task?", taskReview(document, true, budget, baseCommit), { signal })) break;
+			if (await ctx.ui.confirm("Register and run this reviewed task?", execution.summary + "\n\n" + taskReview(document, true, budget, baseCommit), { signal })) break;
 			const action = await ctx.ui.select("Task not approved", ["Change destination (optional)", "Edit task details (advanced JSON)", "Cancel without starting"], { signal });
 			if (action === "Change destination (optional)") {
 				await chooseRepository(ctx, signal, true);
@@ -770,13 +772,18 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	}
 
 	async function solveGoal(ctx: ExtensionContext, goal: string | undefined, fromSession: boolean, signal?: AbortSignal): Promise<WorkerResponse | null> {
-		if (!ctx.hasUI) throw new AgentvolveInputRequired("Task approval requires interactive or RPC Pi.");
 		if (preparing) throw new AgentvolveInputRequired("Another task is being prepared; finish or cancel its review first.");
 		preparing = true;
 		operationController = new AbortController();
 		const operationSignal = signal ? AbortSignal.any([signal, operationController.signal]) : operationController.signal;
+		stopWorkflowMonitor();
+		const epoch = monitorEpoch;
+		persistSubmission({ schema: "agentvolve-submission-v1", sessionId: ctx.sessionManager.getSessionId(), attemptId: uuidv7(), state: "preparing", ...(goal ? { goal } : {}) });
+		renderJobWidget(ctx);
 		try {
-			await activateAgentvolveMode(ctx);
+			if (!ctx.hasUI) throw new AgentvolveInputRequired("Task approval requires interactive or RPC Pi.");
+			if (goal === "") throw new AgentvolveInputRequired("Usage: /goal describe the independently checked problem");
+			if (goal && goal.length > 65_536) throw new AgentvolveInputRequired("/goal is too long");
 			if (goal) persistWorkflowConfiguration({ ...workflowConfiguration, goal });
 			const maxRounds = await requireLimit(ctx, operationSignal);
 			let registry = await registryStatus(pi, operationSignal);
@@ -799,6 +806,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const newWorkspace = selectedRepository === undefined;
 			const repository = selectedRepository ?? join(tasksDirectory(), "workspaces", `task-${uuidv7()}`);
 			const template = fromSession || newWorkspace ? undefined : await chooseTaskProfile(ctx, repository, operationSignal);
+			const execution = await executionReview(ctx, operationSignal);
 			let profile: string | null;
 			if (template) {
 				const source = reviewObject(JSON.parse(await readFile(template, "utf8")), "task profile");
@@ -807,47 +815,60 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				const budget = await reviewDevelopmentBudget(ctx, source, maxRounds, operationSignal);
 				profile = await deriveGoalTask(template, taskGoal, maxRounds, budget.max_wall_seconds, operationSignal);
 				const derived = reviewObject(JSON.parse(await readFile(profile, "utf8")), "derived task");
-				if (!(await ctx.ui.confirm("Run this reviewed Agentvolve task?", taskReview(derived, false, budget), { signal: operationSignal }))) return null;
+				if (!(await ctx.ui.confirm("Run this reviewed Agentvolve task?", execution.summary + "\n\n" + taskReview(derived, false, budget), { signal: operationSignal }))) return null;
 				persistWorkflowConfiguration({ ...workflowConfiguration, repository });
-			} else profile = await generateSessionTaskDraft(ctx, repository, goal, maxRounds, operationSignal, newWorkspace);
+			} else profile = await generateSessionTaskDraft(ctx, repository, goal, maxRounds, operationSignal, execution, newWorkspace);
 			if (!profile) return null;
 			operationSignal.throwIfAborted();
-			return await launchDetachedWorkflow(ctx, profile, operationSignal);
+			return await launchDetachedWorkflow(ctx, profile, operationSignal, execution);
+		} catch (error) {
+			if (sessionOpen && epoch === monitorEpoch && submission?.state !== "launched") persistSubmission({ ...submission!,
+				state: submission?.state === "uncertain-dispatch" ? "uncertain-dispatch" : operationSignal.aborted ? "cancelled" : error instanceof AgentvolveInputRequired ? "not-launched" : "failed",
+				diagnostic: boundedDiagnostic(String(error)) });
+			throw error;
 		} finally {
+			if (sessionOpen && epoch === monitorEpoch && submission?.state === "preparing") persistSubmission({ ...submission, state: "cancelled", diagnostic: "Task not approved; no workflow dispatched." });
+			if (sessionOpen && submission?.state !== "launched") renderJobWidget(ctx);
 			preparing = false;
 			operationController = undefined;
 		}
 	}
 
 	async function showCandidateTrees(ctx: ExtensionContext, selector: string): Promise<void> {
+		const epoch = monitorEpoch;
 		const inspect = async (action: string, arguments_: string[]) => {
+			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
 			const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", action, runsDirectory(), selector, ...arguments_],
 				{ cwd: repositoryRoot(), timeout: 30_000 });
+			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
 			return decodeOutput(result);
 		};
 		await showCandidateBrowser(ctx, {
 			tree: async (offset, loops) => decodeOperatorTree(await inspect(loops ? "loops" : "tree", [String(offset)])),
 			report: async (label, eventOffset, diffOffset, loop) => decodeCandidateReport(await inspect(loop ? "loop" : "candidate",
 				[label, String(eventOffset), ...(loop ? [] : [String(diffOffset)])])),
-			record: (view) => pi.appendEntry("agentvolve-candidate-inspection", view),
-			openGraph: () => openTraceViewer(pi, ctx, selector),
+			record: (view) => { if (sessionOpen && epoch === monitorEpoch) pi.appendEntry("agentvolve-candidate-inspection", view); },
+			openGraph: async () => { if (sessionOpen && epoch === monitorEpoch) await openTraceViewer(pi, ctx, selector); },
 		});
 	}
 
 	async function showProgress(ctx: ExtensionContext, selector = ""): Promise<void> {
-		const history = await operatorHistory();
-		if (!selector && !history.runs.length) {
-			ctx.ui.notify("No Agentvolve runs yet. Set /limit, then use /goal to solve a problem.", "info");
+		if (!selector && submission?.state !== "launched") {
+			ctx.ui.notify(submissionSummary(), "info");
 			return;
 		}
-		const progress = await operatorProgress(selector);
+		const epoch = monitorEpoch;
+		const progress = selector ? await operatorProgress(selector) : await boundProgress();
+		if (!sessionOpen || epoch !== monitorEpoch) return;
 		const selected = basename(progress.workflow_root);
 		const trace = await operatorTrace(selected);
+		if (!sessionOpen || epoch !== monitorEpoch) return;
 		pi.appendEntry("agentvolve-progress-view", { progress, trace });
 		if (ctx.mode !== "tui") {
 			ctx.ui.notify(operatorProgressSummary(progress), "info");
 			let page = trace;
 			for (;;) {
+				if (!sessionOpen || epoch !== monitorEpoch) return;
 				pi.appendEntry("agentvolve-trace-view", page);
 				ctx.ui.notify(JSON.stringify(page), "info");
 				const options = [
@@ -855,6 +876,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 					...(page.next_offset !== null ? ["Next generations"] : []), "Candidate trees / child reports", "Open Trace Viewer", "Return",
 				];
 				const choice = await ctx.ui.select("Evolution trace", options);
+				if (!sessionOpen || epoch !== monitorEpoch) return;
 				if (choice === "Candidate trees / child reports") await showCandidateTrees(ctx, selected);
 				else if (choice === "Open Trace Viewer") await openTraceViewer(pi, ctx, selected);
 				else if (choice === "Previous generations") page = await operatorTrace(selected, Math.max(0, page.offset - page.page_size));
@@ -862,23 +884,39 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				else return;
 			}
 		}
+		const viewProgress = async () => {
+			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
+			const result = selector ? await operatorProgress(selected) : await boundProgress();
+			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
+			return result;
+		};
+		const viewTrace = async (offset = 0) => {
+			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
+			const result = await operatorTrace(selected, offset);
+			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
+			return result;
+		};
 		let current = progress;
 		let currentTrace = trace;
 		for (;;) {
-			const action = await showAgentvolveDashboard(ctx, operatorModelLabel(ctx), current, () => operatorProgress(selected), currentTrace, (offset) => operatorTrace(selected, offset));
+			const action = await showAgentvolveDashboard(ctx, operatorModelLabel(ctx), current, viewProgress, currentTrace, viewTrace);
+			if (!sessionOpen || epoch !== monitorEpoch) return;
 			if (action === "graph") await openTraceViewer(pi, ctx, selected);
 			else if (action === "tree") await showCandidateTrees(ctx, selected);
 			else return;
-			current = await operatorProgress(selected);
-			currentTrace = await operatorTrace(selected);
+			current = await viewProgress();
+			currentTrace = await viewTrace();
 		}
 	}
 
 	async function showHistory(ctx: ExtensionContext, selector = ""): Promise<void> {
 		if (selector) return showProgress(ctx, selector);
+		const epoch = monitorEpoch;
 		let offset = 0;
 		for (;;) {
+			if (!sessionOpen || epoch !== monitorEpoch) return;
 			const history = await operatorHistory(offset);
+			if (!sessionOpen || epoch !== monitorEpoch) return;
 			pi.appendEntry("agentvolve-history-view", history);
 			if (!history.runs.length) {
 				ctx.ui.notify("No Agentvolve runs on this history page.", "info");
@@ -888,7 +926,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			const selected = await ctx.ui.select(`Agentvolve history · ${offset + 1}–${offset + history.runs.length} of ${history.total_runs}`, [
 				...labels, ...(offset > 0 ? ["Newer runs"] : []), ...(history.next_offset !== null ? ["Older runs"] : []),
 			]);
-			if (!selected) return;
+			if (!sessionOpen || epoch !== monitorEpoch || !selected) return;
 			if (selected === "Newer runs") offset = Math.max(0, offset - history.page_size);
 			else if (selected === "Older runs" && history.next_offset !== null) offset = history.next_offset;
 			else {
@@ -907,20 +945,18 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	}
 
 	command("goal", "Review and solve a coding problem with Agentvolve", async (args, ctx) => {
-		const goal = args || workflowConfiguration.goal;
-		if (!goal) throw new AgentvolveInputRequired("Usage: /goal describe the independently checked problem");
-		if (goal.length > 65_536) throw new AgentvolveInputRequired("/goal is too long");
+		const goal = args || workflowConfiguration.goal || "";
 		const worker = await solveGoal(ctx, goal, false, ctx.signal);
 		if (!worker) ctx.ui.notify("Task not approved; no workflow started.", "info");
 	});
-	command("limit", "Set the generation limit for future Agentvolve tasks", async (args, ctx) => {
+	command("limit", "Save a suggested generation cap; each job requires fresh input", async (args, ctx) => {
 		if (preparing) throw new AgentvolveInputRequired("Finish or cancel the current task review before changing /limit.");
 		const maxRounds = generationLimit(args);
 		persistWorkflowConfiguration({ ...workflowConfiguration, maxRounds });
-		ctx.ui.notify(`Agentvolve limit: ${maxRounds} generations for future tasks. Submit /goal to review and start; a running task is unchanged.`, "info");
+		ctx.ui.notify(`Agentvolve suggested limit: ${maxRounds} generations. Each /goal asks for its exact cap; a running task is unchanged.`, "info");
 	});
 	command("history", "Browse every run's evolution trace and stage reports; optionally name a run", async (args, ctx) => { await showHistory(ctx, args); });
-	command("progress", "Inspect the most recent Agentvolve run", async (args, ctx) => {
+	command("progress", "Inspect this session's exact requested job, including failure to launch", async (args, ctx) => {
 		if (args) throw new AgentvolveInputRequired("/progress accepts no arguments; use /history RUN_NAME for a past run.");
 		await showProgress(ctx);
 	});
@@ -935,27 +971,18 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		promptSnippet: "Operate Agentvolve's reviewed detached coding workflow",
 		promptGuidelines: [CODING_TOOL_GUIDELINE],
 		parameters: Type.Object({ action: StringEnum([
-			"workflow_activate", "workflow_deactivate", "workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify",
+			"workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify",
 			"workflow_manage",
 		] as const) }, { additionalProperties: false }),
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			onUpdate?.({ content: [{ type: "text", text: `Agentvolve ${params.action}…` }], details: { action: params.action } });
-			if (params.action === "workflow_activate") {
-				await activateAgentvolveMode(ctx);
-				return { content: [{ type: "text", text: modeActive ? `Agentvolve is active for this session. No task or worker was started by activation. ${OPERATOR_MODE_GUIDELINE}` : "Agentvolve activation was superseded; operator mode is off." }], details: { active: modeActive, status: modeActive ? "operator-mode" : "normal-coding" } };
-			}
-			if (params.action === "workflow_deactivate") {
-				deactivateAgentvolveMode(ctx);
-				return { content: [{ type: "text", text: "Agentvolve is off for this session. Return to normal coding with the configured tools; operator-only restrictions no longer apply. Workers, run evidence, saved limits and goals are unchanged." }], details: { active: false, status: "normal-coding" } };
-			}
 			if (params.action === "workflow_history") {
 				const history = await operatorHistory();
 				return { content: [{ type: "text", text: history.runs.map((run) => `${run.name} · ${run.state} · ${run.goal ?? ""}`).join("\n") || "No Agentvolve runs yet." }], details: history };
 			}
 			if (params.action === "workflow_status") {
-				const history = await operatorHistory();
-				if (!history.runs.length) return { content: [{ type: "text", text: "No Agentvolve runs yet." }], details: { active: modeActive, status: "idle" } };
-				const progress = await operatorProgress();
+				if (submission?.state !== "launched") return { content: [{ type: "text", text: submissionSummary() }], details: submission ?? { status: "unbound" } };
+				const progress = await boundProgress();
 				return { content: [{ type: "text", text: operatorProgressSummary(progress) }], details: progress };
 			}
 			if (params.action === "workflow_manage") {
@@ -973,11 +1000,15 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				}
 			}
 			if (params.action === "workflow_verify") {
-				const root = await latestWorkerWorkflowRoot();
-				if (!root) throw new Error("No detached Agentvolve workflow exists");
+				const bound = boundWorkflow();
+				await boundProgress();
+				const root = bound.workflow_root;
+				const epoch = monitorEpoch;
 				const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.agentvolve_worker", "verify", root], { cwd: repositoryRoot(), signal, timeout: 30_000 });
 				const worker = decodeWorkerResponse(decodeOutput(result));
-				pi.appendEntry("agentvolve-worker-launch", worker);
+				if (!sessionOpen || epoch !== monitorEpoch) throw new AgentvolveInputRequired("Verification view invalidated; the detached operation is not cancelled.");
+				if (worker.action !== "verify" || worker.workflow_id !== bound.workflow_id || worker.workflow_root !== root) throw new Error("Verification returned another job identity.");
+				pi.appendEntry("agentvolve-workflow-operation", worker);
 				return { content: [{ type: "text", text: `Offline verification queued for ${root}.` }], details: worker };
 			}
 			try {
@@ -993,7 +1024,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	pi.on("session_start", async (event, ctx) => {
 		stopWorkflowMonitor();
-		modeActive = false;
+		sessionOpen = true;
+		submission = undefined;
 		workflowConfiguration = {};
 		reportedStages = new Set<string>();
 		for (const entry of ctx.sessionManager.getBranch()) {
@@ -1009,35 +1041,38 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				};
 			} else if (entry.customType === "agentvolve-stage-report" && typeof data.workflowId === "string" && Number.isInteger(data.stage)) reportedStages.add(`${data.workflowId}:${data.stage}`);
 		}
-		// Mode is session-wide, not branch-local. Scoped records copied by a fork
-		// cannot enable its new session. Legacy records have no owner: in a child
-		// session accept only records written after that session's creation.
-		const header = ctx.sessionManager.getHeader();
+		// Submission ownership is session-local and append-ordered, not rolled back
+		// by /tree or compaction. Forks may inspect history but never inherit ownership.
+		// Old mode/launch entries cannot identify a failed newer request: ignore them.
 		if (event.reason !== "new" && event.reason !== "fork") {
 			for (const entry of ctx.sessionManager.getEntries()) {
-				if (entry.type !== "custom" || entry.customType !== "agentvolve-mode") continue;
-				const data = entry.data as { active?: unknown; sessionId?: unknown } | null;
-				if (!data || typeof data.active !== "boolean") continue;
-				const owned = data.sessionId === ctx.sessionManager.getSessionId();
-				const legacy = data.sessionId === undefined && (!header?.parentSession ||
-					Date.parse(entry.timestamp) > Date.parse(header.timestamp));
-				if (owned || legacy) modeActive = data.active;
+				if (entry.type !== "custom" || entry.customType !== "agentvolve-submission") continue;
+				const data = entry.data as Submission | null;
+				if (!data || data.sessionId !== ctx.sessionManager.getSessionId()) continue;
+				try {
+					if (data.schema !== "agentvolve-submission-v1" || typeof data.attemptId !== "string" ||
+						!["preparing", "not-launched", "cancelled", "failed", "uncertain-dispatch", "launched"].includes(data.state)) throw new Error("Malformed submission record");
+					if (data.state === "launched") {
+						const worker = decodeWorkerResponse(reviewObject(data.workflow, "referenced workflow"));
+						if (worker.action !== "start" || worker.state !== "queued" || worker.pid <= 0) throw new Error("Malformed launch reference");
+					}
+					submission = data.state === "preparing" ? { ...data, state: "not-launched", diagnostic: "Preparation interrupted; no dispatch recorded. No task restarted." } : data;
+				} catch (error) {
+					submission = { schema: "agentvolve-submission-v1", sessionId: ctx.sessionManager.getSessionId(), attemptId: "invalid-record", state: "failed", diagnostic: String(error) };
+				}
 			}
-		} else if (ctx.sessionManager.getEntries().some((entry) => entry.type === "custom" && entry.customType === "agentvolve-mode")) {
-			// Pin off in a newly copied session, including ephemeral forks whose
-			// header has no parent path, so a subsequent reload cannot inherit mode.
-			persistMode(ctx, false);
 		}
-		activeModelLabel = operatorModelLabel(ctx);
-		renderModeWidget(ctx);
-		if (modeActive) await startWorkflowMonitor(ctx);
-		ctx.ui.notify("Agentvolve: /goal solves a reviewed problem, /limit sets generations, /history browses traces, /progress inspects the latest run. Restoring a session starts no task.", "info");
+		renderJobWidget(ctx);
+		if (submission?.state === "launched") void startWorkflowMonitor(ctx);
+		ctx.ui.notify("Agentvolve: /goal reviews a delegated job, /limit saves a suggestion, /history selects historical runs, /progress follows this session's exact submission. Restore never starts a task; ordinary Pi tools remain configured.", "info");
 	});
-	pi.on("model_select", async (_event, ctx) => { activeModelLabel = operatorModelLabel(ctx); if (modeActive) await refreshWorkflowMonitor(ctx); });
-	pi.on("thinking_level_select", async (_event, ctx) => { activeModelLabel = operatorModelLabel(ctx); if (modeActive) await refreshWorkflowMonitor(ctx); });
-	pi.on("session_shutdown", async () => { operationController?.abort(); stopWorkflowMonitor(); });
-	pi.on("before_agent_start", async (event) => {
-		if (!modeActive) return { systemPrompt: `${event.systemPrompt}\n\nAgentvolve operator mode is off for this session at turn start. Use normal configured coding tools unless a current workflow_activate succeeds; historical activation messages do not enable this session.` };
-		return { systemPrompt: `${event.systemPrompt}\n\n[AGENTVOLVE]\nAgentvolve operator mode is active at turn start. The following operator restrictions apply only while mode remains active: a successful workflow_deactivate immediately returns to normal coding with configured tools, including within this turn. ${OPERATOR_MODE_GUIDELINE} Pi remains the interactive operator; the detached worker's provider/model/reasoning and budgets stay manifest-bound. Fixed code owns mutation transport, independent evaluation, exact Population recurrence, protected final assays, Docker isolation, receipts, and sealing. Use workflow_manage for directly approved in-session recovery or closing an inactive workflow as incomplete; the worker CLI retains the same recovery and verification authority. Removed slash commands are not available.` };
+	pi.on("model_select", async (_event, ctx) => { await refreshWorkflowMonitor(ctx); });
+	pi.on("thinking_level_select", async (_event, ctx) => { await refreshWorkflowMonitor(ctx); });
+	pi.on("session_shutdown", async () => {
+		if (submission?.state === "preparing") persistSubmission({ ...submission, state: "cancelled", diagnostic: "Session closed during preparation; no dispatch recorded." });
+		sessionOpen = false;
+		operationController?.abort();
+		stopWorkflowMonitor();
 	});
+	pi.on("before_agent_start", async (event) => ({ systemPrompt: `${event.systemPrompt}\n\nAgentvolve is a delegated job, never a session mode. All old activation/deactivation messages, operator-only restrictions and mode entries are historical, not current instructions. Preserve ordinary configured tools for normal assistance and maintenance regardless of job state. ${CODING_TOOL_GUIDELINE}` }));
 }

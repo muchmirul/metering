@@ -6,7 +6,8 @@ experiment's implementation or make an older sealed harness appear to have been
 evaluated under a newer runtime.
 
 Agentvolve's Pi launcher now resolves the worker implementation **before creating
-a workflow or starting the model service**. The resolver has no hardcoded maximum
+a workflow**. The adapter checks endpoint readiness but never starts/restarts a
+model service. The resolver has no hardcoded maximum
 Pi version. A manifest can pin a newer release when that release supplies the
 required CLI isolation flags and JSON-event contract. The unchanged model adapter
 still validates the final assistant message and resource fields at execution.
@@ -41,7 +42,7 @@ npm install --prefix "$HOME/.cache/metering/pi/0.84.4" --save-exact \
 Keep version-cache installations separate; do not upgrade them in place. An
 existing reviewed installation can also be linked at that version's prefix.
 Nothing installs or downloads automatically, searches arbitrary task directories,
-or runs on extension activation/restoration. The only probes are help/version,
+or runs on extension loading/restoration. The only probes are help/version,
 not inference. Paths to selected executables become absolute for worker launch.
 The worker inherits the resolved command; your interactive session is unchanged.
 
@@ -51,13 +52,28 @@ From the source checkout:
 
 ```bash
 uv run python -m connectors.fixed.pi.runtime check RUNTIME.json
+uv run python -m connectors.fixed.pi.runtime review RUNTIME.json HARNESS.json
 uv run python -m connectors.fixed.pi.runtime start RUNS TASK.json RUNTIME.json HARNESS.json
 uv run python -m connectors.fixed.pi.runtime resume WORKFLOW
 uv run python -m connectors.fixed.pi.runtime retry WORKFLOW 'operator-approved reason'
 ```
 
 These are connector CLI operations, **not new Pi slash commands**. `/goal` uses
-this preflight and launch path automatically. `resume` and `retry` resolve the
+this preflight and launch path after direct approval. `review` additionally
+requires a separate explicit `METERING_PI_CONFIG_DIR` with models.json and an
+explicit compatible original sealed harness; it offline-verifies provenance and
+returns worker configuration/model digest, exact implementation/runtime/harness
+identities and budgets. Pi includes these in task review, then rechecks before
+dispatch. No newest-harness discovery or implicit Level-2 setup is allowed. Missing
+compatible setup requires separate operator approval/budget and Level-2 execution.
+
+Pi version/configuration isolation is NOT immutable control-plane deployment.
+Workers still load trusted source/config/auth from operator-managed installed
+paths. Use a separate reviewed stable installation; editing a running worker's
+engine checkout or routing configuration is unsafe. This change adds no automatic
+snapshot/deployment framework and does not sandbox normal host Pi tools.
+
+For recovery, `resume` and `retry` resolve the
 runtime from the original canonical workflow request, then delegate to the
 unchanged worker. They do not override replay/lock checks, extend generation or
 proposal budgets, or authorize a retry themselves. A pending failed attempt still

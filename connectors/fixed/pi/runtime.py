@@ -7,6 +7,7 @@ connectors still enforce their canonical requests and exact version checks.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -139,9 +140,62 @@ def check(path: Path) -> dict:
     }
 
 
+def review(path: Path, harness: Path) -> dict:
+    """Read-only per-job execution review; never infer a harness or run setup."""
+    from apps.coding_agent.harness_workspace_editor import load_harness_descriptor
+    from apps.harness.experiment_replay import verify_experiment
+
+    runtime = load_runtime_manifest(path)
+    if runtime.model["connector"] != "pi-v1" or not runtime.isolation_enforced:
+        raise PiRuntimeError("Delegated Pi jobs require a pi-v1 reviewed OCI runtime")
+    descriptor = load_harness_descriptor(harness)
+    if descriptor["runtime_id"] != runtime.runtime_id:
+        raise PiRuntimeError(
+            f"Selected harness runtime {descriptor['runtime_id']} differs from required {runtime.runtime_id}. "
+            "Choose an explicitly compatible verified seal, or separately approve/budget Level-2 setup; no automatic setup."
+        )
+    if harness.name != "selected-harness.json":
+        raise PiRuntimeError("Use the original sealed run's selected-harness.json")
+    provenance = verify_experiment(harness.parent)
+    final = descriptor["provenance"]
+    if (provenance.get("assay") != "coding-agent-v1"
+            or final["final_passed_count"] != final["final_task_count"]
+            or final["final_safety_failures"] != 0):
+        raise PiRuntimeError("Selected harness must pass its verified protected coding assay")
+    configured = os.environ.get("METERING_PI_CONFIG_DIR", "")
+    configuration = Path(configured)
+    interactive = Path(os.environ.get("PI_CODING_AGENT_DIR", str(Path.home() / ".pi/agent")))
+    if (not configuration.is_absolute() or not configuration.is_dir()
+            or configuration.is_symlink() or configuration.resolve() == interactive.resolve()):
+        raise PiRuntimeError(
+            "Set METERING_PI_CONFIG_DIR to a separate reviewed worker configuration directory, "
+            "not the interactive Pi directory. Provision its provider auth/models explicitly and keep routing stable while jobs run."
+        )
+    models = configuration / "models.json"
+    if models.is_symlink() or not models.is_file() or models.stat().st_size > 2_097_152:
+        raise PiRuntimeError("Worker configuration requires a bounded regular reviewed models.json")
+    selection = check(path)
+    return {
+        **selection,
+        "review_schema": "agentvolve-execution-review-v1",
+        "model": runtime.model,
+        "worker_configuration": str(configuration),
+        "worker_models_sha256": hashlib.sha256(models.read_bytes()).hexdigest(),
+        "harness_candidate_id": descriptor["candidate_id"],
+        "harness_descriptor_sha256": hashlib.sha256(harness.read_bytes()).hexdigest(),
+        "kernel": runtime.document["kernel"],
+        "max_model_calls_per_execution": runtime.max_model_calls,
+        "model_timeout_seconds": runtime.model_timeout_seconds,
+        "level_2_setup": "none; reused verified seal",
+    }
+
+
 def main(arguments: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if arguments is None else arguments)
     try:
+        if len(args) == 3 and args[0] == "review":
+            print(canonical_json(review(Path(args[1]), Path(args[2]))))
+            return 0
         if len(args) == 2 and args[0] == "check":
             print(canonical_json(check(Path(args[1]))))
             return 0
@@ -156,7 +210,7 @@ def main(arguments: list[str] | None = None) -> int:
             manifest = Path(str(request["runtime_manifest"]))
         else:
             raise PiRuntimeError(
-                "usage: check RUNTIME.json | start RUNS TASK.json RUNTIME.json [HARNESS.json] | resume WORKFLOW | retry WORKFLOW REASON"
+                "usage: review RUNTIME.json HARNESS.json | check RUNTIME.json | start RUNS TASK.json RUNTIME.json [HARNESS.json] | resume WORKFLOW | retry WORKFLOW REASON"
             )
         selection = check(manifest)
         environment = {

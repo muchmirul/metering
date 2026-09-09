@@ -11,8 +11,10 @@ or evaluator-verified goal-or-limit stopping; a finite maximum is always
 required.
 
 It never modifies the source repository, installs the result, or changes
-Metering's installed API. Conversational activation starts no task. Interactive
-`/goal` and `/limit` derive a run profile only from a reviewed discovered
+Metering's installed API. Interactive Pi submits delegated jobs, not a session
+mode; historical activation records impose no restrictions on ordinary tools.
+`/limit` saves a suggestion and every `/goal` asks for the exact cap.
+These commands derive a run profile only from a reviewed discovered
 profile and a clean Git `HEAD`; user-message plus source-grounded task generation shows
 a complete human-readable contract for direct operator approval and creates an
 operator-reviewed draft, not model-owned evaluation authority. Casual sessions need
@@ -30,6 +32,15 @@ review shows the unchanged reservation calculation and collects any budget
 correction explicitly for a new task only. A stop before an archive exists
 reports the Driver reason without attempting protected-final selection; an
 available archive still permits final work after budget stopping.
+
+Pi submissions require an explicit compatible verified sealed harness and a
+separate reviewed worker configuration/runtime. No implicit Level-2 setup,
+newest-harness guess or shared model-service restart occurs. Progress and
+verification track only an acknowledged job ID/root; failed newer requests never
+inherit old results. Reload/resume does not restart work; history selection does
+not rebind ownership. The unchanged legacy worker CLI/replay remain available.
+Use a separate reviewed stable controller installation: version/configuration
+isolation is not an immutable deployment or sandbox for ordinary host Pi.
 
 ## Documentation
 

@@ -128,9 +128,9 @@ task rate then reliability with an exact tie draw, runs protected checks after
 allocation, permanently seals search, and emits a replay-checked patch without
 changing the source repository. Its strict `darwinian-coding-task-v1` profile
 owns allowed paths, argv checks, draws, budgets, and optional goal-or-limit
-stopping. Plain Pi exposes conversational activation and exactly `/goal`,
-`/limit`, `/history`, and `/progress`. `/goal` requests a missing limit and direct
-task approval before starting; the saved limit persists across goals. Starts can
+stopping. Plain Pi exposes delegated jobs, not session activation, through exactly
+`/goal`, `/limit`, `/history`, and `/progress`. /limit is a saved suggestion;
+every /goal requires a fresh exact cap plus direct task/execution review. Starts can
 work in casual extension-enabled sessions without repository/path setup. Messy
 requests are organized into requirements, explicit assumptions, and reviewed
 checks. Literal file/project references are resolved before remembered defaults;
@@ -142,17 +142,26 @@ See [source grounding limits](coding-agent/task-profile.md#source-grounded-prepa
 Task approval selects an existing project or, with none, prepares a
 private Git seed containing TASK.md and empty output files. No solution/checks
 execute during setup. Existing projects must be clean and committed and are
-never initialized/committed automatically; Pi's cwd is unchanged. No-effect
-activation leaves Pi as the operator. Fixed code can discover reviewed profiles,
+never initialized/committed automatically; Pi's cwd is unchanged. Ordinary
+configured tools/model/thinking remain unchanged throughout jobs; historical mode
+records never restore restrictions. New jobs require explicit compatible verified
+harness and separate reviewed worker configuration, with no newest-harness guess,
+implicit Level-2 costs or shared-service restart. Controller paths remain
+operator-managed; a stable separate installation is operationally required, not
+automatically snapshotted or sandboxed by Pi version isolation. Fixed code can discover reviewed profiles,
 derive the exact goal, clean `HEAD`, finite generations, and draws, and start
 without a copied profile path. TUI and RPC require explicit contract selection
 and approval. A
 user-message/source-grounded session task path asks conversational clarifications when
 needed, displays a complete human-readable contract for mandatory review, and
 keeps JSON as an optional advanced correction surface. It does not invent
-evaluator authority from prose. While active, its monitor polls shared runs
-across activated Pi sessions; the `[1/6]`–`[6/6]` widget is visible only for a
-queued or running detached worker and clears when none is active.
+evaluator authority from prose. Session-owned submission attempts distinguish
+preparation/failure/uncertain dispatch from acknowledged launch. The monitor,
+progress and verification bind only the returned validated job ID/root, never
+the latest registry run. A failed newer request cannot inherit old results.
+Reload/resume does not restart; forks inherit no job ownership. History selection
+does not rebind. The `[1/6]`–`[6/6]` widget appears only for the bound queued/running
+job. New submissions/shutdown invalidate pending output without stopping workers.
 `/history` pages through all runs and recorded harness/solution generations,
 with stage reports and results. Its tree browser adds stable experiment-local
 H*/S* labels, actual ancestry, archive status/reasons, per-child evidence reports,
@@ -162,8 +171,7 @@ graph, stable depth/branch labels, real Git file nodes, exact source/downloads,
 file history/comparison, archive filters, and projection exports. Its bounded
 loopback service starts only on explicit opening; it changes no evidence or
 Population SQLite schema. It never claims protected-final results for untested children. `/progress`
-inspects the most recent run, not an
-older abandoned run. Nested assay calls remain pinned to the canonical runtime.
+inspects the exact submitted job, never a latest-run fallback. Nested assay calls remain pinned to the canonical runtime.
 Old slash commands and compatibility Pi tool actions are removed; shared engines,
 worker CLI recovery/verification, and existing experimental artifacts remain.
 Conversational `workflow_manage` adds direct operator-reviewed resume, reserved

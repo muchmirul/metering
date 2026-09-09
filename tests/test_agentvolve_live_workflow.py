@@ -92,6 +92,9 @@ def rpc_request(
             require_approved_contract(getattr(process, "_agentvolve_prepared_directory"), getattr(process, "_agentvolve_reviewed_contract"))
             process.stdin.write(json.dumps({"type": "extension_ui_response", "id": event["id"], "confirmed": True}) + "\n")
             process.stdin.flush()
+        elif event.get("type") == "extension_ui_request" and event.get("method") == "input" and event.get("title", "").startswith("Enter the exact"):
+            process.stdin.write(json.dumps({"type": "extension_ui_response", "id": event["id"], "value": str(getattr(process, "_agentvolve_reviewed_rounds"))}) + "\n")
+            process.stdin.flush()
         elif event.get("type") == "extension_ui_request" and event.get("method") in {"input", "select", "editor"}:
             raise AssertionError(f"unexpected task ambiguity in approved live fixture: {event}")
         if event.get("type") == "response" and event.get("id") == request_id:
@@ -173,8 +176,8 @@ def test_deployed_agentvolve_solves_and_verifies_approved_tasks(
 
     # The operator may be newer than the exact worker pin. Probe without inference.
     checked = subprocess.run(
-        [sys.executable, "-m", "connectors.fixed.pi.runtime", "check", str(runtime)],
-        cwd=ROOT, capture_output=True, text=True, timeout=30,
+        [sys.executable, "-m", "connectors.fixed.pi.runtime", "review", str(runtime), str(harness)],
+        cwd=ROOT, capture_output=True, text=True, timeout=120,
     )
     assert checked.returncode == 0, checked.stderr
     pi_bin = os.environ.get("METERING_EVOLUTION_OPERATOR_PI_BIN", "pi")

@@ -4,14 +4,15 @@ This is Agentvolve's operator-facing lifecycle. Ordinary Pi slash commands start
 one streamlined detached workflow while hiding the internal harness/solution,
 Controller, Population, Git, and receipt boundaries. While a detached worker is
 queued or running, the compact widget lists all six stages without owning the
-worker. `/progress` also inspects the latest run after completion.
+worker. `/progress` inspects this session's exact submission, including completion
+or failure to launch, never the newest registry run.
 
 ## Tracker
 
 | Stage | Meaning | Typical command or evidence |
 |---|---|---|
 | **[1/6] Task and runtime configured** | The pinned runtime and applicable task contracts validate. | reviewed session task, or `/goal …`, `/limit N generations`, and a discovered profile |
-| **[2/6] Evolving harness** | Agentvolve proposes one-locus harness descendants and evaluates them on fixed coding workspaces. | detached worker after approved `/goal` |
+| **[2/6] Evolving harness** | Separately approved Level-2 setup; new Pi solution jobs reuse a compatible verified seal. | explicit Level-2 CLI setup, not implicit `/goal` cost |
 | **[3/6] Harness sealed** | One harness has been allocated, protected-final tested, and permanently sealed. | `selected-harness.json` |
 | **[4/6] Evolving solution** | The frozen harness creates and independently tests immutable solution commits until a verified goal or finite limit stops recurrence. | automatic workflow continuation |
 | **[5/6] Protected final assay** | Development has stopped, final allocation is committed, and protected checks are running. | final-role Population records |
@@ -28,42 +29,37 @@ The normal transition is:
    → [6/6] review result
 ```
 
-A previously sealed harness can be reused, so later tasks commonly begin new
-model work at `[4/6]` after Agentvolve revalidates the earlier stages. The
-operator may activate Agentvolve conversationally, describe a clear coding goal,
-and approve the human-readable task review in-session; fixed code then registers
-the same canonical profile before the tracker advances. The explicit
-`/limit N generations`, then `/goal …` route needs no additional start command.
-A missing limit is prompted and the last limit persists for future tasks.
-Discovered folder-bound contracts require direct selection; new drafts and
-selected contracts both require approval in TUI and RPC. If the current folder cannot supply a reviewed executable task
-contract or a valid reviewed session draft, Agentvolve remains in operator mode
-and asks for clarification rather than treating prose as proof. A reviewed
+New Pi solution jobs require an explicitly selected compatible verified sealed
+harness, so new model work begins at `[4/6]`; earlier stages are labelled reused.
+No newest-harness guess or implicit Level-2 setup cost is accepted. Describe the
+goal, review worker runtime/configuration/harness identity separately from Pi's
+interactive drafting model, and approve the task contract. /limit saves only a
+suggestion: every /goal asks for the exact per-job generation cap. Discovered
+contracts require selection; all starts require direct TUI/RPC approval. Missing
+facts, configuration or valid checks produce a job-scoped failure/clarification,
+never restrictions on ordinary Pi tools. A reviewed
 `METERING_EVOLUTION_HARNESS_DESCRIPTOR` can reference an original sealed harness
 when the new solution run uses an isolated registry; provenance remains bound to
 that original run.
 
 ## Viewing status
 
-Operator mode defaults off. “Activate Agentvolve” enables it only for this
-session; “Deactivate Agentvolve” returns to normal coding without stopping or
-signalling workers, changing evidence, or resetting saved goals/limits. Neither
-changes configured tool availability. Reload/resume preserves the last setting
-across `/tree` branches; new/fork/clone sessions start off. See
-[session mode](operations.md#session-mode) for legacy restoration and monitor
-cancellation semantics. Activation has no pre-start menu and starts no worker. A reviewed task may
+Agentvolve is a delegated job, not a mode of interactive Pi. Activation and
+restoration are removed; historical mode output never restricts normal tools.
+See [job ownership and migration](operations.md#delegated-jobs-and-reload-migration).
+A reviewed task may
 open the clarification, task-summary selection, or approval interaction
 needed to bind the canonical input. A blocking detached workflow first opens a
 directly approved recovery/close dialog. Unmanaged legacy runs stay in history
 without blocking a new task; they are never automatically resumed. `/goal` keeps Pi's current operator
 model and, once a task is approved, launches a manifest-pinned evolution worker
-in a separate process. Pi returns immediately. While operator mode is active,
-the compact tracker polls the shared run directory every two seconds, including
-work launched by another session. The widget is shown only for a genuinely
-queued or running detached workflow and disappears when no worker is active;
-abandoned legacy directories are not displayed as current progress.
+in a separate process. Pi returns after detachment. The compact tracker polls only
+the exact bound workflow every two seconds. Its widget appears only while that
+job is queued/running; other sessions' work cannot replace it. Job changes and
+shutdown invalidate in-flight output without stopping workers. Reload/resume
+follows the owned job without restarting; forks do not inherit ownership.
 
-Use `/progress` for the latest run and `/history [RUN_NAME]` for the shared
+Use `/progress` for this submission and `/history [RUN_NAME]` for the shared
 history browser. Runs page in groups of 50; every recorded harness/solution
 generation is accessible in pages of 20 with `[`/`]`. Reused harness evidence is
 labelled. The dashboard separates operator/worker identities, shows committed

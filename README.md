@@ -126,7 +126,7 @@ extension exposes exactly four Agentvolve commands:
 Describe the task normally, even with messy wording, and explicitly ask Agentvolve
 to solve it. It organizes requirements, labels inferred defaults as assumptions,
 and drafts executable checks for your review. It asks only essential task
-clarifications, plus a generation limit if none is saved; unknown facts are not
+clarifications and a freshly entered exact per-job generation cap; unknown facts are not
 invented. `/goal TEXT` uses the same preparation flow.
 
 Referenced files/directories and known project names (for example, `maze.html
@@ -144,7 +144,8 @@ Review selects the destination and includes the original request, requirements,
 assumptions, paths, checks, budgets, stopping, and final policy. Declining lets you
 optionally change destination or edit JSON; neither is required for normal use.
 Cancelling before approval creates no workspace and starts no worker. The last
-`/limit` (1–256) persists across goals/restores; a successful launch clears the
+`/limit` (1–256) persists as a suggestion across goals/restores, never silent
+approval for a new job; each submission asks for its exact cap. A successful launch clears the
 pending goal. Existing project selections persist; later unrelated casual tasks
 get fresh private workspaces. Existing runs/sessions need no migration.
 Preparation now reads actual pinned Git files, explicit local UTF-8 inputs, and
@@ -168,21 +169,27 @@ operator-entered correction before approval; cancellation starts nothing. Fixed
 preflight rejects budgets that cannot fund even one generation. Partially funded
 caps are allowed and disclosed. Existing budgets are never increased in place.
 
-Agentvolve is **off in new sessions**, leaving configured normal coding tools
-available. Say **“Activate Agentvolve”** to enter operator mode for this session
-only, or **“Deactivate Agentvolve”** to return to normal coding. Activation starts
-no task; deactivation only clears monitoring, never stops/signals workers, invokes
-recovery, changes evidence, or resets saved goals/limits. Excluded tools stay
-excluded. Repeated on/off requests are harmless. Reload/resume restores the last
-setting across `/tree` branches; new/fork/clone sessions start off. Legacy session
-records remain readable; see [session mode semantics](docs/coding-agent/operations.md#session-mode).
-Reload the reviewed extension to expose `workflow_deactivate`; no run migration
-or global configuration change is needed. For bootstrap maintenance of an older
-extension-locked session, launch `pi --no-extensions` instead.
+Agentvolve is a **delegated job, not a Pi session mode**. Ordinary configured
+read/write/edit/bash tools remain available before, during and after success,
+cancellation or failure; excluded tools stay excluded. Activation/deactivation
+actions and mode restoration are removed. `/goal` activates nothing. Reload the
+reviewed extension once: all historical active-mode records/messages are treated
+as history, never restrictions. No existing run or evidence needs migration.
 
-In operator mode, clarify a coding goal and explicitly ask Agentvolve to solve it. Pi keeps its current model while
-a separate detached worker uses the canonical runtime's provider/model/reasoning
-and finite budgets. Pi remains usable while evolution continues.
+Pi's interactive model may clarify and draft the review only. The existing detached
+worker executes isolated noninteractive Pi calls under its own pinned runtime,
+provider/model/reasoning, configuration and finite budgets. Task review displays
+both identities and the reused harness. New Pi jobs require an explicit compatible
+verified `METERING_EVOLUTION_HARNESS_DESCRIPTOR` and separate reviewed
+`METERING_PI_CONFIG_DIR`. No newest-harness guessing or automatic Level-2 setup:
+if no compatible seal exists, separately approve/budget the [harness setup](docs/coding-agent/operations.md#level-2-harness).
+Readiness failure reports an operator diagnosis; Agentvolve never starts or
+restarts a shared model service.
+
+Version/configuration isolation is **not** a sandbox for host Pi or immutable
+control-plane deployment. Controller/configuration paths remain operator-managed;
+use a separate reviewed stable installation. Editing the engine checkout used by
+a running worker is unsafe. This patch introduces no deployment/snapshot framework.
 
 You can also say **“manage the interrupted Agentvolve workflow”** to resume,
 authorize a reserved retry, stop, or close an inactive workflow as incomplete.
@@ -193,7 +200,14 @@ that workflow without claiming success. Old unmanaged legacy runs remain visible
 in `/history` and no longer block a separately reviewed new goal; no directory
 switching, deletion, automatic retry, or evidence migration is needed.
 
-`/progress` inspects the latest run, including a completed run. `/history` browses
+`/progress` and model-facing status/verification follow this session's exact
+submission, not the latest run. Preparation, failure/cancellation before launch,
+uncertain dispatch and acknowledged launch are distinguished. A newer failed
+request never presents an older result. Missing references report errors without
+fallback. Reload/resume follows the same owned job without restarting it;
+new/fork/clone sessions have no inherited ownership. Legacy sessions without
+submission records use explicit history. Selecting history never rebinds the job.
+Closing Pi or views and changing its model do not stop workers. `/history` browses
 all runs in pages of 50 and every recorded harness/solution generation in pages
 of 20, with stage reports and results. Reused harness evidence is labelled, not
 counted as new work. The dashboard refreshes every two seconds; `[`/`]` page
@@ -216,7 +230,8 @@ Build its local assets once with `npm ci --prefix apps/coding_agent/trace_ui` an
 `npm run build --prefix apps/coding_agent/trace_ui`. Git/evidence stay authoritative;
 no existing run is migrated or modified. The terminal view remains available.
 The compact widget appears only for a
-currently queued/running detached workflow and disappears when none is active.
+bound queued/running detached workflow and disappears when that job is inactive.
+New submissions and shutdown invalidate in-flight monitor output.
 
 Old `/evolve*`, `/agentvolve*`, and `/view-*` slash commands, the reference Pi
 tool, and low-level compatibility tool handlers are removed. Reload Pi with
@@ -311,7 +326,7 @@ modules before launching work, so dependency errors do not waste model calls.
 A [ten-task easy catalog](tests/fixtures/agentvolve_easy_tasks.json) and
 preparation-only helper support explicitly approved small live batches with
 separate final inputs. Routed workers require their own reviewed runtime and
-compatible sealed harness; the operator's “routed” mode is not a worker model.
+compatible sealed harness; the interactive model is not a worker execution identity.
 See [live batch preparation](docs/coding-agent/operations.md#ten-task-live-batches).
 The [2026-09-09 routed acceptance](docs/coding-agent/operations.md#recorded-five-task-routed-acceptance-2026-09-09)
 completed five distinct tasks, each in one generation, with protected checks and

@@ -126,10 +126,12 @@ import json, os, sys
 args = sys.argv[1:]
 if args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "check"]:
     print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1", "authority":"diagnostic-only"}}))
+elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "review"]:
+    print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
 elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "start"]:
     with open(os.environ["GOAL_LAUNCH_LOG"], "a") as log:
         log.write(json.dumps(args) + "\\n")
-    print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "action":"start", "pid":12345, "state":"queued", "workflow_id":"fixture", "workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))
+    print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "action":"start", "pid":12345, "state":"queued", "workflow_id":"a"*64, "workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))
 else:
     os.execv({str(shutil.which("uv"))!r}, [{str(shutil.which("uv"))!r}, *args])
 ''')
@@ -139,6 +141,7 @@ else:
         "PATH": str(bindir) + os.pathsep + os.environ["PATH"],
         "METERING_EVOLUTION_TASKS_DIR": str(tasks), "METERING_EVOLUTION_RUNS_DIR": str(runs),
         "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime),
+        "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(runtime),  # review/launch double only
         "GOAL_LAUNCH_LOG": str(launch_log), "GOAL_PROMPT_LOG": str(prompt_log), "GOAL_DRAFT": json.dumps(draft),
     })
     session = tmp_path / "session.jsonl"
@@ -198,7 +201,7 @@ else:
         assert "ASSISTANT_ANSWER_MUST_NOT_BECOME_TASK" not in recorded_prompt
 
         if underfunded:
-            events = rpc.prompt("/goal")  # cancel the budget correction
+            events = rpc.prompt("/goal", lambda e: {"value": "7"} if e.get("title", "").startswith("Enter the exact") else {"cancelled": True})  # cancel budget correction
             assert any(event.get("title", "").startswith("Agentvolve budget") for event in events)
             assert not launch_log.exists() and list(tasks.iterdir()) == []
 
@@ -207,7 +210,10 @@ else:
         def approve(event: dict) -> dict:
             nonlocal budget_inputs
             if event["method"] == "input":
-                assert underfunded and event["title"].startswith("Agentvolve budget"), "Saved /limit was lost"
+                if event["title"].startswith("Enter the exact"):
+                    assert "7" in event["placeholder"]
+                    return {"value": "7"}
+                assert underfunded and event["title"].startswith("Agentvolve budget")
                 budget_inputs += 1
                 return {"value": {1: "1800", 2: "1.5"}.get(budget_inputs, "30000")}
             if event["method"] == "select":
@@ -272,6 +278,8 @@ else:
                     assert "000-underfunded" in event["options"][0]
                 return {"value": event["options"][0]}
             if event["method"] == "input":
+                if event["title"].startswith("Enter the exact"):
+                    return {"value": "3"}
                 assert underfunded and event["title"].startswith("Agentvolve budget")
                 assert "3680" in event["title"] and "11040" in event["title"]
                 return {"value": "11040"}
@@ -283,7 +291,7 @@ else:
 
         events = rpc.prompt("/goal New independently checked goal", approve_template)
         assert len(launch_log.read_text().splitlines()) == 2, events
-        assert [event["method"] for event in seen] == (["select", "input", "confirm"] if underfunded else ["select", "confirm"])
+        assert [event["method"] for event in seen] == (["input", "select", "input", "confirm"] if underfunded else ["input", "select", "confirm"])
         if underfunded:
             assert legacy_template.read_bytes() == legacy_template_bytes
             second = json.loads(launch_log.read_text().splitlines()[-1])
@@ -310,6 +318,8 @@ else:
                     assert event["title"] == "Change task destination (optional)"
                     return {"value": "Enter another repository path"}
                 if event["method"] == "input":
+                    if event["title"].startswith("Enter the exact"):
+                        return {"value": "3"}
                     assert event["title"] == "Optional existing repository path"
                     return {"value": f'"{other}/subdir"'}
                 assert event["method"] == "confirm"
@@ -319,6 +329,8 @@ else:
             assert len(launch_log.read_text().splitlines()) == 2
 
             def approve_other(event: dict) -> dict:
+                if event["title"].startswith("Enter the exact"):
+                    return {"value": "3"}
                 assert event["method"] == "confirm", "Normal task flow must not request a path"
                 assert str(other) in event["message"]
                 return {"confirmed": True}

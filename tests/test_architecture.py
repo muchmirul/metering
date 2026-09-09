@@ -223,7 +223,7 @@ def test_harness_application_is_provider_neutral():
     assert offenders == []
 
 
-def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
+def test_pi_agentvolve_jobs_use_a_thin_fixed_connector_entrypoint():
     entrypoint = ROOT / ".pi/extensions/population-evolution.ts"
     assert entrypoint.read_text(encoding="utf-8") == (
         "export { default } from "
@@ -252,7 +252,9 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
         assert removed not in implementation
     assert 'from "./population_evolution_support.ts"' in implementation
     assert 'from "./agentvolve_dashboard.ts"' in implementation
-    assert "export async function codingWorkflowStatus" in support
+    assert "latestWorkerWorkflowRoot" not in support
+    assert "codingWorkflowStatus" not in support
+    assert "async function boundProgress" in implementation
     assert "export function decodeOperatorProgress" in support
     assert "export function decodeOperatorHistory" in support
     assert "export async function discoverTaskProfiles" in support
@@ -264,7 +266,6 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert 'name: "darwinian_coding"' in implementation
     assert 'label: "Agentvolve"' in implementation
     for action in (
-        '"workflow_activate"',
         '"workflow_from_session"',
         '"workflow_start"',
         '"workflow_status"',
@@ -272,11 +273,16 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
         '"workflow_verify"',
     ):
         assert action in implementation
-    assert "No task or worker was started by activation" in implementation
+    assert '"workflow_activate"' not in implementation
+    assert '"workflow_deactivate"' not in implementation
+    assert "modeActive" not in implementation
+    assert "agentvolve-submission-v1" in implementation
     assert "await chooseTaskProfile(ctx, repository, operationSignal)" in implementation
     assert "Register and run this reviewed task?" in implementation
     assert 'await pi.exec("uv", [' in implementation
-    assert 'await pi.exec("systemctl", ["--user", "restart", service]' in implementation
+    assert 'pi.exec("systemctl"' not in implementation
+    assert "executionReview" in implementation
+    assert "pi.setActiveTools(" not in implementation
     assert "pi.setModel(" not in implementation
     assert "pi.setThinkingLevel(" not in implementation
     assert "Agentvolve · choose model mode" not in implementation
@@ -311,9 +317,9 @@ def test_pi_population_mode_is_a_thin_fixed_connector_entrypoint():
     assert "`${marker} [${stage}/6] ${PROCESS_LABELS[stage]}`" in implementation
     assert "WORKFLOW_MONITOR_INTERVAL_MS = 2000" in support
     assert 'ACTIVE_WORKFLOW_STATUSES = new Set(["queued", "running"])' in implementation
-    assert "ACTIVE_WORKFLOW_STATUSES.has(summary.status)" in implementation
+    assert "ACTIVE_WORKFLOW_STATUSES.has(summary.state)" in implementation
     assert "latestUnfinishedCodingRun" not in support
-    assert "await startWorkflowMonitor(ctx)" in implementation
+    assert "void startWorkflowMonitor(ctx)" in implementation
     assert "ctx.ui.setWidget(WIDGET_KEY, undefined)" in implementation
     assert 'pi.on("session_shutdown"' in implementation
     assert "final-tasks.json" not in implementation + support + dashboard

@@ -35,6 +35,9 @@ def test_real_model_reads_referenced_input_before_task_review(tmp_path: Path):
     commit = git(source, "rev-parse", "HEAD")
     runs, tasks = tmp_path / "runs", tmp_path / "tasks"
     environment = {key: value for key, value in os.environ.items() if not key.startswith("METERING_EVOLUTION_")}
+    for name in ("METERING_EVOLUTION_RUNTIME_MANIFEST", "METERING_EVOLUTION_HARNESS_DESCRIPTOR"):
+        assert os.environ.get(name), f"{name} must explicitly select the reviewed execution setup"
+        environment[name] = os.environ[name]
     environment.update({"METERING_EVOLUTION_RUNS_DIR": str(runs), "METERING_EVOLUTION_TASKS_DIR": str(tasks)})
     provider = os.environ.get("METERING_PREPARATION_LIVE_PROVIDER", "llamacpp")
     model = os.environ.get("METERING_PREPARATION_LIVE_MODEL", "local")
@@ -57,6 +60,8 @@ def test_real_model_reads_referenced_input_before_task_review(tmp_path: Path):
                     assert event["title"] == "Register and run this reviewed task?", event
                     reviews.append(event)
                     rpc.send({"type": "extension_ui_response", "id": event["id"], "confirmed": False})
+                elif event.get("method") == "input" and event.get("title", "").startswith("Enter the exact"):
+                    rpc.send({"type": "extension_ui_response", "id": event["id"], "value": "1"})
                 elif event.get("method") in {"input", "select", "editor"}:
                     # Do not patch/retry the model's proposal to manufacture a pass.
                     rpc.send({"type": "extension_ui_response", "id": event["id"], "cancelled": True})

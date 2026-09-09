@@ -121,7 +121,7 @@ else: os.execv({real_uv!r}, [{real_uv!r}, *args])
 
         # /goal handles blockers before task/model preparation; cancelling cannot retire a run.
         rpc.prompt("/limit 2")
-        events = rpc.prompt("/goal A different task")
+        events = rpc.prompt("/goal A different task", lambda e: {"value": "2"} if e.get("title", "").startswith("Enter the exact") else {"cancelled": True})
         assert any(event.get("title", "").startswith("Agentvolve workflow:") for event in events)
         assert not (root / "closed.json").exists()
         assert not log.exists()
@@ -130,7 +130,7 @@ else: os.execv({real_uv!r}, [{real_uv!r}, *args])
             if event["method"] == "select":
                 return {"value": "Close as incomplete (keep evidence)"}
             if event["method"] == "input":
-                return {"value": "Operator leaves the old failed task in history"}
+                return {"value": "2" if event["title"].startswith("Enter the exact") else "Operator leaves the old failed task in history"}
             assert event["method"] == "confirm"
             assert "INCOMPLETE, not successful" in event["message"]
             assert not (root / "closed.json").exists()

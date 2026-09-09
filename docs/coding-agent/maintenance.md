@@ -98,9 +98,32 @@ These remain follow-up work, not guarantees of the refactor or first hardening i
 Each behavior/security fix needs its own reproduction, acceptance test, and
 compatibility decision. Do not bundle it invisibly into code movement.
 
+## Delegated-job maintenance
+
+The session-toggle architecture is replaced by session-owned submission records
+in `population_evolution_extension.ts`. They are orchestration diagnostics, not
+new experiment evidence. Only validated launch acknowledgement binds job ID/root;
+monitor/progress/verification never discover the latest run. Failed newer requests
+cannot inherit older results. Restoration never dispatches; forks inherit no
+ownership. Old activation records/messages impose no ordinary-tool restrictions.
+
+`connectors.fixed.pi.runtime review` is a read-only execution-approval boundary:
+exact runtime/Pi/configuration identities, explicit compatible verified reused
+harness and finite budgets. New Pi jobs neither guess a seal nor implicitly fund
+Level 2 or restart a model service. Controller/config paths remain operator-managed;
+use a stable separate reviewed installation. Pi pinning is not an immutable
+controller snapshot or host sandbox. Historical worker/evidence/replay contracts
+and the installed package remain unchanged.
+
+Deployed deterministic job tests replace mode tests and exercise actual ordinary
+Pi tools, fresh caps, cancellation/failure/uncertain acknowledgement, restoration,
+identity-specific views/verification, and initial/steady-state monitor races using
+test-owned boundary doubles. They do not prove live inference acceptance.
+
 ## Regression checks
 
 ```bash
+uv run --extra test pytest -q tests/test_agentvolve_jobs.py tests/test_agentvolve_pi_extension.py tests/test_pi_runtime_resolution.py
 uv run --extra test pytest -q tests/test_architecture.py tests/test_experiment_boundaries.py
 uv run --extra test pytest -q tests/test_coding_agent.py tests/test_harness_evolution.py
 uv run --extra test pytest -q tests/test_agentvolve_hardening.py tests/test_coding_output_checks.py tests/test_bounded_model_transport.py

@@ -6,12 +6,10 @@ import { fileURLToPath } from "node:url";
 
 import type { ExecResult } from "@earendil-works/pi-coding-agent";
 
-const WORKFLOW_RUN_NAME = /^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$/;
 const MAX_DIAGNOSTIC_CHARS = 4000;
 const DEFAULT_LLAMACPP_SERVICE = "llama-qwen38.service";
 const DEFAULT_LLAMACPP_HEALTH_URL = "http://127.0.0.1:8080/v1/models";
 
-export const LOCAL_RUNTIME_TIMEOUT_MS = 3 * 60 * 1000;
 export const WORKFLOW_MONITOR_INTERVAL_MS = 2000;
 export const PROCESS_LABELS: Record<number, string> = {
 	1: "Task and runtime configured",
@@ -27,12 +25,6 @@ export type CodingKind = "harness" | "solution";
 export interface ProcessProjection {
 	display: string;
 	stage: number;
-}
-
-export interface ModeSummary {
-	process?: string;
-	runRoot: string;
-	status: string;
 }
 
 export interface RuntimeSelection {
@@ -268,7 +260,7 @@ export async function llamaCppModelReady(selection: RuntimeSelection, signal?: A
 			headers: {
 				Authorization: `Bearer ${process.env.METERING_EVOLUTION_LLAMACPP_API_KEY ?? "llamacpp"}`,
 			},
-			signal,
+			signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
 		});
 		if (!response.ok) return false;
 		const value: unknown = await response.json();
@@ -346,34 +338,6 @@ export async function discoverTaskProfiles(): Promise<DiscoveredTaskProfile[]> {
 	return profiles;
 }
 
-export async function latestWorkerWorkflowRoot(): Promise<string | undefined> {
-	try {
-		const entries = await readdir(runsDirectory(), { withFileTypes: true });
-		return entries
-			.filter((entry) => entry.isDirectory() && WORKFLOW_RUN_NAME.test(entry.name))
-			.map((entry) => join(runsDirectory(), entry.name))
-			.sort()
-			.reverse()[0];
-	} catch {
-		return undefined;
-	}
-}
-
-export async function latestSealedHarnessRoot(): Promise<string | undefined> {
-	const pattern = /^harness-pi-\d{8}T\d{6}(?:\d{3})?Z(?:-\d+)?$/;
-	try {
-		const entries = await readdir(runsDirectory(), { withFileTypes: true });
-		return entries
-			.filter((entry) => entry.isDirectory() && pattern.test(entry.name))
-			.map((entry) => join(runsDirectory(), entry.name))
-			.filter((root) => existsSync(join(root, "selected-harness.json")))
-			.sort()
-			.reverse()[0];
-	} catch {
-		return undefined;
-	}
-}
-
 export function configuredTaskProfile(argument: string): string {
 	const supplied = argument.trim() || process.env.METERING_EVOLUTION_TASK_PROFILE;
 	if (!supplied) {
@@ -424,71 +388,6 @@ export function decodeOutput(result: ExecResult): Record<string, unknown> {
 		throw new Error("evolution command response must be a JSON object");
 	}
 	return value as Record<string, unknown>;
-}
-
-function text(value: unknown): string | undefined {
-	return typeof value === "string" ? value : undefined;
-}
-
-async function projectedWorkerAlive(root: string, status: Record<string, unknown>): Promise<boolean> {
-	const pid = integer(status.worker_pid);
-	const token = text(status.worker_start_token);
-	if (pid === undefined || pid <= 0 || token === undefined) return false;
-	try {
-		const stat = await readFile(join("/proc", String(pid), "stat"), "ascii");
-		if (stat.trim().split(/\s+/)[21] !== token) return false;
-		const command = await readFile(join("/proc", String(pid), "cmdline"));
-		const fields = command.toString("utf8").split("\0");
-		return fields.includes("apps.coding_agent.agentvolve_worker") && fields.includes(root);
-	} catch {
-		return false;
-	}
-}
-
-async function workerWorkflowStatus(root: string): Promise<ModeSummary> {
-	const statusValue: unknown = JSON.parse(await readFile(join(root, "worker-status.json"), "utf8"));
-	if (typeof statusValue !== "object" || statusValue === null || Array.isArray(statusValue)) {
-		throw new Error("Agentvolve worker status is malformed");
-	}
-	const status = statusValue as Record<string, unknown>;
-	const stage = integer(status.stage);
-	if (
-		status.authority !== "projection-only" ||
-		status.status_schema !== "agentvolve-worker-status-v1" ||
-		stage === undefined ||
-		!PROCESS_LABELS[stage] ||
-		status.stage_label !== PROCESS_LABELS[stage] ||
-		typeof status.state !== "string" ||
-		typeof status.workflow_id !== "string"
-	) {
-		throw new Error("Agentvolve worker status has an unexpected identity");
-	}
-	let state = text(status.state) ?? "unknown";
-	if (existsSync(join(root, "closed.json"))) {
-		const closure = JSON.parse(await readFile(join(root, "closed.json"), "utf8"));
-		if (closure?.closure_schema !== "agentvolve-workflow-closure-v1" || closure?.authority !== "operator-orchestration-only" || closure?.workflow_id !== status.workflow_id) throw new Error("Agentvolve workflow closure has an unexpected identity");
-		state = "closed-incomplete";
-	}
-	if (["queued", "running"].includes(state)) {
-		const updated = integer(status.updated_unix_ns);
-		const heartbeatAge = updated === undefined ? Number.POSITIVE_INFINITY : Date.now() - updated / 1_000_000;
-		const alive = await projectedWorkerAlive(root, status);
-		if (heartbeatAge >= 10_000 || (!alive && heartbeatAge >= 5_000)) state = "stalled";
-	}
-	return {
-		process: processProjection(stage).display,
-		runRoot: root,
-		status: state,
-	};
-}
-
-export async function codingWorkflowStatus(): Promise<ModeSummary> {
-	const workflow = await latestWorkerWorkflowRoot();
-	if (workflow && existsSync(join(workflow, "worker-status.json"))) return workerWorkflowStatus(workflow);
-	return {
-		runRoot: runsDirectory(),
-		status: "not started",
-	};
 }
 
 function requiredObject(value: unknown, label: string): Record<string, unknown> {

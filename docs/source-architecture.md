@@ -167,11 +167,18 @@ HTTP service. `trace_ui` contains the separately built TypeScript/Cytoscape.js U
 The existing Population SQLite schema and experiment engines are unchanged.
 Its four-command `/goal`, `/limit`,
 `/history`, `/progress` UI and model-facing actions
-present one streamlined conversational workflow, no-effect activation, direct
-reviewed-task summaries, an activation-scoped cross-session read-only run
-monitor/history browser, and a six-stage projection visible only while a
-detached worker is queued or running. Pi keeps its current operator model while nested evolution
-uses the manifest-pinned runtime. This UI choice does not rewrite the canonical
+present delegated jobs, never a session mode: ordinary configured tools remain
+unchanged, including restoration of historical sessions. Each submission records
+its attempt and binds only an acknowledged validated job ID/root. Progress,
+verification and the active-only monitor never substitute the latest registry run;
+explicit history inspection cannot rebind ownership. Reload/resume does not restart
+work; forks inherit no ownership. New submissions/shutdown invalidate pending
+monitor output. Every job reviews its exact cap, distinct worker runtime/config
+and explicit compatible verified harness: no newest-seal guessing, implicit
+Level-2 costs or shared-service restart. Pi keeps its interactive drafting model
+while isolated nested evolution uses the manifest-pinned runtime. Stable controller
+installation/config paths remain operator-managed, not automatically snapshotted
+or protected from host Pi by version isolation. This UI choice does not rewrite the canonical
 manifest used by nested calls and does not move recurrence, evaluation, final
 tasks, runtime identity, or selection authority into Pi.
 Generic clone/content/commit mechanics stay in
@@ -259,9 +266,9 @@ candidate, records both draws, and replays them offline before any protected
 case evidence is accepted. No weighted score or protected evidence participates.
 
 The Pi project extension is trusted host UI only. Its model-facing coding tool
-accepts a fixed action enum for no-effect activation, user-message-only reviewed
-task preparation, start, status/history, verification, and compatibility
-actions. No tool action argument can carry task text, a profile path, evaluator
+accepts a fixed action enum for user-message-only reviewed task preparation,
+start, job-bound status/verification, explicit history inspection and directly
+reviewed management. Activation/deactivation actions are removed. No tool action argument can carry task text, a profile path, evaluator
 argv, a candidate, or an output path; internal draft generation remains subject
 to direct operator review. Candidate actions remain confined to the separately
 launched OCI kernel.

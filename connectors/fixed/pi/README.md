@@ -68,7 +68,7 @@ fixed isolation boundary and do not inherit the operator session.
 /limit 10                      save a finite generation cap (1–256)
 /goal Describe the problem     review the task, then start detached work
 /history [RUN_NAME]            browse runs, full recorded traces, stage reports, results
-/progress                      inspect the most recent run
+/progress                      inspect this session's exact submission
 ```
 
 `/goal` and conversational starts work in casual sessions without requesting a
@@ -97,7 +97,9 @@ new goal. Direct task approval is mandatory before launch in both TUI and RPC.
 Cancel or invalid input starts no worker. A pending goal may be resubmitted with
 argument-free `/goal`; successful launch clears that goal but retains the limit
 and any existing-project selection.
-`/limit` affects future tasks only. Restoring a session starts no task.
+`/limit` is a suggestion for future tasks only. Each new submission requires a
+fresh exact 1–256 cap; stale saved values are not execution approval.
+Restoring a session starts no task.
 
 A new draft uses user messages plus actual source snapshots from bounded fixed
 inspection, never assistant answers or prior tool output. Git input is commit-pinned;
@@ -130,15 +132,13 @@ cancellation; there is no automatic increase. A correction applies only to the
 new reviewed task, never an old profile/run. A partially funded cap remains
 allowed and is disclosed. Preflight rechecks affordability before worker launch.
 
-Agentvolve defaults off with configured normal coding tools available. Say
-“Activate Agentvolve” for session-local operator mode (no task, model, service,
-or worker starts), or “Deactivate Agentvolve” to return to normal coding.
-Deactivation clears monitoring only: it never signals/stops workers, invokes
-recovery, edits evidence, or resets goals/limits. Excluded tools stay excluded.
-Reload/resume restores the last setting across `/tree` branches; new/fork/clone
-sessions start off. See [session/legacy semantics](../../../docs/coding-agent/operations.md#session-mode).
-In operator mode, clarify a coding goal, then explicitly ask it to solve it.
-The `darwinian_coding` tool exposes only `workflow_activate`, `workflow_deactivate`,
+Agentvolve is a delegated job using isolated noninteractive Pi calls, not an
+interactive session mode. Activation/deactivation actions and mode restoration
+are removed. Reload once; historical mode output never restricts ordinary tools,
+even in old active sessions. Configured tools/model/thinking stay unchanged and
+excluded tools stay excluded. See [job semantics and migration](../../../docs/coding-agent/operations.md#delegated-jobs-and-reload-migration).
+Clarify a goal, then explicitly ask Agentvolve to solve that job.
+The `darwinian_coding` tool exposes only
 `workflow_from_session`, `workflow_start`, `workflow_status`, `workflow_history`,
 `workflow_verify`, and operator-reviewed `workflow_manage`. The action schema
 accepts no task text, command, evaluator,
@@ -148,9 +148,18 @@ the separate worker stays bound to the reviewed runtime manifest.
 
 ### Progress and history
 
-The compact widget is visible only while the latest detached workflow is truly
-queued/running, never for an abandoned legacy directory or finished run. In
-contrast, explicit `/progress` shows the latest run even after completion.
+Each submission persists a session-owned attempt: preparing, not-launched,
+cancelled/failed, uncertain-dispatch or launched. Only a validated successful start
+acknowledgement binds its returned workflow ID/root. The compact widget follows
+that job only while queued/running. /progress and verification also follow that
+exact submission, including terminal or failure-to-launch status. A newer failed
+request cannot display an older result. Missing/mismatched references fail closed;
+no latest-run fallback exists. Interrupted dispatch may have launched work; inspect
+explicit history/reviewed management rather than automatically retrying.
+Reload/resume across branches follows the owned job without restart; new/fork/clone
+sessions do not inherit ownership. Old sessions lacking submission records inspect
+history explicitly. History selection never rebinds the current job. Submission
+changes/shutdown invalidate in-flight monitor output and timers, not workers.
 `/history` pages through runs, newest first, 50 per page; selecting one opens its
 six stages, complete stage summaries, result identity/patch location, and all
 recorded harness/solution generations in pages of 20. Reused harness evidence is
@@ -224,10 +233,29 @@ Advanced caller-reviewed absolute overrides:
 - `METERING_EVOLUTION_RUNS_DIR`;
 - `METERING_EVOLUTION_TASKS_DIR`;
 - `METERING_EVOLUTION_TASK_PROFILE` (must target the operator-selected Git repository);
-- `METERING_EVOLUTION_HARNESS_DESCRIPTOR` (original sealed source, never rewritten).
+- `METERING_EVOLUTION_HARNESS_DESCRIPTOR` (**required for new Pi jobs**: original
+  compatible verified sealed source, never guessed from the newest run);
+- `METERING_PI_CONFIG_DIR` (**required for new Pi jobs**: separate reviewed worker
+  configuration with models.json and provisioned auth, not interactive Pi's directory).
+
+Read-only `python -m connectors.fixed.pi.runtime review RUNTIME.json HARNESS.json`
+verifies the seal and displays exact Pi/version/provider/model/reasoning, runtime,
+OCI resources, model budgets, worker config path/models digest and harness identity.
+Pi includes that review alongside the full task contract and repeats it before
+dispatch, refusing changed configuration. No compatible seal means separately
+approved/budgeted [Level-2 setup](../../../docs/coding-agent/operations.md#level-2-harness),
+not implicit setup costs or a model substitution. The legacy worker CLI/replay is
+unchanged.
+
+Controller/config/auth paths remain operator-managed. Use a separate reviewed
+stable installation, not the live engine checkout you intend to edit. Workers
+still load trusted code from installed source paths; Pi version/config isolation
+is not immutable control-plane deployment or a host-session sandbox. No automatic
+snapshot/deployment framework is added; routing aliases do not fully bind weights.
 
 For a `llamacpp` worker, readiness defaults to `llama-qwen38.service`,
 `http://127.0.0.1:8080/v1/models`, and key `llamacpp`. Reviewed overrides are
 `METERING_EVOLUTION_LLAMACPP_SERVICE`, `METERING_EVOLUTION_LLAMACPP_HEALTH_URL`, and
-`METERING_EVOLUTION_LLAMACPP_API_KEY`. Only approved start checks/starts that
-service; loading, activation, and viewing never do.
+`METERING_EVOLUTION_LLAMACPP_API_KEY`. Approved submission only checks readiness;
+it never starts/restarts the service. Failure asks the operator to diagnose and
+separately arrange safe startup without disrupting existing sessions.

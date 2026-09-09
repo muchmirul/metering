@@ -106,9 +106,11 @@ import json, os, sys
 args=sys.argv[1:]
 if args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","check"]:
  print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1","authority":"diagnostic-only"}}))
+elif args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","review"]:
+ print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
 elif args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","start"]:
  with open(os.environ["LAUNCHES"], "a") as stream: stream.write(json.dumps(args)+"\\n")
- print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1","action":"start","pid":12345,"state":"queued","workflow_id":"fixture","workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))
+ print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1","action":"start","pid":12345,"state":"queued","workflow_id":"a"*64,"workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))
 else:
  if args[:4] == ["run","python","-m","apps.coding_agent.task_sources"]:
   with open(args[4]) as source: assert json.load(source)["urls"] == [], "No network effects are authorized in this deployed fixture"
@@ -120,6 +122,7 @@ else:
     prompts, launches = tmp_path / "prompts.jsonl", tmp_path / "launches.jsonl"
     environment = {key: value for key, value in os.environ.items() if not key.startswith("METERING_EVOLUTION_")}
     environment.update({"PATH": str(bindir) + os.pathsep + os.environ["PATH"], "DRAFTS": json.dumps(responses), "PROMPTS": str(prompts), "LAUNCHES": str(launches),
+        "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(runtime),
         "METERING_EVOLUTION_TASKS_DIR": str(tasks), "METERING_EVOLUTION_RUNS_DIR": str(tmp_path / "runs"), "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime)})
     process = subprocess.Popen(["pi", "--mode", "rpc", "--no-session", "--no-extensions", "-e", str(EXTENSION), "-e", str(provider), "--provider", "grounding-fixture", "--model", "fixture"],
         cwd=tmp_path, env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -129,6 +132,9 @@ else:
         rpc.prompt("/limit 2")
         reference = "board.txt in referenced-project repo" if mode == "named" else str(root / "board.txt")
         def dialog(event):
+            if event["method"] == "input":
+                assert event["title"].startswith("Enter the exact")
+                return {"value": "2"}
             if event["method"] == "select":
                 if event["title"] == "Task preparation needs attention":
                     return {"value": "Edit task details (advanced JSON)"} if mode in {"correct", "fix-timeout", "fix-scalar-stdout"} else {"cancelled": True}

@@ -46,13 +46,14 @@ def test_existing_target_errors_do_not_draft_or_start(tmp_path: Path, target_kin
     )
     try:
         rpc = RPC(process)
-        events = rpc.prompt("/goal Test the selected project")
+        events = rpc.prompt("/goal Test the selected project", lambda e: {"value": "2"} if e.get("title", "").startswith("Enter the exact") else {"cancelled": True})
         diagnostic = {
             "dirty": "uncommitted changes", "untracked": "uncommitted changes",
             "unborn": "readable committed HEAD", "mismatch": "configured task belongs to another repository",
         }.get(target_kind, "Cannot open Git repository")
         assert any(diagnostic in event.get("message", "") for event in events), events
-        assert not any(event.get("method") in {"input", "select"} for event in events)
+        assert not any(event.get("method") == "select" for event in events)
+        assert all(event["title"].startswith("Enter the exact") for event in events if event.get("method") == "input")
         assert all(event.get("title") == "Use a new private workspace instead?" for event in events if event.get("method") == "confirm")
         assert not tasks.exists() and not runs.exists()
         if target_kind == "dirty":

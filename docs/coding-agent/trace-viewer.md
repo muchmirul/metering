@@ -21,7 +21,8 @@ runtime dependency is added to the installed Metering package.
 In Pi:
 
 1. Run `/reload` after updating the extension.
-2. Open `/history` and choose a run, or use `/progress` for the latest run.
+2. Open `/history` and choose a run, or use `/progress` for this session's bound
+   submission. History selection never changes that binding.
 3. Press **g** for Trace Viewer. Pi requests the default browser on Linux/macOS
    when its platform opener is available and always prints the local URL.
 4. **t** still opens the terminal tree/report browser. Its **Open Trace Viewer**
@@ -29,7 +30,7 @@ In Pi:
 5. RPC clients choose **Open Trace Viewer** and receive the local URL without a
    browser process being opened on their behalf.
 
-No fifth Agentvolve slash command is registered. Loading Pi, activation, status
+No fifth Agentvolve slash command is registered. Loading Pi, job status
 polling, and model-facing tools never start this viewer.
 
 Without Pi:

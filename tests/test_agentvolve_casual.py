@@ -69,11 +69,13 @@ import json, os, sys
 args = sys.argv[1:]
 if args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "check"]:
     print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1", "authority":"diagnostic-only"}}))
+elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "review"]:
+    print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
 elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "start"]:
     with open(os.environ["CASUAL_LAUNCHES"], "a") as log:
         log.write(json.dumps(args) + "\\n")
     print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "action":"start", "pid":12345,
-        "state":"queued", "workflow_id":"fixture", "workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))
+        "state":"queued", "workflow_id":"a"*64, "workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))
 else:
     os.execv({real_uv!r}, [{real_uv!r}, *args])
 ''')
@@ -84,6 +86,7 @@ else:
     environment.update({
         "PATH": str(bindir) + os.pathsep + os.environ["PATH"], "METERING_EVOLUTION_TASKS_DIR": str(tasks),
         "METERING_EVOLUTION_RUNS_DIR": str(tmp_path / "runs"), "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime),
+        "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(runtime),  # review/launch double
         "CASUAL_DRAFT": json.dumps(document), "CASUAL_PROMPTS": str(tmp_path / "prompts.jsonl"), "CASUAL_LAUNCHES": str(launch_log),
     })
     process = subprocess.Popen(
@@ -97,7 +100,9 @@ else:
             reviews = []
 
             def review(event: dict) -> dict:
-                assert event["method"] != "input", "Casual tasks must not request a path"
+                if event["method"] == "input":
+                    assert event["title"].startswith("Enter the exact"), "Casual tasks must not request a path"
+                    return {"value": "2"}
                 if event["method"] == "select":
                     assert event["title"] == "Task not approved"
                     return {"cancelled": True}

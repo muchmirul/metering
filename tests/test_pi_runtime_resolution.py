@@ -127,6 +127,73 @@ def test_wrapper_passes_exact_transport_only_to_unchanged_worker(
     assert runtime.main(["retry", "/old/run", ""]) == 2
 
 
+def test_execution_review_requires_compatible_verified_harness_and_separate_config(clean, monkeypatch):
+    from types import SimpleNamespace
+    from apps.coding_agent import harness_workspace_editor
+    from apps.harness import experiment_replay
+
+    manifest = SimpleNamespace(model={"connector": "pi-v1", "provider": "pinned-provider", "model": "pinned-model", "reasoning": "medium", "implementation_version": "0.84.4"},
+        runtime_id="a" * 64, isolation_enforced=True, document={"kernel": {"image": "reviewed@sha256:" + "b" * 64}},
+        max_model_calls=4, model_timeout_seconds=60)
+    descriptor = {"runtime_id": "a" * 64, "candidate_id": "c" * 64,
+        "provenance": {"final_passed_count": 3, "final_task_count": 3, "final_safety_failures": 0}}
+    harness = clean / "selected-harness.json"
+    harness.write_text("verified fixture descriptor")
+    config = clean / "worker-config"
+    config.mkdir()
+    (config / "models.json").write_text('{"providers":{"pinned-provider":{"baseUrl":"https://reviewed.invalid"}}}')
+    monkeypatch.setenv("METERING_PI_CONFIG_DIR", str(config))
+    monkeypatch.setenv("PI_CODING_AGENT_DIR", str(clean / "interactive"))
+    monkeypatch.setattr(runtime, "load_runtime_manifest", lambda _: manifest)
+    monkeypatch.setattr(harness_workspace_editor, "load_harness_descriptor", lambda _: descriptor)
+    verified = []
+    monkeypatch.setattr(experiment_replay, "verify_experiment", lambda root: verified.append(root) or {"assay": "coding-agent-v1"})
+    monkeypatch.setattr(runtime, "check", lambda _: {"command": ["/pinned/pi"], "authority": "diagnostic-only", "runtime_id": manifest.runtime_id})
+    reviewed = runtime.review(clean / "runtime.json", harness)
+    assert verified == [clean]
+    assert reviewed["model"] == manifest.model
+    assert reviewed["worker_configuration"] == str(config)
+    assert reviewed["max_model_calls_per_execution"] == 4
+    assert reviewed["level_2_setup"] == "none; reused verified seal"
+    (config / "models.json").write_text('{"providers":{}}')
+    assert runtime.review(clean / "runtime.json", harness)["worker_models_sha256"] != reviewed["worker_models_sha256"]
+    descriptor["runtime_id"] = "d" * 64
+    with pytest.raises(runtime.PiRuntimeError, match="differs from required.*separately approve/budget"):
+        runtime.review(clean / "runtime.json", harness)
+    descriptor["runtime_id"] = manifest.runtime_id
+    monkeypatch.setenv("PI_CODING_AGENT_DIR", str(config))
+    with pytest.raises(runtime.PiRuntimeError, match="separate reviewed worker"):
+        runtime.review(clean / "runtime.json", harness)
+    monkeypatch.setenv("PI_CODING_AGENT_DIR", str(clean / "interactive"))
+    monkeypatch.setattr(experiment_replay, "verify_experiment", lambda _: (_ for _ in ()).throw(ValueError("invalid seal")))
+    with pytest.raises(ValueError, match="invalid seal"):
+        runtime.review(clean / "runtime.json", harness)
+
+
+def test_fixed_worker_model_routing_and_configuration_do_not_use_interactive_selection(clean, monkeypatch):
+    from connectors.fixed.pi.environment import isolated_configuration
+    from connectors.fixed.pi.harness_model import _command
+
+    config = clean / "worker-config"
+    config.mkdir()
+    (config / "models.json").write_text('{"providers":{"worker":{"baseUrl":"https://reviewed.invalid"}}}')
+    interactive = clean / "interactive"
+    monkeypatch.setenv("METERING_PI_CONFIG_DIR", str(config))
+    monkeypatch.setenv("PI_CODING_AGENT_DIR", str(interactive))
+    monkeypatch.setenv("PI_PROVIDER", "interactive-provider")
+    monkeypatch.setenv("PI_MODEL", "interactive-model")
+    monkeypatch.setenv("METERING_PI_COMMAND", '["/pinned/pi"]')
+    for key, value in {"PROVIDER": "worker", "MODEL": "worker-model", "REASONING": "medium"}.items():
+        monkeypatch.setenv("METERING_HARNESS_" + key, value)
+    with isolated_configuration():
+        assert Path(os.environ["PI_CODING_AGENT_DIR"]) == config
+        args = _command({"system_prompt": "fixed", "prompt": "isolated payload"})
+        assert args[:7] == ["/pinned/pi", "--provider", "worker", "--model", "worker-model", "--thinking", "medium"]
+        assert {"--no-session", "--no-extensions", "--no-skills", "--no-tools", "--no-context-files", "--no-prompt-templates"} <= set(args)
+        assert "interactive-model" not in args
+    assert os.environ["PI_CODING_AGENT_DIR"] == str(interactive)
+
+
 @pytest.mark.parametrize(
     "binary", [shutil.which("pi"), str(PINNED) if PINNED.is_file() else None]
 )

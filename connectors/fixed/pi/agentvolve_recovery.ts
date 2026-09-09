@@ -115,5 +115,5 @@ export async function manageWorkflow(
 		result.workflow_root !== root || result.action !== action || typeof result.state !== "string") throw new Error("Agentvolve returned an unexpected operation response; inspect progress before retrying.");
 	pi.appendEntry("agentvolve-workflow-operation", result);
 	return { status: result.state, message: action === "close" ? "Workflow closed as incomplete. Evidence is preserved and new goals are unblocked."
-		: `Agentvolve ${action} requested for ${root}. Use /progress; completion is not yet established.` };
+		: `Agentvolve ${action} requested for ${root}. Inspect /history ${basename(root)}; this selection does not rebind the session's submitted job. Completion is not yet established.` };
 }

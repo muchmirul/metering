@@ -47,16 +47,15 @@ heredity. Only validated Git commits reproduce.
 [6/6] Result ready for review
 ```
 
-Agentvolve is off in new Pi sessions; configured normal coding tools remain
-available. Say “Activate Agentvolve” for session-local operator mode and
-“Deactivate Agentvolve” to return to normal coding. Reload/resume preserves the
-last setting across branches; new/fork/clone sessions start off. Activation
-starts no task. Deactivation only clears monitoring: workers, evidence, saved
-limits and goals are unchanged, and excluded tools stay excluded. See
-[session/legacy semantics](operations.md#session-mode). While active, describe
-and clarify a coding goal in ordinary conversation. The four commands are `/goal`, `/limit`, `/history`, and
-`/progress`. Set `/limit N`, then submit `/goal PROBLEM`; `/goal` asks for a limit
-if missing and works from casual sessions without repository/path input. Messy
+Agentvolve is a delegated job using isolated noninteractive Pi calls, not a
+session mode. Ordinary configured tools remain available at all times; excluded
+tools stay excluded. Activation/deactivation and mode restoration are removed.
+Reload once: historical active-mode output is never current restriction.
+See [job and migration semantics](operations.md#delegated-jobs-and-reload-migration).
+Clarify a coding goal in ordinary conversation. The four commands remain `/goal`,
+`/limit`, `/history`, and `/progress`. /limit saves a suggested cap; every /goal asks
+for the exact directly approved cap for that job. Casual sessions need no
+repository/path input. Messy
 requests become organized requirements, explicit assumptions, and proposed checks
 for direct review. It resolves referenced files and known project names, inspects
 actual bounded source snapshots, and binds their provenance/content and read-only
@@ -67,18 +66,23 @@ It proposes an existing project when available; otherwise,
 approval creates a private Git seed with TASK.md and empty output files before
 launching the detached workflow. Existing projects need a clean committed HEAD
 and are never initialized/committed automatically. Task review selects the
-destination; declining offers an optional change. The limit and existing-project
+destination; declining offers an optional change. The suggested limit and existing-project
 selection persist; unrelated later casual tasks get fresh workspaces. Pi's cwd
 does not change, and essential missing facts are clarified rather than invented. Pi can
 also prepare a reviewed canonical task from user messages and inspected sources after an
 explicit conversational solve request.
 There is no model picker: Pi keeps its normal interactive `/model` and starts a
 separate detached worker whose identity and budgets remain pinned to the
-canonical runtime manifest. Launch returns immediately. While operator mode is
-active, the monitor polls the shared run directory across sessions; its compact
-`[1/6]`–`[6/6]` widget appears only while a detached workflow is queued or
-running and clears when no worker is active. `/progress` inspects the latest
-run, including a finished run; `/history` browses past runs, all recorded
+canonical runtime manifest. Review shows the distinct interactive drafting model
+and worker Pi/version/provider/configuration/runtime/harness identities. An explicit
+compatible verified harness and separate worker configuration are required; no
+newest-harness guess, implicit Level-2 setup or model-service restart is allowed.
+See [setup and operational risks](operations.md). Launch returns after detachment.
+The compact `[1/6]`–`[6/6]` widget follows only the bound queued/running job.
+/progress and verification follow the exact submission, including failure to launch;
+newer unrelated runs and older results never replace it. Reload/resume does not
+restart work; forks do not inherit ownership. /history selection never rebinds it.
+`/history` browses past runs, all recorded
 generations in bounded pages, completed-stage reports, and results. Operators do not choose between internal
 harness and solution levels. Say “manage the interrupted Agentvolve workflow”
 for directly approved resume, reserved retry, stop, verification, or permanent

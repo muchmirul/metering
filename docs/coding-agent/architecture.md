@@ -56,21 +56,24 @@ This preserves attribution.
 
 ## Operator and worker processes
 
-Interactive Pi is the operator, not the evolution executor. Conversational
-Agentvolve activation/deactivation changes only session mode (default off).
-Normal coding tools retain their configured availability. Activation starts no
-task; deactivation invalidates monitor reads/timers without signalling workers,
-invoking recovery, changing evidence, or resetting configuration. Mode records
-bind the Pi session UUID and restore across branches, reload, and resume; copied
-fork records cannot activate a new session. See [legacy handling](operations.md#session-mode).
-`/limit`
-sets a finite generation cap. After a canonical task is selected or prepared
+Interactive Pi clarifies/drafts/reviews a delegated job, not an evolution mode.
+Activation/deactivation and mode restoration are removed. Historical active-mode
+output never restricts normal configured tools; no model/thinking/tool-list
+changes occur. The worker uses existing isolated noninteractive Pi calls, not
+host-session sharing or another engine. /limit saves a suggestion; each job asks
+for its exact directly approved cap. See [migration and ownership](operations.md#delegated-jobs-and-reload-migration). After a canonical task is selected or prepared
 from user-only session messages and directly reviewed, `/goal` or the
 model-facing start action launches `apps.coding_agent.agentvolve_worker` in a
 detached session and returns control to Pi. The worker alone sequences harness
 and solution effects using the canonical runtime manifest. It owns a
 workflow-scoped inherited file lock, bounded logs, heartbeat/liveness identity,
-and canonical ordinal start/resume/retry/verify jobs. Closing Pi or the live
+and canonical ordinal start/resume/retry/verify jobs. Session submission records
+separately distinguish preparation, not-launched/cancelled/failed, uncertain
+dispatch and acknowledged launch. Only the returned validated workflow ID/root
+binds a job; progress/monitor/verification never substitute the latest registry run.
+New submissions and shutdown invalidate in-flight monitor results. Reload/resume
+follows the owned job without restarting; forks do not inherit ownership. Explicit
+history selection does not rebind it. Closing Pi or the live
 dashboard does not attach to, cancel, or change that worker. Unmanaged legacy
 experiment directories remain history, not detached-registry locks. Current
 unfinished workflows require explicit recovery or closure before a new start.
@@ -165,13 +168,26 @@ disable them before a sensitive run. This repository ships one thin project
 extension shim for the reviewed implementation. The operator model may differ
 from the manifest-pinned worker model; the dashboard labels both identities.
 The model-facing action enum cannot supply task text, commands, evaluators,
-candidates, output paths, profile paths, or retry authority. It may activate
-operator mode without effects, read progress/history, or request a task draft
+candidates, output paths, profile paths, or retry authority. It may read
+job-bound progress, explicitly selected history, or request a task draft
 from user-only session messages; that draft still requires direct operator
 review before fixed registration. The instruction to invoke run actions only
 after a user request is prompt policy rather than an OS security boundary.
 
 Candidate code and candidate-owned extensions are never loaded into the host Pi.
+New Pi jobs require an explicit compatible verified sealed harness and a separate
+reviewed worker configuration. Task review displays runtime/worker/harness identity
+and budgets separately from interactive drafting. No implicit Level-2 setup,
+newest-harness guess or automatic model-service start/restart is allowed.
+
+Pinned Pi version isolation is NOT immutable controller deployment. Controller,
+configuration, auth and provenance paths remain operator-managed; a separate
+reviewed stable installation is required operationally. Workers still load trusted
+code from that installation: editing the engine checkout or routing configuration
+while they run is unsafe. No automatic snapshot/deployment framework is supplied.
+Normal edits to the task working tree do not replace its approved base commit,
+immutable candidates or evidence; this is not a promise that host Pi is confined.
+
 Nested Pi calls use isolated configuration roots with tools, sessions, skills,
 extensions, discovered resources, and ambient context disabled; coding tools
 exist only as fixed functions inside the OCI kernel.
