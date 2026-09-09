@@ -145,8 +145,11 @@ execute during setup. Existing projects must be clean and committed and are
 never initialized/committed automatically; Pi's cwd is unchanged. Ordinary
 configured tools/model/thinking remain unchanged throughout jobs; historical mode
 records never restore restrictions. New jobs require explicit compatible verified
-harness and separate reviewed worker configuration, with no newest-harness guess,
-implicit Level-2 costs or shared-service restart. Controller paths remain
+harness and separate reviewed worker configuration, selectable through a
+session-native dialog without exports, restart or a second interactive Pi.
+Selection starts no job and affects future reviews only; each approved job gets
+private models/auth files and a command binding for recovery. No newest-harness
+guess, implicit Level-2 costs or shared-service restart occurs. Controller paths remain
 operator-managed; a stable separate installation is operationally required, not
 automatically snapshotted or sandboxed by Pi version isolation. Fixed code can discover reviewed profiles,
 derive the exact goal, clean `HEAD`, finite generations, and draws, and start

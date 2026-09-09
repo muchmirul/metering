@@ -75,8 +75,12 @@ There is no model picker: Pi keeps its normal interactive `/model` and starts a
 separate detached worker whose identity and budgets remain pinned to the
 canonical runtime manifest. Review shows the distinct interactive drafting model
 and worker Pi/version/provider/configuration/runtime/harness identities. An explicit
-compatible verified harness and separate worker configuration are required; no
-newest-harness guess, implicit Level-2 setup or model-service restart is allowed.
+compatible verified harness and separate worker configuration are required. Say
+“configure Agentvolve” to select existing setup in this session; `/goal` offers the
+dialog when defaults are absent. No exports, second interactive Pi or restart is
+needed. Selection starts no job and affects future approvals only. New jobs own
+private models/auth file copies and a bound command; recovery ignores changed
+session configuration. No newest-harness guess, implicit Level-2 setup or model-service restart is allowed.
 See [setup and operational risks](operations.md). Launch returns after detachment.
 The compact `[1/6]`–`[6/6]` widget follows only the bound queued/running job.
 /progress and verification follow the exact submission, including failure to launch;

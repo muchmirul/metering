@@ -9,6 +9,8 @@ import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 
 import { manageWorkflow, registryStatus } from "./agentvolve_recovery.ts";
+import { completeExecution, configureExecution, executionDefaults, executionRecord, restoreExecution, reviewExecution,
+	type ExecutionConfiguration, type ExecutionReview } from "./agentvolve_execution.ts";
 import { mentionedRepositories, parseDraftJson, TaskInputInspector } from "./agentvolve_task_inputs.ts";
 import { openTraceViewer } from "./agentvolve_trace_viewer.ts";
 import { showCandidateBrowser } from "./agentvolve_candidate_browser.ts";
@@ -32,7 +34,6 @@ import {
 	PROCESS_LABELS,
 	repositoryRoot,
 	runsDirectory,
-	runtimeManifest,
 	type RuntimeSelection,
 	tasksDirectory,
 	WORKFLOW_MONITOR_INTERVAL_MS,
@@ -71,13 +72,14 @@ class AgentvolveInputRequired extends Error {}
 
 const CODING_TOOL_DESCRIPTION = [
 	"Prepare a directly reviewed Agentvolve job, start its detached workflow, or inspect job progress, history and offline verification.",
-	"Manage selected interrupted workflows through an operator-approved dialog.",
+	"Configure this session's background worker or manage selected interrupted workflows through operator-approved dialogs.",
 	"Its action schema accepts no task text, command, evaluator, candidate, profile path, retry reason, or output path.",
 	"Each job requires a directly entered generation cap and task/runtime/harness approval.",
 ].join(" ");
 const CODING_TOOL_GUIDELINE = [
 	"Use darwinian_coding workflow_from_session or workflow_start only for an explicit Agentvolve solve request.",
 	"Agentvolve is a delegated job with isolated noninteractive Pi calls, not a mode of this assistant.",
+	"Use workflow_configure for an explicit worker-configuration request; select reviewed paths in the dialog without restarting Pi or exporting global variables. Configuration alone never starts a job.",
 	"Ordinary configured tools remain available before, during and after any job or failure.",
 	"workflow_status and workflow_verify target this session's exact submission, never the latest registry run.",
 	"workflow_history inspects other runs without binding them; workflow_manage requires direct job-selected recovery approval.",
@@ -93,13 +95,6 @@ interface Submission {
 	goal?: string;
 	diagnostic?: string;
 	workflow?: WorkerResponse;
-}
-
-interface ExecutionReview {
-	manifest: string;
-	harness: string;
-	document: Record<string, unknown>;
-	summary: string;
 }
 
 const SESSION_TASK_SYSTEM_PROMPT = `You create an Agentvolve task draft from user messages and inspected, versioned source snapshots.
@@ -281,6 +276,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	let submission: Submission | undefined;
 	let sessionOpen = true;
 	let workflowConfiguration: WorkflowConfiguration = {};
+	let executionConfiguration: ExecutionConfiguration | undefined;
+	let executionConfigurationInvalid = false;
 	let preparing = false;
 	let operationController: AbortController | undefined;
 	let monitor: ReturnType<typeof setInterval> | undefined;
@@ -399,39 +396,53 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		throw new AgentvolveInputRequired(`${selection.provider}/${selection.model} is not ready. Inspect ${llamaCppService()} and the reviewed endpoint/configuration. Arrange safe startup separately with the operator; Agentvolve never starts or restarts a shared model service.`);
 	}
 
-	async function executionReview(ctx: ExtensionContext, signal: AbortSignal): Promise<ExecutionReview> {
-		const manifest = runtimeManifest();
-		const harness = process.env.METERING_EVOLUTION_HARNESS_DESCRIPTOR?.trim();
-		if (!harness || !isAbsolute(harness) || !existsSync(harness)) throw new AgentvolveInputRequired(
-			"Set METERING_EVOLUTION_HARNESS_DESCRIPTOR to an explicit compatible sealed selected-harness.json. No newest-harness guessing or implicit Level-2 setup is allowed. If none exists, separately review/budget apps/harness/experiment.py coding-pi NEW_HARNESS_ROOT RUNTIME.json, verify that run, then configure its original descriptor. Do not change registries to bypass blockers.");
-		const document = decodeOutput(await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "review", manifest, harness],
-			{ cwd: repositoryRoot(), signal, timeout: 120_000 }));
-		if (document.review_schema !== "agentvolve-execution-review-v1" || document.authority !== "diagnostic-only" ||
-			typeof document.runtime_id !== "string" || typeof document.harness_candidate_id !== "string" ||
-			typeof document.worker_configuration !== "string" || !Array.isArray(document.command) ||
-			typeof document.model !== "object" || document.model === null) throw new Error("Unexpected worker execution review.");
-		const summary = `Interactive drafting only: ${operatorModelLabel(ctx)}\nDelegated worker execution (not the interactive model):\n${JSON.stringify(document, null, 2)}\nRuntime manifest: ${manifest}\nReused verified harness: ${harness}\nNo Level-2 search is authorized by this job. Worker calls use isolated Pi configuration and no host session/tools.\nConfiguration and controller paths remain operator-managed: use a separate reviewed stable installation; do not edit its live engine/configuration while workers run. Version isolation is not a host sandbox.`;
-		return { manifest, harness, document, summary };
+	async function chooseExecution(ctx: ExtensionContext, signal: AbortSignal): Promise<ExecutionReview> {
+		const proposed = await configureExecution(pi, ctx, executionConfiguration ?? (executionConfigurationInvalid ? {} : executionDefaults()), signal);
+		signal.throwIfAborted();
+		if (!sessionOpen) throw new AgentvolveInputRequired("Session closed during worker configuration; nothing saved or dispatched.");
+		if (!proposed) throw new AgentvolveInputRequired("Worker configuration cancelled; previous selections and jobs are unchanged. Configure Agentvolve in this session when ready. A missing compatible seal requires separately approved/budgeted Level-2 setup, never newest-harness guessing.");
+		executionConfiguration = { manifest: proposed.manifest, harness: proposed.harness, configuration: proposed.configuration };
+		executionConfigurationInvalid = false;
+		pi.appendEntry("agentvolve-execution-configuration", executionRecord(executionConfiguration, ctx.sessionManager.getSessionId()));
+		return proposed;
 	}
 
-	async function prepareRuntime(manifest: string, signal?: AbortSignal): Promise<void> {
+	async function executionReview(ctx: ExtensionContext, signal: AbortSignal): Promise<ExecutionReview> {
+		const selected = executionConfiguration ?? (executionConfigurationInvalid ? {} : executionDefaults());
+		if (!completeExecution(selected)) return chooseExecution(ctx, signal);
+		return reviewExecution(pi, ctx, selected, signal);
+	}
+
+	async function prepareRuntime(manifest: string, signal?: AbortSignal, boundExecution = false): Promise<void> {
 		signal?.throwIfAborted();
-		const preflight = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "check", manifest],
-			{ cwd: repositoryRoot(), signal, timeout: 30_000 });
-		decodeOutput(preflight);
+		// Recovery's launcher resolves the job-owned command, not this Pi's environment.
+		if (!boundExecution) decodeOutput(await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "check", manifest],
+			{ cwd: repositoryRoot(), signal, timeout: 30_000 }));
 		await ensureLocalRuntime(await configuredRuntimeSelection(manifest), signal);
 	}
 
 	async function launchDetachedWorkflow(ctx: ExtensionContext, profile: string, signal: AbortSignal, review: ExecutionReview): Promise<WorkerResponse> {
-		const current = await executionReview(ctx, signal);
-		if (current.manifest !== review.manifest || current.harness !== review.harness || JSON.stringify(current.document) !== JSON.stringify(review.document)) throw new AgentvolveInputRequired("Worker configuration changed during review; submit again for fresh approval. No workflow dispatched.");
+		const current = await reviewExecution(pi, ctx, review, signal);
+		if (JSON.stringify(current.document) !== JSON.stringify(review.document)) throw new AgentvolveInputRequired("Worker configuration changed during review; submit again for fresh approval. No workflow dispatched.");
 		await prepareRuntime(review.manifest, signal);
 		signal.throwIfAborted();
 		const epoch = monitorEpoch;
-		persistSubmission({ ...submission!, state: "uncertain-dispatch", diagnostic: "Dispatch attempted; launch acknowledgement not yet validated. Inspect /history and manage the exact run before any retry." });
-		const result = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "start", runsDirectory(),
-			configuredTaskProfile(profile), review.manifest, review.harness],
-			{ cwd: repositoryRoot(), signal, timeout: 30_000 });
+		const temporary = await mkdtemp(join(tmpdir(), "agentvolve-execution-review-"));
+		let result;
+		try {
+			const approval = join(temporary, "review.json");
+			await writeFile(approval, JSON.stringify(review.document), { encoding: "utf8", mode: 0o600 });
+			signal.throwIfAborted();
+			pi.appendEntry("agentvolve-execution-review", { authority: "operator-approval-record", attemptId: submission!.attemptId, document: review.document });
+			persistSubmission({ ...submission!, state: "uncertain-dispatch", diagnostic: "Dispatch attempted; launch acknowledgement not yet validated. Inspect /history and manage the exact run before any retry." });
+			// Dispatch repeats offline seal/runtime review before worker preflight.
+			result = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "start-configured", runsDirectory(),
+				configuredTaskProfile(profile), review.manifest, review.harness, review.configuration, approval],
+				{ cwd: repositoryRoot(), signal, timeout: 180_000 });
+		} finally {
+			// Only our disposable review transport, never task/job artifacts or evidence.
+			await rm(temporary, { recursive: true, force: true });
+		}
 		if (!sessionOpen || epoch !== monitorEpoch) throw new AgentvolveInputRequired("Dispatch acknowledgement arrived after session shutdown; inspect explicit history. Do not restart the task.");
 		const worker = decodeWorkerResponse(decodeOutput(result));
 		if (worker.action !== "start" || worker.state !== "queued" || worker.pid <= 0) throw new Error("Unexpected launch acknowledgement; dispatch remains uncertain.");
@@ -613,7 +624,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			if (files.length > 2_000) throw new AgentvolveInputRequired("The repository exceeds the 2,000-file candidate bound; select a smaller project. No files were silently omitted.");
 			if (!files.length) throw new AgentvolveInputRequired("The current Git commit has no tracked files.");
 		}
-		const protectedPaths = (await discoverTaskProfiles()).flatMap((profile) => profile.protectedFinal ? [profile.protectedFinal] : []);
+		const protectedPaths = [execution.manifest, execution.harness, execution.configuration,
+			...(await discoverTaskProfiles()).flatMap((profile) => profile.protectedFinal ? [profile.protectedFinal] : [])];
 		const configured = process.env.METERING_EVOLUTION_TASK_PROFILE?.trim();
 		if (configured) {
 			const profile = reviewObject(JSON.parse(await readFile(configuredTaskProfile(configured), "utf8")), "configured task");
@@ -972,7 +984,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		promptGuidelines: [CODING_TOOL_GUIDELINE],
 		parameters: Type.Object({ action: StringEnum([
 			"workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify",
-			"workflow_manage",
+			"workflow_manage", "workflow_configure",
 		] as const) }, { additionalProperties: false }),
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			onUpdate?.({ content: [{ type: "text", text: `Agentvolve ${params.action}…` }], details: { action: params.action } });
@@ -984,6 +996,22 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				if (submission?.state !== "launched") return { content: [{ type: "text", text: submissionSummary() }], details: submission ?? { status: "unbound" } };
 				const progress = await boundProgress();
 				return { content: [{ type: "text", text: operatorProgressSummary(progress) }], details: progress };
+			}
+			if (params.action === "workflow_configure") {
+				if (preparing) return { content: [{ type: "text", text: "Finish or cancel the current task/workflow review first." }], details: { status: "review-in-progress" } };
+				preparing = true;
+				operationController = new AbortController();
+				const operationSignal = signal ? AbortSignal.any([signal, operationController.signal]) : operationController.signal;
+				try {
+					await chooseExecution(ctx, operationSignal);
+					return { content: [{ type: "text", text: "Worker configuration saved for future jobs in this session. No worker started; ordinary Pi and existing jobs are unchanged. Submit /goal when ready." }], details: { status: "configured", ...executionConfiguration } };
+				} catch (error) {
+					if (!(error instanceof AgentvolveInputRequired)) throw error;
+					return { content: [{ type: "text", text: error.message }], details: { status: "not-configured" } };
+				} finally {
+					preparing = false;
+					operationController = undefined;
+				}
 			}
 			if (params.action === "workflow_manage") {
 				if (preparing) return { content: [{ type: "text", text: "Finish or cancel the current task/workflow review first." }], details: { status: "review-in-progress" } };
@@ -1027,6 +1055,9 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		sessionOpen = true;
 		submission = undefined;
 		workflowConfiguration = {};
+		const restoredExecution = event.reason === "new" || event.reason === "fork" ? { configuration: undefined, invalid: false } : restoreExecution(ctx.sessionManager.getEntries(), ctx.sessionManager.getSessionId());
+		executionConfiguration = restoredExecution.configuration;
+		executionConfigurationInvalid = restoredExecution.invalid;
 		reportedStages = new Set<string>();
 		for (const entry of ctx.sessionManager.getBranch()) {
 			if (entry.type !== "custom" || typeof entry.data !== "object" || entry.data === null || Array.isArray(entry.data)) continue;
@@ -1064,7 +1095,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 		renderJobWidget(ctx);
 		if (submission?.state === "launched") void startWorkflowMonitor(ctx);
-		ctx.ui.notify("Agentvolve: /goal reviews a delegated job, /limit saves a suggestion, /history selects historical runs, /progress follows this session's exact submission. Restore never starts a task; ordinary Pi tools remain configured.", "info");
+		ctx.ui.notify("Agentvolve: ask to configure the worker in this session; /goal reviews a background job, /limit saves a suggestion, /history selects historical runs, /progress follows this session's exact submission. No restart/export is required; restore never starts a task and ordinary Pi tools remain configured.", "info");
 	});
 	pi.on("model_select", async (_event, ctx) => { await refreshWorkflowMonitor(ctx); });
 	pi.on("thinking_level_select", async (_event, ctx) => { await refreshWorkflowMonitor(ctx); });

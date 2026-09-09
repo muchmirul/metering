@@ -69,9 +69,9 @@ import json, os, sys
 args = sys.argv[1:]
 if args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "check"]:
     print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1", "authority":"diagnostic-only"}}))
-elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "review"]:
+elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "review-configured"]:
     print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
-elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "start"]:
+elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "start-configured"]:
     with open(os.environ["CASUAL_LAUNCHES"], "a") as log:
         log.write(json.dumps(args) + "\\n")
     print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "action":"start", "pid":12345,
@@ -87,6 +87,7 @@ else:
         "PATH": str(bindir) + os.pathsep + os.environ["PATH"], "METERING_EVOLUTION_TASKS_DIR": str(tasks),
         "METERING_EVOLUTION_RUNS_DIR": str(tmp_path / "runs"), "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime),
         "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(runtime),  # review/launch double
+        "METERING_PI_CONFIG_DIR": "/reviewed/worker",
         "CASUAL_DRAFT": json.dumps(document), "CASUAL_PROMPTS": str(tmp_path / "prompts.jsonl"), "CASUAL_LAUNCHES": str(launch_log),
     })
     process = subprocess.Popen(

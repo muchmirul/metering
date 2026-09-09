@@ -22,7 +22,7 @@ export interface ManagementResult {
 	message: string;
 }
 
-type PrepareRuntime = (manifest: string, signal?: AbortSignal) => Promise<void>;
+type PrepareRuntime = (manifest: string, signal?: AbortSignal, boundExecution?: boolean) => Promise<void>;
 
 async function workerCommand(pi: ExtensionAPI, args: string[], signal?: AbortSignal): Promise<Record<string, unknown>> {
 	return decodeOutput(await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.agentvolve_worker", ...args],
@@ -107,7 +107,7 @@ export async function manageWorkflow(
 	const args = [action, root, ...(reason === undefined ? [] : [reason])];
 	let result: Record<string, unknown>;
 	if (action === "resume" || action === "retry") {
-		await prepareRuntime(control.runtime_manifest, signal);
+		await prepareRuntime(control.runtime_manifest, signal, true);
 		result = decodeOutput(await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", ...args],
 			{ cwd: repositoryRoot(), signal, timeout: 30_000 }));
 	} else result = await workerCommand(pi, args, signal);

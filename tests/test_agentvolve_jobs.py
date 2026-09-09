@@ -27,7 +27,7 @@ def deployed(tmp_path, *args, environment=None):
         ["pi", "--mode", "rpc", "--offline", "--no-extensions", "--no-skills", "--no-context-files",
          "--no-prompt-templates", "-e", str(EXTENSION), "-e", str(PROVIDER), "--provider", "job-fixture",
          "--model", "fixture", "--session-dir", str(tmp_path / "sessions"), *args], cwd=tmp_path,
-        env={**{k: v for k, v in os.environ.items() if not k.startswith("METERING_EVOLUTION_")},
+        env={**{k: v for k, v in os.environ.items() if not k.startswith("METERING_EVOLUTION_") and k != "METERING_PI_CONFIG_DIR"},
              "PI_CODING_AGENT_DIR": str(config), "PI_OFFLINE": "1", "JOB_PROMPT_LOG": str(tmp_path / "prompts.jsonl"),
              "METERING_EVOLUTION_RUNS_DIR": str(tmp_path / "runs"), "METERING_EVOLUTION_TASKS_DIR": str(tmp_path / "tasks"), **(environment or {})},
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -43,14 +43,14 @@ def deployed(tmp_path, *args, environment=None):
         assert process.stderr.read() == b""
 
 
-def talk(rpc, text, *, error=False):
-    events = rpc.prompt(text)
+def talk(rpc, text, *, error=False, dialog=None):
+    events = rpc.prompt(text, dialog)
     deadline = time.monotonic() + 30
     while not any(e.get("type") == "agent_settled" for e in events):
         event = rpc.event(deadline)
         events.append(event)
         if event.get("method") in {"input", "select", "confirm", "editor"}:
-            rpc.send({"type": "extension_ui_response", "id": event["id"], "cancelled": True})
+            rpc.send({"type": "extension_ui_response", "id": event["id"], **(dialog(event) if dialog else {"cancelled": True})})
     assert not any(e.get("type") == "extension_error" for e in events), events
     if not error:
         assert not any(e.get("isError") for e in events), events
@@ -97,6 +97,10 @@ def boundary(tmp_path):
     runtime.write_text(json.dumps({"model": {"provider": "worker-provider", "model": "pinned-worker", "reasoning": "medium"}}))
     harness = tmp_path / "selected-harness.json"
     harness.write_text("sealed fixture boundary\n")
+    config = tmp_path / "worker-config"
+    config.mkdir()
+    (config / "models.json").write_text('{"providers":{}}')
+    (config / "auth.json").write_text('{"fixture":{"key":"PRIVATE_WORKER_TOKEN"}}')
     root = tmp_path / "runs" / NAME
     (tmp_path / "projection.json").write_text(json.dumps(projection(root)))
     bin_dir = tmp_path / "bin"
@@ -110,11 +114,20 @@ with (base / "execs").open("a") as log: log.write(json.dumps(args) + "\\n")
 action = args[4] if len(args) > 4 else ""
 module = args[3] if len(args) > 3 else ""
 if module == "connectors.fixed.pi.runtime":
- if action == "review":
+ if action == "review-configured":
   if (base / "review-failure").exists(): sys.exit("incompatible reviewed runtime/harness")
-  print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"b"*64, "harness_candidate_id":"c"*64, "harness_descriptor_sha256":hashlib.sha256((base / "selected-harness.json").read_bytes()).hexdigest(), "worker_configuration":"/stable/worker-config", "command":["/stable/pi-0.84.4"], "model":{{"connector":"pi-v1", "provider":"worker-provider", "model":"pinned-worker", "implementation_version":"0.84.4", "reasoning":"medium"}}}}))
+  if (base / "review-pause").exists():
+   (base / "review-waiting").touch()
+   deadline = time.monotonic() + 20
+   while not (base / "review-release").exists():
+    if time.monotonic() > deadline: sys.exit("fixture review pause expired")
+    time.sleep(.02)
+  print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"b"*64, "harness_candidate_id":"c"*64, "harness_descriptor_sha256":hashlib.sha256(pathlib.Path(args[6]).read_bytes()).hexdigest(), "worker_configuration":args[7], "worker_models_sha256":hashlib.sha256((pathlib.Path(args[7]) / "models.json").read_bytes()).hexdigest(), "command":["/stable/pi-0.84.4"], "model":{{"connector":"pi-v1", "provider":"worker-provider", "model":"pinned-worker", "implementation_version":"0.84.4", "reasoning":"medium"}}}}))
  elif action == "check": print('{{}}')
- elif action == "start":
+ elif action == "start-configured":
+  approved = json.loads(pathlib.Path(args[10]).read_text())
+  assert approved["worker_configuration"] == args[9]
+  (base / "dispatch-record.json").write_text(json.dumps({{"args":args, "approved":approved}}))
   (base / "dispatched").touch()
   if (base / "dispatch-failure").exists(): sys.exit("dispatch acknowledgement lost")
   root = pathlib.Path(args[5]) / {NAME!r}
@@ -147,7 +160,8 @@ else: os.execv({shutil.which('uv')!r}, [{shutil.which('uv')!r}, *args])
 ''')
     uv.chmod(0o755)
     return {"PATH": str(bin_dir) + os.pathsep + os.environ["PATH"], "JOB_DRAFT": str(draft),
-            "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime), "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(harness)}
+            "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime), "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(harness),
+            "METERING_PI_CONFIG_DIR": str(config)}
 
 
 def approve(event):
@@ -156,7 +170,7 @@ def approve(event):
         return {"value": "1"}
     assert event["method"] == "confirm", event
     assert "1 generations, 1 proposal calls" in event["message"]
-    for text in ("Interactive drafting only: job-fixture/fixture", "pinned-worker", "worker-provider", "0.84.4", "Reused verified harness", "No Level-2 search", "/stable/worker-config"):
+    for text in ("Interactive drafting only: job-fixture/fixture", "pinned-worker", "worker-provider", "0.84.4", "Reused verified harness", "No Level-2 search", "private per-job directory"):
         assert text in event["message"]
     return {"confirmed": True}
 
@@ -204,7 +218,7 @@ def test_real_submission_tracks_exact_job_not_newer_or_older_and_preserves_tools
         assert (root / "evidence.jsonl").read_bytes() == evidence
         assert profile.read_bytes() == frozen_profile
         calls = [json.loads(line) for line in (tmp_path / "execs").read_text().splitlines()]
-        assert len([a for a in calls if a[3:5] == ["connectors.fixed.pi.runtime", "start"]]) == 1
+        assert len([a for a in calls if a[3:5] == ["connectors.fixed.pi.runtime", "start-configured"]]) == 1
         assert [a[5] for a in calls if a[3:5] == ["apps.coding_agent.agentvolve_worker", "verify"]] == [str(root)]
 
 
@@ -282,7 +296,7 @@ def test_restore_resume_tree_fork_and_legacy_output_do_not_restrict_main_pi(tmp_
         rpc.prompt("/job-test-tools")
         metadata = [e["data"] for e in rpc.entries() if e.get("customType") == "job-test-tools"][-1]
         coding = next(t for t in metadata if t["name"] == "darwinian_coding")
-        assert coding["parameters"]["properties"]["action"]["enum"] == ["workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify", "workflow_manage"]
+        assert coding["parameters"]["properties"]["action"]["enum"] == ["workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify", "workflow_manage", "workflow_configure"]
         rpc.request({"id": "clone", "type": "clone"})
         ordinary(rpc, tmp_path)
         assert result(talk(rpc, "Job status"))["details"]["status"] == "unbound"
@@ -398,8 +412,8 @@ def test_missing_explicit_harness_refuses_newest_guessing_without_setup(tmp_path
     newest.mkdir(parents=True)
     (newest / "selected-harness.json").write_text("incompatible newest seal")
     with deployed(tmp_path, environment=boundary) as rpc:
-        events = rpc.prompt("/goal New job", lambda e: {"value": "1"})
-        assert any("No newest-harness guessing or implicit Level-2 setup" in e.get("message", "") for e in events)
+        events = rpc.prompt("/goal New job", lambda e: {"value": "1"} if e.get("title", "").startswith("Enter the exact") else {"cancelled": True})
+        assert any("separately approved/budgeted Level-2 setup" in e.get("message", "") for e in events)
         assert submission(rpc)["state"] == "not-launched"
         assert not (tmp_path / "dispatched").exists()
         assert not (tmp_path / "tasks").exists()

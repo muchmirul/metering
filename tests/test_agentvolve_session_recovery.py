@@ -114,8 +114,9 @@ else: os.execv({real_uv!r}, [{real_uv!r}, *args])
         assert all(path.read_bytes() == payload for path, payload in snapshot.items())
         assert manage(retry_review(True))["details"]["status"] == "queued"
         effects = [json.loads(line) for line in log.read_text().splitlines()]
-        assert effects[0][4:] == ["check", request["runtime_manifest"]]
-        assert effects[1][4:] == ["retry", str(root), "Operator approves exactly one fixture retry"]
+        # The recovery launcher resolves the job-owned pin; the adapter must not
+        # first resolve a potentially different ambient interactive Pi command.
+        assert [effect[4:] for effect in effects] == [["retry", str(root), "Operator approves exactly one fixture retry"]]
         assert len(list((root / "jobs").glob("*.json"))) == 1, "Runtime launch is a double, not live recovery"
         log.unlink()
 
@@ -130,6 +131,8 @@ else: os.execv({real_uv!r}, [{real_uv!r}, *args])
             if event["method"] == "select":
                 return {"value": "Close as incomplete (keep evidence)"}
             if event["method"] == "input":
+                if event["title"].startswith("Agentvolve worker runtime"):
+                    return {"cancelled": True}  # The next task needs its own worker setup.
                 return {"value": "2" if event["title"].startswith("Enter the exact") else "Operator leaves the old failed task in history"}
             assert event["method"] == "confirm"
             assert "INCOMPLETE, not successful" in event["message"]
@@ -141,7 +144,7 @@ else: os.execv({real_uv!r}, [{real_uv!r}, *args])
         assert all(path.read_bytes() == payload for path, payload in snapshot.items())
         assert pending.read_text() == '{"controller_receipt":null,"stage":"controller_pending"}\n'
         assert worker.registry_status(tmp_path / "runs")["blocker"] is None
-        # tmp_path is not a task repository: recovery completes, then preparation asks for a clean Git repo.
+        # Recovery completes; cancel the next task's session-native worker configuration.
         assert not log.exists()
         assert len(list((tmp_path / "runs").glob("workflow-*"))) == 1
         assert manage(lambda event: {"value": event["options"][0]})["details"]["status"] == "closed-incomplete"

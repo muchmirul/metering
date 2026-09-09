@@ -53,13 +53,19 @@ From the source checkout:
 ```bash
 uv run python -m connectors.fixed.pi.runtime check RUNTIME.json
 uv run python -m connectors.fixed.pi.runtime review RUNTIME.json HARNESS.json
+uv run python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY
+uv run python -m connectors.fixed.pi.runtime start-configured RUNS TASK.json RUNTIME.json HARNESS.json CONFIG_DIRECTORY APPROVED_REVIEW.json
+# Legacy environment-configured launch:
 uv run python -m connectors.fixed.pi.runtime start RUNS TASK.json RUNTIME.json HARNESS.json
 uv run python -m connectors.fixed.pi.runtime resume WORKFLOW
 uv run python -m connectors.fixed.pi.runtime retry WORKFLOW 'operator-approved reason'
 ```
 
 These are connector CLI operations, **not new Pi slash commands**. `/goal` uses
-this preflight and launch path after direct approval. `review` additionally
+the configured preflight and launch path after direct approval. Say “configure
+Agentvolve” to select existing runtime/harness/worker config from the current Pi
+session, with no environment exports, process restart or second interactive Pi.
+`review-configured` takes the worker directory explicitly; legacy `review` additionally
 requires a separate explicit `METERING_PI_CONFIG_DIR` with models.json and an
 explicit compatible original sealed harness; it offline-verifies provenance and
 returns worker configuration/model digest, exact implementation/runtime/harness
@@ -68,14 +74,19 @@ dispatch. No newest-harness discovery or implicit Level-2 setup is allowed. Miss
 compatible setup requires separate operator approval/budget and Level-2 execution.
 
 Pi version/configuration isolation is NOT immutable control-plane deployment.
-Workers still load trusted source/config/auth from operator-managed installed
-paths. Use a separate reviewed stable installation; editing a running worker's
-engine checkout or routing configuration is unsafe. This change adds no automatic
-snapshot/deployment framework and does not sandbox normal host Pi tools.
+Configured jobs use v2 orchestration requests and private bounded models/auth file
+copies (0700 directory/0600 files, no symlinks or hardlinks). Command/version/runtime
+and models hash are job-bound; auth may refresh. No interactive configuration files
+are implicitly copied. Workers still load trusted code and runtime/harness provenance
+from operator-managed installed paths. Use a separate reviewed stable installation;
+editing a running worker's engine checkout or job-owned routing configuration is
+unsafe. This limited copy is not a controller deployment framework or host Pi sandbox.
 
 For recovery, `resume` and `retry` resolve the
-runtime from the original canonical workflow request, then delegate to the
-unchanged worker. They do not override replay/lock checks, extend generation or
+runtime from the original canonical workflow request and, for configured v2 jobs,
+the job-owned command/configuration rather than ambient overrides. Offline replay
+requires neither private configuration nor a live Pi executable. Legacy v1 behavior
+and evidence remain unchanged. They do not override replay/lock checks, extend generation or
 proposal budgets, or authorize a retry themselves. A pending failed attempt still
 needs an explicit operator-approved retry and retains its original evidence.
 

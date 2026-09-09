@@ -158,14 +158,19 @@ export class TaskInputInspector {
 		return true;
 	}
 
+	private isProtected(path: string): boolean {
+		const absolute = resolve(path);
+		return this.protectedPaths.some((protectedPath) => absolute === resolve(protectedPath) || absolute.startsWith(resolve(protectedPath) + "/"));
+	}
+
 	private async inspect(paths: string[], local_paths: string[], urls: string[], signal: AbortSignal): Promise<void> {
 		if (!paths.length && !local_paths.length && !urls.length) return;
-		if (paths.some((path) => /\.(?:final|task)\.json$/.test(path) || this.protectedPaths.some((protectedPath) => resolve(protectedPath) === resolve(this.repository, path)))) {
+		if (paths.some((path) => /\.(?:final|task)\.json$/.test(path) || this.isProtected(resolve(this.repository, path)))) {
 			throw new Error("Protected/operator profiles cannot be inspected as task-source inputs.");
 		}
 		const privateRoots = [tasksDirectory(), runsDirectory(), join(homedir(), ".pi"), join(homedir(), ".config", "metering"),
 			join(homedir(), ".ssh"), join(homedir(), ".gnupg"), join(homedir(), ".aws")];
-		if (local_paths.some((path) => this.protectedPaths.some((protectedPath) => resolve(protectedPath) === path) ||
+		if (local_paths.some((path) => this.isProtected(path) ||
 			/\.(?:final|task)\.json$/.test(path) || /^(?:\.env(?:\..*)?|auth\.json|credentials(?:\.json)?|id_rsa|id_ed25519)$/.test(basename(path)) ||
 			/\.(?:pem|key|p12|pfx)$/i.test(path) || privateRoots.some((root) => path === root || path.startsWith(root + "/")))) {
 			throw new Error("Protected/operator or credential files cannot be used as task-source inputs. Supply a separate public or sanitized input document.");

@@ -179,17 +179,22 @@ as history, never restrictions. No existing run or evidence needs migration.
 Pi's interactive model may clarify and draft the review only. The existing detached
 worker executes isolated noninteractive Pi calls under its own pinned runtime,
 provider/model/reasoning, configuration and finite budgets. Task review displays
-both identities and the reused harness. New Pi jobs require an explicit compatible
-verified `METERING_EVOLUTION_HARNESS_DESCRIPTOR` and separate reviewed
-`METERING_PI_CONFIG_DIR`. No newest-harness guessing or automatic Level-2 setup:
+both identities and the reused harness. Say **“configure Agentvolve”** to select
+an existing runtime, original compatible verified harness, and separately provisioned
+worker Pi configuration in this session. `/goal` offers this setup when defaults
+are missing; no second interactive Pi, exports, or process restart is needed.
+Configuration alone starts no job. No newest-harness guessing or automatic Level-2 setup:
 if no compatible seal exists, separately approve/budget the [harness setup](docs/coding-agent/operations.md#level-2-harness).
 Readiness failure reports an operator diagnosis; Agentvolve never starts or
 restarts a shared model service.
 
 Version/configuration isolation is **not** a sandbox for host Pi or immutable
-control-plane deployment. Controller/configuration paths remain operator-managed;
-use a separate reviewed stable installation. Editing the engine checkout used by
-a running worker is unsafe. This patch introduces no deployment/snapshot framework.
+control-plane deployment. New session jobs privately copy only the selected
+`models.json` and optional `auth.json`; models are hash-bound, auth may refresh,
+and recovery uses the job-owned command/configuration. No interactive configuration
+or auth files are copied implicitly. Controller/runtime/harness paths remain operator-managed;
+use a separate reviewed stable installation. Editing a running worker's engine
+checkout is unsafe. This is not a controller deployment/snapshot framework.
 
 You can also say **“manage the interrupted Agentvolve workflow”** to resume,
 authorize a reserved retry, stop, or close an inactive workflow as incomplete.
@@ -239,7 +244,8 @@ tool, and low-level compatibility tool handlers are removed. Reload Pi with
 engines, existing evidence, and explicit worker CLI recovery/verification remain
 available; the additive session management and `close` operation are documented
 in the [operations guide](docs/coding-agent/operations.md). Reload once to expose
-`workflow_manage` to the session model. No run migration is required.
+`workflow_manage` and session-only `workflow_configure` to the session model.
+No run migration is required.
 
 The dashboard and worker status are projections only. Candidate Git objects,
 hash-linked ledgers, exact allocations, receipts, and seals remain authoritative.

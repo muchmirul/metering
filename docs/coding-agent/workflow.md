@@ -31,7 +31,11 @@ The normal transition is:
 
 New Pi solution jobs require an explicitly selected compatible verified sealed
 harness, so new model work begins at `[4/6]`; earlier stages are labelled reused.
-No newest-harness guess or implicit Level-2 setup cost is accepted. Describe the
+Say “configure Agentvolve” to select existing runtime/harness/worker configuration
+in this session; `/goal` offers this when defaults are missing. No second interactive
+Pi, shell exports or process restart is required. Selection itself starts no job;
+new jobs privately copy the selected models/auth files and bind their command for
+later recovery. No newest-harness guess or implicit Level-2 setup cost is accepted. Describe the
 goal, review worker runtime/configuration/harness identity separately from Pi's
 interactive drafting model, and approve the task contract. /limit saves only a
 suggestion: every /goal asks for the exact per-job generation cap. Discovered

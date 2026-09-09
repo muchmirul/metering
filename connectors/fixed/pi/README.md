@@ -140,7 +140,8 @@ excluded tools stay excluded. See [job semantics and migration](../../../docs/co
 Clarify a goal, then explicitly ask Agentvolve to solve that job.
 The `darwinian_coding` tool exposes only
 `workflow_from_session`, `workflow_start`, `workflow_status`, `workflow_history`,
-`workflow_verify`, and operator-reviewed `workflow_manage`. The action schema
+`workflow_verify`, operator-reviewed `workflow_manage`, and session-only
+`workflow_configure`. The action schema
 accepts no task text, command, evaluator,
 candidate, profile path, retry reason, or output path. Starts still require a
 limit and direct operator approval. Pi keeps its current model/thinking level;
@@ -225,20 +226,31 @@ Selected commits and patches are never automatically applied.
 
 ### Configuration
 
+Say **“configure Agentvolve”** in the invoking Pi session. The direct dialog
+selects an existing runtime manifest, original compatible sealed harness, and
+separately provisioned worker Pi configuration directory. `/goal` offers this
+when defaults are missing. No shell exports, second interactive Pi, process
+restart, global configuration change, or live evolution occurs during setup.
+The selection belongs to this session (reload/resume restore it; forks/new sessions
+do not inherit it). Changing it affects future jobs only; every job still needs
+fresh finite budget and task/runtime approval. Cancellation preserves the prior
+selection and existing job tracking. Missing/incompatible setup needs separately
+approved provisioning; this dialog does not create a harness or copy interactive credentials.
+
 Defaults: runtime `~/.config/metering/harness/runtime.pi.local.json`; runs and tasks
 in checkout siblings `metering-live-runs/` and `metering-live-tasks/`.
-Advanced caller-reviewed absolute overrides:
+Optional caller-reviewed absolute defaults/overrides:
 
 - `METERING_EVOLUTION_RUNTIME_MANIFEST`;
 - `METERING_EVOLUTION_RUNS_DIR`;
 - `METERING_EVOLUTION_TASKS_DIR`;
 - `METERING_EVOLUTION_TASK_PROFILE` (must target the operator-selected Git repository);
-- `METERING_EVOLUTION_HARNESS_DESCRIPTOR` (**required for new Pi jobs**: original
+- `METERING_EVOLUTION_HARNESS_DESCRIPTOR` (optional default for the required original
   compatible verified sealed source, never guessed from the newest run);
-- `METERING_PI_CONFIG_DIR` (**required for new Pi jobs**: separate reviewed worker
+- `METERING_PI_CONFIG_DIR` (optional default for required separate worker
   configuration with models.json and provisioned auth, not interactive Pi's directory).
 
-Read-only `python -m connectors.fixed.pi.runtime review RUNTIME.json HARNESS.json`
+Read-only `python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY`
 verifies the seal and displays exact Pi/version/provider/model/reasoning, runtime,
 OCI resources, model budgets, worker config path/models digest and harness identity.
 Pi includes that review alongside the full task contract and repeats it before
@@ -247,10 +259,20 @@ approved/budgeted [Level-2 setup](../../../docs/coding-agent/operations.md#level
 not implicit setup costs or a model substitution. The legacy worker CLI/replay is
 unchanged.
 
-Controller/config/auth paths remain operator-managed. Use a separate reviewed
+Configured dispatch rechecks the strict approved review and creates a v2 workflow
+request binding the resolved command, version/runtime identity and models SHA256.
+Only bounded regular `models.json` and optional `auth.json` are copied into a
+job-owned 0700 directory with 0600 files. Symlinks (including parents) and hardlinks
+are refused; ambient extensions, settings, sessions, skills and prompts are not
+copied. Models changes fail closed; private auth may refresh. Auth bytes never enter
+session records or ordinary tool results. Resume/retry use this job's copy and
+command despite changed ambient overrides; status and offline replay need no
+private configuration or live model client. Legacy v1 jobs are not rewritten.
+
+Controller/runtime/harness paths remain operator-managed. Use a separate reviewed
 stable installation, not the live engine checkout you intend to edit. Workers
-still load trusted code from installed source paths; Pi version/config isolation
-is not immutable control-plane deployment or a host-session sandbox. No automatic
+still load trusted code from installed source paths; the bounded Pi configuration
+copy is not immutable controller deployment or a host-session sandbox. No general
 snapshot/deployment framework is added; routing aliases do not fully bind weights.
 
 For a `llamacpp` worker, readiness defaults to `llama-qwen38.service`,

@@ -10,6 +10,9 @@ export default function (pi: any) {
 	pi.registerCommand("job-test-record", { handler: async (args: string, ctx: any) => {
 		pi.appendEntry("agentvolve-submission", { ...JSON.parse(args), sessionId: ctx.sessionManager.getSessionId() });
 	} });
+	pi.registerCommand("job-test-configuration-record", { handler: async (args: string) => {
+		pi.appendEntry("agentvolve-execution-configuration", JSON.parse(args));
+	} });
 	pi.registerCommand("job-test-reload", { handler: async (_args: string, ctx: any) => { await ctx.reload(); } });
 	pi.registerCommand("job-test-tree", { handler: async (id: string, ctx: any) => { await ctx.navigateTree(id, { summarize: false }); } });
 	pi.registerCommand("job-test-tools", { handler: async () => { pi.appendEntry("job-test-tools", pi.getAllTools()); } });
@@ -18,7 +21,7 @@ export default function (pi: any) {
 		models: ["fixture", "other"].map(id => ({ id, name: id, reasoning: false, input: ["text"],
 			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200000, maxTokens: 8000 })),
 		streamSimple(model: any, context: any) {
-			appendFileSync(process.env.JOB_PROMPT_LOG!, JSON.stringify({ prompt: context.systemPrompt, tools: context.tools?.map((t: any) => t.name), model: model.id }) + "\n");
+			appendFileSync(process.env.JOB_PROMPT_LOG!, JSON.stringify({ prompt: context.systemPrompt, tools: context.tools?.map((t: any) => t.name), model: model.id, environment: Object.fromEntries(["PI_CODING_AGENT_DIR", "METERING_PI_CONFIG_DIR", "METERING_EVOLUTION_RUNTIME_MANIFEST", "METERING_EVOLUTION_HARNESS_DESCRIPTOR"].map(key => [key, process.env[key] ?? null])) }) + "\n");
 			const stream = createAssistantMessageEventStream();
 			queueMicrotask(() => {
 				const message: any = { role: "assistant", content: [], api: model.api, provider: model.provider,
@@ -29,7 +32,7 @@ export default function (pi: any) {
 				const request = last?.role === "user" ? JSON.stringify(last.content) : "";
 				const drafting = context.systemPrompt.startsWith("You create an Agentvolve task draft");
 				const action = request.includes("Job status") ? "workflow_status" : request.includes("Verify job") ? "workflow_verify"
-					: request.includes("Prepare job") ? "workflow_from_session" : undefined;
+					: request.includes("Prepare job") ? "workflow_from_session" : request.includes("Configure worker") ? "workflow_configure" : undefined;
 				const tool = drafting ? undefined : action ? { name: "darwinian_coding", arguments: { action } }
 					: request.includes("Write normal file") ? { name: "write", arguments: { path: "normal.txt", content: "normal coding\n" } }
 					: request.includes("Edit normal file") ? { name: "edit", arguments: { path: "normal.txt", edits: [{ oldText: "normal coding", newText: "normal edits" }] } }

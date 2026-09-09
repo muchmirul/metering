@@ -107,18 +107,31 @@ monitor/progress/verification never discover the latest run. Failed newer reques
 cannot inherit older results. Restoration never dispatches; forks inherit no
 ownership. Old activation records/messages impose no ordinary-tool restrictions.
 
-`connectors.fixed.pi.runtime review` is a read-only execution-approval boundary:
+`workflow_configure` records directly reviewed existing paths for this session,
+without environment mutation, a second interactive Pi, or process restart. `/goal`
+offers configuration when defaults are absent. Restoration never launches and
+malformed latest records fail closed; changes affect future jobs only.
+`connectors.fixed.pi.runtime review-configured` is a read-only execution-approval boundary:
 exact runtime/Pi/configuration identities, explicit compatible verified reused
 harness and finite budgets. New Pi jobs neither guess a seal nor implicitly fund
-Level 2 or restart a model service. Controller/config paths remain operator-managed;
-use a stable separate reviewed installation. Pi pinning is not an immutable
-controller snapshot or host sandbox. Historical worker/evidence/replay contracts
-and the installed package remain unchanged.
+Level 2 or restart a model service. Configured CLI dispatch rechecks the strict
+approved document before creating a v2 workflow request with command/version/runtime
+and models hash binding. Only explicitly selected bounded models/auth files are
+copied privately for the job; models remain hash-bound, auth can refresh. Recovery
+uses the job-owned binding; offline replay needs neither credentials nor a live Pi.
+Controller/runtime/harness paths remain operator-managed; use a stable separate
+reviewed installation. This limited copy is not a controller snapshot or host
+sandbox. Legacy v1 jobs, experiment/evidence/replay and the installed package remain unchanged.
 
 Deployed deterministic job tests replace mode tests and exercise actual ordinary
 Pi tools, fresh caps, cancellation/failure/uncertain acknowledgement, restoration,
 identity-specific views/verification, and initial/steady-state monitor races using
-test-owned boundary doubles. They do not prove live inference acceptance.
+test-owned boundary doubles. `tests/test_agentvolve_session_configuration.py`
+covers same-process configuration/delegation, unchanged interactive environment,
+future-only selection, corruption and session races. The worker configuration tests
+cover private bounded copies, command/models binding, recovery with conflicting
+ambient settings, and offline verification without credentials or a live Pi.
+They do not prove live inference acceptance.
 
 ## Regression checks
 

@@ -1,8 +1,8 @@
 """Upgrade-safe Pi operator transport, outside immutable experiment mechanics.
 
 Resolve a manifest's exact Pi release offline. Never reinterpret a runtime ID,
-install packages implicitly, or grant retry authority. The unchanged worker and
-connectors still enforce their canonical requests and exact version checks.
+install packages implicitly, or grant retry authority. Configured starts bind a
+private job context; worker controls and experiment version checks remain intact.
 """
 
 from __future__ import annotations
@@ -11,32 +11,22 @@ import hashlib
 import os
 import re
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
-from apps._support.bounded_process import OutputLimitError, communicate_bounded
-from apps._support.wire import canonical_json
+from apps._support.wire import canonical_json, decode_json_object
+from apps.coding_agent.pi_execution import (
+    MAX_REVIEW_BYTES,
+    REQUIRED_FLAGS,
+    PiConfigurationError,
+    bounded_file,
+    child_environment,
+    configuration_source,
+)
+from apps.coding_agent import pi_execution
 from apps.harness.runtime_manifest import load_runtime_manifest
 from connectors.fixed.command import command_prefix
 
-REQUIRED_FLAGS = frozenset(
-    {
-        "--provider",
-        "--model",
-        "--thinking",
-        "--no-session",
-        "--no-skills",
-        "--no-extensions",
-        "--no-prompt-templates",
-        "--no-themes",
-        "--no-context-files",
-        "--no-tools",
-        "--mode",
-        "--system-prompt",
-        "--print",
-    }
-)
 VERSION = re.compile(
     r"[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?\Z"
 )
@@ -46,23 +36,11 @@ class PiRuntimeError(ValueError):
     """An exact, CLI-compatible implementation cannot be selected safely."""
 
 
-def _probe(command: list[str], option: str) -> str:
+def _probe(command: list[str], option: str, *, environment: dict[str, str] | None = None) -> str:
     try:
-        with subprocess.Popen(
-            [*command, option],
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        ) as process:
-            stdout, stderr = communicate_bounded(
-                process, None, timeout_seconds=10, max_output_bytes=131072
-            )
-            if process.returncode or stderr:
-                raise PiRuntimeError(f"Pi {option} failed; no experiment was started")
-            return stdout.strip()
-    except (OSError, UnicodeError, subprocess.TimeoutExpired, OutputLimitError) as exc:
-        raise PiRuntimeError(f"Pi {option} probe failed: {type(exc).__name__}") from exc
+        return pi_execution.probe_command(command, option, environment=environment)
+    except PiConfigurationError as exc:
+        raise PiRuntimeError(str(exc)) from exc
 
 
 def _absolute(command: list[str]) -> list[str]:
@@ -72,7 +50,7 @@ def _absolute(command: list[str]) -> list[str]:
     return [str(Path(executable).absolute().resolve()), *command[1:]]
 
 
-def resolve(expected: str) -> dict:
+def resolve(expected: str, *, configuration: Path | None = None) -> dict:
     """Accept any release with the required CLI contract, but only at its exact pin."""
     if not VERSION.fullmatch(expected):
         raise PiRuntimeError(
@@ -80,10 +58,13 @@ def resolve(expected: str) -> dict:
         )
     command = command_prefix("METERING_PI_COMMAND", "PI_BIN", "pi")
     explicit = "METERING_PI_COMMAND" in os.environ or "PI_BIN" in os.environ
+    probe_options = {} if configuration is None else {"environment": {
+        **os.environ, "METERING_PI_CONFIG_DIR": str(configuration), "PI_CODING_AGENT_DIR": str(configuration),
+    }}
     observed = "unavailable"
     try:
         command = _absolute(command)
-        observed = _probe(command, "--version")
+        observed = _probe(command, "--version", **probe_options)
     except PiRuntimeError:
         if explicit:
             raise
@@ -107,13 +88,13 @@ def resolve(expected: str) -> dict:
                 f"Runtime requires Pi {expected}; PATH reports {observed}. Install a separate copy, without changing the global Pi or manifest: npm install --prefix {prefix} --save-exact @earendil-works/pi-coding-agent@{expected}"
             )
         command = _absolute([str(binary)])
-        actual = _probe(command, "--version")
+        actual = _probe(command, "--version", **probe_options)
         if actual != expected:
             raise PiRuntimeError(
                 f"Cached Pi reports {actual}; expected exactly {expected}"
             )
         source = "version-cache"
-    flags = set(re.findall(r"--[a-z][a-z-]*", _probe(command, "--help")))
+    flags = set(re.findall(r"--[a-z][a-z-]*", _probe(command, "--help", **probe_options)))
     missing = REQUIRED_FLAGS - flags
     if missing:
         raise PiRuntimeError(
@@ -130,17 +111,17 @@ def resolve(expected: str) -> dict:
     }
 
 
-def check(path: Path) -> dict:
+def check(path: Path, *, configuration: Path | None = None) -> dict:
     runtime = load_runtime_manifest(path)
     if runtime.model["connector"] != "pi-v1":
         raise PiRuntimeError("Pi runtime resolution requires a pi-v1 manifest")
     return {
-        **resolve(runtime.model["implementation_version"]),
+        **resolve(runtime.model["implementation_version"], **({} if configuration is None else {"configuration": configuration})),
         "runtime_id": runtime.runtime_id,
     }
 
 
-def review(path: Path, harness: Path) -> dict:
+def review(path: Path, harness: Path, *, configuration: Path | None = None) -> dict:
     """Read-only per-job execution review; never infer a harness or run setup."""
     from apps.coding_agent.harness_workspace_editor import load_harness_descriptor
     from apps.harness.experiment_replay import verify_experiment
@@ -162,25 +143,32 @@ def review(path: Path, harness: Path) -> dict:
             or final["final_passed_count"] != final["final_task_count"]
             or final["final_safety_failures"] != 0):
         raise PiRuntimeError("Selected harness must pass its verified protected coding assay")
-    configured = os.environ.get("METERING_PI_CONFIG_DIR", "")
-    configuration = Path(configured)
-    interactive = Path(os.environ.get("PI_CODING_AGENT_DIR", str(Path.home() / ".pi/agent")))
-    if (not configuration.is_absolute() or not configuration.is_dir()
-            or configuration.is_symlink() or configuration.resolve() == interactive.resolve()):
-        raise PiRuntimeError(
-            "Set METERING_PI_CONFIG_DIR to a separate reviewed worker configuration directory, "
-            "not the interactive Pi directory. Provision its provider auth/models explicitly and keep routing stable while jobs run."
-        )
-    models = configuration / "models.json"
-    if models.is_symlink() or not models.is_file() or models.stat().st_size > 2_097_152:
-        raise PiRuntimeError("Worker configuration requires a bounded regular reviewed models.json")
-    selection = check(path)
+    if configuration is None:
+        configured = os.environ.get("METERING_PI_CONFIG_DIR", "")
+        configuration = Path(configured)
+        interactive = Path(os.environ.get("PI_CODING_AGENT_DIR", str(Path.home() / ".pi/agent")))
+        if (not configuration.is_absolute() or not configuration.is_dir()
+                or configuration.is_symlink() or configuration.resolve() == interactive.resolve()):
+            raise PiRuntimeError(
+                "Set METERING_PI_CONFIG_DIR to a separate reviewed worker configuration directory, "
+                "not the interactive Pi directory. Provision its provider auth/models explicitly and keep routing stable while jobs run."
+            )
+        models = configuration / "models.json"
+        if models.is_symlink() or not models.is_file() or models.stat().st_size > 2_097_152:
+            raise PiRuntimeError("Worker configuration requires a bounded regular reviewed models.json")
+        models_bytes = models.read_bytes()
+        selection = check(path)
+    else:
+        configuration = configuration_source(configuration)
+        models_bytes = bounded_file(configuration / "models.json")
+        bounded_file(configuration / "auth.json", optional=True)
+        selection = check(path, configuration=configuration)
     return {
         **selection,
         "review_schema": "agentvolve-execution-review-v1",
         "model": runtime.model,
         "worker_configuration": str(configuration),
-        "worker_models_sha256": hashlib.sha256(models.read_bytes()).hexdigest(),
+        "worker_models_sha256": hashlib.sha256(models_bytes).hexdigest(),
         "harness_candidate_id": descriptor["candidate_id"],
         "harness_descriptor_sha256": hashlib.sha256(harness.read_bytes()).hexdigest(),
         "kernel": runtime.document["kernel"],
@@ -190,9 +178,40 @@ def review(path: Path, harness: Path) -> dict:
     }
 
 
+def review_configured(path: Path, harness: Path, configuration: Path) -> dict:
+    return review(path, harness, configuration=configuration)
+
+
+def start_configured(runs: Path, task: Path, manifest: Path, harness: Path,
+                     configuration: Path, review_path: Path) -> dict:
+    from apps.coding_agent.agentvolve_worker import start_workflow
+
+    try:
+        approved = decode_json_object(
+            bounded_file(review_path.expanduser().absolute(), limit=MAX_REVIEW_BYTES).decode("utf-8"), PiRuntimeError
+        )
+    except (ValueError, UnicodeError, RecursionError):
+        # No parser echoes of operator-provided keys/values (potential credentials).
+        raise PiRuntimeError("Approved execution review must be bounded strict JSON") from None
+    if approved.get("worker_configuration") != str(configuration_source(configuration)):
+        raise PiRuntimeError("Approved execution review configuration differs from the selected directory")
+    fresh = review_configured(manifest, harness, configuration)
+    if canonical_json(fresh) != canonical_json(approved):
+        raise PiRuntimeError("Execution review changed; review and approve again before dispatch")
+    # The worker independently checks the copied bytes and runtime/command binding.
+    return start_workflow(runs, task, manifest, harness, execution=approved)
+
+
 def main(arguments: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if arguments is None else arguments)
     try:
+        if len(args) == 4 and args[0] == "review-configured":
+            print(canonical_json(review_configured(Path(args[1]), Path(args[2]), Path(args[3]))))
+            return 0
+        if len(args) == 7 and args[0] == "start-configured":
+            print(canonical_json(start_configured(*(Path(arg) for arg in args[1:]))))
+            return 0
+        environment = None
         if len(args) == 3 and args[0] == "review":
             print(canonical_json(review(Path(args[1]), Path(args[2]))))
             return 0
@@ -208,15 +227,21 @@ def main(arguments: list[str] | None = None) -> int:
 
             request = load_workflow_request(Path(args[1]))
             manifest = Path(str(request["runtime_manifest"]))
+            if "pi_execution" in request:
+                environment = child_environment(Path(args[1]), request)
         else:
             raise PiRuntimeError(
-                "usage: review RUNTIME.json HARNESS.json | check RUNTIME.json | start RUNS TASK.json RUNTIME.json [HARNESS.json] | resume WORKFLOW | retry WORKFLOW REASON"
+                "usage: review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY | "
+                "start-configured RUNS TASK.json RUNTIME.json HARNESS.json CONFIG_DIRECTORY REVIEW.json | "
+                "review RUNTIME.json HARNESS.json | check RUNTIME.json | "
+                "start RUNS TASK.json RUNTIME.json [HARNESS.json] | resume WORKFLOW | retry WORKFLOW REASON"
             )
-        selection = check(manifest)
-        environment = {
-            **os.environ,
-            "METERING_PI_COMMAND": canonical_json(selection["command"]),
-        }
+        if environment is None:
+            selection = check(manifest)
+            environment = {
+                **os.environ,
+                "METERING_PI_COMMAND": canonical_json(selection["command"]),
+            }
         # The worker remains the sole owner of launch/retry, budgets, locks and receipts.
         os.execve(
             sys.executable,

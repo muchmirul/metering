@@ -176,15 +176,29 @@ after a user request is prompt policy rather than an OS security boundary.
 
 Candidate code and candidate-owned extensions are never loaded into the host Pi.
 New Pi jobs require an explicit compatible verified sealed harness and a separate
-reviewed worker configuration. Task review displays runtime/worker/harness identity
-and budgets separately from interactive drafting. No implicit Level-2 setup,
+reviewed worker configuration. `workflow_configure` selects existing paths through
+a directly approved session-owned dialog; `/goal` offers it when defaults are
+missing. Child configuration is supplied at spawn, without interactive environment
+mutation, a second interactive Pi, or process restart. Only selection paths persist;
+new/forked sessions inherit none. Setup changes only future jobs, starts no evolution,
+and does not replace per-job approval. Task review displays runtime/worker/harness
+identity and budgets separately from interactive drafting. No implicit Level-2 setup,
 newest-harness guess or automatic model-service start/restart is allowed.
 
-Pinned Pi version isolation is NOT immutable controller deployment. Controller,
-configuration, auth and provenance paths remain operator-managed; a separate
-reviewed stable installation is required operationally. Workers still load trusted
-code from that installation: editing the engine checkout or routing configuration
-while they run is unsafe. No automatic snapshot/deployment framework is supplied.
+Configured dispatch rechecks the strict approved document and creates a v2
+orchestration request binding the command/version/runtime and models SHA256. Only
+bounded regular models.json and optional auth.json from the explicitly selected
+source are copied into private job-owned storage; no implicit interactive file
+copying or ambient resource loading occurs. Models are hash-bound, auth may refresh,
+and recovery uses the job-owned binding, not ambient overrides. Read-only status
+and offline verification do not depend on private configuration or a live Pi client.
+Legacy v1 orchestration and experiment/evidence formats are unchanged.
+
+Pinned Pi isolation is NOT immutable controller deployment. Controller/runtime and
+provenance paths remain operator-managed; a separate reviewed stable installation
+is required operationally. Workers still load trusted code from that installation:
+editing the engine checkout or job-owned routing configuration while they run is
+unsafe. The bounded Pi configuration copy is not a general deployment framework.
 Normal edits to the task working tree do not replace its approved base commit,
 immutable candidates or evidence; this is not a promise that host Pi is confined.
 

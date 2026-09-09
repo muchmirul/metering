@@ -176,9 +176,14 @@ work; forks inherit no ownership. New submissions/shutdown invalidate pending
 monitor output. Every job reviews its exact cap, distinct worker runtime/config
 and explicit compatible verified harness: no newest-seal guessing, implicit
 Level-2 costs or shared-service restart. Pi keeps its interactive drafting model
-while isolated nested evolution uses the manifest-pinned runtime. Stable controller
-installation/config paths remain operator-managed, not automatically snapshotted
-or protected from host Pi by version isolation. This UI choice does not rewrite the canonical
+while isolated nested evolution uses the manifest-pinned runtime. Session-native
+configuration selects reviewed existing paths without environment mutation or a
+second interactive Pi. The configured connector rechecks approval before v2 job
+dispatch; the worker privately copies only bounded models/auth files and binds
+command/version/runtime/models hash. Recovery uses the job-owned binding; offline
+verification needs no private configuration or live Pi. Stable controller/runtime/
+harness paths remain operator-managed, not automatically snapshotted or protected
+from host Pi by this bounded configuration copy. This UI choice does not rewrite the canonical
 manifest used by nested calls and does not move recurrence, evaluation, final
 tasks, runtime identity, or selection authority into Pi.
 Generic clone/content/commit mechanics stay in

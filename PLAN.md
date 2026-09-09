@@ -646,6 +646,33 @@ Submission goals, diagnostics and mutable status stay in job/tool data; they are
 not interpolated into the interactive assistant's system instructions.
 Loading the extension starts no task, model or service.
 
+Worker configuration is session-native. The action-only `workflow_configure`
+dialog directly selects existing runtime, compatible sealed harness and separate
+Pi configuration paths, read-only verifies them, and asks for confirmation.
+`/goal` offers that dialog when configuration is missing. Existing environment
+variables are defaults, not a requirement to restart Pi. Only approved path
+selections (never credentials) are stored in session-owned, append-ordered
+`agentvolve-execution-configuration-v1` entries. Reload/resume and /tree retain
+the latest owned selection; new/fork/clone sessions do not inherit it. Changing
+configuration affects future submissions only, never binds another job or stops
+a worker. Cancellation, errors and stale asynchronous UI responses preserve the
+previous selection. Configuration, task preparation and recovery are serialized;
+ordinary tools remain unchanged. No model-auth secrets are requested through chat.
+
+The adapter passes these paths as fixed argv to `runtime review-configured` and
+`start-configured`, never mutating interactive process environment or global
+settings. Every job rechecks the reviewed execution document before dispatch.
+New configured jobs use a versioned orchestration request binding their resolved
+Pi command, runtime ID and private per-job models/auth configuration snapshot.
+Only bounded regular models.json and optional auth.json are copied after approval;
+job directories/files are private, model bytes are hash-bound, and auth refresh
+remains mutable private credential state rather than public evidence. Resume,
+retry and direct worker recovery use this job-owned context, not the calling
+session's newer choices/environment. Legacy workflow requests and CLI commands
+remain readable and unmigrated. No new experiment schema, search policy or
+permission to run Level 2 is introduced. Sources used for worker configuration
+and harness/runtime review are excluded from task drafting.
+
 Each explicit submission records `agentvolve-submission-v1` orchestration-only
 session entries with a session UUID and distinct attempt ID. Preparing,
 not-launched/cancelled/failed, uncertain-dispatch and launched states are distinct.
@@ -806,10 +833,12 @@ Per-job task review displays the worker provider/model/reasoning, exact Pi comma
 and version, runtime ID, kernel/resource bounds, model-call/time limits, separate
 worker configuration path/models digest, and verified reused harness identity,
 distinct from the interactive model used only to draft the contract. The read-only
-`connectors.fixed.pi.runtime review RUNTIME HARNESS` verifies compatible sealed
-coding-harness provenance and requires a separate explicit METERING_PI_CONFIG_DIR.
-The adapter rechecks the review before dispatch and refuses changed configuration.
-New Pi jobs require METERING_EVOLUTION_HARNESS_DESCRIPTOR: no newest-harness guess
+`connectors.fixed.pi.runtime review-configured RUNTIME HARNESS CONFIG_DIRECTORY`
+verifies compatible sealed coding-harness provenance and the separate selected
+worker configuration. Legacy `review RUNTIME HARNESS` still reads the explicit
+METERING_PI_CONFIG_DIR. The adapter and configured CLI recheck the approved review
+before dispatch and refuse changed configuration. New Pi jobs require an explicit
+harness selection (session dialog or environment default): no newest-harness guess
 and no implicit Level-2 setup. With no compatible seal, separately review/budget
 and execute the documented Level-2 CLI setup and verify its original descriptor.
 Legacy worker CLI start without a descriptor and original replay remain supported
@@ -943,8 +972,8 @@ call/time reservation. Stop signals only a lock-owning process whose PID identit
 still matches and does not manufacture a clean checkpoint. Verification is a
 separate detached offline replay of an otherwise complete workflow.
 
-The model-facing `darwinian_coding` tool retains only operator-reviewed `workflow_from_session`,
-`workflow_start`, read-only `workflow_status` and `workflow_history`,
+The model-facing `darwinian_coding` tool exposes operator-reviewed `workflow_configure`,
+`workflow_from_session`, `workflow_start`, read-only `workflow_status` and `workflow_history`,
 `workflow_verify`, and operator-reviewed `workflow_manage` actions. Management
 selects a detached workflow through bounded history pages, offers only applicable
 resume/retry/stop/verify/close operations, collects any reason directly from the
@@ -968,12 +997,15 @@ clarification/review UI; separate fixed Pi calls provide mutation transport.
 Neither is evaluator, selector, ledger authority or a host sandbox.
 
 Controller installation, runtime/configuration, credential and source-provenance
-paths remain operator-managed. Pinned Pi version/configuration isolation is NOT
+paths remain operator-managed except the bounded job-private Pi configuration
+copy described above. Offline verification does not need private configuration or
+a live Pi executable. Pinned Pi version/configuration isolation is NOT
 immutable control-plane deployment or a sandbox for host Pi. Workers still load
 trusted code from installed source paths; editing their live engine checkout or
-routing configuration while running is not safe. A separate reviewed stable
-installation is operationally required. No automatic snapshot, deployment engine,
-daemon, result apply/merge, or host-session sharing is introduced. Endpoint aliases
+job-owned routing snapshots while running is not safe. A separate reviewed stable
+controller installation is operationally required. The per-job Pi configuration
+copy is not a controller snapshot, deployment engine, daemon, result apply/merge,
+or host-session sharing mechanism. Endpoint aliases
 do not completely bind upstream weights/sampling. Existing runs/evidence, legacy
 replay, public measurement API, numerical semantics and package contents stay unchanged.
 

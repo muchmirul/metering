@@ -22,6 +22,7 @@ from apps._support.wire import (
 )
 from apps.coding_agent.harness_workspace_editor import CodingMutationError
 from apps.coding_agent.preflight import preflight_task
+from apps.coding_agent import pi_execution
 from apps.coding_agent.process_tracker import (
     STAGE_LABELS,
     load_process_status,
@@ -186,9 +187,12 @@ def load_workflow_request(workflow_root: Path) -> dict[str, object]:
         "workflow_id",
         "workflow_schema",
     }
+    schema = request.get("workflow_schema")
+    if schema == pi_execution.WORKFLOW_SCHEMA:
+        expected.add("pi_execution")
     if (
         set(request) != expected
-        or request.get("workflow_schema") != WORKFLOW_REQUEST_SCHEMA
+        or schema not in (WORKFLOW_REQUEST_SCHEMA, pi_execution.WORKFLOW_SCHEMA)
     ):
         raise AgentvolveWorkerError(
             "Agentvolve workflow request has an unexpected schema"
@@ -205,7 +209,21 @@ def load_workflow_request(workflow_root: Path) -> dict[str, object]:
         )
     if request.get("repository_root") != str(ROOT):
         raise AgentvolveWorkerError("Agentvolve workflow repository root changed")
+    if schema == pi_execution.WORKFLOW_SCHEMA:
+        try:
+            pi_execution.validate_record(request["pi_execution"], workflow_root)
+            if request["harness_descriptor"] is None or request["harness_run_root"] is not None:
+                raise pi_execution.PiConfigurationError("Configured Pi workflows require an explicit sealed harness")
+        except ValueError as exc:
+            raise AgentvolveWorkerError(str(exc)) from exc
     return request
+
+
+def _execution_environment(workflow_root: Path, request: dict, *, probe: bool = False) -> dict[str, str]:
+    try:
+        return pi_execution.child_environment(workflow_root, request, probe=probe)
+    except (ValueError, OSError) as exc:
+        raise AgentvolveWorkerError(str(exc)) from exc
 
 
 def _load_job(path: Path) -> dict[str, object]:
@@ -466,6 +484,7 @@ def _spawn_worker(
             raise AgentvolveWorkerError(
                 "Agentvolve worker job targets another workflow"
             )
+        environment = dict(os.environ) if job["action"] == "verify" else _execution_environment(workflow_root, request, probe=True)
         _write_status(
             workflow_root,
             request,
@@ -495,6 +514,7 @@ def _spawn_worker(
                 start_new_session=True,
                 close_fds=True,
                 pass_fds=(lock.fileno(),),
+                env=environment,
             )
         finally:
             os.close(descriptor)
@@ -672,7 +692,13 @@ def start_workflow(
     task_profile: Path,
     runtime_manifest: Path,
     harness_descriptor: Path | None = None,
+    *,
+    execution: dict | None = None,
 ) -> dict[str, object]:
+    # Only the new configured boundary binds a v2 request. Legacy calls stay v1.
+    if execution is not None and (type(execution) is not dict or harness_descriptor is None
+                                  or type(execution.get("worker_configuration")) is not str):
+        raise AgentvolveWorkerError("Configured Pi start requires an explicit sealed harness and reviewed configuration")
     runs_directory = runs_directory.expanduser().absolute()
     task_profile = task_profile.expanduser().absolute()
     runtime_manifest = runtime_manifest.expanduser().absolute()
@@ -713,8 +739,14 @@ def start_workflow(
             "task_profile": str(task_profile),
             "workflow_schema": WORKFLOW_REQUEST_SCHEMA,
         }
+        if execution is not None:
+            workflow_root.chmod(0o700)
+            identity["workflow_schema"] = pi_execution.WORKFLOW_SCHEMA
+            identity["pi_execution"] = pi_execution.execution_record(workflow_root, execution)
         request = {**identity, "workflow_id": canonical_digest(identity)}
         _write_canonical(_request_path(workflow_root), request)
+        if execution is not None:
+            pi_execution.snapshot_configuration(workflow_root, request["pi_execution"])
         job = _next_job(workflow_root, str(request["workflow_id"]), "start", None)
         return {**_spawn_worker(workflow_root, job), "legacy_unfinished_count": legacy_count}
     finally:
@@ -774,6 +806,8 @@ def launch_existing(
             raise AgentvolveWorkerError(
                 "Agentvolve workflow must complete before offline verification"
             )
+        if action != "verify":
+            _execution_environment(workflow_root, request)
         job = _next_job(workflow_root, str(request["workflow_id"]), action, reason)
     except Exception:
         lock.close()
@@ -854,6 +888,7 @@ class _EffectRunner:
     ) -> None:
         if self.terminated:
             raise AgentvolveWorkerError("Agentvolve worker was stopped by the operator")
+        environment = dict(os.environ) if self.job["action"] == "verify" else _execution_environment(self.workflow_root, self.request, probe=True)
         ordinal = int(self.job["ordinal"])
         prefix = f"{ordinal:06d}-{kind}"
         stdout_path = self.workflow_root / f"{prefix}.stdout"
@@ -867,6 +902,7 @@ class _EffectRunner:
                 stdin=subprocess.DEVNULL,
                 stdout=stdout_fd,
                 stderr=stderr_fd,
+                env=environment,
                 start_new_session=True,
                 close_fds=True,
             )
@@ -897,7 +933,9 @@ class _EffectRunner:
         if self.terminated:
             raise AgentvolveWorkerError("Agentvolve worker was stopped by the operator")
         if return_code != 0:
-            diagnostic = _safe_tail(stderr_path) or _safe_tail(stdout_path)
+            # Configured provider diagnostics may contain private auth. Keep them
+            # in private logs rather than copying them into status/session outputs.
+            diagnostic = "" if "pi_execution" in self.request else (_safe_tail(stderr_path) or _safe_tail(stdout_path))
             raise AgentvolveWorkerError(
                 diagnostic or f"{kind} evolution exited with status {return_code}"
             )
@@ -1019,6 +1057,9 @@ def _execute_job(workflow_root: Path, job_path: Path) -> None:
     previous_int = signal.signal(signal.SIGINT, runner.terminate)
     try:
         action = str(job["action"])
+        # Offline evidence replay never needs the model client or private credentials.
+        if action != "verify":
+            _execution_environment(workflow_root, request)
         reason = cast(str | None, job["reason"])
         current_stage = int((load_worker_status(workflow_root) or {}).get("stage", 1))
         _write_status(

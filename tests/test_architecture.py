@@ -311,7 +311,11 @@ def test_pi_agentvolve_jobs_use_a_thin_fixed_connector_entrypoint():
     assert 'entry.message.role !== "user"' in implementation
     assert "agentvolve-workflow-configuration" in implementation
     assert "apps.coding_agent.task_profile_tool" in implementation
-    assert "METERING_EVOLUTION_HARNESS_DESCRIPTOR" in implementation
+    execution = (ROOT / "connectors/fixed/pi/agentvolve_execution.ts").read_text(encoding="utf-8")
+    assert "METERING_EVOLUTION_HARNESS_DESCRIPTOR" in execution
+    assert '"workflow_configure"' in implementation
+    assert '"start-configured"' in implementation and '"review-configured"' in execution
+    assert "agentvolve-execution-configuration-v1" in execution
     assert "AgentvolveInputRequired" in implementation
     assert "for (let stage = 1; stage <= 6; stage += 1)" in implementation
     assert "`${marker} [${stage}/6] ${PROCESS_LABELS[stage]}`" in implementation

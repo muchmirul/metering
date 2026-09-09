@@ -308,20 +308,38 @@ bounds, per-execution model-call/time limits, separate worker configuration path
 and models digest, and verified reused harness identity. One generation may make
 multiple model calls; development reservations are not a total-workflow deadline.
 
-New Pi submissions require METERING_EVOLUTION_HARNESS_DESCRIPTOR to point to the
-original compatible sealed selected-harness.json and METERING_PI_CONFIG_DIR to a
-separate reviewed worker directory containing models.json and provisioned auth.
-The read-only `python -m connectors.fixed.pi.runtime review RUNTIME.json HARNESS.json`
+Say **“configure Agentvolve”** to select the existing runtime, original compatible
+sealed selected-harness.json, and separately provisioned worker directory containing
+models.json and optional auth.json in the invoking session. `/goal` offers the same
+dialog when defaults are absent. Environment variables are optional defaults, not
+mandatory exports: no second interactive Pi or process restart is required.
+Configuration starts no job and changes no interactive tools/model/environment.
+Approved paths survive reload/resume/tree navigation in this session, not forks or
+new sessions; cancellation preserves the previous selection. Changing selection
+never changes existing job ownership. Setup/provisioning remains separately approved.
+
+The read-only `python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY`
 checks exact runtime compatibility and offline-verifies the source seal. The
-adapter compares review identity again before dispatch. No newest-harness guessing
+adapter and configured CLI compare the approved review again before dispatch. No newest-harness guessing
 or implicit Level-2 costs are allowed. Legacy CLI start without a descriptor still
 supports deliberately approved Level-2 workflows and replay, not the new Pi route.
 
-Installation/configuration paths remain operator-managed. A separate reviewed
+New configured jobs bind command/version/runtime and models SHA256 in a v2 workflow
+request. Dispatch copies only bounded regular models.json and optional auth.json
+from the explicitly selected source into private job-owned pi-configuration/
+(0700 directory, 0600 files; no symlinks or hardlinks). No ambient extensions,
+settings, sessions or interactive configuration/auth files are implicitly copied. Models must
+retain the approved hash; private auth can refresh. Session records hold only
+paths/identity, never auth bytes. Resume/retry use this job's configuration and
+command even with conflicting ambient overrides. Status and offline verification
+need neither private configuration nor a live Pi executable. Failures preserve
+evidence; inspect private diagnostics locally rather than copying credentials into chat.
+
+Controller/runtime/harness paths remain operator-managed. A separate reviewed
 stable controller installation is operationally required: the worker still loads
-trusted code from its source paths. Do not edit its live engine checkout or routing
-configuration while a worker runs. Pinned Pi isolation is NOT a host Pi sandbox or
-immutable controller deployment. No snapshot/deployment engine is added here.
+trusted code from its source paths. Do not edit its live engine checkout or runtime
+provenance while a worker runs. The bounded Pi configuration copy is NOT a host Pi
+sandbox or immutable controller deployment; no general deployment engine is added.
 Launch returns after detachment; ordinary Pi remains usable.
 
 `/progress` inspects only the exact submitted job, including completion or failure
@@ -373,7 +391,8 @@ update command automation.
 The model-facing `darwinian_coding` tool supports only operator-reviewed
 `workflow_from_session`, detached
 `workflow_start`, read-only `workflow_status` and `workflow_history`,
-`workflow_verify`, and operator-reviewed `workflow_manage`. Management selects
+`workflow_verify`, operator-reviewed `workflow_manage`, and session-only
+`workflow_configure`. Management selects
 a detached workflow from history rather than accepting a model-chosen path.
 It
 cannot carry task text, evaluator commands, candidates, output paths,
