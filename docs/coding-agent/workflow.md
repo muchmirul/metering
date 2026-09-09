@@ -45,7 +45,13 @@ that original run.
 
 ## Viewing status
 
-Mode activation has no pre-start menu and starts no worker. A reviewed task may
+Operator mode defaults off. “Activate Agentvolve” enables it only for this
+session; “Deactivate Agentvolve” returns to normal coding without stopping or
+signalling workers, changing evidence, or resetting saved goals/limits. Neither
+changes configured tool availability. Reload/resume preserves the last setting
+across `/tree` branches; new/fork/clone sessions start off. See
+[session mode](operations.md#session-mode) for legacy restoration and monitor
+cancellation semantics. Activation has no pre-start menu and starts no worker. A reviewed task may
 open the clarification, task-summary selection, or approval interaction
 needed to bind the canonical input. A blocking detached workflow first opens a
 directly approved recovery/close dialog. Unmanaged legacy runs stay in history

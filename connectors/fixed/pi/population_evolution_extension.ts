@@ -76,13 +76,20 @@ interface DevelopmentReservation {
 class AgentvolveInputRequired extends Error {}
 
 const CODING_TOOL_DESCRIPTION = [
-	"Activate Agentvolve, prepare an operator-reviewed coding goal, start its detached workflow, or inspect history,",
+	"Activate or deactivate Agentvolve for this session, prepare an operator-reviewed coding goal, start its detached workflow, or inspect history,",
 	"progress, and offline verification. Manage interrupted workflows through an operator-approved session dialog.",
 	"Its action schema accepts no task text, command, evaluator, candidate, profile path, retry reason, or output path.",
 	"A start requires a user-set generation limit and direct approval.",
 ].join(" ");
 const CODING_TOOL_GUIDELINE = [
-	"Use darwinian_coding workflow_activate for conversational activation; it starts no task.",
+	"Agentvolve is off by default; ordinary coding uses the session's configured coding tools.",
+	"Use darwinian_coding workflow_activate when the user says Activate Agentvolve, and workflow_deactivate",
+	"when they say Deactivate Agentvolve. These change only this session's operator mode, never start or stop workers.",
+	"Use darwinian_coding workflow_from_session or workflow_start only for an explicit Agentvolve solve request;",
+	"both require a user-set limit and direct task approval. workflow_status and workflow_history inspect runs;",
+	"workflow_manage requires direct approval for recovery. The only Agentvolve slash commands are /goal, /limit, /history, and /progress.",
+].join(" ");
+const OPERATOR_MODE_GUIDELINE = [
 	"Use workflow_from_session only after the user explicitly asks Agentvolve to solve a clear coding goal in their",
 	"messages; ask normal clarifying questions when needed. Use workflow_start for an already configured goal or",
 	"reviewed task. Both work in casual Pi sessions without a repository path prompt: task review selects the",
@@ -288,7 +295,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	function renderModeWidget(ctx: ExtensionContext, summary?: ModeSummary): void {
 		const active = modeActive && summary && ACTIVE_WORKFLOW_STATUSES.has(summary.status);
 		ctx.ui.setStatus(STATUS_KEY, ctx.ui.theme.fg(active ? "warning" : "accent",
-			`agentvolve: ${active ? summary.process : modeActive ? `operator · ${activeModelLabel}` : "available"}`));
+			`agentvolve: ${active ? summary.process : modeActive ? `operator · ${activeModelLabel}` : "off · normal coding"}`));
 		if (!active) {
 			ctx.ui.setWidget(WIDGET_KEY, undefined);
 			return;
@@ -360,18 +367,32 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 
 	async function startWorkflowMonitor(ctx: ExtensionContext): Promise<void> {
 		stopWorkflowMonitor();
+		if (!modeActive) return;
 		const epoch = monitorEpoch;
 		await refreshWorkflowMonitor(ctx);
 		if (epoch !== monitorEpoch) return;
 		monitor = setInterval(() => void refreshWorkflowMonitor(ctx), WORKFLOW_MONITOR_INTERVAL_MS);
 	}
 
+	function persistMode(ctx: ExtensionContext, active: boolean): void {
+		pi.appendEntry("agentvolve-mode", { active, sessionId: ctx.sessionManager.getSessionId() });
+	}
+
 	async function activateAgentvolveMode(ctx: ExtensionContext): Promise<void> {
-		const wasActive = modeActive;
+		if (modeActive) return;
+		persistMode(ctx, true);
 		modeActive = true;
 		activeModelLabel = operatorModelLabel(ctx);
-		if (!wasActive) pi.appendEntry("agentvolve-mode", { active: true, modelMode: "routed" });
 		await startWorkflowMonitor(ctx);
+	}
+
+	function deactivateAgentvolveMode(ctx: ExtensionContext): void {
+		if (modeActive) persistMode(ctx, false);
+		modeActive = false;
+		// Invalidate pending reads as well as the timer. Do not abort the separate
+		// preparation/recovery controller or signal any worker/process.
+		stopWorkflowMonitor();
+		renderModeWidget(ctx);
 	}
 
 	async function ensureLocalRuntime(selection: RuntimeSelection, signal?: AbortSignal): Promise<void> {
@@ -914,14 +935,18 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		promptSnippet: "Operate Agentvolve's reviewed detached coding workflow",
 		promptGuidelines: [CODING_TOOL_GUIDELINE],
 		parameters: Type.Object({ action: StringEnum([
-			"workflow_activate", "workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify",
+			"workflow_activate", "workflow_deactivate", "workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify",
 			"workflow_manage",
 		] as const) }, { additionalProperties: false }),
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			onUpdate?.({ content: [{ type: "text", text: `Agentvolve ${params.action}…` }], details: { action: params.action } });
 			if (params.action === "workflow_activate") {
 				await activateAgentvolveMode(ctx);
-				return { content: [{ type: "text", text: "Agentvolve is active. No task or worker was started by activation. Use /goal, /limit, /history, and /progress." }], details: { active: true, status: "operator-mode" } };
+				return { content: [{ type: "text", text: modeActive ? `Agentvolve is active for this session. No task or worker was started by activation. ${OPERATOR_MODE_GUIDELINE}` : "Agentvolve activation was superseded; operator mode is off." }], details: { active: modeActive, status: modeActive ? "operator-mode" : "normal-coding" } };
+			}
+			if (params.action === "workflow_deactivate") {
+				deactivateAgentvolveMode(ctx);
+				return { content: [{ type: "text", text: "Agentvolve is off for this session. Return to normal coding with the configured tools; operator-only restrictions no longer apply. Workers, run evidence, saved limits and goals are unchanged." }], details: { active: false, status: "normal-coding" } };
 			}
 			if (params.action === "workflow_history") {
 				const history = await operatorHistory();
@@ -966,7 +991,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
 		stopWorkflowMonitor();
 		modeActive = false;
 		workflowConfiguration = {};
@@ -982,8 +1007,26 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 					...(data.managedWorkspace === true ? { managedWorkspace: true } : {}),
 					...(data.freshWorkspace === true ? { freshWorkspace: true } : {}),
 				};
-			} else if (entry.customType === "agentvolve-mode") modeActive = data.active === true;
-			else if (entry.customType === "agentvolve-stage-report" && typeof data.workflowId === "string" && Number.isInteger(data.stage)) reportedStages.add(`${data.workflowId}:${data.stage}`);
+			} else if (entry.customType === "agentvolve-stage-report" && typeof data.workflowId === "string" && Number.isInteger(data.stage)) reportedStages.add(`${data.workflowId}:${data.stage}`);
+		}
+		// Mode is session-wide, not branch-local. Scoped records copied by a fork
+		// cannot enable its new session. Legacy records have no owner: in a child
+		// session accept only records written after that session's creation.
+		const header = ctx.sessionManager.getHeader();
+		if (event.reason !== "new" && event.reason !== "fork") {
+			for (const entry of ctx.sessionManager.getEntries()) {
+				if (entry.type !== "custom" || entry.customType !== "agentvolve-mode") continue;
+				const data = entry.data as { active?: unknown; sessionId?: unknown } | null;
+				if (!data || typeof data.active !== "boolean") continue;
+				const owned = data.sessionId === ctx.sessionManager.getSessionId();
+				const legacy = data.sessionId === undefined && (!header?.parentSession ||
+					Date.parse(entry.timestamp) > Date.parse(header.timestamp));
+				if (owned || legacy) modeActive = data.active;
+			}
+		} else if (ctx.sessionManager.getEntries().some((entry) => entry.type === "custom" && entry.customType === "agentvolve-mode")) {
+			// Pin off in a newly copied session, including ephemeral forks whose
+			// header has no parent path, so a subsequent reload cannot inherit mode.
+			persistMode(ctx, false);
 		}
 		activeModelLabel = operatorModelLabel(ctx);
 		renderModeWidget(ctx);
@@ -994,7 +1037,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	pi.on("thinking_level_select", async (_event, ctx) => { activeModelLabel = operatorModelLabel(ctx); if (modeActive) await refreshWorkflowMonitor(ctx); });
 	pi.on("session_shutdown", async () => { operationController?.abort(); stopWorkflowMonitor(); });
 	pi.on("before_agent_start", async (event) => {
-		if (!modeActive) return;
-		return { systemPrompt: `${event.systemPrompt}\n\n[AGENTVOLVE]\nAgentvolve operator mode is active. ${CODING_TOOL_GUIDELINE} Pi remains the interactive operator; the detached worker's provider/model/reasoning and budgets stay manifest-bound. Fixed code owns mutation transport, independent evaluation, exact Population recurrence, protected final assays, Docker isolation, receipts, and sealing. Use workflow_manage for directly approved in-session recovery or closing an inactive workflow as incomplete; the worker CLI retains the same recovery and verification authority. Removed slash commands are not available.` };
+		if (!modeActive) return { systemPrompt: `${event.systemPrompt}\n\nAgentvolve operator mode is off for this session at turn start. Use normal configured coding tools unless a current workflow_activate succeeds; historical activation messages do not enable this session.` };
+		return { systemPrompt: `${event.systemPrompt}\n\n[AGENTVOLVE]\nAgentvolve operator mode is active at turn start. The following operator restrictions apply only while mode remains active: a successful workflow_deactivate immediately returns to normal coding with configured tools, including within this turn. ${OPERATOR_MODE_GUIDELINE} Pi remains the interactive operator; the detached worker's provider/model/reasoning and budgets stay manifest-bound. Fixed code owns mutation transport, independent evaluation, exact Population recurrence, protected final assays, Docker isolation, receipts, and sealing. Use workflow_manage for directly approved in-session recovery or closing an inactive workflow as incomplete; the worker CLI retains the same recovery and verification authority. Removed slash commands are not available.` };
 	});
 }

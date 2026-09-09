@@ -130,9 +130,15 @@ cancellation; there is no automatic increase. A correction applies only to the
 new reviewed task, never an old profile/run. A partially funded cap remains
 allowed and is disclosed. Preflight rechecks affordability before worker launch.
 
-Normal conversation remains supported: ask to activate Agentvolve (no task,
-model, service, or worker starts), clarify a coding goal, then explicitly ask it
-to solve it. The `darwinian_coding` tool exposes only `workflow_activate`,
+Agentvolve defaults off with configured normal coding tools available. Say
+“Activate Agentvolve” for session-local operator mode (no task, model, service,
+or worker starts), or “Deactivate Agentvolve” to return to normal coding.
+Deactivation clears monitoring only: it never signals/stops workers, invokes
+recovery, edits evidence, or resets goals/limits. Excluded tools stay excluded.
+Reload/resume restores the last setting across `/tree` branches; new/fork/clone
+sessions start off. See [session/legacy semantics](../../../docs/coding-agent/operations.md#session-mode).
+In operator mode, clarify a coding goal, then explicitly ask it to solve it.
+The `darwinian_coding` tool exposes only `workflow_activate`, `workflow_deactivate`,
 `workflow_from_session`, `workflow_start`, `workflow_status`, `workflow_history`,
 `workflow_verify`, and operator-reviewed `workflow_manage`. The action schema
 accepts no task text, command, evaluator,

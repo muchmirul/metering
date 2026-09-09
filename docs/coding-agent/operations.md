@@ -205,6 +205,37 @@ trusted checkout, or register its absolute path in Pi's existing extension
 settings. Loading it only registers commands; it starts no model, service, or
 experiment.
 
+### Session mode
+
+Agentvolve defaults off, with the session's configured normal coding tools
+available. Say **“Activate Agentvolve”** (`darwinian_coding workflow_activate`)
+to enable operator-only instructions and monitoring, or **“Deactivate Agentvolve”**
+(`workflow_deactivate`) to return to normal coding, including further tool calls
+in the same turn. Both are idempotent and
+session-local; neither changes the configured tool set or enables excluded tools.
+Activation starts no task. Deactivation clears the widget and stops future polls;
+already-started read-only queries may finish but cannot publish stale reports,
+notifications, or UI, or restart the monitor. It never stops/signals workers,
+invokes recovery, changes artifacts/evidence, or clears saved limits/goals/project
+selection. It does not cancel an explicitly requested task review or recovery
+operation; cancel that dialog separately. Worker stop remains a separate,
+directly approved management operation.
+
+Reload/resume restores the last on/off record in session append order, not merely
+the current branch. `/tree` navigation and compaction do not roll mode back.
+`/new`, `/fork`, `/clone`, and CLI `--fork` start off, even with copied active
+history. New records carry the owning session UUID. Legacy records containing a
+boolean `active` (including `modelMode: routed`) remain readable; in a child
+session only legacy records strictly newer than its header timestamp count.
+Inherited/ambiguous legacy records fail closed to off; activate explicitly if
+needed. No parent file is read. Goal/limit/project configuration still restores
+from the active branch as before; toggling mode never resets it.
+
+Reload the reviewed extension once to expose deactivation. No evidence/session
+migration or global configuration deployment is required. To repair an old
+extension that prevents its own bootstrap edits, start ordinary control-plane
+maintenance with `pi --no-extensions`, not an evolution run.
+
 The normal flow may begin entirely in conversation: ask Pi to activate
 Agentvolve, describe the coding goal in ordinary language, answer any needed
 clarifying question, and explicitly ask it to solve the task. Model-facing
@@ -301,7 +332,7 @@ CLI, or existing evidence. Run artifacts require no migration. Reload Pi and
 update command automation.
 
 The model-facing `darwinian_coding` tool supports only no-effect
-`workflow_activate`, operator-reviewed `workflow_from_session`, detached
+`workflow_activate` and `workflow_deactivate`, operator-reviewed `workflow_from_session`, detached
 `workflow_start`, read-only `workflow_status` and `workflow_history`,
 `workflow_verify`, and operator-reviewed `workflow_manage`. Management selects
 a detached workflow from history rather than accepting a model-chosen path.

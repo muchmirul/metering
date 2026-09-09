@@ -47,9 +47,14 @@ heredity. Only validated Git commits reproduce.
 [6/6] Result ready for review
 ```
 
-In an extension-enabled Pi session, the operator may say “activate Agentvolve”,
-then describe and clarify a coding goal in ordinary conversation. Activation
-starts no task. The four commands are `/goal`, `/limit`, `/history`, and
+Agentvolve is off in new Pi sessions; configured normal coding tools remain
+available. Say “Activate Agentvolve” for session-local operator mode and
+“Deactivate Agentvolve” to return to normal coding. Reload/resume preserves the
+last setting across branches; new/fork/clone sessions start off. Activation
+starts no task. Deactivation only clears monitoring: workers, evidence, saved
+limits and goals are unchanged, and excluded tools stay excluded. See
+[session/legacy semantics](operations.md#session-mode). While active, describe
+and clarify a coding goal in ordinary conversation. The four commands are `/goal`, `/limit`, `/history`, and
 `/progress`. Set `/limit N`, then submit `/goal PROBLEM`; `/goal` asks for a limit
 if missing and works from casual sessions without repository/path input. Messy
 requests become organized requirements, explicit assumptions, and proposed checks

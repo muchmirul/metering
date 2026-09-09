@@ -57,7 +57,13 @@ This preserves attribution.
 ## Operator and worker processes
 
 Interactive Pi is the operator, not the evolution executor. Conversational
-Agentvolve activation changes only session mode and starts no task. `/limit`
+Agentvolve activation/deactivation changes only session mode (default off).
+Normal coding tools retain their configured availability. Activation starts no
+task; deactivation invalidates monitor reads/timers without signalling workers,
+invoking recovery, changing evidence, or resetting configuration. Mode records
+bind the Pi session UUID and restore across branches, reload, and resume; copied
+fork records cannot activate a new session. See [legacy handling](operations.md#session-mode).
+`/limit`
 sets a finite generation cap. After a canonical task is selected or prepared
 from user-only session messages and directly reviewed, `/goal` or the
 model-facing start action launches `apps.coding_agent.agentvolve_worker` in a

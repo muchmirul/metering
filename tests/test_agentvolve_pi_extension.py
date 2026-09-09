@@ -168,7 +168,8 @@ export default function (pi: ExtensionAPI) {
             if entry.get("type") == "custom"
             and entry.get("customType") == "agentvolve-mode"
         ]
-        assert mode_entries[-1] == {"active": True, "modelMode": "routed"}
+        assert mode_entries[-1]["active"] is True
+        assert isinstance(mode_entries[-1]["sessionId"], str)
 
         current = runs / "workflow-pi-20260906T190000000Z"
         current.mkdir()
@@ -243,6 +244,7 @@ export default function (pi: ExtensionAPI) {
         encoded_tool = json.dumps(tool_metadata, sort_keys=True)
         for action in (
             "workflow_activate",
+            "workflow_deactivate",
             "workflow_from_session",
             "workflow_start",
             "workflow_status",
@@ -441,7 +443,8 @@ export default function (pi: ExtensionAPI) {
             if entry.get("type") == "custom"
             and entry.get("customType") == "agentvolve-mode"
         ]
-        assert mode_entries[-1] == {"active": True, "modelMode": "routed"}
+        assert mode_entries[-1]["active"] is True
+        assert isinstance(mode_entries[-1]["sessionId"], str)
         assert list(runs.iterdir()) == []
     finally:
         process.terminate()

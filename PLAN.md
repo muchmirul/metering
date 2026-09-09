@@ -633,10 +633,32 @@ implicitly restart a completed one. Configuration restoration starts no task;
 changing `/limit` never changes an immutable running task. Concurrent preparation
 is rejected, and a limit cannot change while its task is under review.
 
-Model-facing `workflow_activate` supplies no-effect activation for normal
-conversation. There is no Agentvolve model picker: Pi keeps its interactive
-model and thinking level. Activation alone starts no model, service, task, or
-worker. A caller may explicitly register the reviewed absolute extension path
+Agentvolve operator mode is off in each new Pi session; ordinary coding retains
+exactly the configured tools (excluded tools are never enabled). Neutral tool
+guidance is always available; restrictions against ordinary in-place solving
+apply only while operator mode is active. Model-facing `workflow_activate`
+(“Activate Agentvolve”) and `workflow_deactivate` (“Deactivate Agentvolve”) set
+this session's mode idempotently. Explicit `/goal` and conversational Agentvolve
+starts still activate operator mode and require a finite limit and direct task
+approval. There is no Agentvolve model picker: Pi keeps its interactive model
+and thinking level. Activation alone starts no model, service, task, or worker.
+A successful deactivation ends operator-only restrictions immediately, including
+within the current turn, and clears only the session monitor/widget;
+it never signals/stops workers, invokes recovery, changes run artifacts/evidence,
+or resets saved goals, limits, or project selection. Pending read-only monitor
+operations may finish, but their invalidated epoch cannot publish reports/UI or
+restart polling. Explicitly requested task preparation/recovery is not cancelled
+by a mode change.
+
+Mode persistence is session-wide: the last boolean in append order wins, across
+`/tree` branches and compaction, on reload/resume. New mode records bind the Pi
+session UUID. `/new`, `/fork`, `/clone`, and CLI `--fork` start off; copied records
+from another UUID cannot enable them. Legacy unscoped `agentvolve-mode` booleans
+remain readable. In a session with a parent header, legacy records are accepted
+only when timestamped strictly after that session's creation; inherited or
+ambiguous legacy records fail closed to off. No parent file is read or migrated.
+Goal/limit/project restoration retains its existing branch-local semantics;
+mode changes do not rewrite that configuration or any historical run. A caller may explicitly register the reviewed absolute extension path
 in Pi's global settings for use from every working directory.
 
 `/goal` discovers at most 200 direct `*.task.json` files under the absolute
@@ -903,7 +925,7 @@ still matches and does not manufacture a clean checkpoint. Verification is a
 separate detached offline replay of an otherwise complete workflow.
 
 The model-facing `darwinian_coding` tool adds fixed no-effect
-`workflow_activate`, operator-reviewed `workflow_from_session`,
+`workflow_activate` and `workflow_deactivate`, operator-reviewed `workflow_from_session`,
 `workflow_start`, read-only `workflow_status` and `workflow_history`,
 `workflow_verify`, and operator-reviewed `workflow_manage` actions. Management
 selects a detached workflow through bounded history pages, offers only applicable

@@ -168,8 +168,19 @@ operator-entered correction before approval; cancellation starts nothing. Fixed
 preflight rejects budgets that cannot fund even one generation. Partially funded
 caps are allowed and disclosed. Existing budgets are never increased in place.
 
-Conversation still works: ask to activate Agentvolve (starts no task), clarify a
-coding goal, and explicitly ask it to solve it. Pi keeps its current model while
+Agentvolve is **off in new sessions**, leaving configured normal coding tools
+available. Say **“Activate Agentvolve”** to enter operator mode for this session
+only, or **“Deactivate Agentvolve”** to return to normal coding. Activation starts
+no task; deactivation only clears monitoring, never stops/signals workers, invokes
+recovery, changes evidence, or resets saved goals/limits. Excluded tools stay
+excluded. Repeated on/off requests are harmless. Reload/resume restores the last
+setting across `/tree` branches; new/fork/clone sessions start off. Legacy session
+records remain readable; see [session mode semantics](docs/coding-agent/operations.md#session-mode).
+Reload the reviewed extension to expose `workflow_deactivate`; no run migration
+or global configuration change is needed. For bootstrap maintenance of an older
+extension-locked session, launch `pi --no-extensions` instead.
+
+In operator mode, clarify a coding goal and explicitly ask Agentvolve to solve it. Pi keeps its current model while
 a separate detached worker uses the canonical runtime's provider/model/reasoning
 and finite budgets. Pi remains usable while evolution continues.
 
