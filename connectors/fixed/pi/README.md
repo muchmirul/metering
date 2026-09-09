@@ -36,7 +36,8 @@ Pi configuration, not ambient settings, sessions, extensions, or skills.
 The integration separates UI, execution, and read-only evidence views:
 
 - `population_evolution_extension.ts`: Pi commands, high-level tool, task review,
-  session configuration, and active-only compact widget;
+  session configuration, and job-scoped UI (no startup notice or idle badge;
+  preparation status, active-only compact widget, one-off completion/errors);
 - `population_evolution_support.ts`: runtime paths, discovery, and projection decoding;
 - `agentvolve_dashboard.ts`: terminal progress and paginated evolution traces;
 - `runtime.py`: offline exact-version resolution and bounded CLI-contract preflight before delegating to the unchanged worker;
@@ -236,6 +237,26 @@ do not inherit it). Changing it affects future jobs only; every job still needs
 fresh finite budget and task/runtime approval. Cancellation preserves the prior
 selection and existing job tracking. Missing/incompatible setup needs separately
 approved provisioning; this dialog does not create a harness or copy interactive credentials.
+
+Normal setup presents labelled existing combinations, not three mandatory path
+inputs. A bounded read-only catalogue checks the selected registry for matching
+original seals and suggests the conventional separately provisioned
+`~/.config/metering/agentvolve-worker` directory. It never picks the newest run.
+You select a combination; its seal is independently replayed before confirmation.
+Missing prerequisites return named repair instructions to the assistant. Advanced
+path entry remains available and blank unknown paths can be corrected or cancelled.
+The assistant may prepare an isolated configuration after your approval; it must
+not implicitly copy interactive auth or start shared services.
+
+Read-only diagnostics:
+```text
+uv run python -m connectors.fixed.pi.runtime discover-configured RUNS RUNTIME.json CONFIG_DIRECTORY [HARNESS.json]
+uv run python -m connectors.fixed.pi.runtime ready-configured RUNTIME.json CONFIG_DIRECTORY
+```
+The second checks the reviewed loopback llama.cpp endpoint with no inference,
+redirect following, dynamic credential commands, loading or restarting. It reports
+an unloaded model rather than substituting another loaded alias. It is not an
+execution approval or reservation of model/GPU resources.
 
 Defaults: runtime `~/.config/metering/harness/runtime.pi.local.json`; runs and tasks
 in checkout siblings `metering-live-runs/` and `metering-live-tasks/`.

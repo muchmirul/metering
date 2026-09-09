@@ -314,6 +314,11 @@ models.json and optional auth.json in the invoking session. `/goal` offers the s
 dialog when defaults are absent. Environment variables are optional defaults, not
 mandatory exports: no second interactive Pi or process restart is required.
 Configuration starts no job and changes no interactive tools/model/environment.
+Normal setup offers named existing combinations from bounded discovery, including
+the conventional separately provisioned ~/.config/metering/agentvolve-worker.
+It never chooses the newest seal; each selected original seal is replayed before
+confirmation. Missing setup returns preparation instructions, not an unexplained
+blank-path error. Advanced paths still support correction/cancellation.
 Approved paths survive reload/resume/tree navigation in this session, not forks or
 new sessions; cancellation preserves the previous selection. Changing selection
 never changes existing job ownership. Setup/provisioning remains separately approved.
@@ -360,8 +365,14 @@ candidates and their actual Git files, with per-file tracing, comparisons, and
 exports. Build the documented frontend assets before first use. The service is
 explicitly opened, read-only, capability-protected, and finite-lived; it is not
 an Agentvolve worker and closing it never stops evolution.
-The compact widget is shown only while the bound job is queued/running; unrelated
-runs cannot replace it.
+There is no startup welcome notice or idle footer badge. Status appears during
+explicit job preparation; the compact widget appears only while the exact bound
+job is queued/running. Inactive/terminal jobs, cancelled or failed preparation,
+and session shutdown clear Agentvolve-owned status/widget entries only. Unrelated
+runs cannot replace them. Completion notices and deduplicated monitor errors
+remain, with details available through /progress and /history. No historical
+messages, approvals or evidence are deleted. Reload once to replace an older
+loaded extension and clear its stale idle UI; there is no activation mode.
 
 For upgrade-safe Pi recovery, use
 `python -m connectors.fixed.pi.runtime resume WORKFLOW` or
@@ -471,22 +482,51 @@ operator-approved problems. It deploy-loads the project extension, requires the
 runtime's `pi-v1`/`llamacpp` identity, performs actual local model inference,
 requires every protected case to pass, and offline-verifies each sealed run.
 
+Run the same full static checks as hosted CI first:
+
 ```bash
-export METERING_RUN_AGENTVOLVE_E2E=1
-export METERING_PI_CONFIG_DIR=/absolute/separate-reviewed-worker-config
-export METERING_EVOLUTION_RUNTIME_MANIFEST=/absolute/reviewed-runtime.json
-export METERING_EVOLUTION_LIVE_HARNESS=/absolute/harness-run/selected-harness.json
-export METERING_EVOLUTION_LIVE_TASK_PROFILES="/abs/one.task.json:/abs/two.task.json:/abs/three.task.json"
-# Optional, only when each profile includes explicit retry reservations:
-export METERING_EVOLUTION_LIVE_MAX_RETRIES=1
-export METERING_EVOLUTION_LIVE_RETRY_REASON="operator-approved local acceptance transport retry"
+uv run --extra lint ruff check src apps connectors artifacts tests
+uv run --extra test pytest -q
+```
+
+After fresh operator approval of the exact profiles/runtime/seal/configuration,
+use invocation-scoped values, not standing global authorization:
+
+```bash
+METERING_REQUIRE_AGENTVOLVE_E2E=1 \
+METERING_RUN_AGENTVOLVE_E2E=1 \
+METERING_PI_CONFIG_DIR=/absolute/separate-reviewed-worker-config \
+METERING_EVOLUTION_RUNTIME_MANIFEST=/absolute/reviewed-runtime.json \
+METERING_EVOLUTION_LIVE_HARNESS=/absolute/harness-run/selected-harness.json \
+METERING_EVOLUTION_LIVE_RUNS_DIR=/absolute/persistent-reviewed-registry \
+METERING_EVOLUTION_LIVE_TASK_PROFILES="/abs/one.task.json:/abs/two.task.json:/abs/three.task.json" \
 uv run --extra test pytest -q -m live_agents tests/test_agentvolve_live_workflow.py
 ```
 
-On POSIX, separate profiles with `:` (`os.pathsep`). A retry is never implicit:
-both a positive maximum and an operator-authored reason are required, and fixed
-run reservations remain authoritative. The test is deliberately
-not part of unattended deterministic CI: it requires Docker, cgroup v2, the
+The required gate fails if approval/prerequisites are absent; it cannot pass by
+skipping. Before the first task it validates **all** contracts, clean pinned bases,
+full development reservations, compatible replayed seal, worker config/Pi pin,
+registry blockers, cgroup-v2 Docker/image availability and the reviewed loopback
+model endpoint. This inspection performs no inference and never starts services.
+An unloaded requested model is a blocker, not permission to load it, evict another
+model or silently change aliases.
+
+The live RPC sessions receive no exported worker runtime/harness/config defaults:
+they exercise setup selection and exact execution approval in the same Pi process
+that submits each task. The operator test configuration is private and separate
+from interactive Pi. Job-owned configuration, ordinary shell availability, exact
+submission binding, protected checks and offline replay are asserted.
+
+The old optional automatic-retry environment flags are now rejected. A failing
+acceptance run retains its persistent registry/evidence. Inspect its exact job and
+obtain directly reviewed recovery outside the gate; never retry automatically or
+rerun into a fresh temporary registry. Shell availability is tested with the RPC
+`bash` command and actual output, not a `!text` model prompt.
+
+On POSIX, separate profiles with `:` (`os.pathsep`). Any retry outside this gate
+requires direct job-specific operator approval, a reason, and an existing finite
+reservation. The test is deliberately not part of unattended deterministic CI:
+it requires Docker, cgroup v2, the
 reviewed image, a running pinned local endpoint, separate reviewed worker config,
 an explicitly compatible verified sealed harness, and
 substantial model time. Skipping it must be reported; a source assertion is not
@@ -505,7 +545,7 @@ only after choosing a cap explicitly:
 uv run python tests/agentvolve_live_cases.py NEW_BATCH_DIRECTORY MAX_ROUNDS
 ```
 
-`MAX_ROUNDS` must be 1–4; there is no default. This creates ten clean private
+`MAX_ROUNDS` must be 1–256, matching normal task preparation; there is no default. This creates ten clean private
 seeds with **empty** solver.py files and separately authored public/protected
 contracts. It runs no model, candidate, or generated check. The original seed
 registration templates are preserved unchanged. The new `review-manifest.json`
@@ -526,7 +566,8 @@ to the exact provider in that runtime. Changing Pi's interactive model or its
 identity needs its own compatible sealed harness; never relabel a local seal.
 
 Set one absolute `METERING_EVOLUTION_LIVE_RUNS_DIR` for all subsets of a batch.
-Keep retries at zero unless separately authorized with available reservations.
+The gate does not retry. Any reserved retry needs separately reviewed job-specific
+recovery outside the gate.
 A failure/pending intent blocks the next start and requires operator-reviewed
 recovery/closure; do not select another registry to continue around it. Keep all
 logs, receipts and failures. Report task/model, completed generations, proposal

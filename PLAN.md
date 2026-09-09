@@ -644,7 +644,14 @@ classifies old mode output as historical and preserves configured tools. No tool
 list, interactive model or thinking level is changed; excluded tools stay excluded.
 Submission goals, diagnostics and mutable status stay in job/tool data; they are
 not interpolated into the interactive assistant's system instructions.
-Loading the extension starts no task, model or service.
+Loading the extension starts no task, model or service and shows no welcome
+notice or idle Agentvolve status/widget. The footer is visible only during an
+explicit submission's preparation or while its exact bound job is queued/running;
+the compact widget is visible only for that queued/running job. Inactive states,
+cancellation, failed preparation and session shutdown clear only Agentvolve-owned
+UI. Completion and deduplicated monitor-error notifications remain available;
+history, approvals, job ownership and evidence are not erased. This is display
+lifecycle, not an activation mode or a change to ordinary tools.
 
 Worker configuration is session-native. The action-only `workflow_configure`
 dialog directly selects existing runtime, compatible sealed harness and separate
@@ -658,6 +665,33 @@ configuration affects future submissions only, never binds another job or stops
 a worker. Cancellation, errors and stale asynchronous UI responses preserve the
 previous selection. Configuration, task preparation and recovery are serialized;
 ordinary tools remain unchanged. No model-auth secrets are requested through chat.
+
+Normal setup offers a bounded, read-only catalogue of compatible existing runtime/
+worker-configuration/original harness combinations before advanced path entry.
+The conventional separately provisioned worker directory is
+~/.config/metering/agentvolve-worker; it is never populated implicitly from the
+interactive credential store. Compatibility metadata is not approval or verification:
+the operator selects a clearly labelled combination and fixed code independently
+verifies its seal before confirmation. No newest-run selection, downloads, model
+service restarts or implicit harness evolution are permitted. Missing setup returns
+named repair instructions; blank/invalid advanced inputs allow correction or
+cancellation instead of terminating with an unexplained path error. Discovery's
+runtime/harness/models identities must still match the selected review. Configured
+llama.cpp readiness comes from the reviewed worker endpoint before drafting and
+at dispatch/v2 recovery, never an unrelated ambient health override. Only bounded
+loopback metadata is read; redirects/dynamic credential commands are not followed
+or executed. Unloaded models are blockers, not authority to load/evict/restart.
+
+Every workflow-affecting development must run deterministic deployed-session cases
+and a separately approved live acceptance gate. The gate preflights all approved
+profiles, exact runtime/seal/configuration, model readiness and registry authority
+before dispatch; missing prerequisites fail the gate, never count as a passing skip.
+Live acceptance must cover session-native setup without exported worker defaults,
+ordinary-tool availability, exact job binding, protected checks and offline replay.
+Natural-language drafting remains proposal input requiring contract review; typos
+or ambiguous requests never authorize invented budgets, runtime changes or retries.
+A live failure retains its original registry and evidence for directly reviewed
+recovery, not an automatic rerun in another temporary directory.
 
 The adapter passes these paths as fixed argv to `runtime review-configured` and
 `start-configured`, never mutating interactive process environment or global
@@ -746,7 +780,12 @@ Source-grounded preparation reads actual inputs before drafting, not assistant
 answers or prior tool output. Fixed code prefetches referenced tracked files from
 one pinned Git commit. The private drafter may request further unread tracked
 paths, literal user-supplied local-file references, or exact user-supplied URLs,
-but cannot choose arbitrary host paths, commands or new URLs. Outside-project
+but cannot choose arbitrary host paths, commands or new URLs. Existing directory
+references are removed from the advertised local-file allowlist using metadata
+only, without recursion; they remain location/project hints, not readable inputs.
+A model request for an excluded directory fails before source intake and does not
+authorize a model retry. Earlier setup paths do not themselves define a new task.
+Outside-project
 paths and URLs are not fetched merely because they were mentioned: they may be
 examples or requested future outputs, rather than inputs. It must see
 the declared entrypoint and known check scripts before finalizing a draft.
@@ -874,8 +913,10 @@ worker invokes the fixed experiment entrypoints and atomically advances
 status/heartbeat and terminal report projections. Closing Pi or a dashboard does
 not stop it. The session monitor, /progress and workflow_status follow only the
 exact bound submission, including terminal status, never the newest registry run.
-Only a queued/running bound job gets the compact six-stage widget. Missing,
-mismatched or unreadable references report an error, never a fallback. Job changes
+Only a queued/running bound job gets the compact six-stage widget. Idle/terminal
+jobs leave no persistent footer badge; explicit /progress and /history still work.
+Missing, mismatched or unreadable references clear stale UI and report an error
+once per unchanged diagnostic, never a fallback or a notification every poll. Job changes
 and session shutdown invalidate in-flight reads before they can publish reports,
 UI or restart polling. Completed stages are reported once per recorded workflow
 stage. Session shutdown cancels unfinished preparation, not launched workers;
@@ -1036,7 +1077,9 @@ to pass. This expensive check is separate from deterministic CI and fails unless
 its explicit runtime, sealed harness, and task-profile inputs are present.
 A ten-task easy Python catalog and preparation-only fixture helper provide
 independent external output checks and separate final inputs; the generation cap
-must be supplied explicitly (1–4), with no default or launch. The same Pi acceptance
+must be supplied explicitly (1–256, matching normal task preparation), with no
+default or launch. Five-generation requests are not silently rejected or reduced
+by the fixture helper; every resulting contract/budget still needs direct approval. The same Pi acceptance
 can target another explicitly named provider only under its reviewed runtime and
 compatible sealed harness. Multi-runtime batches may share one specified run
 registry; an interrupted run still requires approved recovery, never a replacement

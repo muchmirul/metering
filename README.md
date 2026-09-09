@@ -169,7 +169,9 @@ operator-entered correction before approval; cancellation starts nothing. Fixed
 preflight rejects budgets that cannot fund even one generation. Partially funded
 caps are allowed and disclosed. Existing budgets are never increased in place.
 
-Agentvolve is a **delegated job, not a Pi session mode**. Ordinary configured
+Agentvolve is a **delegated job, not a Pi session mode**. Task preparation treats
+directory references as locations, not readable files, and does not recursively
+scan them or treat old setup paths as inputs to an unrelated new problem. Ordinary configured
 read/write/edit/bash tools remain available before, during and after success,
 cancellation or failure; excluded tools stay excluded. Activation/deactivation
 actions and mode restoration are removed. `/goal` activates nothing. Reload the
@@ -181,8 +183,13 @@ worker executes isolated noninteractive Pi calls under its own pinned runtime,
 provider/model/reasoning, configuration and finite budgets. Task review displays
 both identities and the reused harness. Say **“configure Agentvolve”** to select
 an existing runtime, original compatible verified harness, and separately provisioned
-worker Pi configuration in this session. `/goal` offers this setup when defaults
-are missing; no second interactive Pi, exports, or process restart is needed.
+worker Pi configuration in this session. Setup first offers labelled compatible
+choices from a bounded read-only catalogue; you need not type paths when existing
+setup is found. It also checks the conventional separate directory
+`~/.config/metering/agentvolve-worker`. Missing prerequisites return preparation
+instructions, and advanced path entry supports correction/cancellation.
+`/goal` offers setup when defaults are missing; no second interactive Pi, exports,
+or process restart is needed.
 Configuration alone starts no job. No newest-harness guessing or automatic Level-2 setup:
 if no compatible seal exists, separately approve/budget the [harness setup](docs/coding-agent/operations.md#level-2-harness).
 Readiness failure reports an operator diagnosis; Agentvolve never starts or
@@ -234,9 +241,13 @@ and byte downloads, per-file history/comparisons, archive snapshots, and exports
 Build its local assets once with `npm ci --prefix apps/coding_agent/trace_ui` and
 `npm run build --prefix apps/coding_agent/trace_ui`. Git/evidence stay authoritative;
 no existing run is migrated or modified. The terminal view remains available.
-The compact widget appears only for a
-bound queued/running detached workflow and disappears when that job is inactive.
-New submissions and shutdown invalidate in-flight monitor output.
+Agentvolve is silent when idle: no startup welcome notice or permanent footer
+badge. An explicit job request shows preparation status; only its bound
+queued/running worker gets the compact widget. Both clear when inactive,
+cancelled or failed. Completion/error notifications remain; /progress and
+/history provide details on request. History and evidence are not deleted.
+New submissions and shutdown invalidate in-flight monitor output. After updating
+an already-loaded extension, use /reload once to clear its old idle UI.
 
 Old `/evolve*`, `/agentvolve*`, and `/view-*` slash commands, the reference Pi
 tool, and low-level compatibility tool handlers are removed. Reload Pi with

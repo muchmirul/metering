@@ -24,6 +24,7 @@ from apps.coding_agent.pi_execution import (
     configuration_source,
 )
 from apps.coding_agent import pi_execution
+from connectors.fixed.pi.readiness import local_model
 from apps.harness.runtime_manifest import load_runtime_manifest
 from connectors.fixed.command import command_prefix
 
@@ -198,6 +199,7 @@ def start_configured(runs: Path, task: Path, manifest: Path, harness: Path,
     fresh = review_configured(manifest, harness, configuration)
     if canonical_json(fresh) != canonical_json(approved):
         raise PiRuntimeError("Execution review changed; review and approve again before dispatch")
+    local_model(manifest, configuration)  # Read-only; never load or replace a shared model.
     # The worker independently checks the copied bytes and runtime/command binding.
     return start_workflow(runs, task, manifest, harness, execution=approved)
 
@@ -205,6 +207,14 @@ def start_configured(runs: Path, task: Path, manifest: Path, harness: Path,
 def main(arguments: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if arguments is None else arguments)
     try:
+        if len(args) == 3 and args[0] == "ready-configured":
+            print(canonical_json(local_model(Path(args[1]), Path(args[2]))))
+            return 0
+        if len(args) in {4, 5} and args[0] == "discover-configured":
+            from connectors.fixed.pi.setup import discover
+
+            print(canonical_json(discover(*(Path(arg) for arg in args[1:]))))
+            return 0
         if len(args) == 4 and args[0] == "review-configured":
             print(canonical_json(review_configured(Path(args[1]), Path(args[2]), Path(args[3]))))
             return 0
@@ -229,9 +239,12 @@ def main(arguments: list[str] | None = None) -> int:
             manifest = Path(str(request["runtime_manifest"]))
             if "pi_execution" in request:
                 environment = child_environment(Path(args[1]), request)
+                local_model(manifest, Path(environment["METERING_PI_CONFIG_DIR"]))
         else:
             raise PiRuntimeError(
-                "usage: review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY | "
+                "usage: ready-configured RUNTIME.json CONFIG_DIRECTORY | "
+                "discover-configured RUNS RUNTIME.json CONFIG_DIRECTORY [HARNESS.json] | "
+                "review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY | "
                 "start-configured RUNS TASK.json RUNTIME.json HARNESS.json CONFIG_DIRECTORY REVIEW.json | "
                 "review RUNTIME.json HARNESS.json | check RUNTIME.json | "
                 "start RUNS TASK.json RUNTIME.json [HARNESS.json] | resume WORKFLOW | retry WORKFLOW REASON"

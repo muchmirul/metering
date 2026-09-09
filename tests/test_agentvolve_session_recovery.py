@@ -63,6 +63,7 @@ args = sys.argv[1:]
 if args[:4] == ["run", "python", "-m", "connectors.fixed.pi.runtime"]:
     with open({str(log)!r}, "a") as output: output.write(json.dumps(args) + "\\n")
     if args[4] == "check": print('{{}}')
+    elif args[4] == "discover-configured": print(json.dumps({{"setup_schema":"agentvolve-setup-discovery-v1", "authority":"diagnostic-only", "options":[], "issues":[], "truncated":False}}))
     else: print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "workflow_id":{request["workflow_id"]!r},
         "workflow_root":args[5], "action":args[4], "pid":12345, "state":"queued"}}))
 else: os.execv({real_uv!r}, [{real_uv!r}, *args])
@@ -144,8 +145,9 @@ else: os.execv({real_uv!r}, [{real_uv!r}, *args])
         assert all(path.read_bytes() == payload for path, payload in snapshot.items())
         assert pending.read_text() == '{"controller_receipt":null,"stage":"controller_pending"}\n'
         assert worker.registry_status(tmp_path / "runs")["blocker"] is None
-        # Recovery completes; cancel the next task's session-native worker configuration.
-        assert not log.exists()
+        # Recovery completes; only read-only discovery precedes cancelled setup.
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        assert len(calls) == 1 and calls[0][4] == 'discover-configured'
         assert len(list((tmp_path / "runs").glob("workflow-*"))) == 1
         assert manage(lambda event: {"value": event["options"][0]})["details"]["status"] == "closed-incomplete"
     finally:

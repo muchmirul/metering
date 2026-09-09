@@ -57,6 +57,11 @@ This preserves attribution.
 ## Operator and worker processes
 
 Interactive Pi clarifies/drafts/reviews a delegated job, not an evolution mode.
+The launcher is visually quiet when idle: no startup banner or persistent idle
+status. Preparation can show status; only the session's exact queued/running job
+shows the compact widget. Inactive jobs clear owned chrome, not history/evidence;
+completion and deduplicated error notices remain. There is no UI activation flag
+that changes main-Pi permissions or worker lifetime.
 Activation/deactivation and mode restoration are removed. Historical active-mode
 output never restricts normal configured tools; no model/thinking/tool-list
 changes occur. The worker uses existing isolated noninteractive Pi calls, not
@@ -178,7 +183,14 @@ Candidate code and candidate-owned extensions are never loaded into the host Pi.
 New Pi jobs require an explicit compatible verified sealed harness and a separate
 reviewed worker configuration. `workflow_configure` selects existing paths through
 a directly approved session-owned dialog; `/goal` offers it when defaults are
-missing. Child configuration is supplied at spawn, without interactive environment
+missing. Normal setup offers a bounded read-only catalogue of labelled compatible
+combinations; operator selection precedes independent replay and confirmation.
+The catalogue cannot authorize work or choose the newest run. Missing prerequisites
+return actionable preparation instructions; advanced inputs support correction.
+The selected model's readiness is checked against its reviewed worker configuration
+before drafting and again at configured dispatch/recovery, not an ambient model
+alias. No loading/eviction/restart is performed. Readiness is not a resource lease.
+Child configuration is supplied at spawn, without interactive environment
 mutation, a second interactive Pi, or process restart. Only selection paths persist;
 new/forked sessions inherit none. Setup changes only future jobs, starts no evolution,
 and does not replace per-job approval. Task review displays runtime/worker/harness

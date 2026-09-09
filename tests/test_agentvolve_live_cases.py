@@ -39,7 +39,18 @@ def test_ten_distinct_live_contracts_have_empty_seeds_and_separate_final_inputs(
         prepare_cases(tmp_path / "batch", 2)
 
 
-@pytest.mark.parametrize("cap", [0, 5, True, 1.5])
+@pytest.mark.parametrize("cap", [5, 256])
+def test_live_catalog_accepts_normal_agentvolve_caps_without_launching(tmp_path: Path, cap):
+    manifest = prepare_cases(tmp_path / 'batch', cap)
+    assert manifest['authority'] == 'operator-review-required'
+    for task in manifest['tasks']:
+        profile = load_task_profile(Path(task['profile']))
+        assert profile['limits']['max_rounds'] == profile['limits']['max_proposal_calls'] == cap
+        assert preflight_task(profile)['development_reservation']['funded_rounds_without_retries'] == cap
+        assert (Path(profile['repository']['path']) / 'solver.py').read_bytes() == b''
+
+
+@pytest.mark.parametrize("cap", [0, 257, True, 1.5])
 def test_live_catalog_requires_explicit_bounded_cap_before_effects(tmp_path: Path, cap):
     with pytest.raises(ValueError, match="explicitly chosen"):
         prepare_cases(tmp_path / "batch", cap)

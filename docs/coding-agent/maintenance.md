@@ -110,7 +110,11 @@ ownership. Old activation records/messages impose no ordinary-tool restrictions.
 `workflow_configure` records directly reviewed existing paths for this session,
 without environment mutation, a second interactive Pi, or process restart. `/goal`
 offers configuration when defaults are absent. Restoration never launches and
-malformed latest records fail closed; changes affect future jobs only.
+malformed latest records fail closed; changes affect future jobs only. The normal
+route uses bounded read-only discovery and labelled choices before full seal
+verification, not mandatory path typing. Missing setup yields actionable preparation
+instructions; advanced inputs support correction/cancellation. No implicit
+credential copying, newest-run selection or service/model loading is allowed.
 `connectors.fixed.pi.runtime review-configured` is a read-only execution-approval boundary:
 exact runtime/Pi/configuration identities, explicit compatible verified reused
 harness and finite budgets. New Pi jobs neither guess a seal nor implicitly fund
@@ -140,9 +144,31 @@ uv run --extra test pytest -q tests/test_agentvolve_jobs.py tests/test_agentvolv
 uv run --extra test pytest -q tests/test_architecture.py tests/test_experiment_boundaries.py
 uv run --extra test pytest -q tests/test_coding_agent.py tests/test_harness_evolution.py
 uv run --extra test pytest -q tests/test_agentvolve_hardening.py tests/test_coding_output_checks.py tests/test_bounded_model_transport.py
-uv run --extra lint ruff check .
+uv run --extra lint ruff check src apps connectors artifacts tests
 uv run --extra test pytest -q
 ```
+
+The Ruff command must match CI's full scope, not just edited files. The previously
+reported green pytest suite did not catch five E701 violations in the deployed-job
+tests; those stopped CI before any test/build step. Both gates are mandatory.
+
+After deterministic checks, run the [separately approved live gate](operations.md#standard-local-model-end-to-end-acceptance)
+with `METERING_REQUIRE_AGENTVOLVE_E2E=1`. Missing approval/configuration/model/image/
+profiles or a registry blocker must fail the gate, not silently skip it. Preflight
+all profiles before the first dispatch and preserve any failed run at its original
+paths. Hosted model-free CI is not live-model acceptance. A readiness check is not
+inference success or a guarantee that a shared model remains loaded.
+
+`tests/test_agentvolve_ui.py` deploy-loads Pi to check silent startup/reload,
+restored failures, preparation cancellation, active-job display, terminal clearing,
+error-notification deduplication and session-switch cleanup. Use only the owned
+status/widget keys when clearing UI; never delete session evidence or suppress
+ordinary tools. Idle UI must not become an activation flag or worker stop action.
+
+Source-grounding regressions also cover directory references: metadata filtering
+must remove them from the drafter's local-file allowlist before inference. Do not
+fix a directory-read failure by recursively reading it, weakening the bounded
+regular-file reader, retrying model output automatically or fabricating sources.
 
 Architecture tests guard the entrypoint and replay dependency direction.
 Boundary tests exercise CLI compatibility and explicit final-profile loading.

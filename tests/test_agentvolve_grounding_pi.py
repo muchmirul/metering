@@ -19,7 +19,7 @@ from test_task_profile_tool import git
 
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is not installed")
-@pytest.mark.parametrize("mode", ["absolute", "named", "read", "local", "protected", "credential", "example-url", "unprovided-url", "malformed", "duplicate", "correct", "bad-timeout", "fix-timeout", "scalar-stdout", "fix-scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint", "escape", "cancel", "head-change"])
+@pytest.mark.parametrize("mode", ["absolute", "named", "read", "local", "directory", "directory-read", "protected", "credential", "example-url", "unprovided-url", "malformed", "duplicate", "correct", "bad-timeout", "fix-timeout", "scalar-stdout", "fix-scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint", "escape", "cancel", "head-change"])
 def test_deployed_source_grounding_and_safe_recovery(tmp_path: Path, mode: str):
     root = tmp_path / "referenced-project"
     root.mkdir()
@@ -29,7 +29,11 @@ def test_deployed_source_grounding_and_safe_recovery(tmp_path: Path, mode: str):
         git(root, *args)
     commit = git(root, "rev-parse", "HEAD")
     external = tmp_path / (".env" if mode == "credential" else "external.txt")
-    external.write_text("LOCAL_EXTRA_INPUT: actual external document\n")
+    if mode in {"directory", "directory-read"}:
+        external.mkdir()
+        (external / "not-an-input.txt").write_text("DIRECTORY_CONTENT_MUST_NOT_BE_READ\n")
+    else:
+        external.write_text("LOCAL_EXTRA_INPUT: actual external document\n")
     tasks = tmp_path / "tasks"
     tasks.mkdir()
     if mode in {"named", "protected"}:
@@ -69,7 +73,7 @@ def test_deployed_source_grounding_and_safe_recovery(tmp_path: Path, mode: str):
         responses = [json.dumps(invalid)]
     elif mode == "read":
         responses.insert(0, json.dumps({"read_files": ["rules.txt"]}))
-    elif mode in {"local", "protected", "credential"}:
+    elif mode in {"local", "protected", "credential", "directory-read"}:
         responses.insert(0, json.dumps({"read_files": [str(external)]}))
     elif mode == "unprovided-url":
         responses = [json.dumps({"read_urls": ["https://example.com/unprovided"]})]
@@ -156,6 +160,8 @@ else:
                 git(root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "Move HEAD")
             return {"confirmed": mode != "cancel"}
         extra = f"; also inspect {external}" if mode in {"local", "protected", "credential"} else ""
+        if mode in {"directory", "directory-read"}:
+            extra = f"; old setup location {external} is a directory, not a task input"
         if mode == "example-url":
             extra = "; https://example.com is only an example URL, do not fetch it"
         events = rpc.prompt(f"/goal Use {reference} without changing it; write the answer to answer.txt{extra}", dialog)
@@ -173,9 +179,14 @@ else:
             assert "REQUESTED_EXTRA_INPUT" not in json.dumps(calls[0])
             assert "REQUESTED_EXTRA_INPUT" in json.dumps(calls[1])
         assert "LOCAL_EXTRA_INPUT" not in json.dumps(calls[0]), "Mere host-path mention is not a read request"
+        if mode in {"directory", "directory-read"}:
+            prompt = calls[0]["messages"][0]["content"][0]["text"]
+            advertised = json.loads(prompt.split("Literal user local-file references available for read_files: ", 1)[1].split("\n", 1)[0])
+            assert str(external) not in advertised, "A directory must never be offered as a readable file"
+            assert "DIRECTORY_CONTENT_MUST_NOT_BE_READ" not in json.dumps(calls)
         if mode == "local":
             assert "LOCAL_EXTRA_INPUT" in json.dumps(calls[1])
-        if mode in {"malformed", "duplicate", "bad-timeout", "scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint", "escape", "protected", "credential", "unprovided-url", "cancel", "head-change"}:
+        if mode in {"malformed", "duplicate", "bad-timeout", "scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint", "escape", "protected", "credential", "unprovided-url", "directory-read", "cancel", "head-change"}:
             assert not launches.exists(), events
             assert not list(tasks.glob("grounded-*.task.json"))
             if mode in {"malformed", "duplicate"}:
@@ -186,7 +197,7 @@ else:
                 assert any("Invalid task contract" in event.get("message", "") for event in events)
                 assert any(event.get("title") == "Task preparation needs attention" for event in events)
                 assert any(event.get("entry", {}).get("customType") == "agentvolve-preparation-diagnostic" for event in events)
-            if mode in {"escape", "unprovided-url"}:
+            if mode in {"escape", "unprovided-url", "directory-read"}:
                 assert any("unknown or already-read" in event.get("message", "") for event in events)
             if mode in {"protected", "credential"}:
                 assert any("Protected/operator" in event.get("message", "") for event in events)

@@ -114,7 +114,10 @@ with (base / "execs").open("a") as log: log.write(json.dumps(args) + "\\n")
 action = args[4] if len(args) > 4 else ""
 module = args[3] if len(args) > 3 else ""
 if module == "connectors.fixed.pi.runtime":
- if action == "review-configured":
+ if action == "discover-configured":
+  source = base / "setup-catalogue.json"
+  print(source.read_text() if source.exists() else json.dumps({{"setup_schema":"agentvolve-setup-discovery-v1", "authority":"diagnostic-only", "options":[], "issues":[], "truncated":False}}))
+ elif action == "review-configured":
   if (base / "review-failure").exists(): sys.exit("incompatible reviewed runtime/harness")
   if (base / "review-pause").exists():
    (base / "review-waiting").touch()
@@ -123,6 +126,9 @@ if module == "connectors.fixed.pi.runtime":
     if time.monotonic() > deadline: sys.exit("fixture review pause expired")
     time.sleep(.02)
   print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"b"*64, "harness_candidate_id":"c"*64, "harness_descriptor_sha256":hashlib.sha256(pathlib.Path(args[6]).read_bytes()).hexdigest(), "worker_configuration":args[7], "worker_models_sha256":hashlib.sha256((pathlib.Path(args[7]) / "models.json").read_bytes()).hexdigest(), "command":["/stable/pi-0.84.4"], "model":{{"connector":"pi-v1", "provider":"worker-provider", "model":"pinned-worker", "implementation_version":"0.84.4", "reasoning":"medium"}}}}))
+ elif action == "ready-configured":
+  if (base / "model-unready").exists(): sys.exit("Model not loaded. Arrange safe startup separately; no service restart performed.")
+  print(json.dumps({{"readiness_schema":"agentvolve-worker-readiness-v1", "authority":"diagnostic-only", "provider":"llamacpp", "model":"local", "state":"ready", "inference_performed":False}}))
  elif action == "check": print('{{}}')
  elif action == "start-configured":
   approved = json.loads(pathlib.Path(args[10]).read_text())
@@ -274,7 +280,8 @@ def test_new_failed_or_cancelled_request_never_reports_old_result(tmp_path, boun
     root = tmp_path / "runs" / NAME
     with deployed(tmp_path, environment=boundary) as rpc:
         bind(rpc, root)
-        if failure != "cancel-review": (tmp_path / failure).touch()
+        if failure != "cancel-review":
+            (tmp_path / failure).touch()
         rpc.prompt("/goal A new requested job", lambda e: {"confirmed": False} if failure == "cancel-review" and e["method"] == "confirm" else {"cancelled": True} if e["method"] == "select" else approve(e))
         assert submission(rpc)["state"] == state
         assert "workflow" not in submission(rpc)
@@ -329,13 +336,15 @@ def test_inflight_monitor_invalidated_without_worker_or_evidence_effects(tmp_pat
         worker_view["worker"]["pid"] = worker.pid
         (tmp_path / "projection.json").write_text(json.dumps(worker_view))
         with deployed(tmp_path, environment=boundary) as rpc:
-            if initial_refresh: (tmp_path / "pause").touch()
+            if initial_refresh:
+                (tmp_path / "pause").touch()
             bind(rpc, root, pid=worker.pid)
             evidence = root / "evidence.jsonl"
             evidence.write_bytes(b"immutable evidence\n")
             before = (evidence.read_bytes(), evidence.stat().st_mtime_ns)
             (tmp_path / "pause").touch()
-            if late_error: (tmp_path / "late-error").touch()
+            if late_error:
+                (tmp_path / "late-error").touch()
             deadline = time.monotonic() + 15
             while not (tmp_path / "waiting").exists():
                 assert time.monotonic() < deadline
@@ -398,8 +407,10 @@ def test_missing_or_mismatched_reference_never_falls_back(tmp_path, boundary, mi
     with deployed(tmp_path, environment=boundary) as rpc:
         bind(rpc, root)
         (tmp_path / "runs/workflow-pi-20260909T190000000Z").mkdir()
-        if missing: root.rmdir()
-        else: (tmp_path / "projection.json").write_text(json.dumps(projection(root, identity="d" * 64)))
+        if missing:
+            root.rmdir()
+        else:
+            (tmp_path / "projection.json").write_text(json.dumps(projection(root, identity="d" * 64)))
         events = talk(rpc, "Job status", error=True)
         assert any(e.get("isError") for e in events)
         assert submission(rpc)["workflow"]["workflow_root"] == str(root)
@@ -421,38 +432,21 @@ def test_missing_explicit_harness_refuses_newest_guessing_without_setup(tmp_path
 
 
 def test_local_readiness_failure_never_restarts_shared_service(tmp_path, boundary):
-    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-    from threading import Thread
-
-    class Health(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'{"data":[]}')
-        def log_message(self, *_args):
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Health)
-    thread = Thread(target=server.serve_forever, daemon=True)
-    thread.start()
     runtime = Path(boundary["METERING_EVOLUTION_RUNTIME_MANIFEST"])
     runtime.write_text(json.dumps({"model": {"provider": "llamacpp", "model": "local", "reasoning": "medium"}}))
-    boundary["METERING_EVOLUTION_LLAMACPP_HEALTH_URL"] = f"http://127.0.0.1:{server.server_port}/v1/models"
+    (tmp_path / 'model-unready').touch()
     service_log = tmp_path / "service-called"
     systemctl = tmp_path / "bin/systemctl"
     systemctl.write_text(f"#!{sys.executable}\nfrom pathlib import Path\nPath({str(service_log)!r}).touch()\n")
     systemctl.chmod(0o755)
-    try:
-        with deployed(tmp_path, environment=boundary) as rpc:
-            events = rpc.prompt("/goal New job", approve)
-            assert any("Arrange safe startup separately" in e.get("message", "") for e in events)
-            assert submission(rpc)["state"] == "not-launched"
-            assert not service_log.exists() and not (tmp_path / "dispatched").exists()
-            ordinary(rpc, tmp_path)
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
+    with deployed(tmp_path, environment=boundary) as rpc:
+        events = rpc.prompt("/goal New job", approve)
+        assert any("Arrange safe startup separately" in e.get("message", "") for e in events)
+        assert submission(rpc)["state"] == "not-launched"
+        assert not service_log.exists() and not (tmp_path / "dispatched").exists()
+        assert not (tmp_path / 'tasks').exists(), 'Readiness must fail before draft/registration effects'
+        assert not any(entry.get('customType') == 'agentvolve-preparation-draft' for entry in rpc.entries())
+        ordinary(rpc, tmp_path)
 
 
 def test_excluded_tools_are_not_enabled_by_legacy_restore(tmp_path):

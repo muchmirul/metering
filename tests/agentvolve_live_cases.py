@@ -51,8 +51,8 @@ def output_check(name: str, examples: dict) -> dict:
 
 
 def prepare_cases(destination: Path, max_rounds: int) -> dict:
-    if type(max_rounds) is not int or not 1 <= max_rounds <= 4:
-        raise ValueError("Supply an explicitly chosen generation cap from 1 through 4")
+    if type(max_rounds) is not int or not 1 <= max_rounds <= 256:
+        raise ValueError("Supply an explicitly chosen generation cap from 1 through 256")
     destination = destination.absolute()
     if destination.resolve() != destination or destination.exists():
         raise ValueError("Live fixtures require a new directory without symlink ancestors; existing evidence is never overwritten")
@@ -102,7 +102,7 @@ def prepare_cases(destination: Path, max_rounds: int) -> dict:
 if __name__ == "__main__":
     try:
         if len(sys.argv) != 3:
-            raise ValueError("usage: agentvolve_live_cases.py NEW_DIRECTORY MAX_ROUNDS (1–4; no default)")
+            raise ValueError("usage: agentvolve_live_cases.py NEW_DIRECTORY MAX_ROUNDS (1–256; no default)")
         result = prepare_cases(Path(sys.argv[1]), int(sys.argv[2]))
     except (ValueError, OSError) as exc:
         print(f"Fixture preparation failed; any created files are retained: {exc}", file=sys.stderr)

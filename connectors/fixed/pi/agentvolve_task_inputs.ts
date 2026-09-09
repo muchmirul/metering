@@ -106,6 +106,14 @@ export class TaskInputInspector {
 	get sources(): SourceSnapshot[] { return [...this.snapshots.values()].sort((a, b) => a.uri < b.uri ? -1 : a.uri > b.uri ? 1 : 0); }
 
 	async prefetch(signal: AbortSignal): Promise<void> {
+		// Literal directories are project/location hints, never readable files.
+		// Do this before advertising the allowlist to the drafter; do not recurse.
+		for (const [reference, path] of this.localReferences) {
+			signal.throwIfAborted();
+			try { if ((await stat(path)).isDirectory()) this.localReferences.delete(reference); }
+			catch { /* Missing/unreadable file references still get explicit bounded-reader errors if requested. */ }
+		}
+		signal.throwIfAborted();
 		const paths: string[] = [];
 		for (const reference of this.references) {
 			if (/^https?:\/\//.test(reference)) continue;
