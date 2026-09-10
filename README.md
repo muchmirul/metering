@@ -93,6 +93,53 @@ Level 1 uses that frozen harness to evolve solution commits
 Independent protected checks produce a reviewable commit and patch
 ```
 
+### Agentvolve as a Pi subagent
+
+Agentvolve is invoked by the current Pi session as a **background subagent job**.
+The invoking Pi remains the operator UI: it clarifies the task, collects the exact
+finite cap and approvals, tracks the submitted job, and presents results. Its
+configured model, thinking level, and ordinary tools do not change, so other work
+can continue while the detached worker runs. Closing Pi does not stop an
+acknowledged worker.
+
+The subagent is not an unrestricted second interactive Pi. A trusted controller
+launches pinned noninteractive Pi proposer calls under job-owned configuration,
+keeps budget/selection/evidence authority, and runs candidate code only inside the
+reviewed OCI sandbox. Process detachment alone is not sandboxing. Returned commits
+and patches are review artifacts; applying them requires separate authorization.
+
+### High-level Agentvolve architecture
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ Invoking Pi session (parent/operator UI)                     │
+│ clarify task · select setup · approve cap · continue coding  │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ reviewed job contract
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Fixed Pi adapter                                             │
+│ session ownership · exact job binding · status/recovery UI   │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ detached launch
+                               ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Trusted Agentvolve worker/controller (background process)    │
+│ budgets · recurrence · selection · receipts · evidence       │
+├───────────────────┬──────────────────────┬───────────────────┤
+│ Pinned, isolated  │ Reviewed OCI         │ Independent       │
+│ noninteractive Pi │ candidate sandboxes  │ checks/final assay│
+│ proposes changes  │ execute candidates   │ judge candidates  │
+└───────────────────┴──────────────────────┴─────────┬─────────┘
+                                                     │
+                               selected commit + patch + evidence
+                                                     ▼
+┌──────────────────────────────────────────────────────────────┐
+│ Invoking session: /progress, /history, review result         │
+│ Operator separately authorizes any apply/merge/deploy        │
+└──────────────────────────────────────────────────────────────┘
+```
+
 Its operator-facing tracker is:
 
 ```text
