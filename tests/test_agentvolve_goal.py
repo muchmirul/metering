@@ -127,7 +127,7 @@ args = sys.argv[1:]
 if args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "check"]:
     print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1", "authority":"diagnostic-only"}}))
 elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "review-configured"]:
-    print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
+    print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "runs_directory":args[8], "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
 elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "start-configured"]:
     with open(os.environ["GOAL_LAUNCH_LOG"], "a") as log:
         log.write(json.dumps(args) + "\\n")

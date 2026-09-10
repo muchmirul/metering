@@ -654,17 +654,24 @@ history, approvals, job ownership and evidence are not erased. This is display
 lifecycle, not an activation mode or a change to ordinary tools.
 
 Worker configuration is session-native. The action-only `workflow_configure`
-dialog directly selects existing runtime, compatible sealed harness and separate
-Pi configuration paths, read-only verifies them, and asks for confirmation.
+dialog directly selects existing runtime, compatible sealed harness, separate
+Pi configuration and private run-registry paths, verifies them, and asks for confirmation.
 `/goal` offers that dialog when configuration is missing. Existing environment
 variables are defaults, not a requirement to restart Pi. Only approved path
 selections (never credentials) are stored in session-owned, append-ordered
-`agentvolve-execution-configuration-v1` entries. Reload/resume and /tree retain
+`agentvolve-execution-configuration-v2` entries. The conventional run registry is
+~/.local/share/metering/agentvolve-runs: it must already be an owner-controlled
+0700 directory on a permission-capable filesystem. A selected fuseblk/NTFS path
+that cannot retain private modes is refused before workflow/evidence creation.
+Reload/resume and /tree retain
 the latest owned selection; new/fork/clone sessions do not inherit it. Changing
 configuration affects future submissions only, never binds another job or stops
 a worker. Cancellation, errors and stale asynchronous UI responses preserve the
 previous selection. Configuration, task preparation and recovery are serialized;
-ordinary tools remain unchanged. No model-auth secrets are requested through chat.
+ordinary tools remain unchanged. Version-1 session selection records lack registry
+approval and therefore require reconfiguration; existing workflow requests/evidence
+remain readable and unmigrated. A new registry never hides a blocker in the
+historical default registry. No model-auth secrets are requested through chat.
 
 Normal setup offers a bounded, read-only catalogue of compatible existing runtime/
 worker-configuration/original harness combinations before advanced path entry.
@@ -695,7 +702,8 @@ recovery, not an automatic rerun in another temporary directory.
 
 The adapter passes these paths as fixed argv to `runtime review-configured` and
 `start-configured`, never mutating interactive process environment or global
-settings. Every job rechecks the reviewed execution document before dispatch.
+settings. Every job rechecks the reviewed execution document, including the exact private
+run registry, before dispatch.
 New configured jobs use a versioned orchestration request binding their resolved
 Pi command, runtime ID and private per-job models/auth configuration snapshot.
 Only bounded regular models.json and optional auth.json are copied after approval;

@@ -22,6 +22,7 @@ from apps.coding_agent.pi_execution import (
     bounded_file,
     child_environment,
     configuration_source,
+    private_runs_directory,
 )
 from apps.coding_agent import pi_execution
 from connectors.fixed.pi.readiness import local_model
@@ -179,8 +180,12 @@ def review(path: Path, harness: Path, *, configuration: Path | None = None) -> d
     }
 
 
-def review_configured(path: Path, harness: Path, configuration: Path) -> dict:
-    return review(path, harness, configuration=configuration)
+def review_configured(path: Path, harness: Path, configuration: Path,
+                      runs: Path | None = None) -> dict:
+    document = review(path, harness, configuration=configuration)
+    if runs is not None:
+        document["runs_directory"] = str(private_runs_directory(runs))
+    return document
 
 
 def start_configured(runs: Path, task: Path, manifest: Path, harness: Path,
@@ -196,7 +201,10 @@ def start_configured(runs: Path, task: Path, manifest: Path, harness: Path,
         raise PiRuntimeError("Approved execution review must be bounded strict JSON") from None
     if approved.get("worker_configuration") != str(configuration_source(configuration)):
         raise PiRuntimeError("Approved execution review configuration differs from the selected directory")
-    fresh = review_configured(manifest, harness, configuration)
+    reviewed_runs = approved.get("runs_directory")
+    if reviewed_runs is not None and reviewed_runs != str(private_runs_directory(runs)):
+        raise PiRuntimeError("Approved execution review registry differs from the selected private directory")
+    fresh = review_configured(manifest, harness, configuration, runs if reviewed_runs is not None else None)
     if canonical_json(fresh) != canonical_json(approved):
         raise PiRuntimeError("Execution review changed; review and approve again before dispatch")
     local_model(manifest, configuration)  # Read-only; never load or replace a shared model.
@@ -215,8 +223,9 @@ def main(arguments: list[str] | None = None) -> int:
 
             print(canonical_json(discover(*(Path(arg) for arg in args[1:]))))
             return 0
-        if len(args) == 4 and args[0] == "review-configured":
-            print(canonical_json(review_configured(Path(args[1]), Path(args[2]), Path(args[3]))))
+        if len(args) in {4, 5} and args[0] == "review-configured":
+            print(canonical_json(review_configured(Path(args[1]), Path(args[2]), Path(args[3]),
+                                                   None if len(args) == 4 else Path(args[4]))))
             return 0
         if len(args) == 7 and args[0] == "start-configured":
             print(canonical_json(start_configured(*(Path(arg) for arg in args[1:]))))
@@ -244,7 +253,7 @@ def main(arguments: list[str] | None = None) -> int:
             raise PiRuntimeError(
                 "usage: ready-configured RUNTIME.json CONFIG_DIRECTORY | "
                 "discover-configured RUNS RUNTIME.json CONFIG_DIRECTORY [HARNESS.json] | "
-                "review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY | "
+                "review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY [PRIVATE_RUNS_DIRECTORY] | "
                 "start-configured RUNS TASK.json RUNTIME.json HARNESS.json CONFIG_DIRECTORY REVIEW.json | "
                 "review RUNTIME.json HARNESS.json | check RUNTIME.json | "
                 "start RUNS TASK.json RUNTIME.json [HARNESS.json] | resume WORKFLOW | retry WORKFLOW REASON"

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { basename, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 import { type Message, StringEnum, uuidv7 } from "@earendil-works/pi-ai";
 import { BorderedLoader, type ExtensionAPI, type ExtensionContext, type SessionEntry } from "@earendil-works/pi-coding-agent";
@@ -259,13 +259,13 @@ function operatorProgressSummary(progress: OperatorProgressView): string {
 	return lines.join("\n");
 }
 
-function decodeWorkerResponse(value: Record<string, unknown>): WorkerResponse {
+function decodeWorkerResponse(value: Record<string, unknown>, expectedRuns: string): WorkerResponse {
 	if (value.worker_response_schema !== "agentvolve-worker-response-v1" ||
 		typeof value.action !== "string" || typeof value.pid !== "number" || typeof value.state !== "string" ||
 		typeof value.workflow_id !== "string" || !/^[0-9a-f]{64}$/.test(value.workflow_id) ||
 		typeof value.workflow_root !== "string" || !isAbsolute(value.workflow_root) || resolve(value.workflow_root) !== value.workflow_root ||
 		!/^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$/.test(basename(value.workflow_root)) ||
-		resolve(value.workflow_root, "..") !== resolve(runsDirectory()) ||
+		resolve(value.workflow_root, "..") !== resolve(expectedRuns) ||
 		!Number.isSafeInteger(value.pid) || value.pid < 0) {
 		throw new Error("Agentvolve worker returned an unexpected response");
 	}
@@ -285,6 +285,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	let monitorEpoch = 0;
 	let monitorWarning: string | undefined;
 	let reportedStages = new Set<string>();
+
+	function activeRunsDirectory(): string {
+		return executionConfiguration?.runs ?? runsDirectory();
+	}
 
 	function persistWorkflowConfiguration(next: WorkflowConfiguration): void {
 		workflowConfiguration = next;
@@ -320,20 +324,20 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		ctx.ui.setWidget(WIDGET_KEY, lines, { placement: "belowEditor" });
 	}
 
-	async function operatorProgress(selector: string): Promise<OperatorProgressView> {
+	async function operatorProgress(selector: string, registry = activeRunsDirectory()): Promise<OperatorProgressView> {
 		if (!selector) throw new Error("An explicit workflow reference is required; no latest-run fallback.");
-		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", "progress", runsDirectory(), selector], { cwd: repositoryRoot(), timeout: 15_000 });
+		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", "progress", registry, selector], { cwd: repositoryRoot(), timeout: 15_000 });
 		return decodeOperatorProgress(decodeOutput(result));
 	}
 
 	async function operatorHistory(offset = 0): Promise<OperatorHistoryView> {
-		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", "history", runsDirectory(), String(offset)],
+		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", "history", activeRunsDirectory(), String(offset)],
 			{ cwd: repositoryRoot(), timeout: 15_000 });
 		return decodeOperatorHistory(decodeOutput(result));
 	}
 
-	async function operatorTrace(selector: string, offset = 0): Promise<OperatorTraceView> {
-		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", "trace", runsDirectory(), selector, String(offset)],
+	async function operatorTrace(selector: string, offset = 0, registry = activeRunsDirectory()): Promise<OperatorTraceView> {
+		const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", "trace", registry, selector, String(offset)],
 			{ cwd: repositoryRoot(), timeout: 15_000 });
 		return decodeOperatorTrace(decodeOutput(result));
 	}
@@ -356,7 +360,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 	async function boundProgress(): Promise<OperatorProgressView> {
 		const epoch = monitorEpoch;
 		const worker = boundWorkflow();
-		const progress = await operatorProgress(worker.workflow_root);
+		const progress = await operatorProgress(worker.workflow_root, dirname(worker.workflow_root));
 		if (!sessionOpen || epoch !== monitorEpoch) throw new AgentvolveInputRequired("Job view invalidated by a new submission or session shutdown.");
 		if (progress.workflow_id !== worker.workflow_id || progress.workflow_root !== worker.workflow_root) throw new Error("Referenced job returned a different identity; no fallback is permitted.");
 		return progress;
@@ -421,7 +425,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		signal.throwIfAborted();
 		if (!sessionOpen) throw new AgentvolveInputRequired("Session closed during worker configuration; nothing saved or dispatched.");
 		if (!proposed) throw new AgentvolveInputRequired("Worker configuration cancelled; previous selections and jobs are unchanged. Configure Agentvolve in this session when ready. A missing compatible seal requires separately approved/budgeted Level-2 setup, never newest-harness guessing.");
-		executionConfiguration = { manifest: proposed.manifest, harness: proposed.harness, configuration: proposed.configuration };
+		executionConfiguration = { manifest: proposed.manifest, harness: proposed.harness, configuration: proposed.configuration, runs: proposed.runs };
 		executionConfigurationInvalid = false;
 		pi.appendEntry("agentvolve-execution-configuration", executionRecord(executionConfiguration, ctx.sessionManager.getSessionId()));
 		return proposed;
@@ -467,7 +471,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			pi.appendEntry("agentvolve-execution-review", { authority: "operator-approval-record", attemptId: submission!.attemptId, document: review.document });
 			persistSubmission({ ...submission!, state: "uncertain-dispatch", diagnostic: "Dispatch attempted; launch acknowledgement not yet validated. Inspect /history and manage the exact run before any retry." });
 			// Dispatch repeats offline seal/runtime review before worker preflight.
-			result = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "start-configured", runsDirectory(),
+			result = await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime", "start-configured", review.runs,
 				configuredTaskProfile(profile), review.manifest, review.harness, review.configuration, approval],
 				{ cwd: repositoryRoot(), signal, timeout: 180_000 });
 		} finally {
@@ -475,7 +479,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			await rm(temporary, { recursive: true, force: true });
 		}
 		if (!sessionOpen || epoch !== monitorEpoch) throw new AgentvolveInputRequired("Dispatch acknowledgement arrived after session shutdown; inspect explicit history. Do not restart the task.");
-		const worker = decodeWorkerResponse(decodeOutput(result));
+		const worker = decodeWorkerResponse(decodeOutput(result), review.runs);
 		if (worker.action !== "start" || worker.state !== "queued" || worker.pid <= 0) throw new Error("Unexpected launch acknowledgement; dispatch remains uncertain.");
 		persistSubmission({ ...submission!, state: "launched", diagnostic: undefined, workflow: worker });
 		pi.appendEntry("agentvolve-worker-launch", worker);
@@ -655,7 +659,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			if (files.length > 2_000) throw new AgentvolveInputRequired("The repository exceeds the 2,000-file candidate bound; select a smaller project. No files were silently omitted.");
 			if (!files.length) throw new AgentvolveInputRequired("The current Git commit has no tracked files.");
 		}
-		const protectedPaths = [execution.manifest, execution.harness, execution.configuration,
+		const protectedPaths = [execution.manifest, execution.harness, execution.configuration, execution.runs,
 			...(await discoverTaskProfiles()).flatMap((profile) => profile.protectedFinal ? [profile.protectedFinal] : [])];
 		const configured = process.env.METERING_EVOLUTION_TASK_PROFILE?.trim();
 		if (configured) {
@@ -829,15 +833,20 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			if (goal && goal.length > 65_536) throw new AgentvolveInputRequired("/goal is too long");
 			if (goal) persistWorkflowConfiguration({ ...workflowConfiguration, goal });
 			const maxRounds = await requireLimit(ctx, operationSignal);
-			let registry = await registryStatus(pi, operationSignal);
-			while (registry.blocker) {
-				const outcome = await manageWorkflow(pi, ctx, prepareRuntime, registry.blocker.workflow_root, operationSignal);
-				ctx.ui.notify(outcome.message, "info");
-				await refreshWorkflowMonitor(ctx);
-				if (outcome.status !== "closed-incomplete") throw new AgentvolveInputRequired("No new task started. Your goal remains pending while the existing workflow is managed; ask again when ready.");
-				registry = await registryStatus(pi, operationSignal);
+			let unfinishedLegacy = 0;
+			// A new private registry must not hide a blocker in the historical default.
+			for (const registryPath of [...new Set([runsDirectory(), activeRunsDirectory()])]) {
+				let registry = await registryStatus(pi, operationSignal, registryPath);
+				while (registry.blocker) {
+					const outcome = await manageWorkflow(pi, ctx, prepareRuntime, registry.blocker.workflow_root, operationSignal, registryPath);
+					ctx.ui.notify(outcome.message, "info");
+					await refreshWorkflowMonitor(ctx);
+					if (outcome.status !== "closed-incomplete") throw new AgentvolveInputRequired("No new task started. Your goal remains pending while the existing workflow is managed; ask again when ready.");
+					registry = await registryStatus(pi, operationSignal, registryPath);
+				}
+				unfinishedLegacy += registry.legacy_unfinished_count;
 			}
-			if (registry.legacy_unfinished_count) ctx.ui.notify(`${registry.legacy_unfinished_count} unfinished legacy runs remain unchanged in /history. They do not block this separately reviewed task and will not be resumed automatically.`, "info");
+			if (unfinishedLegacy) ctx.ui.notify(`${unfinishedLegacy} unfinished legacy runs remain unchanged in explicit history. They do not block this separately reviewed task and will not be resumed automatically.`, "info");
 			let selectedRepository: string | undefined;
 			try { selectedRepository = await chooseRepository(ctx, operationSignal, false, goal); }
 			catch (error) {
@@ -879,11 +888,11 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		}
 	}
 
-	async function showCandidateTrees(ctx: ExtensionContext, selector: string): Promise<void> {
+	async function showCandidateTrees(ctx: ExtensionContext, selector: string, registry: string): Promise<void> {
 		const epoch = monitorEpoch;
 		const inspect = async (action: string, arguments_: string[]) => {
 			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
-			const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", action, runsDirectory(), selector, ...arguments_],
+			const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view", action, registry, selector, ...arguments_],
 				{ cwd: repositoryRoot(), timeout: 30_000 });
 			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
 			return decodeOutput(result);
@@ -893,7 +902,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 			report: async (label, eventOffset, diffOffset, loop) => decodeCandidateReport(await inspect(loop ? "loop" : "candidate",
 				[label, String(eventOffset), ...(loop ? [] : [String(diffOffset)])])),
 			record: (view) => { if (sessionOpen && epoch === monitorEpoch) pi.appendEntry("agentvolve-candidate-inspection", view); },
-			openGraph: async () => { if (sessionOpen && epoch === monitorEpoch) await openTraceViewer(pi, ctx, selector); },
+			openGraph: async () => { if (sessionOpen && epoch === monitorEpoch) await openTraceViewer(pi, ctx, selector, registry); },
 		});
 	}
 
@@ -906,7 +915,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		const progress = selector ? await operatorProgress(selector) : await boundProgress();
 		if (!sessionOpen || epoch !== monitorEpoch) return;
 		const selected = basename(progress.workflow_root);
-		const trace = await operatorTrace(selected);
+		const registry = dirname(progress.workflow_root);
+		const trace = await operatorTrace(selected, 0, registry);
 		if (!sessionOpen || epoch !== monitorEpoch) return;
 		pi.appendEntry("agentvolve-progress-view", { progress, trace });
 		if (ctx.mode !== "tui") {
@@ -922,22 +932,22 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				];
 				const choice = await ctx.ui.select("Evolution trace", options);
 				if (!sessionOpen || epoch !== monitorEpoch) return;
-				if (choice === "Candidate trees / child reports") await showCandidateTrees(ctx, selected);
-				else if (choice === "Open Trace Viewer") await openTraceViewer(pi, ctx, selected);
-				else if (choice === "Previous generations") page = await operatorTrace(selected, Math.max(0, page.offset - page.page_size));
-				else if (choice === "Next generations" && page.next_offset !== null) page = await operatorTrace(selected, page.next_offset);
+				if (choice === "Candidate trees / child reports") await showCandidateTrees(ctx, selected, registry);
+				else if (choice === "Open Trace Viewer") await openTraceViewer(pi, ctx, selected, registry);
+				else if (choice === "Previous generations") page = await operatorTrace(selected, Math.max(0, page.offset - page.page_size), registry);
+				else if (choice === "Next generations" && page.next_offset !== null) page = await operatorTrace(selected, page.next_offset, registry);
 				else return;
 			}
 		}
 		const viewProgress = async () => {
 			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
-			const result = selector ? await operatorProgress(selected) : await boundProgress();
+			const result = selector ? await operatorProgress(selected, registry) : await boundProgress();
 			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
 			return result;
 		};
 		const viewTrace = async (offset = 0) => {
 			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
-			const result = await operatorTrace(selected, offset);
+			const result = await operatorTrace(selected, offset, registry);
 			if (!sessionOpen || epoch !== monitorEpoch) throw new Error("Job view invalidated");
 			return result;
 		};
@@ -946,8 +956,8 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 		for (;;) {
 			const action = await showAgentvolveDashboard(ctx, operatorModelLabel(ctx), current, viewProgress, currentTrace, viewTrace);
 			if (!sessionOpen || epoch !== monitorEpoch) return;
-			if (action === "graph") await openTraceViewer(pi, ctx, selected);
-			else if (action === "tree") await showCandidateTrees(ctx, selected);
+			if (action === "graph") await openTraceViewer(pi, ctx, selected, registry);
+			else if (action === "tree") await showCandidateTrees(ctx, selected, registry);
 			else return;
 			current = await viewProgress();
 			currentTrace = await viewTrace();
@@ -1052,7 +1062,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				operationController = new AbortController();
 				const operationSignal = signal ? AbortSignal.any([signal, operationController.signal]) : operationController.signal;
 				try {
-					const result = await manageWorkflow(pi, ctx, prepareRuntime, undefined, operationSignal);
+					const result = await manageWorkflow(pi, ctx, prepareRuntime, undefined, operationSignal, activeRunsDirectory());
 					await refreshWorkflowMonitor(ctx);
 					return { content: [{ type: "text", text: result.message }], details: result };
 				} finally {
@@ -1066,7 +1076,7 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 				const root = bound.workflow_root;
 				const epoch = monitorEpoch;
 				const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.agentvolve_worker", "verify", root], { cwd: repositoryRoot(), signal, timeout: 30_000 });
-				const worker = decodeWorkerResponse(decodeOutput(result));
+				const worker = decodeWorkerResponse(decodeOutput(result), dirname(root));
 				if (!sessionOpen || epoch !== monitorEpoch) throw new AgentvolveInputRequired("Verification view invalidated; the detached operation is not cancelled.");
 				if (worker.action !== "verify" || worker.workflow_id !== bound.workflow_id || worker.workflow_root !== root) throw new Error("Verification returned another job identity.");
 				pi.appendEntry("agentvolve-workflow-operation", worker);
@@ -1117,7 +1127,10 @@ export default function populationEvolutionExtension(pi: ExtensionAPI): void {
 					if (data.schema !== "agentvolve-submission-v1" || typeof data.attemptId !== "string" ||
 						!["preparing", "not-launched", "cancelled", "failed", "uncertain-dispatch", "launched"].includes(data.state)) throw new Error("Malformed submission record");
 					if (data.state === "launched") {
-						const worker = decodeWorkerResponse(reviewObject(data.workflow, "referenced workflow"));
+						const referenced = reviewObject(data.workflow, "referenced workflow");
+						const root = referenced.workflow_root;
+						if (typeof root !== "string" || !isAbsolute(root)) throw new Error("Malformed launch reference");
+						const worker = decodeWorkerResponse(referenced, dirname(root));
 						if (worker.action !== "start" || worker.state !== "queued" || worker.pid <= 0) throw new Error("Malformed launch reference");
 					}
 					submission = data.state === "preparing" ? { ...data, state: "not-launched", diagnostic: "Preparation interrupted; no dispatch recorded. No task restarted." } : data;

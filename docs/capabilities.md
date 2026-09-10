@@ -145,8 +145,10 @@ execute during setup. Existing projects must be clean and committed and are
 never initialized/committed automatically; Pi's cwd is unchanged. Ordinary
 configured tools/model/thinking remain unchanged throughout jobs; historical mode
 records never restore restrictions. New jobs require explicit compatible verified
-harness and separate reviewed worker configuration, selectable through a
-session-native dialog without exports, restart or a second interactive Pi.
+harness, separate reviewed worker configuration and an owner-controlled 0700
+run registry, selectable through a session-native dialog without exports, restart
+or a second interactive Pi. The conventional registry is
+`~/.local/share/metering/agentvolve-runs`; permission-incapable mounts fail before workflow creation.
 Selection starts no job and affects future reviews only; each approved job gets
 private models/auth files and a command binding for recovery. No newest-harness
 guess, implicit Level-2 costs or shared-service restart occurs. Controller paths remain

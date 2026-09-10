@@ -118,7 +118,9 @@ def rpc_request(
             process.stdin.flush()
         elif event.get("type") == "extension_ui_request" and event.get("method") == "input" and event.get("title", "").startswith("Agentvolve"):
             title = event['title']
-            key = 'manifest' if title.startswith('Agentvolve worker runtime') else 'harness' if title.startswith('Agentvolve compatible sealed') else 'configuration'
+            key = ('manifest' if title.startswith('Agentvolve worker runtime') else
+                   'harness' if title.startswith('Agentvolve compatible sealed') else
+                   'configuration' if title.startswith('Agentvolve separate worker Pi configuration') else 'runs')
             assert title.startswith(('Agentvolve worker runtime', 'Agentvolve compatible sealed', 'Agentvolve separate worker Pi configuration'))
             process.stdin.write(json.dumps({'type': 'extension_ui_response', 'id': event['id'], 'value': getattr(process, '_agentvolve_execution_paths')[key]}) + '\n')
             process.stdin.flush()
@@ -262,7 +264,7 @@ def test_deployed_agentvolve_solves_and_verifies_approved_tasks(
             env=environment,
         )
         setattr(process, '_agentvolve_reviewed_execution', gate['review'])
-        setattr(process, '_agentvolve_execution_paths', {'manifest': str(runtime), 'harness': str(harness), 'configuration': str(configuration)})
+        setattr(process, '_agentvolve_execution_paths', {'manifest': str(runtime), 'harness': str(harness), 'configuration': str(configuration), 'runs': str(runs_directory)})
         setattr(process, "_agentvolve_reviewed_goal", goal)
         setattr(process, "_agentvolve_reviewed_rounds", rounds)
         setattr(process, "_agentvolve_reviewed_contract", profile)

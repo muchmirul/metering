@@ -19,7 +19,8 @@ def without_defaults(boundary):
 
 
 def selections(boundary):
-    return dict(zip(("manifest", "harness", "configuration"), (boundary[key] for key in KEYS)))
+    return {**dict(zip(("manifest", "harness", "configuration"), (boundary[key] for key in KEYS))),
+            "runs": boundary["METERING_EVOLUTION_RUNS_DIR"]}
 
 
 def records(rpc):
@@ -30,7 +31,9 @@ def configure_dialog(paths):
     def dialog(event):
         title = event.get("title", "")
         if event["method"] == "input":
-            key = "manifest" if title.startswith("Agentvolve worker runtime") else "harness" if title.startswith("Agentvolve compatible sealed") else "configuration"
+            key = ("manifest" if title.startswith("Agentvolve worker runtime") else
+                   "harness" if title.startswith("Agentvolve compatible sealed") else
+                   "configuration" if title.startswith("Agentvolve separate worker Pi configuration") else "runs")
             assert title.startswith("Agentvolve"), event
             return {"value": '"' + paths[key] + '"'}
         assert event["method"] == "confirm" and title == "Save Agentvolve worker configuration for this session?", event
@@ -54,7 +57,7 @@ def test_configure_and_delegate_without_exports_restart_or_main_environment_chan
         assert not (tmp_path / "dispatched").exists()
         assert not (tmp_path / "tasks").exists()
         record = records(rpc)[-1]
-        assert record == {"schema": "agentvolve-execution-configuration-v1", "sessionId": initial["sessionId"], **paths}
+        assert record == {"schema": "agentvolve-execution-configuration-v2", "sessionId": initial["sessionId"], **paths}
         rpc.prompt("/goal Build the independently reviewed result", approve)
         owned = submission(rpc)
         assert owned["state"] == "launched"
@@ -85,7 +88,7 @@ def test_goal_offers_configuration_inline_when_defaults_absent(tmp_path, boundar
         ordinary(rpc, tmp_path)
 
 
-@pytest.mark.parametrize("cancel_at", [0, 1, 2, 3, "failure"])
+@pytest.mark.parametrize("cancel_at", [0, 1, 2, 3, 4, "failure"])
 def test_cancelled_or_failed_configuration_preserves_selection_and_existing_job(tmp_path, boundary, cancel_at):
     paths = selections(boundary)
     with deployed(tmp_path, environment=without_defaults(boundary)) as rpc:
@@ -117,12 +120,18 @@ def test_new_configuration_only_affects_future_jobs_not_bound_status_or_verifica
         alternate = tmp_path / "future-worker"
         shutil.copytree(paths["configuration"], alternate)
         paths["configuration"] = str(alternate)
+        future_runs = tmp_path / "future-private-runs"
+        future_runs.mkdir(mode=0o700)
+        paths["runs"] = str(future_runs)
         talk(rpc, "Configure worker", dialog=configure_dialog(paths))
         assert records(rpc)[-1]["configuration"] == str(alternate)
+        assert records(rpc)[-1]["runs"] == str(future_runs)
         assert submission(rpc) == before
         assert result(talk(rpc, "Job status"))["details"]["workflow_root"] == before["workflow"]["workflow_root"]
         assert result(talk(rpc, "Verify job"))["details"]["workflow_root"] == before["workflow"]["workflow_root"]
-        assert json.loads((tmp_path / "dispatch-record.json").read_text())["args"][9] == boundary["METERING_PI_CONFIG_DIR"]
+        dispatched = json.loads((tmp_path / "dispatch-record.json").read_text())["args"]
+        assert dispatched[9] == boundary["METERING_PI_CONFIG_DIR"]
+        assert dispatched[5] == boundary["METERING_EVOLUTION_RUNS_DIR"]
 
 
 def test_configuration_restores_across_tree_reload_resume_but_not_clone_or_fork(tmp_path, boundary):
@@ -151,7 +160,7 @@ def test_configuration_restores_across_tree_reload_resume_but_not_clone_or_fork(
         assert any(e.get("title", "").startswith("Agentvolve worker runtime") for e in events)
 
 
-@pytest.mark.parametrize("corruption", ["null", "schema", "relative"])
+@pytest.mark.parametrize("corruption", ["null", "schema", "legacy", "relative"])
 def test_malformed_latest_selection_never_restores_older_selection_or_defaults(tmp_path, boundary, corruption):
     with deployed(tmp_path, environment=boundary) as rpc:
         talk(rpc, "Configure worker", dialog=configure_dialog(selections(boundary)))
@@ -160,6 +169,9 @@ def test_malformed_latest_selection_never_restores_older_selection_or_defaults(t
             record = None
         elif corruption == "schema":
             record["schema"] = "unknown"
+        elif corruption == "legacy":
+            record["schema"] = "agentvolve-execution-configuration-v1"
+            record.pop("runs")
         else:
             record["configuration"] = "relative"
         rpc.prompt("/job-test-configuration-record " + json.dumps(record))
@@ -202,12 +214,12 @@ def test_session_switch_during_configuration_never_saves_to_replacement_session(
         assert not (tmp_path / "dispatched").exists()
 
 
-@pytest.mark.parametrize("source", ["manifest", "harness", "models.json", "auth.json", "private.txt"])
+@pytest.mark.parametrize("source", ["manifest", "harness", "runs", "models.json", "auth.json", "private.txt"])
 def test_session_selected_worker_inputs_are_never_task_source_context(tmp_path, boundary, source):
     paths = selections(boundary)
     private = Path(paths["configuration"]) / "private.txt"
     private.write_text("PRIVATE_WORKER_TOKEN")
-    reference = paths[source] if source in {"manifest", "harness"} else str(Path(paths["configuration"]) / source)
+    reference = paths[source] if source in {"manifest", "harness", "runs"} else str(Path(paths["configuration"]) / source)
     Path(boundary["JOB_DRAFT"]).write_text(json.dumps({"read_files": [reference]}))
     with deployed(tmp_path, environment=without_defaults(boundary)) as rpc:
         talk(rpc, "Configure worker", dialog=configure_dialog(paths))

@@ -182,15 +182,29 @@ Pi's interactive model may clarify and draft the review only. The existing detac
 worker executes isolated noninteractive Pi calls under its own pinned runtime,
 provider/model/reasoning, configuration and finite budgets. Task review displays
 both identities and the reused harness. Say **“configure Agentvolve”** to select
-an existing runtime, original compatible verified harness, and separately provisioned
-worker Pi configuration in this session. Setup first offers labelled compatible
+an existing runtime, original compatible verified harness, separately provisioned
+worker Pi configuration, and private run registry in this session. Setup first offers labelled compatible
 choices from a bounded read-only catalogue; you need not type paths when existing
 setup is found. It also checks the conventional separate directory
 `~/.config/metering/agentvolve-worker`. Missing prerequisites return preparation
 instructions, and advanced path entry supports correction/cancellation.
 `/goal` offers setup when defaults are missing; no second interactive Pi, exports,
-or process restart is needed.
-Configuration alone starts no job. No newest-harness guessing or automatic Level-2 setup:
+or process restart is needed. The run-registry default is the ext4-backed
+`~/.local/share/metering/agentvolve-runs` on this installation; it must remain an
+owner-controlled 0700 directory. Permission-incapable fuseblk/NTFS paths are
+refused before workflow creation rather than weakening credential privacy.
+Configuration alone starts no job.
+
+**Per-user private setup checklist**
+
+- [ ] Keep worker configuration, credentials, run registry, and evidence outside the Git checkout.
+- [ ] Create the registry: `install -d -m 700 ~/.local/share/metering/agentvolve-runs`.
+- [ ] Confirm `findmnt -T ~/.local/share/metering/agentvolve-runs` reports a permission-capable filesystem and `stat -c %a ~/.local/share/metering/agentvolve-runs` reports `700`.
+- [ ] Keep worker `models.json` and optional `auth.json` in the separate reviewed configuration; job copies must be `0600`.
+- [ ] Say **“configure Agentvolve”** and approve all four paths. Reconfigure old version-1 session selections.
+- [ ] Before any commit/push, check `git status --short`; no auth, model configuration, run directory, or evidence belongs in Git.
+
+No newest-harness guessing or automatic Level-2 setup:
 if no compatible seal exists, separately approve/budget the [harness setup](docs/coding-agent/operations.md#level-2-harness).
 Readiness failure reports an operator diagnosis; Agentvolve never starts or
 restarts a shared model service.

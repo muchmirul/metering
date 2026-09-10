@@ -89,6 +89,24 @@ def request_after_start(configured):
     return root, worker.load_workflow_request(root)
 
 
+def test_configured_review_binds_permission_capable_private_run_registry_before_dispatch(configured):
+    c = configured
+    c.runs.mkdir(mode=0o755)
+    c.runs.chmod(0o755)
+    with pytest.raises(pi_execution.PiConfigurationError, match="owner-controlled 0700"):
+        runtime.review_configured(c.manifest, c.harness, c.config, c.runs)
+    assert list(c.runs.iterdir()) == [] and not c.launches
+
+    c.runs.chmod(0o700)
+    approved = runtime.review_configured(c.manifest, c.harness, c.config, c.runs)
+    assert approved["runs_directory"] == str(c.runs)
+    document(c.review_file, approved)
+    c.runs.chmod(0o755)  # Filesystem/mount changed after review.
+    with pytest.raises(pi_execution.PiConfigurationError, match="owner-controlled 0700"):
+        runtime.start_configured(c.runs, c.task, c.manifest, c.harness, c.config, c.review_file)
+    assert not list(c.runs.glob("workflow-*")) and not c.launches
+
+
 def test_configured_cli_review_and_start_are_child_only_private_and_review_bound(configured, capsys):
     c = configured
     before = dict(os.environ)

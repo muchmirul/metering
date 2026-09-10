@@ -181,7 +181,8 @@ after a user request is prompt policy rather than an OS security boundary.
 
 Candidate code and candidate-owned extensions are never loaded into the host Pi.
 New Pi jobs require an explicit compatible verified sealed harness and a separate
-reviewed worker configuration. `workflow_configure` selects existing paths through
+reviewed worker configuration and an owner-controlled private run registry.
+`workflow_configure` selects existing paths through
 a directly approved session-owned dialog; `/goal` offers it when defaults are
 missing. Normal setup offers a bounded read-only catalogue of labelled compatible
 combinations; operator selection precedes independent replay and confirmation.
@@ -190,9 +191,14 @@ return actionable preparation instructions; advanced inputs support correction.
 The selected model's readiness is checked against its reviewed worker configuration
 before drafting and again at configured dispatch/recovery, not an ambient model
 alias. No loading/eviction/restart is performed. Readiness is not a resource lease.
+The run registry defaults to `~/.local/share/metering/agentvolve-runs` and must
+report owner/mode 0700 on a permission-capable filesystem. Review binds the path;
+dispatch rechecks it and refuses fuseblk/NTFS mode loss before workflow creation.
+Historical-registry blockers cannot be hidden by selecting a new registry.
 Child configuration is supplied at spawn, without interactive environment
-mutation, a second interactive Pi, or process restart. Only selection paths persist;
-new/forked sessions inherit none. Setup changes only future jobs, starts no evolution,
+mutation, a second interactive Pi, or process restart. Only selection paths persist in version-2 session records; new/forked sessions
+inherit none. Version-1 selection records require re-review because they did not
+bind registry privacy; existing workflows remain bound by their recorded roots. Setup changes only future jobs, starts no evolution,
 and does not replace per-job approval. Task review displays runtime/worker/harness
 identity and budgets separately from interactive drafting. No implicit Level-2 setup,
 newest-harness guess or automatic model-service start/restart is allowed.

@@ -7,17 +7,20 @@ export interface ExecutionConfiguration {
 	manifest: string;
 	harness: string;
 	configuration: string;
+	runs: string;
 }
 export interface ExecutionReview extends ExecutionConfiguration {
 	document: Record<string, unknown>;
 	summary: string;
 }
-const SCHEMA = "agentvolve-execution-configuration-v1";
-const PATH_KEYS = ["manifest", "harness", "configuration"] as const;
+const SCHEMA = "agentvolve-execution-configuration-v2";
+const PATH_KEYS = ["manifest", "harness", "configuration", "runs"] as const;
+const EXECUTION_PATH_KEYS = ["manifest", "harness", "configuration"] as const;
 
 export function executionDefaults(): Partial<ExecutionConfiguration> {
 	return { manifest: runtimeManifest(), harness: process.env.METERING_EVOLUTION_HARNESS_DESCRIPTOR?.trim(),
-		configuration: process.env.METERING_PI_CONFIG_DIR?.trim() };
+		configuration: process.env.METERING_PI_CONFIG_DIR?.trim(),
+		runs: process.env.METERING_EVOLUTION_RUNS_DIR?.trim() || resolve(homedir(), ".local/share/metering/agentvolve-runs") };
 }
 
 export function completeExecution(value: Partial<ExecutionConfiguration>): value is ExecutionConfiguration {
@@ -26,7 +29,7 @@ export function completeExecution(value: Partial<ExecutionConfiguration>): value
 
 export function executionRecord(configuration: ExecutionConfiguration, sessionId: string): Record<string, unknown> {
 	return { schema: SCHEMA, sessionId, manifest: configuration.manifest,
-		harness: configuration.harness, configuration: configuration.configuration };
+		harness: configuration.harness, configuration: configuration.configuration, runs: configuration.runs };
 }
 
 export function restoreExecution(entries: readonly SessionEntry[], sessionId: string): {
@@ -46,7 +49,7 @@ export function restoreExecution(entries: readonly SessionEntry[], sessionId: st
 				(data[key] as string).length <= 4096 && !/[\x00-\x1f\x7f]/.test(data[key] as string))) {
 			result = { invalid: true }; // Never fall back to an older record/default on corruption.
 		} else result = { invalid: false, configuration: { manifest: data.manifest as string,
-			harness: data.harness as string, configuration: data.configuration as string } };
+			harness: data.harness as string, configuration: data.configuration as string, runs: data.runs as string } };
 	}
 	return result;
 }
@@ -55,15 +58,15 @@ export async function reviewExecution(pi: ExtensionAPI, ctx: ExtensionContext, p
 	signal: AbortSignal): Promise<ExecutionReview> {
 	signal.throwIfAborted();
 	const document = decodeOutput(await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime",
-		"review-configured", paths.manifest, paths.harness, paths.configuration],
+		"review-configured", paths.manifest, paths.harness, paths.configuration, paths.runs],
 		{ cwd: repositoryRoot(), signal, timeout: 120_000 }));
 	signal.throwIfAborted();
 	if (document.review_schema !== "agentvolve-execution-review-v1" || document.authority !== "diagnostic-only" ||
 		typeof document.runtime_id !== "string" || typeof document.harness_candidate_id !== "string" ||
-		typeof document.worker_configuration !== "string" || !Array.isArray(document.command) ||
+		typeof document.worker_configuration !== "string" || document.runs_directory !== paths.runs || !Array.isArray(document.command) ||
 		typeof document.model !== "object" || document.model === null) throw new Error("Unexpected worker execution review.");
 	const interactive = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "no model selected";
-	const summary = `Interactive drafting only: ${interactive}\nDelegated worker execution (not the interactive model):\n${JSON.stringify(document, null, 2)}\nRuntime manifest: ${paths.manifest}\nReused verified harness: ${paths.harness}\nNo Level-2 search is authorized by this job. Worker calls use isolated Pi configuration and no host session/tools.\nAfter task approval, fixed code copies only models.json and optional auth.json into a private per-job directory. Recovery uses that job's command/configuration, not future session settings. Secrets are not stored in session records.\nNo main-Pi restart or global environment change is needed. Controller paths remain operator-managed: do not edit the live controller or job-owned configuration/evidence. Version isolation is not a host sandbox.`;
+	const summary = `Interactive drafting only: ${interactive}\nDelegated worker execution (not the interactive model):\n${JSON.stringify(document, null, 2)}\nRuntime manifest: ${paths.manifest}\nReused verified harness: ${paths.harness}\nPrivate run registry: ${paths.runs}\nNo Level-2 search is authorized by this job. Worker calls use isolated Pi configuration and no host session/tools.\nAfter task approval, fixed code copies only models.json and optional auth.json into a private per-job directory. Recovery uses that job's command/configuration, not future session settings. Secrets are not stored in session records.\nNo main-Pi restart or global environment change is needed. Controller paths remain operator-managed: do not edit the live controller or job-owned configuration/evidence. Version isolation is not a host sandbox.`;
 	return { ...paths, document, summary };
 }
 
@@ -101,12 +104,12 @@ async function discoverSetup(pi: ExtensionAPI, suggested: Partial<ExecutionConfi
 	const options = result.options.map((value: unknown) => {
 		if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid worker setup option.");
 		const item = value as Record<string, unknown>;
-		if (![...PATH_KEYS, "runtime_id", "harness_candidate_id", "provider", "model", "model_label", "implementation_version"].every(key =>
+		if (![...EXECUTION_PATH_KEYS, "runtime_id", "harness_candidate_id", "provider", "model", "model_label", "implementation_version"].every(key =>
 			typeof item[key] === "string" && (item[key] as string).length > 0 && (item[key] as string).length <= 4096 && !/[\x00-\x1f\x7f]/.test(item[key] as string)) ||
-			!PATH_KEYS.every(key => isAbsolute(item[key] as string)) ||
+			!EXECUTION_PATH_KEYS.every(key => isAbsolute(item[key] as string)) ||
 			!["runtime_id", "harness_candidate_id", "worker_models_sha256"].every(key => /^[a-f0-9]{64}$/.test(item[key] as string)) ||
 			!Number.isSafeInteger(item.recorded_final_total) || (item.recorded_final_total as number) <= 0 || item.recorded_final_passed !== item.recorded_final_total) throw new Error("Invalid worker setup option.");
-		return item as unknown as SetupOption;
+		return { ...item, runs: suggested.runs || resolve(homedir(), ".local/share/metering/agentvolve-runs") } as unknown as SetupOption;
 	});
 	const issues = result.issues.map((value: unknown) => {
 		if (!value || typeof value !== "object" || typeof (value as Record<string, unknown>).message !== "string") throw new Error("Invalid setup diagnosis.");
@@ -146,7 +149,9 @@ export async function configureExecution(pi: ExtensionAPI, ctx: ExtensionContext
 		if (harness === undefined) return undefined;
 		const configuration = await inputPath(ctx, "Agentvolve separate worker Pi configuration directory", suggested.configuration, signal);
 		if (configuration === undefined) return undefined;
-		paths = { manifest, harness, configuration };
+		const runs = await inputPath(ctx, "Agentvolve private run registry directory", suggested.runs || resolve(homedir(), ".local/share/metering/agentvolve-runs"), signal);
+		if (runs === undefined) return undefined;
+		paths = { manifest, harness, configuration, runs };
 	}
 	const reviewed = await reviewExecution(pi, ctx, paths, signal);
 	if (chosen && (reviewed.document.runtime_id !== chosen.runtime_id || reviewed.document.harness_candidate_id !== chosen.harness_candidate_id || reviewed.document.worker_models_sha256 !== chosen.worker_models_sha256)) throw new Error("Selected setup changed during discovery; select and review again. No job started.");

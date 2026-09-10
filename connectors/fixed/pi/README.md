@@ -228,8 +228,8 @@ Selected commits and patches are never automatically applied.
 ### Configuration
 
 Say **“configure Agentvolve”** in the invoking Pi session. The direct dialog
-selects an existing runtime manifest, original compatible sealed harness, and
-separately provisioned worker Pi configuration directory. `/goal` offers this
+selects an existing runtime manifest, original compatible sealed harness,
+separately provisioned worker Pi configuration directory, and private run registry. `/goal` offers this
 when defaults are missing. No shell exports, second interactive Pi, process
 restart, global configuration change, or live evolution occurs during setup.
 The selection belongs to this session (reload/resume restore it; forks/new sessions
@@ -238,15 +238,20 @@ fresh finite budget and task/runtime approval. Cancellation preserves the prior
 selection and existing job tracking. Missing/incompatible setup needs separately
 approved provisioning; this dialog does not create a harness or copy interactive credentials.
 
-Normal setup presents labelled existing combinations, not three mandatory path
-inputs. A bounded read-only catalogue checks the selected registry for matching
+Normal setup presents labelled existing combinations, not mandatory path inputs. A bounded read-only catalogue checks the selected registry for matching
 original seals and suggests the conventional separately provisioned
 `~/.config/metering/agentvolve-worker` directory. It never picks the newest run.
 You select a combination; its seal is independently replayed before confirmation.
 Missing prerequisites return named repair instructions to the assistant. Advanced
 path entry remains available and blank unknown paths can be corrected or cancelled.
 The assistant may prepare an isolated configuration after your approval; it must
-not implicitly copy interactive auth or start shared services.
+not implicitly copy interactive auth or start shared services. The conventional
+run registry is `~/.local/share/metering/agentvolve-runs`. Prepare it as an
+owner-controlled 0700 directory on a permission-capable filesystem (for example
+ext4). Configuration review binds that exact path; a fuseblk/NTFS location that
+reports 0755 is refused before any workflow/evidence is created. Complete the
+[per-user private setup checklist](../../../docs/coding-agent/operations.md#delegated-jobs-and-reload-migration)
+before approving a job; private configuration and run evidence must never enter Git.
 
 Read-only diagnostics:
 ```text
@@ -258,8 +263,10 @@ redirect following, dynamic credential commands, loading or restarting. It repor
 an unloaded model rather than substituting another loaded alias. It is not an
 execution approval or reservation of model/GPU resources.
 
-Defaults: runtime `~/.config/metering/harness/runtime.pi.local.json`; runs and tasks
-in checkout siblings `metering-live-runs/` and `metering-live-tasks/`.
+Defaults: runtime `~/.config/metering/harness/runtime.pi.local.json`; configured
+job runs in `~/.local/share/metering/agentvolve-runs`; task profiles and the
+historical legacy registry remain in checkout siblings `metering-live-tasks/` and
+`metering-live-runs/`.
 Optional caller-reviewed absolute defaults/overrides:
 
 - `METERING_EVOLUTION_RUNTIME_MANIFEST`;
@@ -271,7 +278,7 @@ Optional caller-reviewed absolute defaults/overrides:
 - `METERING_PI_CONFIG_DIR` (optional default for required separate worker
   configuration with models.json and provisioned auth, not interactive Pi's directory).
 
-Read-only `python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY`
+Read-only `python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY PRIVATE_RUNS_DIRECTORY`
 verifies the seal and displays exact Pi/version/provider/model/reasoning, runtime,
 OCI resources, model budgets, worker config path/models digest and harness identity.
 Pi includes that review alongside the full task contract and repeats it before
@@ -286,8 +293,10 @@ Only bounded regular `models.json` and optional `auth.json` are copied into a
 job-owned 0700 directory with 0600 files. Symlinks (including parents) and hardlinks
 are refused; ambient extensions, settings, sessions, skills and prompts are not
 copied. Models changes fail closed; private auth may refresh. Auth bytes never enter
-session records or ordinary tool results. Resume/retry use this job's copy and
-command despite changed ambient overrides; status and offline replay need no
+session records or ordinary tool results. Version-1 session configuration records
+must be reviewed again because they did not bind a registry; existing jobs/evidence
+are unchanged, and blockers in the historical default registry are still checked.
+Resume/retry use this job's copy and command despite changed ambient overrides; status and offline replay need no
 private configuration or live model client. Legacy v1 jobs are not rewritten.
 
 Controller/runtime/harness paths remain operator-managed. Use a separate reviewed

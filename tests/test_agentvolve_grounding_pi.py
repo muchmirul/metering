@@ -111,7 +111,7 @@ args=sys.argv[1:]
 if args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","check"]:
  print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1","authority":"diagnostic-only"}}))
 elif args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","review-configured"]:
- print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
+ print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "runs_directory":args[8], "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
 elif args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","start-configured"]:
  with open(os.environ["LAUNCHES"], "a") as stream: stream.write(json.dumps(args)+"\\n")
  print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1","action":"start","pid":12345,"state":"queued","workflow_id":"a"*64,"workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))

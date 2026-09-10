@@ -53,7 +53,7 @@ From the source checkout:
 ```bash
 uv run python -m connectors.fixed.pi.runtime check RUNTIME.json
 uv run python -m connectors.fixed.pi.runtime review RUNTIME.json HARNESS.json
-uv run python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY
+uv run python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY PRIVATE_RUNS_DIRECTORY
 uv run python -m connectors.fixed.pi.runtime start-configured RUNS TASK.json RUNTIME.json HARNESS.json CONFIG_DIRECTORY APPROVED_REVIEW.json
 # Legacy environment-configured launch:
 uv run python -m connectors.fixed.pi.runtime start RUNS TASK.json RUNTIME.json HARNESS.json
@@ -63,9 +63,11 @@ uv run python -m connectors.fixed.pi.runtime retry WORKFLOW 'operator-approved r
 
 These are connector CLI operations, **not new Pi slash commands**. `/goal` uses
 the configured preflight and launch path after direct approval. Say “configure
-Agentvolve” to select existing runtime/harness/worker config from the current Pi
-session, with no environment exports, process restart or second interactive Pi.
-`review-configured` takes the worker directory explicitly; legacy `review` additionally
+Agentvolve” to select existing runtime/harness/worker config and a private 0700
+run registry from the current Pi session, with no environment exports, process
+restart or second interactive Pi. The conventional ext4-capable location is
+`~/.local/share/metering/agentvolve-runs`. `review-configured` takes the worker
+and run directories explicitly; legacy `review` additionally
 requires a separate explicit `METERING_PI_CONFIG_DIR` with models.json and an
 explicit compatible original sealed harness; it offline-verifies provenance and
 returns worker configuration/model digest, exact implementation/runtime/harness
@@ -75,7 +77,9 @@ compatible setup requires separate operator approval/budget and Level-2 executio
 
 Pi version/configuration isolation is NOT immutable control-plane deployment.
 Configured jobs use v2 orchestration requests and private bounded models/auth file
-copies (0700 directory/0600 files, no symlinks or hardlinks). Command/version/runtime
+copies (0700 directory/0600 files, no symlinks or hardlinks). The selected run
+registry itself must be owner-controlled 0700; configured review/start reject a
+permission-incapable mount before workflow creation. Command/version/runtime
 and models hash are job-bound; auth may refresh. No interactive configuration files
 are implicitly copied. Workers still load trusted code and runtime/harness provenance
 from operator-managed installed paths. Use a separate reviewed stable installation;

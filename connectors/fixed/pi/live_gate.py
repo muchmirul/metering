@@ -36,7 +36,7 @@ def preflight(profiles: list[Path], runtime: Path, harness: Path, configuration:
     manifest = load_runtime_manifest(runtime)
     if manifest.model['connector'] != 'pi-v1' or manifest.model['provider'] != expected_provider:
         raise AssertionError('[runtime-mismatch] The approved runtime must pin the requested Pi/provider; do not substitute a model.')
-    review = review_configured(runtime, harness, configuration)
+    review = review_configured(runtime, harness, configuration, runs)
     task_ids = []
     for path in profiles:
         task = load_task_profile(path)

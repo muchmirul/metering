@@ -110,7 +110,10 @@ ownership. Old activation records/messages impose no ordinary-tool restrictions.
 `workflow_configure` records directly reviewed existing paths for this session,
 without environment mutation, a second interactive Pi, or process restart. `/goal`
 offers configuration when defaults are absent. Restoration never launches and
-malformed latest records fail closed; changes affect future jobs only. The normal
+malformed/latest version-1 records fail closed; changes affect future jobs only.
+Version-2 records bind an owner-controlled 0700 run registry as well as worker
+runtime/harness/configuration. Configured review and start refuse permission-
+incapable filesystems before creating a workflow; never remove the privacy check. The normal
 route uses bounded read-only discovery and labelled choices before full seal
 verification, not mandatory path typing. Missing setup yields actionable preparation
 instructions; advanced inputs support correction/cancellation. No implicit
@@ -132,7 +135,7 @@ Pi tools, fresh caps, cancellation/failure/uncertain acknowledgement, restoratio
 identity-specific views/verification, and initial/steady-state monitor races using
 test-owned boundary doubles. `tests/test_agentvolve_session_configuration.py`
 covers same-process configuration/delegation, unchanged interactive environment,
-future-only selection, corruption and session races. The worker configuration tests
+future-only selection, private registry routing, corruption and session races. The worker configuration tests
 cover private bounded copies, command/models binding, recovery with conflicting
 ambient settings, and offline verification without credentials or a live Pi.
 They do not prove live inference acceptance.

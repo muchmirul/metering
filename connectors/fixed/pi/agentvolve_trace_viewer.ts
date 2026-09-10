@@ -2,8 +2,8 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { decodeOutput, repositoryRoot, runsDirectory } from "./population_evolution_support.ts";
 
 /** Explicit operator action only: never called by activation, monitoring, or model tools. */
-export async function openTraceViewer(pi: ExtensionAPI, ctx: ExtensionContext, selector: string): Promise<void> {
-  const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.trace_server", "launch", runsDirectory(), selector,
+export async function openTraceViewer(pi: ExtensionAPI, ctx: ExtensionContext, selector: string, registry = runsDirectory()): Promise<void> {
+  const result = await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.trace_server", "launch", registry, selector,
     ...(ctx.mode === "tui" ? ["--open"] : [])], {cwd: repositoryRoot(), timeout: 45_000});
   const view = decodeOutput(result);
   if (view.view_schema !== "agentvolve-trace-launch-v1" || view.authority !== "projection-only" ||

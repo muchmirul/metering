@@ -707,6 +707,10 @@ def start_workflow(
         if harness_descriptor is None
         else harness_descriptor.expanduser().absolute()
     )
+    if execution is not None:
+        # Fail before workflow/evidence creation when the selected filesystem
+        # cannot enforce private job-owned model/auth snapshots.
+        runs_directory = pi_execution.private_runs_directory(runs_directory, create=True)
     _validate_runs_directory(runs_directory, create=True)
     _regular_file(task_profile, "Agentvolve task profile")
     _regular_file(runtime_manifest, "Agentvolve runtime manifest")

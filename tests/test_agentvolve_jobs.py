@@ -125,7 +125,7 @@ if module == "connectors.fixed.pi.runtime":
    while not (base / "review-release").exists():
     if time.monotonic() > deadline: sys.exit("fixture review pause expired")
     time.sleep(.02)
-  print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"b"*64, "harness_candidate_id":"c"*64, "harness_descriptor_sha256":hashlib.sha256(pathlib.Path(args[6]).read_bytes()).hexdigest(), "worker_configuration":args[7], "worker_models_sha256":hashlib.sha256((pathlib.Path(args[7]) / "models.json").read_bytes()).hexdigest(), "command":["/stable/pi-0.84.4"], "model":{{"connector":"pi-v1", "provider":"worker-provider", "model":"pinned-worker", "implementation_version":"0.84.4", "reasoning":"medium"}}}}))
+  print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"b"*64, "harness_candidate_id":"c"*64, "harness_descriptor_sha256":hashlib.sha256(pathlib.Path(args[6]).read_bytes()).hexdigest(), "worker_configuration":args[7], "runs_directory":args[8], "worker_models_sha256":hashlib.sha256((pathlib.Path(args[7]) / "models.json").read_bytes()).hexdigest(), "command":["/stable/pi-0.84.4"], "model":{{"connector":"pi-v1", "provider":"worker-provider", "model":"pinned-worker", "implementation_version":"0.84.4", "reasoning":"medium"}}}}))
  elif action == "ready-configured":
   if (base / "model-unready").exists(): sys.exit("Model not loaded. Arrange safe startup separately; no service restart performed.")
   print(json.dumps({{"readiness_schema":"agentvolve-worker-readiness-v1", "authority":"diagnostic-only", "provider":"llamacpp", "model":"local", "state":"ready", "inference_performed":False}}))
@@ -167,7 +167,7 @@ else: os.execv({shutil.which('uv')!r}, [{shutil.which('uv')!r}, *args])
     uv.chmod(0o755)
     return {"PATH": str(bin_dir) + os.pathsep + os.environ["PATH"], "JOB_DRAFT": str(draft),
             "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime), "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(harness),
-            "METERING_PI_CONFIG_DIR": str(config)}
+            "METERING_PI_CONFIG_DIR": str(config), "METERING_EVOLUTION_RUNS_DIR": str(tmp_path / "runs")}
 
 
 def approve(event):

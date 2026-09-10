@@ -315,7 +315,8 @@ def test_pi_agentvolve_jobs_use_a_thin_fixed_connector_entrypoint():
     assert "METERING_EVOLUTION_HARNESS_DESCRIPTOR" in execution
     assert '"workflow_configure"' in implementation
     assert '"start-configured"' in implementation and '"review-configured"' in execution
-    assert "agentvolve-execution-configuration-v1" in execution
+    assert "agentvolve-execution-configuration-v2" in execution
+    assert "private_runs_directory" in worker
     assert "AgentvolveInputRequired" in implementation
     assert "for (let stage = 1; stage <= 6; stage += 1)" in implementation
     assert "`${marker} [${stage}/6] ${PROCESS_LABELS[stage]}`" in implementation

@@ -29,11 +29,11 @@ async function workerCommand(pi: ExtensionAPI, args: string[], signal?: AbortSig
 		{ cwd: repositoryRoot(), signal, timeout: 30_000 }));
 }
 
-function controlState(value: unknown): ControlState {
+function controlState(value: unknown, registry: string): ControlState {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("Agentvolve control state must be an object");
 	const control = value as Record<string, unknown>;
 	if (control.control_schema !== "agentvolve-workflow-control-v1" || control.authority !== "projection-only" ||
-		typeof control.workflow_root !== "string" || !isAbsolute(control.workflow_root) || resolve(dirname(control.workflow_root)) !== resolve(runsDirectory()) ||
+		typeof control.workflow_root !== "string" || !isAbsolute(control.workflow_root) || resolve(dirname(control.workflow_root)) !== resolve(registry) ||
 		!/^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$/.test(basename(control.workflow_root)) ||
 		typeof control.workflow_id !== "string" || typeof control.runtime_manifest !== "string" || !isAbsolute(control.runtime_manifest) ||
 		["active", "complete", "closed", "retry_required"].some((key) => typeof control[key] !== "boolean")) {
@@ -42,20 +42,20 @@ function controlState(value: unknown): ControlState {
 	return control as unknown as ControlState;
 }
 
-export async function registryStatus(pi: ExtensionAPI, signal?: AbortSignal): Promise<RegistryStatus> {
-	const result = await workerCommand(pi, ["registry", runsDirectory()], signal);
+export async function registryStatus(pi: ExtensionAPI, signal?: AbortSignal, registry = runsDirectory()): Promise<RegistryStatus> {
+	const result = await workerCommand(pi, ["registry", registry], signal);
 	if (result.registry_schema !== "agentvolve-registry-status-v1" || result.authority !== "projection-only" ||
 		!Number.isSafeInteger(result.legacy_unfinished_count) || (result.legacy_unfinished_count as number) < 0) {
 		throw new Error("Agentvolve registry returned an unexpected response");
 	}
-	return { blocker: result.blocker === null ? null : controlState(result.blocker), legacy_unfinished_count: result.legacy_unfinished_count as number };
+	return { blocker: result.blocker === null ? null : controlState(result.blocker, registry), legacy_unfinished_count: result.legacy_unfinished_count as number };
 }
 
-async function chooseWorkflow(pi: ExtensionAPI, ctx: ExtensionContext, signal?: AbortSignal): Promise<string | undefined> {
+async function chooseWorkflow(pi: ExtensionAPI, ctx: ExtensionContext, registry: string, signal?: AbortSignal): Promise<string | undefined> {
 	let offset = 0;
 	for (;;) {
 		const history = decodeOperatorHistory(decodeOutput(await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view",
-			"history", runsDirectory(), String(offset)], { cwd: repositoryRoot(), signal, timeout: 15_000 })));
+			"history", registry, String(offset)], { cwd: repositoryRoot(), signal, timeout: 15_000 })));
 		const workflows = history.runs.filter((run) => run.name.startsWith("workflow-pi-"));
 		const labels = workflows.map((run) => `${run.name} · ${run.state} · ${run.goal?.replaceAll(/\s+/g, " ").slice(0, 100) ?? "goal unavailable"}`);
 		if (!history.total_runs) return undefined;
@@ -64,19 +64,20 @@ async function chooseWorkflow(pi: ExtensionAPI, ctx: ExtensionContext, signal?: 
 		], { signal });
 		if (chosen === "Newer runs") offset = Math.max(0, offset - history.page_size);
 		else if (chosen === "Older runs" && history.next_offset !== null) offset = history.next_offset;
-		else return chosen && labels.includes(chosen) ? join(runsDirectory(), workflows[labels.indexOf(chosen)]!.name) : undefined;
+		else return chosen && labels.includes(chosen) ? join(registry, workflows[labels.indexOf(chosen)]!.name) : undefined;
 	}
 }
 
 export async function manageWorkflow(
 	pi: ExtensionAPI, ctx: ExtensionContext, prepareRuntime: PrepareRuntime, root?: string, signal?: AbortSignal,
+	registry = runsDirectory(),
 ): Promise<ManagementResult> {
 	const cancelled = { status: "cancelled", message: "No workflow operation was approved; existing work and evidence are unchanged." };
 	if (!ctx.hasUI) return { status: "needs-operator-approval", message: "Workflow management requires direct approval in interactive or RPC Pi." };
 	signal?.throwIfAborted();
-	root ??= await chooseWorkflow(pi, ctx, signal);
+	root ??= await chooseWorkflow(pi, ctx, registry, signal);
 	if (!root) return cancelled;
-	const control = controlState(await workerCommand(pi, ["control", root], signal));
+	const control = controlState(await workerCommand(pi, ["control", root], signal), registry);
 	if (control.workflow_root !== root) throw new Error("Agentvolve control state targets another workflow");
 	if (control.closed) return { status: "closed-incomplete", message: "This workflow was closed as incomplete. Its evidence is preserved; submit a new reviewed goal rather than reopening it." };
 	const actions = control.active ? { "Stop worker": "stop" }
@@ -102,7 +103,7 @@ export async function manageWorkflow(
 		(reason === undefined ? "" : `\nOperator reason: ${JSON.stringify(reason)}`), { signal }))) return cancelled;
 	signal?.throwIfAborted();
 	// Recheck after the human review. Projections never authorize effects by themselves.
-	const current = controlState(await workerCommand(pi, ["control", root], signal));
+	const current = controlState(await workerCommand(pi, ["control", root], signal), registry);
 	if (JSON.stringify(current) !== JSON.stringify(control)) throw new Error("Workflow state changed during review; inspect it again. No operation started.");
 	const args = [action, root, ...(reason === undefined ? [] : [reason])];
 	let result: Record<string, unknown>;

@@ -309,8 +309,8 @@ and models digest, and verified reused harness identity. One generation may make
 multiple model calls; development reservations are not a total-workflow deadline.
 
 Say **“configure Agentvolve”** to select the existing runtime, original compatible
-sealed selected-harness.json, and separately provisioned worker directory containing
-models.json and optional auth.json in the invoking session. `/goal` offers the same
+sealed selected-harness.json, separately provisioned worker directory containing
+models.json and optional auth.json, and a private run registry in the invoking session. `/goal` offers the same
 dialog when defaults are absent. Environment variables are optional defaults, not
 mandatory exports: no second interactive Pi or process restart is required.
 Configuration starts no job and changes no interactive tools/model/environment.
@@ -318,12 +318,29 @@ Normal setup offers named existing combinations from bounded discovery, includin
 the conventional separately provisioned ~/.config/metering/agentvolve-worker.
 It never chooses the newest seal; each selected original seal is replayed before
 confirmation. Missing setup returns preparation instructions, not an unexplained
-blank-path error. Advanced paths still support correction/cancellation.
+blank-path error. Advanced paths still support correction/cancellation. The conventional registry
+is `~/.local/share/metering/agentvolve-runs`; create it with mode 0700 on a
+permission-capable filesystem such as ext4. The selected registry and owner/mode
+are part of execution review. A fuseblk/NTFS path that cannot retain 0700/0600 is
+rejected before workflow creation; credential privacy is never weakened.
+Per-user setup checklist:
+
+- [ ] Keep the worker configuration and run registry outside every Git checkout.
+- [ ] Run `install -d -m 700 ~/.local/share/metering/agentvolve-runs` (or choose another reviewed permission-capable local filesystem).
+- [ ] Verify the mount with `findmnt -T PATH` and verify owner/mode 0700 with `stat -c '%U %a %n' PATH`.
+- [ ] Provision a separate worker `models.json` and optional `auth.json`; never paste secrets into chat or copy interactive Pi state implicitly.
+- [ ] Use **configure Agentvolve** to review runtime, original seal, worker configuration, and registry. Configuration itself must start no job.
+- [ ] Reconfigure a version-1 session selection; do not rewrite or move its existing job/evidence.
+- [ ] Before committing or pushing, inspect `git status --short` and the staged diff. Private configuration, credentials, `pi-configuration/`, run roots, and evidence must remain untracked and outside the repository.
+
 Approved paths survive reload/resume/tree navigation in this session, not forks or
 new sessions; cancellation preserves the previous selection. Changing selection
-never changes existing job ownership. Setup/provisioning remains separately approved.
+never changes existing job ownership. Version-1 session selections must be
+reviewed again because they did not bind a run registry; existing jobs and evidence
+need no migration. Before a new registry is used, blockers in the historical
+default registry are still handled rather than bypassed. Setup/provisioning remains separately approved.
 
-The read-only `python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY`
+The read-only `python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY PRIVATE_RUNS_DIRECTORY`
 checks exact runtime compatibility and offline-verifies the source seal. The
 adapter and configured CLI compare the approved review again before dispatch. No newest-harness guessing
 or implicit Level-2 costs are allowed. Legacy CLI start without a descriptor still
@@ -498,7 +515,7 @@ METERING_RUN_AGENTVOLVE_E2E=1 \
 METERING_PI_CONFIG_DIR=/absolute/separate-reviewed-worker-config \
 METERING_EVOLUTION_RUNTIME_MANIFEST=/absolute/reviewed-runtime.json \
 METERING_EVOLUTION_LIVE_HARNESS=/absolute/harness-run/selected-harness.json \
-METERING_EVOLUTION_LIVE_RUNS_DIR=/absolute/persistent-reviewed-registry \
+METERING_EVOLUTION_LIVE_RUNS_DIR=/absolute/ext4-backed-private-0700-registry \
 METERING_EVOLUTION_LIVE_TASK_PROFILES="/abs/one.task.json:/abs/two.task.json:/abs/three.task.json" \
 uv run --extra test pytest -q -m live_agents tests/test_agentvolve_live_workflow.py
 ```

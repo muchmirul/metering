@@ -105,6 +105,26 @@ def configuration_source(path: Path) -> Path:
     return source
 
 
+def private_runs_directory(path: Path, *, create: bool = False) -> Path:
+    """Require a caller-selected registry that can protect per-job credentials."""
+    directory = resolved_path(str(path.expanduser().absolute()))
+    if create:
+        directory.mkdir(parents=True, mode=0o700, exist_ok=True)
+        directory.chmod(0o700)
+    try:
+        info = directory.stat()
+    except OSError:
+        raise PiConfigurationError(
+            "Prepare an existing private Agentvolve run registry (0700) on a permission-capable filesystem"
+        ) from None
+    if (not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700
+            or info.st_uid != os.geteuid() or not os.access(directory, os.R_OK | os.W_OK | os.X_OK)):
+        raise PiConfigurationError(
+            "Agentvolve run registry must be an owner-controlled 0700 directory on a permission-capable filesystem; use an ext4-backed path such as ~/.local/share/metering/agentvolve-runs"
+        )
+    return directory
+
+
 def validate_record(record: object, workflow_root: Path) -> dict:
     expected = {"execution_schema", "command", "runtime_id", "implementation_version",
                 "configuration_directory", "configuration_source", "models_sha256"}
