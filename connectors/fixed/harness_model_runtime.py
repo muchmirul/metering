@@ -116,6 +116,39 @@ def _timeout() -> int:
     return value
 
 
+def _reject_non_finite(_token: str) -> None:
+    raise ValueError("non-finite number")
+
+
+class _AssistantEventFilter:
+    """Validate all events while retaining only the last authoritative message."""
+
+    def __init__(self, agent_name: str) -> None:
+        self.agent_name = agent_name
+        self.number = 0
+        self.final = b""
+
+    def __call__(self, line: bytes) -> None:
+        self.number += 1
+        try:
+            event = json.loads(line.decode("utf-8"), parse_constant=_reject_non_finite)
+        except (UnicodeError, ValueError, RecursionError) as exc:
+            raise HarnessModelAdapterError(
+                f"{self.agent_name} JSON event {self.number} is invalid"
+            ) from exc
+        if type(event) is not dict:
+            raise HarnessModelAdapterError(
+                f"{self.agent_name} JSON event {self.number} must be an object"
+            )
+        message = event.get("message")
+        if (
+            event.get("type") == "message_end"
+            and type(message) is dict
+            and message.get("role") == "assistant"
+        ):
+            self.final = line
+
+
 def _assistant(events: str, agent_name: str) -> tuple[str, int, int]:
     final: dict[str, object] | None = None
     for number, line in enumerate(events.splitlines(), start=1):
@@ -175,6 +208,7 @@ def invoke_model(
     *,
     agent_name: str,
     command_builder: CommandBuilder,
+    incremental_json_events: bool = False,
 ) -> dict[str, object]:
     raw_request = decode_json_object(source, HarnessModelAdapterError)
     try:
@@ -184,6 +218,9 @@ def invoke_model(
     command = command_builder(request)
     limit = _output_limit()
     timeout = _timeout()
+    event_filter = (
+        _AssistantEventFilter(agent_name) if incremental_json_events else None
+    )
     try:
         with tempfile.TemporaryDirectory(prefix="metering-harness-model-") as temporary:
             # Inherit the outer transport group so its cancellation also kills Pi.
@@ -199,6 +236,13 @@ def invoke_model(
                 None,
                 timeout_seconds=timeout,
                 max_output_bytes=limit,
+                stdout_line_filter=event_filter,
+            )
+        if event_filter is not None:
+            stdout = (
+                event_filter.final.decode("utf-8")
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
             )
     except OutputLimitError as exc:
         raise HarnessModelAdapterError(
@@ -227,10 +271,18 @@ def invoke_model(
     }
 
 
-def run_main(*, agent_name: str, command_builder: CommandBuilder) -> int:
+def run_main(
+    *,
+    agent_name: str,
+    command_builder: CommandBuilder,
+    incremental_json_events: bool = False,
+) -> int:
     try:
         response = invoke_model(
-            sys.stdin.read(), agent_name=agent_name, command_builder=command_builder
+            sys.stdin.read(),
+            agent_name=agent_name,
+            command_builder=command_builder,
+            incremental_json_events=incremental_json_events,
         )
     except (HarnessModelAdapterError, TypeError, ValueError) as exc:
         print(str(exc) or type(exc).__name__, file=sys.stderr)

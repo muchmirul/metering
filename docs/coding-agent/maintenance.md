@@ -54,7 +54,10 @@ The subsequent behavior fixes are separate from the earlier mechanical refactor:
 - `apps/population_driver/diagnostics.py` records non-authoritative Controller
   failure diagnostics; `apps/_support/diagnostics.py` bounds/redacts excerpts.
 - `apps/_support/bounded_process.py` drains model-client pipes under their existing
-  byte/time limits. It adds no search policy or accounting authority.
+  byte/time limits. `pi-v1` keeps the complete-stream behavior. `pi-v2` uses the
+  helper's trusted line filter to validate all JSONL records and retain only the
+  authoritative assistant event, with per-record and retained-output caps. It adds
+  no search policy or accounting authority.
 
 New contract/patch versions do not change installed APIs, numerical behavior,
 selection, stopping, or search-budget rules. Profile authoring and new Level-1

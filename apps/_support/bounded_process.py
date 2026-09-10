@@ -6,6 +6,7 @@ import os
 import selectors
 import subprocess
 import time
+from collections.abc import Callable
 
 from apps._support.process import kill_process_tree
 
@@ -24,6 +25,7 @@ def communicate_bounded(
     *,
     timeout_seconds: float,
     max_output_bytes: int,
+    stdout_line_filter: Callable[[bytes], bytes | None] | None = None,
 ) -> tuple[str, str]:
     """Drain both outputs and feed stdin concurrently; never buffer beyond caps.
 
@@ -31,9 +33,44 @@ def communicate_bounded(
     including inherited pipes held open by descendants. Cleanup also runs on
     cancellation and malformed UTF-8. Owned process groups are reaped on every
     path. Nested provider clients stay in the outer transport's process group.
+
+    By default, each complete stream is capped. A trusted line filter may discard
+    stdout protocol framing while it is drained. In that mode each input line and
+    the complete retained stdout are capped independently; stderr keeps the normal
+    complete-stream cap. The filter cannot make an oversized line acceptable.
     """
     output = {"stdout": bytearray(), "stderr": bytearray()}
+    stdout_line = bytearray()
     deadline = time.monotonic() + timeout_seconds
+
+    def retain_stdout_line(line: bytes) -> None:
+        if len(line) > max_output_bytes:
+            raise OutputLimitError("stdout")
+        retained = stdout_line_filter(line) if stdout_line_filter is not None else line
+        if retained is None:
+            return
+        if type(retained) is not bytes:
+            raise ValueError("stdout line filter must return bytes or None")
+        if len(output["stdout"]) + len(retained) > max_output_bytes:
+            raise OutputLimitError("stdout")
+        output["stdout"].extend(retained)
+
+    def consume_stdout(data: bytes, *, end: bool = False) -> None:
+        stdout_line.extend(data)
+        while True:
+            newline = stdout_line.find(b"\n")
+            if newline < 0:
+                break
+            line = bytes(stdout_line[: newline + 1])
+            del stdout_line[: newline + 1]
+            retain_stdout_line(line)
+        if len(stdout_line) > max_output_bytes:
+            raise OutputLimitError("stdout")
+        if end and stdout_line:
+            line = bytes(stdout_line)
+            stdout_line.clear()
+            retain_stdout_line(line)
+
     try:
         if os.name != "posix":
             raise ValueError("bounded model pipe transport requires POSIX")
@@ -76,15 +113,24 @@ def communicate_bounded(
                             stream.close()
                         continue
                     buffer = output[key.data]
+                    read_size = 65536
+                    bounded = (
+                        stdout_line
+                        if key.data == "stdout" and stdout_line_filter is not None
+                        else buffer
+                    )
+                    read_size = min(read_size, max_output_bytes - len(bounded) + 1)
                     try:
-                        data = os.read(
-                            key.fd, min(65536, max_output_bytes - len(buffer) + 1)
-                        )
+                        data = os.read(key.fd, read_size)
                     except BlockingIOError:
                         continue
                     if not data:
+                        if key.data == "stdout" and stdout_line_filter is not None:
+                            consume_stdout(b"", end=True)
                         selector.unregister(stream)
                         stream.close()
+                    elif key.data == "stdout" and stdout_line_filter is not None:
+                        consume_stdout(data)
                     elif len(buffer) + len(data) > max_output_bytes:
                         raise OutputLimitError(key.data)
                     else:

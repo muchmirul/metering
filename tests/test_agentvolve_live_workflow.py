@@ -203,7 +203,11 @@ def test_deployed_agentvolve_solves_and_verifies_approved_tasks(
     runtime = required_path("METERING_EVOLUTION_RUNTIME_MANIFEST", DEFAULT_RUNTIME)
     harness = required_path("METERING_EVOLUTION_LIVE_HARNESS")
     runtime_document = json.loads(runtime.read_text(encoding="ascii"))
-    assert runtime_document["model"]["connector"] == "pi-v1"
+    expected_connector = os.environ.get(
+        "METERING_EVOLUTION_LIVE_CONNECTOR", "pi-v1"
+    )
+    assert expected_connector in {"pi-v1", "pi-v2"}
+    assert runtime_document["model"]["connector"] == expected_connector
     expected_provider = os.environ.get("METERING_EVOLUTION_LIVE_PROVIDER", "llamacpp")
     assert runtime_document["model"]["provider"] == expected_provider
     configuration = Path(os.environ.get('METERING_PI_CONFIG_DIR', str(Path.home() / '.config/metering/agentvolve-worker'))).expanduser().absolute()

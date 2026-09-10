@@ -115,12 +115,16 @@ def resolve(expected: str, *, configuration: Path | None = None) -> dict:
 
 def check(path: Path, *, configuration: Path | None = None) -> dict:
     runtime = load_runtime_manifest(path)
-    if runtime.model["connector"] != "pi-v1":
-        raise PiRuntimeError("Pi runtime resolution requires a pi-v1 manifest")
-    return {
-        **resolve(runtime.model["implementation_version"], **({} if configuration is None else {"configuration": configuration})),
-        "runtime_id": runtime.runtime_id,
-    }
+    connector = runtime.model["connector"]
+    if connector not in {"pi-v1", "pi-v2"}:
+        raise PiRuntimeError("Pi runtime resolution requires a pi-v1 or pi-v2 manifest")
+    selection = resolve(
+        runtime.model["implementation_version"],
+        **({} if configuration is None else {"configuration": configuration}),
+    )
+    if connector == "pi-v2":
+        selection["cli_contract"] = "tool-free-json-cli-v2"
+    return {**selection, "runtime_id": runtime.runtime_id}
 
 
 def review(path: Path, harness: Path, *, configuration: Path | None = None) -> dict:
@@ -129,8 +133,13 @@ def review(path: Path, harness: Path, *, configuration: Path | None = None) -> d
     from apps.harness.experiment_replay import verify_experiment
 
     runtime = load_runtime_manifest(path)
-    if runtime.model["connector"] != "pi-v1" or not runtime.isolation_enforced:
-        raise PiRuntimeError("Delegated Pi jobs require a pi-v1 reviewed OCI runtime")
+    if (
+        runtime.model["connector"] not in {"pi-v1", "pi-v2"}
+        or not runtime.isolation_enforced
+    ):
+        raise PiRuntimeError(
+            "Delegated Pi jobs require a pi-v1 or pi-v2 reviewed OCI runtime"
+        )
     descriptor = load_harness_descriptor(harness)
     if descriptor["runtime_id"] != runtime.runtime_id:
         raise PiRuntimeError(

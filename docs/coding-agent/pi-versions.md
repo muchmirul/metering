@@ -99,6 +99,27 @@ available and strict. Direct callers of those low-level interfaces must provide
 the correct executable themselves. Offline verification needs neither resolution
 nor a model call and keeps its existing worker/solution CLI.
 
+## Pi event-transport versions
+
+The model connector name also versions Metering's handling of Pi JSON events:
+
+- `pi-v1` keeps the historical complete raw-stream byte cap.
+- `pi-v2` validates each JSONL record while draining, discards transient update
+  framing after validation, and retains the last authoritative assistant
+  `message_end`. Each record, retained final event, stderr, outer model response,
+  and cumulative harness action output remain bounded.
+
+Manifest-aware check and review output reports `tool-free-json-cli-v2` for the v2
+transport; direct implementation resolution still reports the unchanged upstream
+Pi CLI contract and exact implementation version.
+
+This separates action size from linear per-token event-envelope overhead; it does
+not raise the declared output limit or change Pi's provider/model/reasoning. The
+connector string is part of the canonical runtime manifest, so moving to v2
+changes runtime ID. Build and verify a new compatible Level-2 seal and start a new
+reviewed workflow. Do not relabel an old seal or retry an old v1 pending intent
+through a changed runtime.
+
 ## Actually upgrading an experiment
 
 To execute candidates with a newer Pi implementation, create/review a new runtime

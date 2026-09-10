@@ -24,6 +24,19 @@ from connectors.fixed.harness_model_runtime import (  # noqa: E402
 from connectors.fixed.pi.environment import isolated_configuration  # noqa: E402
 
 MODEL = Path(__file__).resolve().with_name("harness_model.py")
+PI_CONNECTORS = {"pi-v1", "pi-v2"}
+
+
+def _runtime_connector() -> str:
+    path = os.environ.get("METERING_HARNESS_RUNTIME_MANIFEST")
+    if not path:
+        raise HarnessModelAdapterError(
+            "METERING_HARNESS_RUNTIME_MANIFEST must name a profile"
+        )
+    connector = load_runtime_manifest(Path(path)).model["connector"]
+    if connector not in PI_CONNECTORS:
+        raise HarnessModelAdapterError("runtime model connector must be pi-v1 or pi-v2")
+    return connector
 
 
 def _edit(workspace: Path, objective: str) -> None:
@@ -31,7 +44,7 @@ def _edit(workspace: Path, objective: str) -> None:
         workspace,
         objective,
         model_command=[sys.executable, str(MODEL)],
-        expected_connector="pi-v1",
+        expected_connector=_runtime_connector(),
     )
 
 
@@ -43,8 +56,10 @@ def main() -> int:
                 "METERING_HARNESS_RUNTIME_MANIFEST must name a profile"
             )
         runtime = load_runtime_manifest(Path(path))
-        if runtime.model["connector"] != "pi-v1":
-            raise HarnessModelAdapterError("runtime model connector must be pi-v1")
+        if runtime.model["connector"] not in PI_CONNECTORS:
+            raise HarnessModelAdapterError(
+                "runtime model connector must be pi-v1 or pi-v2"
+            )
         verify_implementation(
             command_prefix("METERING_PI_COMMAND", "PI_BIN", "pi"),
             runtime.model["implementation_version"],

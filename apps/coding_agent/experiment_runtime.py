@@ -223,8 +223,8 @@ def run_experiment(
         raise SolutionExperimentError(f"experiment root must not exist: {root}")
     profile = load_task_profile(profile_source)
     runtime = load_runtime_manifest(runtime_source)
-    expected_connector = "fixture-v1" if agent == "fixture" else "pi-v1"
-    if runtime.model["connector"] != expected_connector:
+    expected_connectors = {"fixture-v1"} if agent == "fixture" else {"pi-v1", "pi-v2"}
+    if runtime.model["connector"] not in expected_connectors:
         raise SolutionExperimentError("runtime connector does not match selected agent")
     preflight = preflight_task(profile, runtime=runtime, harness_source=harness_source)
     root.mkdir(parents=True)
@@ -387,7 +387,7 @@ def continue_experiment(
     verify_harness_provenance(root, descriptor)
     coding_runtime_id = coding_runtime_identity(profile, runtime, descriptor)
     connector = str(runtime.model["connector"])
-    if connector not in {"fixture-v1", "pi-v1"}:
+    if connector not in {"fixture-v1", "pi-v1", "pi-v2"}:
         raise SolutionExperimentError("coding runtime connector is unsupported")
     agent = "fixture" if connector == "fixture-v1" else "pi"
     advance_process_status(root, stage=4, run_kind="solution")

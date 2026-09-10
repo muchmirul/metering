@@ -227,8 +227,13 @@ as history, never restrictions. No existing run or evidence needs migration.
 
 Pi's interactive model may clarify and draft the review only. The existing detached
 worker executes isolated noninteractive Pi calls under its own pinned runtime,
-provider/model/reasoning, configuration and finite budgets. Task review displays
-both identities and the reused harness. Say **“configure Agentvolve”** to select
+provider/model/reasoning, configuration and finite budgets. `pi-v1` preserves its
+historical cap over the complete raw JSON event stream. The additive `pi-v2`
+transport drains and validates transient events incrementally while keeping each
+event, the authoritative final action, stderr, and cumulative harness output
+bounded. Selecting v2 changes runtime identity and requires a compatible verified
+Level-2 seal. Task review displays both identities and the reused harness. Say
+**“configure Agentvolve”** to select
 an existing runtime, original compatible verified harness, separately provisioned
 worker Pi configuration, and private run registry in this session. Setup first offers labelled compatible
 choices from a bounded read-only catalogue; you need not type paths when existing

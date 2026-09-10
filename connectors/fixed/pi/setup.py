@@ -30,10 +30,13 @@ def discover(runs: Path, manifest: Path, configuration: Path, harness: Path | No
         manifest = resolved_path(str(manifest))
         bounded_file(manifest)
         runtime = load_runtime_manifest(manifest)
-        if runtime.model["connector"] != "pi-v1" or not runtime.isolation_enforced:
+        if (
+            runtime.model["connector"] not in {"pi-v1", "pi-v2"}
+            or not runtime.isolation_enforced
+        ):
             raise ValueError("not an isolated Pi runtime")
     except (ValueError, OSError):
-        issue("runtime_unavailable", "Select an existing reviewed OCI pi-v1 runtime manifest. Runtime provisioning needs separate approval.")
+        issue("runtime_unavailable", "Select an existing reviewed OCI pi-v1 or pi-v2 runtime manifest. Runtime provisioning needs separate approval.")
         return result
 
     try:

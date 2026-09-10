@@ -635,7 +635,8 @@ changing `/limit` never changes an immutable running task. Concurrent preparatio
 is rejected, and a limit cannot change while its task is under review.
 
 Agentvolve is a specialized delegated job using the existing detached worker and
-isolated noninteractive pi-v1 calls, never a mode embedded in interactive Pi.
+versioned isolated noninteractive Pi connector calls, never a mode embedded in
+interactive Pi.
 This replaces the session-toggle architecture, not an additional option.
 Activation/deactivation tool actions, mode state, persistence and restoration are
 removed. Historical mode records and messages never restrict ordinary main-Pi
@@ -1189,9 +1190,17 @@ The implemented first increment has these contracts:
   no migration; no selected patch is applied to the source repository.
 - The POSIX model transport and its nested provider client enforce their existing
   per-stream byte caps while draining pipes, and clean up on timeout/cancellation.
-  This is not a new search limit. Broader subprocess/kernel streaming, stronger
-  model-weight/sampler identity, and richer execution-status classification remain
-  follow-up work; do not claim them from these changes.
+  This is not a new search limit. The original `pi-v1` connector keeps its complete
+  raw-event-stream cap for exact compatibility. The additive `pi-v2` connector
+  incrementally validates every JSONL event, discards transient framing only after
+  validation, and applies the declared byte bound separately to each event and the
+  retained authoritative assistant `message_end`. Stderr, deadlines, process-tree
+  cleanup, cumulative harness action-output accounting, and the final strict action
+  contract remain bounded. Connector version is part of runtime identity, so a v2
+  run requires a new reviewed runtime and compatible Level-2 seal; an old seal is
+  never relabelled. Broader subprocess/kernel streaming, stronger model-weight/
+  sampler identity, and richer execution-status classification remain follow-up
+  work; do not claim them from these changes.
 
 These are correctness fixes, not a blanket behavior-preserving refactor. Each
 requires a focused reproduction, regression tests, and a compatibility decision

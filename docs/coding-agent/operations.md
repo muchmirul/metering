@@ -481,12 +481,18 @@ retain their historical text-transport replay, without the stronger applied-tree
 claim. Existing valid runs need no migration. Offline verification never executes
 candidate checks/models, publishes artifacts, or updates run status.
 
-The POSIX model transport and nested provider client now drain both streams under
-the existing byte cap and deadline instead of checking size after buffering an
-entire response. Timeout, excess output, malformed UTF-8, and cancellation clean
-up owned processes. Kernel-command and general application transports have not
-all been converted to streaming bounds; runtime labels still do not fully bind
-model weights or sampling parameters.
+The POSIX model transport and nested provider client drain both streams under the
+declared byte bound and deadline. `pi-v1` retains its historical complete raw
+JSON-event-stream cap. `pi-v2` validates and drains every JSONL record
+incrementally, discards transient event framing after validation, and caps each
+record plus the retained authoritative assistant `message_end`. The outer strict
+model response and cumulative harness action output remain capped by the same
+runtime value. Timeout, oversized records or retained output, malformed UTF-8/JSON,
+and cancellation clean up owned processes. A connector-version change produces a
+new runtime identity and requires a compatible newly verified Level-2 seal; do not
+retry or relabel an old run across that change. Kernel-command and general
+application transports have not all been converted to streaming bounds; runtime
+labels still do not fully bind model weights or sampling parameters.
 
 Deleting `state/population/population.sqlite` is supported because SQLite is
 only a rebuildable query projection.
@@ -496,7 +502,7 @@ only a rebuildable query projection.
 Every Agentvolve workflow or Pi-extension behavior change must run the ordinary
 focused/full tests and this opt-in live test against at least three distinct,
 operator-approved problems. It deploy-loads the project extension, requires the
-runtime's `pi-v1`/`llamacpp` identity, performs actual local model inference,
+runtime's versioned Pi/`llamacpp` identity, performs actual local model inference,
 requires every protected case to pass, and offline-verifies each sealed run.
 
 Run the same full static checks as hosted CI first:
@@ -513,6 +519,7 @@ use invocation-scoped values, not standing global authorization:
 METERING_REQUIRE_AGENTVOLVE_E2E=1 \
 METERING_RUN_AGENTVOLVE_E2E=1 \
 METERING_PI_CONFIG_DIR=/absolute/separate-reviewed-worker-config \
+METERING_EVOLUTION_LIVE_CONNECTOR=pi-v2 \
 METERING_EVOLUTION_RUNTIME_MANIFEST=/absolute/reviewed-runtime.json \
 METERING_EVOLUTION_LIVE_HARNESS=/absolute/harness-run/selected-harness.json \
 METERING_EVOLUTION_LIVE_RUNS_DIR=/absolute/ext4-backed-private-0700-registry \
@@ -522,7 +529,8 @@ uv run --extra test pytest -q -m live_agents tests/test_agentvolve_live_workflow
 
 The required gate fails if approval/prerequisites are absent; it cannot pass by
 skipping. Before the first task it validates **all** contracts, clean pinned bases,
-full development reservations, compatible replayed seal, worker config/Pi pin,
+full development reservations, exact `METERING_EVOLUTION_LIVE_CONNECTOR`,
+compatible replayed seal, worker config/Pi pin,
 registry blockers, cgroup-v2 Docker/image availability and the reviewed loopback
 model endpoint. This inspection performs no inference and never starts services.
 An unloaded requested model is a blocker, not permission to load it, evict another

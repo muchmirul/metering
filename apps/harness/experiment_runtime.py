@@ -28,7 +28,7 @@ from apps.harness.experiment_config import (
     VALIDATE,
     ExperimentError,
     capability_first_draw,
-    expected_connector,
+    expected_connectors,
     harness_commands,
     harness_driver_request,
     load_assay_tasks,
@@ -333,7 +333,7 @@ def run_experiment(
         raise ExperimentError("assay must be arithmetic-v1 or coding-agent-v1")
     source = runtime_source or (PROFILES / "runtime-fixture.json")
     runtime = load_runtime_manifest(source)
-    if runtime.model["connector"] != expected_connector(agent):
+    if runtime.model["connector"] not in expected_connectors(agent):
         raise ExperimentError("runtime model connector does not match selected agent")
     root.mkdir(parents=True)
     if assay == "coding-agent-v1":
@@ -461,6 +461,7 @@ def continue_experiment(
     agents = {
         "fixture-v1": "fixture",
         "pi-v1": "pi",
+        "pi-v2": "pi",
         "prime-agent-v1": "prime-agent",
     }
     if connector not in agents:

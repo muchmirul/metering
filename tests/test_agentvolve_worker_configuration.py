@@ -107,6 +107,25 @@ def test_configured_review_binds_permission_capable_private_run_registry_before_
     assert not list(c.runs.glob("workflow-*")) and not c.launches
 
 
+def test_configured_review_versions_incremental_pi_transport(configured):
+    c = configured
+    previous_runtime_id = c.approved["runtime_id"]
+    c.data["model"]["connector"] = "pi-v2"
+    document(c.manifest, c.data)
+    next_runtime_id = load_runtime_manifest(c.manifest).runtime_id
+    assert next_runtime_id != previous_runtime_id
+    with pytest.raises(runtime.PiRuntimeError, match="differs from required"):
+        runtime.review_configured(c.manifest, c.harness, c.config)
+
+    c.descriptor["runtime_id"] = next_runtime_id
+    document(c.harness, c.descriptor)
+    approved = runtime.review_configured(c.manifest, c.harness, c.config)
+    assert approved["runtime_id"] == next_runtime_id
+    assert approved["model"]["connector"] == "pi-v2"
+    assert approved["model"]["implementation_version"] == "0.84.4"
+    assert approved["cli_contract"] == "tool-free-json-cli-v2"
+
+
 def test_configured_cli_review_and_start_are_child_only_private_and_review_bound(configured, capsys):
     c = configured
     before = dict(os.environ)

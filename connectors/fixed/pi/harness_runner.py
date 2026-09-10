@@ -29,6 +29,10 @@ def main() -> int:
                 "METERING_HARNESS_RUNTIME_MANIFEST must name a profile"
             )
         runtime = load_runtime_manifest(Path(path))
+        if runtime.model["connector"] not in {"pi-v1", "pi-v2"}:
+            raise HarnessModelAdapterError(
+                "runtime model connector must be pi-v1 or pi-v2"
+            )
         verify_implementation(
             command_prefix("METERING_PI_COMMAND", "PI_BIN", "pi"),
             runtime.model["implementation_version"],
@@ -39,7 +43,7 @@ def main() -> int:
         return 2
     return run_main(
         default_model_command=[sys.executable, str(MODEL)],
-        expected_connector="pi-v1",
+        expected_connector=runtime.model["connector"],
     )
 
 

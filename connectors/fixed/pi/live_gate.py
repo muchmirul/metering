@@ -34,8 +34,9 @@ def preflight(profiles: list[Path], runtime: Path, harness: Path, configuration:
     if registry['blocker']:
         raise AssertionError('[registry-blocked] Existing workflow requires directly reviewed management. Preserve this registry/evidence; do not retry in a new directory.')
     manifest = load_runtime_manifest(runtime)
-    if manifest.model['connector'] != 'pi-v1' or manifest.model['provider'] != expected_provider:
-        raise AssertionError('[runtime-mismatch] The approved runtime must pin the requested Pi/provider; do not substitute a model.')
+    if (manifest.model['connector'] not in {'pi-v1', 'pi-v2'}
+            or manifest.model['provider'] != expected_provider):
+        raise AssertionError('[runtime-mismatch] The approved runtime must pin the requested Pi transport/provider; do not substitute a model.')
     review = review_configured(runtime, harness, configuration, runs)
     task_ids = []
     for path in profiles:

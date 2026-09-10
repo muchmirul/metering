@@ -144,6 +144,10 @@ precedes runtime protected copying. Opt-in `stdout-json-v1` checks use v2 evalua
 receipts, while legacy checks retain exit-status semantics and an assurance
 warning. New selected v2 patches preserve bytes and must reproduce the selected
 Git tree in a disposable index. V1 replay remains available without migration.
+`pi-v1` keeps its raw JSON-event-stream cap. `pi-v2` incrementally validates and
+discards transient framing while separately bounding every event and the retained
+final action. Connector version is runtime identity, so v2 needs a new compatible
+Level-2 seal rather than relabelling or retrying a v1 run.
 These are correctness changes, not a claim that arbitrary checks prove a goal.
 
 The entrypoint's public operation/error imports and recorded command paths are

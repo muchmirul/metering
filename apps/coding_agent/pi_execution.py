@@ -215,7 +215,8 @@ def child_environment(workflow_root: Path, request: dict, *, probe: bool = False
     for path in runtime_paths:
         bounded_file(path)
         runtime = load_runtime_manifest(path)
-        if (runtime.runtime_id != record["runtime_id"] or runtime.model["connector"] != "pi-v1"
+        if (runtime.runtime_id != record["runtime_id"]
+                or runtime.model["connector"] not in {"pi-v1", "pi-v2"}
                 or not runtime.isolation_enforced
                 or runtime.model["implementation_version"] != record["implementation_version"]):
             raise PiConfigurationError("Job-owned Pi runtime identity changed; execution refused")

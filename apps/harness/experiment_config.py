@@ -204,9 +204,9 @@ def harness_driver_request(
     }
 
 
-def expected_connector(agent: str) -> str:
+def expected_connectors(agent: str) -> tuple[str, ...]:
     return {
-        "fixture": "fixture-v1",
-        "pi": "pi-v1",
-        "prime-agent": "prime-agent-v1",
+        "fixture": ("fixture-v1",),
+        "pi": ("pi-v1", "pi-v2"),
+        "prime-agent": ("prime-agent-v1",),
     }[agent]

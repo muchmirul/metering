@@ -31,6 +31,15 @@ Tool-free roles copy only regular `auth.json` and `models.json` into a temporary
 Pi configuration, not ambient settings, sessions, extensions, or skills.
 `METERING_PI_CONFIG_DIR` may name an absolute reviewed configuration directory.
 
+Runtime connector `pi-v1` keeps the historical complete raw JSON-event-stream
+cap. `pi-v2` validates every JSONL event while draining, discards transient
+updates after validation, and retains the authoritative assistant `message_end`.
+Each event, retained output, stderr, deadline, and outer action remain bounded.
+The connector version changes runtime identity; v2 requires a newly verified
+compatible Level-2 seal and cannot be substituted into a v1 retry. The historical
+standalone `harness_model.py` command defaults to v1 when no runtime manifest is
+set; v2 is selected only from `METERING_HARNESS_RUNTIME_MANIFEST`.
+
 ## Agentvolve in Pi
 
 The integration separates UI, execution, and read-only evidence views:

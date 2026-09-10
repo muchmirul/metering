@@ -65,6 +65,13 @@ the reviewed `docker-v1` engine and an image reference containing
 `@sha256:<digest>`. The runner verifies Pi/Prime Agent `--version` and the pinned
 provider/model/reasoning values before inference.
 
+Pi transport versions define how that declared output bound applies to the CLI's
+JSONL protocol. `pi-v1` caps the complete raw event stream. `pi-v2` validates and
+drains every event incrementally, caps each event and retained assistant
+`message_end`, and discards transient update framing after validation. It does not
+increase the cumulative harness action-output limit. Changing connector versions
+changes `runtime_id` and requires a separately verified compatible harness seal.
+
 `kernel_server.py` implements the fixed JSON-lines ABI. `KernelSession` covers:
 
 ```text
