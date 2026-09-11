@@ -13,6 +13,19 @@ export interface ExecutionReview extends ExecutionConfiguration {
 	document: Record<string, unknown>;
 	summary: string;
 }
+export type ExecutionInput = Partial<ExecutionConfiguration>;
+export interface ExecutionInputDetails {
+	status: "needs-configuration";
+	missing: Array<keyof ExecutionConfiguration>;
+	options: SetupOption[];
+	issues: string[];
+}
+export class ExecutionInputRequired extends Error {
+	constructor(message: string, readonly details: ExecutionInputDetails) {
+		super(message);
+		this.name = "ExecutionInputRequired";
+	}
+}
 const SCHEMA = "agentvolve-execution-configuration-v2";
 const PATH_KEYS = ["manifest", "harness", "configuration", "runs"] as const;
 const EXECUTION_PATH_KEYS = ["manifest", "harness", "configuration"] as const;
@@ -66,27 +79,11 @@ export async function reviewExecution(pi: ExtensionAPI, ctx: ExtensionContext, p
 		typeof document.worker_configuration !== "string" || document.runs_directory !== paths.runs || !Array.isArray(document.command) ||
 		typeof document.model !== "object" || document.model === null) throw new Error("Unexpected worker execution review.");
 	const interactive = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "no model selected";
-	const summary = `Interactive drafting only: ${interactive}\nDelegated worker execution (not the interactive model):\n${JSON.stringify(document, null, 2)}\nRuntime manifest: ${paths.manifest}\nReused verified harness: ${paths.harness}\nPrivate run registry: ${paths.runs}\nNo Level-2 search is authorized by this job. Worker calls use isolated Pi configuration and no host session/tools.\nAfter task approval, fixed code copies only models.json and optional auth.json into a private per-job directory. Recovery uses that job's command/configuration, not future session settings. Secrets are not stored in session records.\nNo main-Pi restart or global environment change is needed. Controller paths remain operator-managed: do not edit the live controller or job-owned configuration/evidence. Version isolation is not a host sandbox.`;
+	const summary = `Interactive drafting only: ${interactive}\nDelegated worker execution (not the interactive model):\n${JSON.stringify(document, null, 2)}\nRuntime manifest: ${paths.manifest}\nReused verified harness: ${paths.harness}\nPrivate run registry: ${paths.runs}\nNo Level-2 search is authorized by this job. Worker calls use isolated Pi configuration and no host session/tools.\nAfter task validation, fixed code copies only models.json and optional auth.json into a private per-job directory. Recovery uses that job's command/configuration, not future session settings. Secrets are not stored in session records.\nNo main-Pi restart or global environment change is needed. Controller paths remain operator-managed: do not edit the live controller or job-owned configuration/evidence. Version isolation is not a host sandbox.`;
 	return { ...paths, document, summary };
 }
 
-async function inputPath(ctx: ExtensionContext, title: string, suggested: string | undefined, signal: AbortSignal): Promise<string | undefined> {
-	for (;;) {
-		signal.throwIfAborted();
-		const input = await ctx.ui.input(title + (suggested ? " (blank keeps the suggested path)" : ""), suggested ?? "Existing path; cancel to ask the assistant for setup help", { signal });
-		signal.throwIfAborted();
-		if (input === undefined) return undefined;
-		let path = input.trim() || suggested || "";
-		if (path.length >= 2 && (path[0] === '"' && path.at(-1) === '"' || path[0] === "'" && path.at(-1) === "'")) path = path.slice(1, -1);
-		if (!path || path.length > 4096 || /[\x00-\x1f\x7f]/.test(path)) {
-			ctx.ui.notify(`${title} needs an existing path. Blank cannot choose an unknown file. Enter the path, or cancel and ask the assistant to prepare missing setup; nothing has been saved or started.`, "warning");
-			continue;
-		}
-		return resolve(ctx.cwd, path.startsWith("~/") ? resolve(homedir(), path.slice(2)) : path);
-	}
-}
-
-interface SetupOption extends ExecutionConfiguration {
+export interface SetupOption extends ExecutionConfiguration {
 	runtime_id: string; harness_candidate_id: string; worker_models_sha256: string; provider: string; model: string;
 	model_label: string; implementation_version: string; recorded_final_passed: number; recorded_final_total: number;
 }
@@ -118,45 +115,48 @@ async function discoverSetup(pi: ExtensionAPI, suggested: Partial<ExecutionConfi
 	return { options, issues };
 }
 
+function configuredPath(value: string, key: keyof ExecutionConfiguration, cwd: string): string {
+	let path = value.trim();
+	if (path.length >= 2 && ((path[0] === '"' && path.at(-1) === '"') || (path[0] === "'" && path.at(-1) === "'"))) path = path.slice(1, -1);
+	if (!path || path.length > 4096 || /[\x00-\x1f\x7f]/.test(path)) throw new Error(`Agentvolve ${key} must be a non-empty bounded path.`);
+	return resolve(cwd, path === "~" ? homedir() : path.startsWith("~/") ? resolve(homedir(), path.slice(2)) : path);
+}
+
 export async function configureExecution(pi: ExtensionAPI, ctx: ExtensionContext, suggested: Partial<ExecutionConfiguration>,
-	signal: AbortSignal): Promise<ExecutionReview | undefined> {
-	if (!ctx.hasUI) throw new Error("Worker configuration requires direct approval in interactive or RPC Pi.");
-	const catalogue = await discoverSetup(pi, suggested, signal);
+	signal: AbortSignal, input: ExecutionInput = {}): Promise<ExecutionReview> {
+	const proposed: Partial<ExecutionConfiguration> = { ...suggested };
+	for (const key of PATH_KEYS) {
+		const value = input[key];
+		if (value !== undefined) proposed[key] = configuredPath(value, key, ctx.cwd);
+	}
 	let chosen: SetupOption | undefined;
-	if (catalogue.options.length) {
-		const labels = catalogue.options.map((option, index) => `${index + 1}. ${option.model_label} · ${option.provider}/${option.model} · Pi ${option.implementation_version} · harness ${option.harness_candidate_id.slice(0, 12)} (${option.recorded_final_passed}/${option.recorded_final_total}; verify on selection)`);
-		const selected = await ctx.ui.select("Choose Agentvolve worker setup (no job starts)", [...labels, "Enter existing paths (advanced)"], { signal });
-		signal.throwIfAborted();
-		if (selected === undefined) return undefined;
-		if (selected !== "Enter existing paths (advanced)") {
-			chosen = catalogue.options[labels.indexOf(selected)];
-			if (!chosen) throw new Error("Worker setup selection did not resolve.");
-		}
-	} else if (catalogue.issues.length) {
-		const diagnosis = catalogue.issues.join("\n");
-		ctx.ui.notify(diagnosis, "warning");
-		const selected = await ctx.ui.select("Agentvolve setup needs preparation", ["Return diagnosis to the assistant", "Enter existing paths (advanced)"], { signal });
-		signal.throwIfAborted();
-		if (selected === undefined) return undefined;
-		if (selected !== "Enter existing paths (advanced)") throw new Error(`Agentvolve setup needs preparation:\n${diagnosis}\nNo job started. Ordinary tools remain available for separately approved setup.`);
-	}
 	let paths: ExecutionConfiguration;
-	if (chosen) paths = chosen;
+	if (completeExecution(proposed)) paths = proposed;
 	else {
-		const manifest = await inputPath(ctx, "Agentvolve worker runtime manifest", suggested.manifest, signal);
-		if (manifest === undefined) return undefined;
-		const harness = await inputPath(ctx, "Agentvolve compatible sealed selected-harness.json", suggested.harness, signal);
-		if (harness === undefined) return undefined;
-		const configuration = await inputPath(ctx, "Agentvolve separate worker Pi configuration directory", suggested.configuration, signal);
-		if (configuration === undefined) return undefined;
-		const runs = await inputPath(ctx, "Agentvolve private run registry directory", suggested.runs || resolve(homedir(), ".local/share/metering/agentvolve-runs"), signal);
-		if (runs === undefined) return undefined;
-		paths = { manifest, harness, configuration, runs };
+		const catalogue = await discoverSetup(pi, proposed, signal);
+		if (catalogue.options.length === 1) {
+			chosen = catalogue.options[0];
+			paths = chosen;
+		} else {
+			const missing = PATH_KEYS.filter((key) => !proposed[key]);
+			const choices = catalogue.options.map((option) => ({ ...option }));
+			const summary = choices.length
+				? `Found ${choices.length} compatible Agentvolve setups. Ask the user which worker/model to use, then call workflow_configure with that option's four paths.`
+				: `Agentvolve needs these configuration fields: ${missing.join(", ")}. Ask the user for the missing paths and call workflow_configure again.`;
+			throw new ExecutionInputRequired(
+				catalogue.issues.length ? `${summary}\n${catalogue.issues.join("\n")}` : summary,
+				{ status: "needs-configuration", missing, options: choices, issues: catalogue.issues },
+			);
+		}
 	}
-	const reviewed = await reviewExecution(pi, ctx, paths, signal);
-	if (chosen && (reviewed.document.runtime_id !== chosen.runtime_id || reviewed.document.harness_candidate_id !== chosen.harness_candidate_id || reviewed.document.worker_models_sha256 !== chosen.worker_models_sha256)) throw new Error("Selected setup changed during discovery; select and review again. No job started.");
-	if (!(await ctx.ui.confirm("Save Agentvolve worker configuration for this session?", reviewed.summary +
-		"\n\nOnly these path selections are saved for future task reviews. This does not start a worker, fund harness setup, alter an existing job, copy credentials yet, or change ordinary Pi tools/model/configuration.", { signal }))) return undefined;
+	// Explicit model-supplied configuration prepares only the selected empty
+	// registry if absent. Discovery, restoration and ordinary review stay read-only.
+	const registry = decodeOutput(await pi.exec("uv", ["run", "python", "-m", "connectors.fixed.pi.runtime",
+		"prepare-registry", paths.runs], { cwd: repositoryRoot(), signal, timeout: 30_000 }));
 	signal.throwIfAborted();
+	if (registry.registry_schema !== "agentvolve-private-registry-v1" || registry.runs_directory !== paths.runs ||
+		registry.mode !== "0700" || registry.inference_performed !== false) throw new Error("Private run registry preparation failed; no job started.");
+	const reviewed = await reviewExecution(pi, ctx, paths, signal);
+	if (chosen && (reviewed.document.runtime_id !== chosen.runtime_id || reviewed.document.harness_candidate_id !== chosen.harness_candidate_id || reviewed.document.worker_models_sha256 !== chosen.worker_models_sha256)) throw new Error("Selected setup changed during discovery; configure it again. No job started.");
 	return reviewed;
 }

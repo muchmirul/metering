@@ -56,7 +56,7 @@ This preserves attribution.
 
 ## Operator and worker processes
 
-Interactive Pi clarifies/drafts/reviews a delegated job, not an evolution mode.
+Interactive Pi clarifies and drafts a delegated job for fixed validation; it is not an evolution mode.
 The launcher is visually quiet when idle: no startup banner or persistent idle
 status. Preparation can show status; only the session's exact queued/running job
 shows the compact widget. Inactive jobs clear owned chrome, not history/evidence;
@@ -65,14 +65,17 @@ that changes main-Pi permissions or worker lifetime.
 Activation/deactivation and mode restoration are removed. Historical active-mode
 output never restricts normal configured tools; no model/thinking/tool-list
 changes occur. The worker uses existing isolated noninteractive Pi calls, not
-host-session sharing or another engine. /limit saves a suggestion; each job asks
-for its exact directly approved cap. See [migration and ownership](operations.md#delegated-jobs-and-reload-migration). After a canonical task is selected or prepared
-from user-only session messages and directly reviewed, `/goal` or the
-model-facing start action launches `apps.coding_agent.agentvolve_worker` in a
-detached session and returns control to Pi. The worker alone sequences harness
+host-session sharing or another engine. `/limit` saves the next job's cap; a typed
+model-facing start can provide goal, cap, wall budget, and destination in one call.
+Missing fields are returned for conversational collection, while complete validated
+inputs require no modal save/start approval. See [migration and ownership](operations.md#delegated-jobs-and-reload-migration).
+After a canonical task is selected or prepared from user-only session messages and
+passes fixed validation, `/goal` or the model-facing start action queues preparation
+and eventual `apps.coding_agent.agentvolve_worker` launch in the background, returning
+control to Pi immediately. The worker alone sequences harness
 and solution effects using the canonical runtime manifest. It owns a
 workflow-scoped inherited file lock, bounded logs, heartbeat/liveness identity,
-and canonical ordinal start/resume/retry/verify jobs. Session submission records
+and canonical ordinal start/resume/retry/stop/verify jobs. Session submission records
 separately distinguish preparation, not-launched/cancelled/failed, uncertain
 dispatch and acknowledged launch. Only the returned validated workflow ID/root
 binds a job; progress/monitor/verification never substitute the latest registry run.
@@ -81,10 +84,15 @@ follows the owned job without restarting; forks do not inherit ownership. Explic
 history selection does not rebind it. Closing Pi or the live
 dashboard does not attach to, cancel, or change that worker. Unmanaged legacy
 experiment directories remain history, not detached-registry locks. Current
-unfinished workflows require explicit recovery or closure before a new start.
-The in-session `workflow_manage` dialog invokes fixed operations only after direct
-operator review and rechecks state; it cannot supply a model-authored retry reason
-or change the original runtime or budgets. `closed.json` is an immutable
+unfinished workflows require explicit recovery, stop, or closure before a new
+start. `workflow_manage` returns applicable actions and any missing reason as data;
+the assistant collects only the user's exact action/retry-or-close reason and calls
+again without a modal confirmation. It rechecks state immediately before effects
+and cannot change the original runtime or budgets. `workflow_stop` and
+`/agentvolve-stop` abort preparation or stop the exact worker. Worker stop validates
+PID start identity and direct effect ownership, sends `SIGTERM`, waits a bounded
+grace period, escalates to `SIGKILL`, and records `stopped` without deleting evidence
+or manufacturing success. `closed.json` is an immutable
 orchestration-only closure of inactive incomplete work. It prevents future workflow
 jobs and releases its startup blocker, but never rewrites experimental evidence or
 manufactures a success/final seal. Projection status alone cannot close a workflow.
@@ -172,22 +180,23 @@ user/global packages also have host authority, so operators must review or
 disable them before a sensitive run. This repository ships one thin project
 extension shim for the reviewed implementation. The operator model may differ
 from the manifest-pinned worker model; the dashboard labels both identities.
-The model-facing action enum cannot supply task text, commands, evaluators,
-candidates, output paths, profile paths, or retry authority. It may read
-job-bound progress, explicitly selected history, or request a task draft
-from user-only session messages; that draft still requires direct operator
-review before fixed registration. The instruction to invoke run actions only
-after a user request is prompt policy rather than an OS security boundary.
+The model-facing action schema can carry conversationally collected task text,
+finite caps, destination, worker paths, exact workflow/action, and a user-provided
+retry/close reason. It cannot carry commands, evaluators, candidates, protected
+checks, profile paths, output/apply paths, or authority to invent those user facts.
+Fixed code validates all fields and the drafted task before registration. The
+instruction to invoke effects only after a user request is prompt policy rather
+than an OS security boundary.
 
 Candidate code and candidate-owned extensions are never loaded into the host Pi.
 New Pi jobs require an explicit compatible verified sealed harness and a separate
 reviewed worker configuration and an owner-controlled private run registry.
-`workflow_configure` selects existing paths through
-a directly approved session-owned dialog; `/goal` offers it when defaults are
-missing. Normal setup offers a bounded read-only catalogue of labelled compatible
-combinations; operator selection precedes independent replay and confirmation.
-The catalogue cannot authorize work or choose the newest run. Missing prerequisites
-return actionable preparation instructions; advanced inputs support correction.
+`workflow_configure` accepts session-owned path fields directly; `/goal` reports
+missing setup. Normal setup offers a bounded read-only catalogue of labelled
+compatible combinations. A sole match is independently replayed and validated;
+multiple matches are returned for conversational user choice. The catalogue cannot
+authorize work or choose the newest run. Missing prerequisites return exact fields
+and actionable preparation instructions.
 The selected model's readiness is checked against its reviewed worker configuration
 before drafting and again at configured dispatch/recovery, not an ambient model
 alias. No loading/eviction/restart is performed. Readiness is not a resource lease.
@@ -198,12 +207,12 @@ Historical-registry blockers cannot be hidden by selecting a new registry.
 Child configuration is supplied at spawn, without interactive environment
 mutation, a second interactive Pi, or process restart. Only selection paths persist in version-2 session records; new/forked sessions
 inherit none. Version-1 selection records require re-review because they did not
-bind registry privacy; existing workflows remain bound by their recorded roots. Setup changes only future jobs, starts no evolution,
-and does not replace per-job approval. Task review displays runtime/worker/harness
-identity and budgets separately from interactive drafting. No implicit Level-2 setup,
+bind registry privacy; existing workflows remain bound by their recorded roots. Setup changes
+only future jobs and starts no evolution. Task validation records runtime/worker/
+harness identity and budgets separately from interactive drafting. No implicit Level-2 setup,
 newest-harness guess or automatic model-service start/restart is allowed.
 
-Configured dispatch rechecks the strict approved document and creates a v2
+Configured dispatch rechecks the strict validated document and creates a v2
 orchestration request binding the command/version/runtime and models SHA256. Only
 bounded regular models.json and optional auth.json from the explicitly selected
 source are copied into private job-owned storage; no implicit interactive file

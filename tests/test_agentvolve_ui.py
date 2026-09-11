@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from test_agentvolve_jobs import (NAME, approve, bind, boundary as boundary,
+from test_agentvolve_jobs import (NAME, bind, boundary as boundary,
                                  deployed, ordinary, projection, submission)
 
 pytestmark = pytest.mark.skipif(shutil.which('pi') is None, reason='Pi is not installed')
@@ -73,18 +73,27 @@ def test_restoring_unlaunched_request_does_not_reopen_chrome(tmp_path, state):
         assert not (tmp_path / 'runs').exists()
 
 
-def test_cancelled_preparation_pops_status_then_clears_it(tmp_path):
-    with deployed(tmp_path) as rpc:
-        events = rpc.prompt('/goal Requested job, cancelled at cap input')
+def test_cancelled_background_preparation_pops_status_then_clears_it(tmp_path, boundary):
+    (tmp_path / 'review-pause').touch()
+    with deployed(tmp_path, environment=boundary) as rpc:
+        rpc.prompt('/limit 1')
+        events = rpc.prompt('/goal Requested job cancelled during preparation')
         assert any('preparing' in event.get('statusText', '') for event in visible(events))
+        deadline = time.monotonic() + 15
+        while not (tmp_path / 'review-waiting').exists():
+            assert time.monotonic() < deadline
+            time.sleep(.02)
+        events += rpc.prompt('/agentvolve-stop')
+        wait_for_ui(rpc, events, cleared)
         assert_cleared(events)
-        assert submission(rpc)['state'] == 'not-launched'
+        assert submission(rpc)['state'] == 'cancelled'
         ordinary(rpc, tmp_path)
 
 
 def test_launched_job_shows_widget_then_clears_on_completion(tmp_path, boundary):
     with deployed(tmp_path, environment=boundary) as rpc:
-        events = rpc.prompt('/goal Produce the reviewed output', approve)
+        rpc.prompt('/limit 1')
+        events = rpc.prompt('/goal Produce the validated output')
         wait_for_ui(rpc, events, active_widget)
         assert submission(rpc)['state'] == 'launched'
         root = tmp_path / 'runs' / NAME

@@ -42,6 +42,8 @@ WORKFLOW_NAME = re.compile(r"^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$")
 RUN_NAME = re.compile(r"^(?:harness|solution)-pi-\d{8}T\d{9}Z(?:-\d+)?$")
 MAX_DIAGNOSTIC_BYTES = 8_192
 HEARTBEAT_SECONDS = 2.0
+STOP_GRACE_SECONDS = 5.0
+STOP_POLL_SECONDS = 0.05
 
 
 class AgentvolveWorkerError(RuntimeError):
@@ -256,7 +258,7 @@ def _process_start_token(pid: int) -> str | None:
         fields = path.read_text(encoding="ascii").split()
     except (OSError, UnicodeError):
         return None
-    return fields[21] if len(fields) > 21 else None
+    return fields[21] if len(fields) > 21 and fields[2] != "Z" else None
 
 
 def _worker_alive(workflow_root: Path, status: dict[str, object]) -> bool:
@@ -1218,24 +1220,109 @@ def _execute_job(workflow_root: Path, job_path: Path) -> None:
         signal.signal(signal.SIGINT, previous_int)
 
 
+def _same_process(pid: int | None, token: str | None) -> bool:
+    if type(pid) is not int or pid <= 0 or type(token) is not str:
+        return False
+    try:
+        return _process_start_token(pid) == token and os.getpgid(pid) == pid
+    except ProcessLookupError:
+        return False
+
+
+def _direct_child_start_token(pid: int | None, parent_pid: int) -> str | None:
+    """Identify a current process-group leader still owned by the worker."""
+    if type(pid) is not int or pid <= 0:
+        return None
+    try:
+        status = (Path("/proc") / str(pid) / "status").read_text(encoding="ascii")
+        parent = next(
+            (int(line.split()[1]) for line in status.splitlines() if line.startswith("PPid:")),
+            None,
+        )
+        if parent != parent_pid or os.getpgid(pid) != pid:
+            return None
+    except (OSError, UnicodeError, ValueError):
+        return None
+    return _process_start_token(pid)
+
+
+def _signal_process_group(pid: int | None, token: str | None, sig: signal.Signals) -> None:
+    if not _same_process(pid, token):
+        return
+    try:
+        os.killpg(cast(int, pid), sig)
+    except ProcessLookupError:
+        pass
+
+
+def _terminate_process_groups(
+    worker_pid: int,
+    worker_token: str,
+    effect_pid: int | None,
+    effect_token: str | None,
+    *,
+    grace_seconds: float = STOP_GRACE_SECONDS,
+) -> bool:
+    """Terminate one identity-checked detached worker tree, escalating if stuck."""
+    # The effect owns a separate process group. Signal it directly as well as the
+    # worker so stop does not depend on Python's signal handler making progress.
+    _signal_process_group(effect_pid, effect_token, signal.SIGTERM)
+    _signal_process_group(worker_pid, worker_token, signal.SIGTERM)
+    deadline = time.monotonic() + grace_seconds
+    while time.monotonic() < deadline:
+        if not _same_process(worker_pid, worker_token) and not _same_process(effect_pid, effect_token):
+            return False
+        time.sleep(STOP_POLL_SECONDS)
+    forced = _same_process(worker_pid, worker_token) or _same_process(effect_pid, effect_token)
+    _signal_process_group(effect_pid, effect_token, signal.SIGKILL)
+    _signal_process_group(worker_pid, worker_token, signal.SIGKILL)
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        if not _same_process(worker_pid, worker_token) and not _same_process(effect_pid, effect_token):
+            return forced
+        time.sleep(STOP_POLL_SECONDS)
+    if _same_process(worker_pid, worker_token) or _same_process(effect_pid, effect_token):
+        raise AgentvolveWorkerError("Agentvolve process tree did not terminate")
+    return forced
+
+
 def stop_workflow(workflow_root: Path) -> dict[str, object]:
     workflow_root = workflow_root.expanduser().absolute()
+    reject_symlink(workflow_root, "Agentvolve workflow", AgentvolveWorkerError)
+    request = load_workflow_request(workflow_root)
     status = load_worker_status(workflow_root)
     if status is None or not _worker_alive(workflow_root, status):
         raise AgentvolveWorkerError("Agentvolve workflow has no live worker to stop")
     pid = cast(int, status["worker_pid"])
+    worker_token = cast(str, status["worker_start_token"])
+    effect_pid = cast(int | None, status["effect_pid"])
+    effect_token = _direct_child_start_token(effect_pid, pid)
+    forced = _terminate_process_groups(pid, worker_token, effect_pid, effect_token)
+    lock = _open_lock(workflow_root)
     try:
-        os.killpg(pid, signal.SIGTERM)
-    except ProcessLookupError as exc:
-        raise AgentvolveWorkerError(
-            "Agentvolve worker exited before it could be stopped"
-        ) from exc
+        latest = load_worker_status(workflow_root) or status
+        if latest["state"] not in {"stopped", "completed", "verified"}:
+            ordinal = cast(int, latest["job_ordinal"])
+            job = _load_job(workflow_root / "jobs" / f"{ordinal:06d}.json")
+            latest = _write_status(
+                workflow_root,
+                request,
+                job,
+                state="stopped",
+                stage=cast(int, latest["stage"]),
+                activity="Agentvolve process tree was stopped",
+                error="forced termination after grace period" if forced else "stopped on request",
+                worker_pid=0,
+            )
+        final_state = cast(str, latest["state"])
+    finally:
+        lock.close()
     return {
         "action": "stop",
         "pid": pid,
-        "state": "stopping",
+        "state": final_state,
         "worker_response_schema": "agentvolve-worker-response-v1",
-        "workflow_id": status["workflow_id"],
+        "workflow_id": request["workflow_id"],
         "workflow_root": str(workflow_root),
     }
 

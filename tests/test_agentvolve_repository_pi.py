@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -46,15 +47,21 @@ def test_existing_target_errors_do_not_draft_or_start(tmp_path: Path, target_kin
     )
     try:
         rpc = RPC(process)
-        events = rpc.prompt("/goal Test the selected project", lambda e: {"value": "2"} if e.get("title", "").startswith("Enter the exact") else {"cancelled": True})
+        events = rpc.prompt("/goal Test the selected project")
         diagnostic = {
             "dirty": "uncommitted changes", "untracked": "uncommitted changes",
             "unborn": "readable committed HEAD", "mismatch": "configured task belongs to another repository",
         }.get(target_kind, "Cannot open Git repository")
-        assert any(diagnostic in event.get("message", "") for event in events), events
-        assert not any(event.get("method") == "select" for event in events)
-        assert all(event["title"].startswith("Enter the exact") for event in events if event.get("method") == "input")
-        assert all(event.get("title") == "Use a new private workspace instead?" for event in events if event.get("method") == "confirm")
+        deadline = time.monotonic() + 30
+        while True:
+            entries = rpc.entries()
+            submissions = [entry["data"] for entry in entries if entry.get("customType") == "agentvolve-submission"]
+            if submissions and submissions[-1]["state"] in {"not-launched", "failed"}:
+                break
+            assert time.monotonic() < deadline
+            time.sleep(.02)
+        assert diagnostic in submissions[-1]["diagnostic"]
+        assert not [event for event in events if event.get("method") in {"input", "select", "confirm", "editor"}]
         assert not tasks.exists() and not runs.exists()
         if target_kind == "dirty":
             assert (target / "main.py").read_text() == "uncommitted tracked change\n"

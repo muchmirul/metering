@@ -128,38 +128,39 @@ task rate then reliability with an exact tie draw, runs protected checks after
 allocation, permanently seals search, and emits a replay-checked patch without
 changing the source repository. Its strict `darwinian-coding-task-v1` profile
 owns allowed paths, argv checks, draws, budgets, and optional goal-or-limit
-stopping. Plain Pi exposes delegated jobs, not session activation, through exactly
-`/goal`, `/limit`, `/history`, and `/progress`. /limit is a saved suggestion;
-every /goal requires a fresh exact cap plus direct task/execution review. Starts can
-work in casual extension-enabled sessions without repository/path setup. Messy
-requests are organized into requirements, explicit assumptions, and reviewed
-checks. Literal file/project references are resolved before remembered defaults;
+stopping. Plain Pi exposes delegated jobs, not session activation, through
+`/goal`, `/limit`, `/history`, `/progress`, and `/agentvolve-stop`, plus a typed
+`darwinian_coding` tool. Complete goal/cap/destination and worker settings validate
+and queue background preparation without save/start approval dialogs; missing
+fields or ambiguous choices are returned so the assistant asks only for those
+facts. Starts can work in casual extension-enabled sessions without repository/path
+setup. Messy requests are organized into requirements, explicit assumptions, and
+validated checks. Literal file/project references are resolved before remembered defaults;
 bounded fixed inspection supplies actual Git/local/public-URL text snapshots.
-Sources and the reviewed brief are task-ID-bound proposal input, not permission
+Sources and the validated brief are task-ID-bound proposal input, not permission
 to execute source instructions. Read-only inputs cannot overlap writable paths;
-malformed drafting JSON offers correction/cancellation without automatic retries.
+malformed drafting JSON returns a bounded diagnostic without automatic retries.
 See [source grounding limits](coding-agent/task-profile.md#source-grounded-preparation).
-Task approval selects an existing project or, with none, prepares a
-private Git seed containing TASK.md and empty output files. No solution/checks
+A typed destination selects an existing project or, with none, explicitly prepares
+a private Git seed containing TASK.md and empty output files. No solution/checks
 execute during setup. Existing projects must be clean and committed and are
 never initialized/committed automatically; Pi's cwd is unchanged. Ordinary
 configured tools/model/thinking remain unchanged throughout jobs; historical mode
 records never restore restrictions. New jobs require explicit compatible verified
 harness, separate reviewed worker configuration and an owner-controlled 0700
-run registry, selectable through a session-native dialog without exports, restart
-or a second interactive Pi. The conventional registry is
+run registry, configurable through typed session fields without modal approval,
+exports, restart, or a second interactive Pi. The conventional registry is
 `~/.local/share/metering/agentvolve-runs`; permission-incapable mounts fail before workflow creation.
-Selection starts no job and affects future reviews only; each approved job gets
-private models/auth files and a command binding for recovery. No newest-harness
+Configuration starts no job and affects future submissions only; each validated
+job gets private models/auth files and a command binding for recovery. No newest-harness
 guess, implicit Level-2 costs or shared-service restart occurs. Controller paths remain
 operator-managed; a stable separate installation is operationally required, not
-automatically snapshotted or sandboxed by Pi version isolation. Fixed code can discover reviewed profiles,
-derive the exact goal, clean `HEAD`, finite generations, and draws, and start
-without a copied profile path. TUI and RPC require explicit contract selection
-and approval. A
-user-message/source-grounded session task path asks conversational clarifications when
-needed, displays a complete human-readable contract for mandatory review, and
-keeps JSON as an optional advanced correction surface. It does not invent
+automatically snapshotted or sandboxed by Pi version isolation. Fixed code can use
+an explicitly configured profile or derive the exact goal, clean `HEAD`, finite
+generations, and draws without a copied profile path. TUI and RPC accept complete
+validated typed inputs without an approval response. A user-message/source-grounded
+session task path asks conversational clarifications when needed and retains a
+complete human-readable validation record. It does not invent
 evaluator authority from prose. Session-owned submission attempts distinguish
 preparation/failure/uncertain dispatch from acknowledged launch. The monitor,
 progress and verification bind only the returned validated job ID/root, never
@@ -177,11 +178,14 @@ file history/comparison, archive filters, and projection exports. Its bounded
 loopback service starts only on explicit opening; it changes no evidence or
 Population SQLite schema. It never claims protected-final results for untested children. `/progress`
 inspects the exact submitted job, never a latest-run fallback. Nested assay calls remain pinned to the canonical runtime.
-Old slash commands and compatibility Pi tool actions are removed; shared engines,
-worker CLI recovery/verification, and existing experimental artifacts remain.
-Conversational `workflow_manage` adds direct operator-reviewed resume, reserved
-retry, stop, verify, and closure as incomplete. `/goal` offers recovery for an
-unfinished detached workflow before preparing a new task. Unmanaged legacy history
+Old slash commands other than `/agentvolve-stop` and compatibility Pi tool actions
+are removed; shared engines, worker CLI recovery/verification, and existing
+experimental artifacts remain. Conversational `workflow_manage` accepts an exact
+resume, reserved retry, stop, verify, or closure action and any user-provided
+reason without a confirmation dialog. `workflow_stop` and `/agentvolve-stop` abort
+preparation or identity-check and terminate the worker/effect process groups while
+preserving evidence. `/goal` reports an unfinished detached workflow before
+preparing a new task and requires an explicit manage/stop call. Unmanaged legacy history
 no longer blocks startup or requires directory switching. Explicitly closing an
 inactive workflow adds only `closed.json`, preserves all existing evidence, and
 prevents reopening without claiming success; budgets and final seals are unchanged.

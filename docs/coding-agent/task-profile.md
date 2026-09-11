@@ -3,9 +3,9 @@
 An Agentvolve Level-1 task is one canonical JSON object followed by one newline.
 It binds an immutable repository base, writable paths, development checks,
 finite budgets, exact allocation draws, and a separately permissioned
-protected-final profile. A caller may author it directly, select it from the
-configured task directory, derive it with `/goal` and `/limit`, or approve a
-session-generated draft; all four routes produce this same schema and authority.
+protected-final profile. A caller may author it directly, explicitly configure it,
+derive it with `/goal` and `/limit`, or validate a session-generated draft; all
+routes produce this same schema and authority.
 
 ## Interactive registration and derivation
 
@@ -13,34 +13,32 @@ session-generated draft; all four routes produce this same schema and authority.
 `metering-live-tasks`. The Pi adapter discovers at most 200 direct
 `*.task.json` files there. Casual task starts do not request a repository path.
 Fixed code first resolves literal file/directory references and known project
-names, asking only when references are ambiguous. Otherwise it proposes the
-remembered existing project, configured task's repository, or current Git root,
-with destination approval included in the task review. With
-none, it proposes a private workspace under `TASK-DIRECTORY/workspaces/task-UUID`.
-Existing projects need a clean committed HEAD; they are never initialized,
-committed, or stashed automatically. An invalid target offers an explicit fresh
-workspace alternative without copying the project. Declining draft review exposes
-an optional change-destination dialog. Pi's cwd stays unchanged; existing sessions
-need no migration.
+names. Ambiguity is returned to the assistant for a user choice. Otherwise it
+uses the remembered existing project, explicitly configured task's repository, or
+current Git root. With none, a fresh-workspace start uses
+`TASK-DIRECTORY/workspaces/task-UUID`. Existing projects need a clean committed
+HEAD; they are never initialized, committed, or stashed automatically. Invalid
+targets are reported so the assistant can ask for another repository or an
+explicit fresh workspace. Pi's cwd stays unchanged; existing sessions need no
+migration.
 
-`/goal` offers selected-repository contract summaries for direct selection, even
-when only one matches, or prepares a new draft. TUI and RPC both require task
-approval; an explicitly configured profile must match the selected repository.
-Fixed Python validation remains decisive at start.
+`/goal` prepares a source-grounded draft unless an explicit
+`METERING_EVOLUTION_TASK_PROFILE` matches the selected repository. Complete typed
+input and a valid draft need no modal TUI/RPC approval; fixed Python validation
+remains decisive at start.
 
-`/limit N generations` (1–256) saves a suggestion. Every `/goal TEXT` asks for the
-exact cap for that job before drafting, even after a launch/session restore with
-a saved value; changing the suggestion never changes a running task. When a reviewed
-contract is selected, fixed code derives a fresh profile and keeps its
-entrypoint, allowed paths, checks, final binding, final draw, and
-stopping policy; preserves the wall limit unless the operator explicitly enters
-a correction for the new profile; resolves the current clean repository `HEAD`; writes `N - 1`
-fixed rational recurrence draws; and preserves the template's finite retry
-reservation count. The derived profile is written below the task directory's
-`generated/` subdirectory.
+`/limit N generations` (1–256) sets the next slash-command job's cap; changing it
+never changes a running task. Model-facing starts may supply their cap and wall
+reservation directly. When an explicitly configured contract is used, fixed code
+derives a fresh profile and keeps its entrypoint, allowed paths, checks, final
+binding, final draw, and stopping policy; replaces the wall limit only when
+`max_wall_seconds` is explicitly supplied; resolves the current clean repository
+`HEAD`; writes `N - 1` fixed rational recurrence draws; and preserves the template's
+finite retry reservation count. The derived profile is written below the task
+directory's `generated/` subdirectory.
 
-With no selected contract, `/goal` and model-facing `workflow_from_session`
-use the explicit reviewed draft path. The outer model receives user messages only, never assistant
+With no configured contract, `/goal` and model-facing `workflow_from_session`
+use the fixed-validation draft path. The outer model receives user messages only, never assistant
 answers or prior tool output, plus the current commit's tracked-file list and
 actual bounded source snapshots from fixed inspection. The
 operator first sees a human-readable review containing the complete original
@@ -79,12 +77,13 @@ This draft has the ordinary session-draft fields plus `requirements` and
 requirements must be non-empty. The model cannot choose the host destination:
 Pi supplies the private task-UUID path. Fixed code rejects an existing destination,
 symlinked workspace parent, unsafe paths, file/directory collisions, or writable
-TASK.md paths. After approval it writes only TASK.md containing the reviewed brief
-and empty output files, commits the initial seed without user Git hooks, and
-registers the same `darwinian-coding-task-v1` profile. Generated checks never run
+TASK.md paths. After typed input and the draft pass fixed validation, it writes
+only TASK.md containing the validated brief and empty output files, commits the
+initial seed without user Git hooks, and registers the same
+`darwinian-coding-task-v1` profile. Generated checks never run
 on the host. No dependencies or solutions are installed during preparation.
 
-Cancellation before approval creates no workspace or task. A later preparation
+Cancellation before registration creates no workspace or task. A later preparation
 failure retains created files with an explicit path diagnostic; it does not retry
 automatically. After a successful launch, the private destination is no longer the
 default for an unrelated later goal; evidence and files remain at their original
@@ -147,24 +146,24 @@ New canonical profiles may add:
 
 Requirements/assumptions are bounded as above; read-only paths are sorted/unique
 (up to 64). Sources are URI-sorted/unique and contain exactly the four illustrated
-fields. Fixed inspection overrides any model/editor-authored source context.
-Review displays provenance/digests and permissions; advanced JSON exposes full
-snapshots. The exact context enters the task ID and proposer request, not assay
+fields. Fixed inspection overrides any model-authored source context. The validation
+record summarizes provenance/digests and permissions; diagnostic entries retain
+bounded snapshots. The exact context enters the task ID and proposer request, not assay
 authority. Offline verification checks stored content hashes without refetching.
 Older profiles/replay remain unchanged; older implementations cannot consume the
 new optional field. A grounded template with changed HEAD requires fresh drafting
 rather than silently mixing an old source snapshot with a new base. Session
 registration checks the reviewed base before writing the task profile.
 
-Malformed/duplicate-key JSON and invalid task fields offer explicit correction,
-destination change or cancellation before budget review or approval. A missing,
-string, boolean or out-of-range `timeout_ms`, empty checks, malformed check argv
-or unsupported stopping policy cannot reach approval. No values are silently
-filled/coerced and no model retry is automatic. The read-only
+Malformed/duplicate-key JSON and invalid task fields stop before budget review or
+registration and return a bounded diagnostic for conversational correction. A
+missing, string, boolean or out-of-range `timeout_ms`, empty checks, malformed
+check argv, or unsupported stopping policy cannot reach registration. No values
+are silently filled/coerced and no model retry is automatic. The read-only
 `task_profile_tool validate-draft existing|workspace DRAFT.json` command reuses
 canonical profile validation, without registration, Git/check execution or
 protected-final reads. This validates structure, not task meaning or dependencies.
-The original goal, limit, fixed snapshots and direct approval remain binding.
+The typed goal, finite limit, destination, and fixed snapshots remain binding.
 The drafter is explicitly told that `stdout-json-v1` requires a non-empty JSON
 object both in `expected_stdout` and actual stdout. A scalar/list solver return
 must be wrapped by the check, for example `{"result": value}`; the solver's public

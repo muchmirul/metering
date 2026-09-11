@@ -1,5 +1,6 @@
 """Registry recovery must preserve evidence and never grant an implicit retry."""
 
+import signal
 import sys
 from pathlib import Path
 
@@ -104,6 +105,47 @@ def test_live_locks_still_block_start_and_close(tmp_path, launch):
         assert not (root / "closed.json").exists()
     finally:
         lock.close()
+
+
+def test_process_tree_stop_escalates_identity_checked_groups(monkeypatch):
+    live = {100: "worker", 200: "effect"}
+    signals = []
+    monkeypatch.setattr(worker, "_process_start_token", lambda pid: live.get(pid))
+    monkeypatch.setattr(worker.os, "getpgid", lambda pid: pid)
+
+    def killpg(pid, sent):
+        signals.append((pid, sent))
+        if sent == signal.SIGKILL:
+            live.pop(pid, None)
+
+    monkeypatch.setattr(worker.os, "killpg", killpg)
+    assert worker._terminate_process_groups(100, "worker", 200, "effect", grace_seconds=0) is True
+    assert signals == [
+        (200, signal.SIGTERM), (100, signal.SIGTERM),
+        (200, signal.SIGKILL), (100, signal.SIGKILL),
+    ]
+
+
+def test_stop_workflow_waits_for_tree_and_records_terminal_state(tmp_path, launch, monkeypatch):
+    root = Path(launch()["workflow_root"])
+    request = worker.load_workflow_request(root)
+    job = worker._load_job(next((root / "jobs").glob("*.json")))
+    monkeypatch.setattr(worker, "_process_start_token", lambda pid: "worker-token" if pid == 43210 else None)
+    worker._write_status(root, request, job, state="running", stage=4,
+                         activity="running", effect_pid=9876, worker_pid=43210)
+    monkeypatch.setattr(worker, "_worker_alive", lambda *_: True)
+    calls = []
+    monkeypatch.setattr(worker, "_terminate_process_groups",
+                        lambda *args: calls.append(args) or True)
+
+    response = worker.stop_workflow(root)
+
+    assert response["state"] == "stopped"
+    assert calls == [(43210, "worker-token", 9876, None)]
+    status = worker.load_worker_status(root)
+    assert status["state"] == "stopped"
+    assert status["worker_pid"] is None and status["effect_pid"] is None
+    assert status["error"] == "forced termination after grace period"
 
 
 @pytest.mark.parametrize("reason", ["", " ", "bad\x00reason", "x" * 2001, None, 1])

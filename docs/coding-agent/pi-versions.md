@@ -54,25 +54,28 @@ From the source checkout:
 uv run python -m connectors.fixed.pi.runtime check RUNTIME.json
 uv run python -m connectors.fixed.pi.runtime review RUNTIME.json HARNESS.json
 uv run python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY PRIVATE_RUNS_DIRECTORY
-uv run python -m connectors.fixed.pi.runtime start-configured RUNS TASK.json RUNTIME.json HARNESS.json CONFIG_DIRECTORY APPROVED_REVIEW.json
+uv run python -m connectors.fixed.pi.runtime start-configured RUNS TASK.json RUNTIME.json HARNESS.json CONFIG_DIRECTORY VALIDATED_REVIEW.json
 # Legacy environment-configured launch:
 uv run python -m connectors.fixed.pi.runtime start RUNS TASK.json RUNTIME.json HARNESS.json
 uv run python -m connectors.fixed.pi.runtime resume WORKFLOW
-uv run python -m connectors.fixed.pi.runtime retry WORKFLOW 'operator-approved reason'
+uv run python -m connectors.fixed.pi.runtime retry WORKFLOW 'user-provided reason'
 ```
 
-These are connector CLI operations, **not new Pi slash commands**. `/goal` uses
-the configured preflight and launch path after direct approval. Say “configure
-Agentvolve” to select existing runtime/harness/worker config and a private 0700
-run registry from the current Pi session, with no environment exports, process
-restart or second interactive Pi. The conventional ext4-capable location is
-`~/.local/share/metering/agentvolve-runs`. `review-configured` takes the worker
+These are connector CLI operations, **not new Pi slash commands**. `/goal` queues
+the configured preflight and launch path after typed input passes fixed validation.
+Say “configure Agentvolve” to validate existing runtime/harness/worker config and
+a private 0700 run registry from the current Pi session, with no save/start approval
+dialog, environment exports, process restart, or second interactive Pi. Configuration prepares a missing registry at
+`~/.local/share/metering/agentvolve-runs` by default. The CLI equivalent is
+`uv run python -m connectors.fixed.pi.runtime prepare-registry [PATH]`.
+It validates actual ownership/mode 0700 on any permission-capable filesystem;
+ext4 is not required. Existing unsafe directories are rejected unchanged. `review-configured` takes the worker
 and run directories explicitly; legacy `review` additionally
 requires a separate explicit `METERING_PI_CONFIG_DIR` with models.json and an
 explicit compatible original sealed harness; it offline-verifies provenance and
 returns worker configuration/model digest, exact implementation/runtime/harness
-identities and budgets. Pi includes these in task review, then rechecks before
-dispatch. No newest-harness discovery or implicit Level-2 setup is allowed. Missing
+identities and budgets. Pi includes these in its validation record, then rechecks
+before dispatch. No newest-harness discovery or implicit Level-2 setup is allowed. Missing
 compatible setup requires separate operator approval/budget and Level-2 execution.
 
 Pi version/configuration isolation is NOT immutable control-plane deployment.
@@ -161,3 +164,11 @@ Local test evidence is under
 `/mnt/Tforce/dev/metering-trace-live-one-20260907.9CiCXz/`; it is intentionally
 outside this repository. This was the **one task requested by the operator**, not
 a claim that the separate three-task acceptance suite ran.
+
+On 2026-09-10, a separate operator request authorized applying this selected
+patch. Offline verification passed again, then the patch was applied to the
+original username project at its unchanged approved base. All three visible unit
+tests and ten supplementary output examples passed, including Unicode whitespace,
+casefolding and empty inputs. The source change is uncommitted; the original
+workflow, task profile, selection and evaluation records were not rewritten.
+This application does not upgrade its historical exit-status-only evidence.

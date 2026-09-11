@@ -1,4 +1,4 @@
-"""Deployed /goal review/start contract; inference and worker launch are test doubles."""
+"""Deployed /goal background-start contract; inference and worker launch are doubles."""
 
 from __future__ import annotations
 
@@ -41,56 +41,103 @@ class RPC:
         line, self.buffer = self.buffer.split(b"\n", 1)
         return json.loads(line)
 
-    def request(self, value: dict, dialog: Callable[[dict], dict] | None = None) -> list[dict]:
+    def request(
+        self, value: dict, dialog: Callable[[dict], dict] | None = None
+    ) -> list[dict]:
         self.send(value)
         events = []
         deadline = time.monotonic() + 60
         while True:
             event = self.event(deadline)
             events.append(event)
-            if event.get("type") == "extension_ui_request" and event.get("method") in {"input", "confirm", "select", "editor"}:
+            if event.get("type") == "extension_ui_request" and event.get("method") in {
+                "input",
+                "confirm",
+                "select",
+                "editor",
+            }:
                 answer = dialog(event) if dialog else {"cancelled": True}
-                self.send({"type": "extension_ui_response", "id": event["id"], **answer})
+                self.send(
+                    {"type": "extension_ui_response", "id": event["id"], **answer}
+                )
             if event.get("type") == "response" and event.get("id") == value["id"]:
                 assert event["success"], event
                 return events
 
-    def prompt(self, text: str, dialog: Callable[[dict], dict] | None = None) -> list[dict]:
+    def prompt(
+        self, text: str, dialog: Callable[[dict], dict] | None = None
+    ) -> list[dict]:
         return self.request({"id": text, "type": "prompt", "message": text}, dialog)
 
     def entries(self) -> list[dict]:
-        return self.request({"id": "entries", "type": "get_entries"})[-1]["data"]["entries"]
+        return self.request({"id": "entries", "type": "get_entries"})[-1]["data"][
+            "entries"
+        ]
+
+
+def _wait_for(path: Path, timeout: float = 30) -> None:
+    deadline = time.monotonic() + timeout
+    while not path.exists():
+        assert time.monotonic() < deadline, f"Timed out waiting for {path}"
+        time.sleep(0.02)
 
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is not installed")
-@pytest.mark.parametrize("legacy_history", [False, True])
-@pytest.mark.parametrize("underfunded", [False, True])
-@pytest.mark.parametrize("outside_repository", [False, True])
-def test_goal_requires_limit_and_approval_then_keeps_limit(tmp_path: Path, legacy_history: bool, underfunded: bool, outside_repository: bool):
+def test_goal_uses_saved_validated_fields_without_modal_approval(tmp_path: Path):
     repository = tmp_path / "repo"
     repository.mkdir()
     (repository / "main.py").write_text("print('ok')\n")
-    for args in (["init", "-q"], ["add", "main.py"], ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "fixture"]):
-        subprocess.run(["git", *args], cwd=repository, check=True, capture_output=True)
+    for args in (
+        ["init", "-q"],
+        ["add", "main.py"],
+        [
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.invalid",
+            "commit",
+            "-qm",
+            "fixture",
+        ],
+    ):
+        subprocess.run(
+            ["git", *args], cwd=repository, check=True, capture_output=True
+        )
     tasks = tmp_path / "tasks"
-    tasks.mkdir()
-    runs = tmp_path / "runs"  # Reading an empty history must not create this.
+    runs = tmp_path / "runs"
     launch_log = tmp_path / "launches.jsonl"
     prompt_log = tmp_path / "draft-prompts.jsonl"
     runtime = tmp_path / "runtime.json"
-    runtime.write_text(json.dumps({"model": {"provider": "fixture", "model": "fixture", "reasoning": "off"}}))
+    runtime.write_text(
+        json.dumps(
+            {"model": {"provider": "fixture", "model": "fixture", "reasoning": "off"}}
+        )
+    )
     draft = {
-        "draft_schema": "agentvolve-session-task-draft-v1", "schema_version": 1,
-        "name": "goal-fixture", "repository_path": str(repository),
-        "goal": "MODEL MUST NOT OVERRIDE USER GOAL", "entrypoint": "main.py",
+        "draft_schema": "agentvolve-session-task-draft-v1",
+        "schema_version": 1,
+        "name": "goal-fixture",
+        "repository_path": str(repository),
+        "goal": "MODEL MUST NOT OVERRIDE USER GOAL",
+        "entrypoint": "main.py",
         "allowed_paths": ["main.py"],
-        "development_checks": [{"argv": ["python3", "main.py"], "case_id": "main", "timeout_ms": 1000}],
-        "limits": {"max_rounds": 99, "max_proposal_calls": 99, "max_wall_seconds": 1800 if underfunded else 100000},
-        "stopping": {"type": "all-development-cases-pass-v1", "minimum_replicates": 1},
+        "development_checks": [
+            {"argv": ["python3", "main.py"], "case_id": "main", "timeout_ms": 1000}
+        ],
+        "limits": {
+            "max_rounds": 99,
+            "max_proposal_calls": 99,
+            "max_wall_seconds": 100000,
+        },
+        "stopping": {
+            "type": "all-development-cases-pass-v1",
+            "minimum_replicates": 1,
+        },
         "final_policy": "replay-development-checks-v1",
     }
     provider = tmp_path / "provider.ts"
-    provider.write_text('''import { appendFileSync } from "node:fs";
+    provider.write_text(
+        '''import { appendFileSync } from "node:fs";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 export default function(pi: any) {
   pi.registerProvider("goal-fixture", {
@@ -102,246 +149,151 @@ export default function(pi: any) {
       queueMicrotask(() => {
         const drafting = context.systemPrompt.startsWith("You create an Agentvolve task draft");
         if (drafting) appendFileSync(process.env.GOAL_PROMPT_LOG!, JSON.stringify(context) + "\\n");
-        const text = drafting ? process.env.GOAL_DRAFT! : "ASSISTANT_ANSWER_MUST_NOT_BECOME_TASK";
-        const message: any = {role:"assistant", content:[{type:"text", text}],
-          api:model.api, provider:model.provider, model:model.id, stopReason:"stop", timestamp:Date.now(),
+        const text = drafting ? process.env.GOAL_DRAFT! : "ordinary response";
+        const message: any = {role:"assistant", content:[{type:"text", text}], api:model.api,
+          provider:model.provider, model:model.id, stopReason:"stop", timestamp:Date.now(),
           usage:{input:0, output:0, cacheRead:0, cacheWrite:0, totalTokens:0,
             cost:{input:0, output:0, cacheRead:0, cacheWrite:0, total:0}}};
         stream.push({type:"start", partial:message});
         stream.push({type:"text_start", contentIndex:0, partial:message});
-        stream.push({type:"text_delta", contentIndex:0, delta:text, partial:message});
         stream.push({type:"text_end", contentIndex:0, content:text, partial:message});
         stream.push({type:"done", reason:"stop", message}); stream.end();
       }); return stream;
     }
   });
 }
-''')
-    # Only intercept the detached start boundary, not task derivation/registration or projections.
+'''
+    )
     bindir = tmp_path / "bin"
     bindir.mkdir()
     uv = bindir / "uv"
-    uv.write_text(f'''#!{sys.executable}
-import json, os, sys
+    uv.write_text(
+        f'''#!{sys.executable}
+import json, os, pathlib, sys
 args = sys.argv[1:]
-if args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "check"]:
-    print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1", "authority":"diagnostic-only"}}))
+if args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "prepare-registry"]:
+    pathlib.Path(args[5]).mkdir(parents=True, exist_ok=True)
+    print(json.dumps({{"registry_schema":"agentvolve-private-registry-v1", "runs_directory":args[5], "mode":"0700", "inference_performed":False}}))
 elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "review-configured"]:
-    print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "runs_directory":args[8], "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
+    print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/validated/worker", "runs_directory":args[8], "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
+elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "ready-configured"]:
+    print(json.dumps({{"readiness_schema":"agentvolve-worker-readiness-v1", "authority":"diagnostic-only", "provider":"fixture", "model":"fixture", "state":"ready", "inference_performed":False}}))
 elif args[:5] == ["run", "python", "-m", "connectors.fixed.pi.runtime", "start-configured"]:
-    with open(os.environ["GOAL_LAUNCH_LOG"], "a") as log:
-        log.write(json.dumps(args) + "\\n")
+    with open(os.environ["GOAL_LAUNCH_LOG"], "a") as log: log.write(json.dumps(args) + "\\n")
     print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "action":"start", "pid":12345, "state":"queued", "workflow_id":"a"*64, "workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))
+elif args[:5] == ["run", "python", "-m", "apps.coding_agent.agentvolve_worker", "registry"]:
+    print(json.dumps({{"registry_schema":"agentvolve-registry-status-v1", "authority":"projection-only", "blocker":None, "legacy_unfinished_count":0}}))
 else:
     os.execv({str(shutil.which("uv"))!r}, [{str(shutil.which("uv"))!r}, *args])
-''')
+'''
+    )
     uv.chmod(0o755)
-    environment = {key: value for key, value in os.environ.items() if not key.startswith("METERING_EVOLUTION_")}
-    environment.update({
-        "PATH": str(bindir) + os.pathsep + os.environ["PATH"],
-        "METERING_EVOLUTION_TASKS_DIR": str(tasks), "METERING_EVOLUTION_RUNS_DIR": str(runs),
-        "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime),
-        "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(runtime),  # review/launch double only
-        "METERING_PI_CONFIG_DIR": "/reviewed/worker",
-        "GOAL_LAUNCH_LOG": str(launch_log), "GOAL_PROMPT_LOG": str(prompt_log), "GOAL_DRAFT": json.dumps(draft),
-    })
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith("METERING_EVOLUTION_")
+    }
+    environment.update(
+        {
+            "PATH": str(bindir) + os.pathsep + os.environ["PATH"],
+            "METERING_EVOLUTION_TASKS_DIR": str(tasks),
+            "METERING_EVOLUTION_RUNS_DIR": str(runs),
+            "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime),
+            "METERING_EVOLUTION_HARNESS_DESCRIPTOR": str(runtime),
+            "METERING_PI_CONFIG_DIR": "/validated/worker",
+            "GOAL_LAUNCH_LOG": str(launch_log),
+            "GOAL_PROMPT_LOG": str(prompt_log),
+            "GOAL_DRAFT": json.dumps(draft),
+        }
+    )
     session = tmp_path / "session.jsonl"
-    if outside_repository:
-        # Legacy sessions with an operator-selected target need no setup/migration.
-        session.write_text("\n".join(json.dumps(entry) for entry in [
-            {"type": "session", "version": 3, "id": "repo-session", "timestamp": "2026-09-09T00:00:00Z", "cwd": str(tmp_path)},
-            {"type": "custom", "id": "1234abcd", "parentId": None, "timestamp": "2026-09-09T00:00:00Z",
-             "customType": "agentvolve-workflow-configuration", "data": {"repository": str(repository)}},
-        ]) + "\n")
-
-    def start() -> subprocess.Popen[bytes]:
-        return subprocess.Popen(["pi", "--mode", "rpc", "--session", str(session), "--no-extensions",
-            "-e", str(EXTENSION), "-e", str(provider), "--provider", "goal-fixture", "--model", "fixture"],
-            cwd=tmp_path if outside_repository else repository, env=environment,
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    process = start()
+    process = subprocess.Popen(
+        [
+            "pi",
+            "--mode",
+            "rpc",
+            "--session",
+            str(session),
+            "--no-extensions",
+            "-e",
+            str(EXTENSION),
+            "-e",
+            str(provider),
+            "--provider",
+            "goal-fixture",
+            "--model",
+            "fixture",
+        ],
+        cwd=repository,
+        env=environment,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     try:
         rpc = RPC(process)
-        rpc.prompt("/progress")
-        assert not runs.exists()
-        if legacy_history:
-            stale = runs / "harness-pi-20260902T200200234Z"
-            stale.mkdir(parents=True)
-            (stale / "old-evidence.txt").write_text("Preserve this interrupted experiment.\n")
-        rpc.prompt("Prior user context, not the task")
-        while rpc.event(time.monotonic() + 10).get("type") != "agent_end":
-            pass
-        rpc.prompt("/goal Make main pass the reviewed check")  # cancel missing limit
+        missing = rpc.prompt("/goal Make main pass the validated check")
+        assert not [event for event in missing if event.get("method") in {"input", "select", "confirm", "editor"}]
+        time.sleep(0.1)
         assert not launch_log.exists() and not prompt_log.exists()
         for invalid in ("0", "257", "2.5", "-1", "NaN", "1 extra"):
             events = rpc.prompt(f"/limit {invalid}")
             assert any("1 through 256" in str(event) for event in events)
-        reviews = []
-        def decline(event: dict) -> dict:
-            if event["method"] == "input":
-                if event["title"].startswith("Agentvolve budget"):
-                    assert underfunded and "3680" in event["title"] and "25760" in event["title"]
-                    return {"value": "30000"}
-                return {"value": "7 generations"}
-            if event["method"] == "confirm":
-                reviews.append(event)
-                return {"confirmed": False}
-            return {"cancelled": True}
 
-        rpc.prompt("/goal Make main pass the reviewed check", decline)
-        assert reviews, "No direct task review occurred"
-        review = json.dumps(reviews[-1])
-        assert "7 generations, 7 proposal calls" in review
-        assert "Make main pass the reviewed check" in review
-        assert "MODEL MUST NOT OVERRIDE" not in review
-        assert not launch_log.exists() and list(tasks.iterdir()) == []
-        recorded_prompt = prompt_log.read_text()
-        assert "Current /goal" in recorded_prompt
-        assert "Prior user context" in recorded_prompt
-        assert "ASSISTANT_ANSWER_MUST_NOT_BECOME_TASK" not in recorded_prompt
-
-        if underfunded:
-            events = rpc.prompt("/goal", lambda e: {"value": "7"} if e.get("title", "").startswith("Enter the exact") else {"cancelled": True})  # cancel budget correction
-            assert any(event.get("title", "").startswith("Agentvolve budget") for event in events)
-            assert not launch_log.exists() and list(tasks.iterdir()) == []
-
-        budget_inputs = 0
-
-        def approve(event: dict) -> dict:
-            nonlocal budget_inputs
-            if event["method"] == "input":
-                if event["title"].startswith("Enter the exact"):
-                    assert "7" in event["placeholder"]
-                    return {"value": "7"}
-                assert underfunded and event["title"].startswith("Agentvolve budget")
-                budget_inputs += 1
-                return {"value": {1: "1800", 2: "1.5"}.get(budget_inputs, "30000")}
-            if event["method"] == "select":
-                return {"value": event["options"][0]}
-            assert event["method"] == "confirm"
-            reviews.append(event)
-            assert not launch_log.exists(), "Worker launched before approval"
-            assert "3680 seconds per generation" in event["message"]
-            assert "25760" in event["message"]
-            assert ("30000" if underfunded else "100000") in event["message"]
-            return {"confirmed": True}
-
-        events = rpc.prompt("/goal", approve)
-        assert launch_log.exists(), events
-        if legacy_history:
-            assert any("unfinished legacy runs remain unchanged" in event.get("message", "") for event in events)
+        rpc.prompt("/limit 2")
+        events = rpc.prompt("/goal Make main pass the validated check")
+        assert not [event for event in events if event.get("method") in {"input", "select", "confirm", "editor"}]
+        _wait_for(launch_log)
         launches = [json.loads(line) for line in launch_log.read_text().splitlines()]
         assert len(launches) == 1
         profile = json.loads(Path(launches[0][6]).read_text())
-        assert profile["goal"] == "Make main pass the reviewed check"
+        assert profile["goal"] == "Make main pass the validated check"
         assert profile["repository"]["path"] == str(repository)
-        assert profile["limits"]["max_rounds"] == 7
-        assert profile["limits"]["max_proposal_calls"] == 7
-        assert profile["limits"]["max_wall_seconds"] == (30000 if underfunded else 100000)
-        assert budget_inputs == (3 if underfunded else 0)
-        configurations = [entry["data"] for entry in rpc.entries() if entry.get("customType") == "agentvolve-workflow-configuration"]
-        assert configurations[-1] == {"maxRounds": 7, "repository": str(repository)}
-        rpc.prompt("/limit 3")
-        assert json.loads(Path(launches[0][6]).read_text()) == profile
-        rpc.prompt("/goal")  # no implicit restart after successful launch
-        assert len(launch_log.read_text().splitlines()) == 1
+        assert profile["limits"]["max_rounds"] == 2
+        assert profile["limits"]["max_proposal_calls"] == 2
+        assert "MODEL MUST NOT OVERRIDE" not in json.dumps(profile)
+        assert "Current /goal" in prompt_log.read_text()
+        validations = [
+            entry["data"]
+            for entry in rpc.entries()
+            if entry.get("customType") == "agentvolve-task-validation"
+        ]
+        assert validations and validations[-1]["authority"] == "validated-input-record"
     finally:
         process.terminate()
         process.wait(timeout=10)
         assert process.stderr is not None
         assert process.stderr.read() == b""
 
-    # Simulate a separately stored, pre-upgrade template with an impossible budget.
-    # Its correction must create a new profile rather than modifying this source.
-    legacy_template = None
-    legacy_template_bytes = None
-    if underfunded:
-        template_document = json.loads(json.dumps(profile))
-        template_document["limits"]["max_wall_seconds"] = 1800
-        legacy_template = tasks / "000-underfunded.task.json"
-        legacy_template_bytes = (json.dumps(template_document, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n").encode("ascii")
-        legacy_template.write_bytes(legacy_template_bytes)
-
-    # Reloading/restoring configuration is not a launch. The next reviewed goal uses the saved limit.
-    process = start()
+    # Restoring the session changes no task and starts no process.
+    before = launch_log.read_bytes()
+    process = subprocess.Popen(
+        [
+            "pi",
+            "--mode",
+            "rpc",
+            "--session",
+            str(session),
+            "--no-extensions",
+            "-e",
+            str(EXTENSION),
+            "-e",
+            str(provider),
+            "--provider",
+            "goal-fixture",
+            "--model",
+            "fixture",
+        ],
+        cwd=repository,
+        env=environment,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     try:
         rpc = RPC(process)
-        assert len(launch_log.read_text().splitlines()) == 1
-        configurations = [entry["data"] for entry in rpc.entries() if entry.get("customType") == "agentvolve-workflow-configuration"]
-        assert configurations[-1] == {"maxRounds": 3, "repository": str(repository)}
-        seen = []
-
-        def approve_template(event: dict) -> dict:
-            seen.append(event)
-            if event["method"] == "select":
-                if underfunded:
-                    assert "000-underfunded" in event["options"][0]
-                return {"value": event["options"][0]}
-            if event["method"] == "input":
-                if event["title"].startswith("Enter the exact"):
-                    return {"value": "3"}
-                assert underfunded and event["title"].startswith("Agentvolve budget")
-                assert "3680" in event["title"] and "11040" in event["title"]
-                return {"value": "11040"}
-            assert event["method"] == "confirm"
-            assert "3 generations" in json.dumps(event)
-            assert "New independently checked goal" in json.dumps(event)
-            assert len(launch_log.read_text().splitlines()) == 1
-            return {"confirmed": True}
-
-        events = rpc.prompt("/goal New independently checked goal", approve_template)
-        assert len(launch_log.read_text().splitlines()) == 2, events
-        assert [event["method"] for event in seen] == (["input", "select", "input", "confirm"] if underfunded else ["input", "select", "confirm"])
-        if underfunded:
-            assert legacy_template.read_bytes() == legacy_template_bytes
-            second = json.loads(launch_log.read_text().splitlines()[-1])
-            assert Path(second[6]) != legacy_template
-            assert json.loads(Path(second[6]).read_text())["limits"]["max_wall_seconds"] == 11040
-        if legacy_history:
-            assert list(runs.iterdir()) == [stale]
-            assert (stale / "old-evidence.txt").read_text() == "Preserve this interrupted experiment.\n"
-            assert list(stale.iterdir()) == [stale / "old-evidence.txt"]
-        else:
-            assert not runs.exists(), "Test double must not create real workflow state"
-
-        if outside_repository and not underfunded and not legacy_history:
-            other = tmp_path / "other repo"
-            subprocess.run(["git", "clone", "-q", str(repository), str(other)], check=True, capture_output=True)
-            (other / "subdir").mkdir()
-
-            def change_repository(event: dict) -> dict:
-                if event["method"] == "select":
-                    if event["title"].startswith("Use a reviewed task"):
-                        return {"value": "Prepare a new task from this goal"}
-                    if event["title"] == "Task not approved":
-                        return {"value": "Change destination (optional)"}
-                    assert event["title"] == "Change task destination (optional)"
-                    return {"value": "Enter another repository path"}
-                if event["method"] == "input":
-                    if event["title"].startswith("Enter the exact"):
-                        return {"value": "3"}
-                    assert event["title"] == "Optional existing repository path"
-                    return {"value": f'"{other}/subdir"'}
-                assert event["method"] == "confirm"
-                return {"confirmed": False}
-
-            rpc.prompt("/goal Work on the other repository", change_repository)
-            assert len(launch_log.read_text().splitlines()) == 2
-
-            def approve_other(event: dict) -> dict:
-                if event["title"].startswith("Enter the exact"):
-                    return {"value": "3"}
-                assert event["method"] == "confirm", "Normal task flow must not request a path"
-                assert str(other) in event["message"]
-                return {"confirmed": True}
-
-            rpc.prompt("/goal", approve_other)
-            assert len(launch_log.read_text().splitlines()) == 3
-            third = json.loads(launch_log.read_text().splitlines()[-1])
-            assert json.loads(Path(third[6]).read_text())["repository"]["path"] == str(other)
-            configurations = [entry["data"] for entry in rpc.entries() if entry.get("customType") == "agentvolve-workflow-configuration"]
-            assert configurations[-1] == {"maxRounds": 3, "repository": str(other)}
+        rpc.entries()
+        assert launch_log.read_bytes() == before
     finally:
         process.terminate()
         process.wait(timeout=10)

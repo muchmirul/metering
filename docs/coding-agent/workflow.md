@@ -32,16 +32,16 @@ The normal transition is:
 New Pi solution jobs require an explicitly selected compatible verified sealed
 harness, so new model work begins at `[4/6]`; earlier stages are labelled reused.
 Say “configure Agentvolve” to select existing runtime/harness/worker configuration
-in this session; `/goal` offers this when defaults are missing. No second interactive
-Pi, shell exports or process restart is required. Selection itself starts no job;
-new jobs privately copy the selected models/auth files and bind their command for
-later recovery. No newest-harness guess or implicit Level-2 setup cost is accepted. Describe the
-goal, review worker runtime/configuration/harness identity separately from Pi's
-interactive drafting model, and approve the task contract. /limit saves only a
-suggestion: every /goal asks for the exact per-job generation cap. Discovered
-contracts require selection; all starts require direct TUI/RPC approval. Missing
-facts, configuration or valid checks produce a job-scoped failure/clarification,
-never restrictions on ordinary Pi tools. A reviewed
+in this session. A sole compatible discovered setup is validated directly;
+multiple options or missing paths are returned to the assistant for the smallest
+necessary user question. `/goal` reports missing setup rather than opening a
+dialog. No second interactive Pi, shell exports, or process restart is required.
+Configuration starts no job; new jobs privately copy selected models/auth files and
+bind their command for later recovery. No newest-harness guess or implicit Level-2
+setup cost is accepted. Describe the goal and finite cap; typed complete data and a
+valid draft queue without save/start approval dialogs. `/limit` sets the next
+slash-command job's cap. Missing facts, configuration, or valid checks produce a
+job-scoped failure/clarification, never restrictions on ordinary Pi tools. A reviewed
 `METERING_EVOLUTION_HARNESS_DESCRIPTOR` can reference an original sealed harness
 when the new solution run uses an isolated registry; provenance remains bound to
 that original run.
@@ -51,13 +51,13 @@ that original run.
 Agentvolve is a delegated job, not a mode of interactive Pi. Activation and
 restoration are removed; historical mode output never restricts normal tools.
 See [job ownership and migration](operations.md#delegated-jobs-and-reload-migration).
-A reviewed task may
-open the clarification, task-summary selection, or approval interaction
-needed to bind the canonical input. A blocking detached workflow first opens a
-directly approved recovery/close dialog. Unmanaged legacy runs stay in history
-without blocking a new task; they are never automatically resumed. `/goal` keeps Pi's current operator
-model and, once a task is approved, launches a manifest-pinned evolution worker
-in a separate process. Pi returns after detachment. The compact tracker polls only
+The assistant collects only missing typed task fields or ambiguous choices; fixed
+code binds and validates the canonical input without a modal approval interaction.
+A blocking detached workflow is reported before drafting and requires an explicit
+`workflow_manage` or `workflow_stop` call. Unmanaged legacy runs stay in history
+without blocking a new task; they are never automatically resumed. `/goal` keeps
+Pi's current operator model and queues preparation plus manifest-pinned worker
+launch in the background. Pi is available immediately, before detachment completes. The compact tracker polls only
 the exact bound workflow every two seconds. Its widget appears only while that
 job is queued/running; other sessions' work cannot replace it. Job changes and
 shutdown invalidate in-flight output without stopping workers. Reload/resume
@@ -70,8 +70,10 @@ labelled. The dashboard separates operator/worker identities, shows committed
 rounds, attempts, retries, archive evidence, completed-stage summaries, and the
 final commit/patch report. Diff previews remain bounded. Scroll with arrows or
 PageUp/PageDown; `Esc`/`q` returns to Pi without stopping the worker. Old slash
-commands are removed; conversational `workflow_manage` supplies reviewed recovery,
-stop, verification, and closure as incomplete through the fixed worker CLI.
+commands are removed except `/agentvolve-stop`; conversational `workflow_manage`
+supplies an exact recovery action/reason through the fixed worker CLI without a
+confirmation dialog. `workflow_stop` or `/agentvolve-stop` aborts preparation or
+terminates the bound worker process tree while preserving evidence.
 Press **t** for [candidate trees and per-child reports](inspection.md), including
 recorded loop steps, excluded candidates, historical diffs, and failed/pending
 attempts. Archive membership and final testing remain distinct from pairwise
@@ -123,7 +125,7 @@ or tracker-free run is derived from existing run markers.
 - A development interruption remains at `[2/6]` or `[4/6]`.
 - Ordinary `resume` completes only replayable committed effects and does not
   repeat an indeterminate model call.
-- An explicit operator-approved retry remains in the same stage.
+- An explicit retry with a user-provided reason remains in the same stage.
 - Once `[5/6]` begins, protected evidence cannot restart development.
 - `[6/6]` means output is ready for review, not that it was automatically
   applied, merged, installed, or deployed.

@@ -29,11 +29,19 @@ export default function (pi: any) {
 					usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
 						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } };
 				const last = context.messages.at(-1);
-				const request = last?.role === "user" ? JSON.stringify(last.content) : "";
+				const request = last?.role === "user" ? last.content.filter((part: any) => part.type === "text").map((part: any) => part.text).join("\n") : "";
 				const drafting = context.systemPrompt.startsWith("You create an Agentvolve task draft");
 				const action = request.includes("Job status") ? "workflow_status" : request.includes("Verify job") ? "workflow_verify"
+					: request.includes("Stop job") ? "workflow_stop" : request.includes("Start job directly") || request.includes("Start replacement") ? "workflow_start"
 					: request.includes("Prepare job") ? "workflow_from_session" : request.includes("Configure worker") ? "workflow_configure" : undefined;
-				const tool = drafting ? undefined : action ? { name: "darwinian_coding", arguments: { action } }
+				const configured = action === "workflow_configure" && request.startsWith("Configure worker ")
+					? JSON.parse(request.slice("Configure worker ".length)) : undefined;
+				const arguments_ = action === "workflow_start" && request.includes("Start replacement")
+					? { action, goal: "Replacement must not leak", max_rounds: 9, fresh_workspace: true }
+					: action === "workflow_start" ? { action, goal: "Produce the validated output", max_rounds: 1, fresh_workspace: true }
+					: action === "workflow_from_session" ? { action, max_rounds: 1, fresh_workspace: true }
+					: configured ? { action, ...configured } : { action };
+				const tool = drafting ? undefined : action ? { name: "darwinian_coding", arguments: arguments_ }
 					: request.includes("Write normal file") ? { name: "write", arguments: { path: "normal.txt", content: "normal coding\n" } }
 					: request.includes("Edit normal file") ? { name: "edit", arguments: { path: "normal.txt", edits: [{ oldText: "normal coding", newText: "normal edits" }] } }
 					: request.includes("Read normal file") ? { name: "read", arguments: { path: "normal.txt" } }

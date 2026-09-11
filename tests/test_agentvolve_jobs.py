@@ -76,6 +76,16 @@ def submission(rpc):
     return [e["data"] for e in rpc.entries() if e.get("customType") == "agentvolve-submission"][-1]
 
 
+def wait_submission(rpc, *states, timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        current = submission(rpc)
+        if current["state"] in states:
+            return current
+        time.sleep(.02)
+    raise AssertionError(f"Agentvolve submission stayed {submission(rpc)['state']!r}")
+
+
 def projection(root, identity="a" * 64, state="running"):
     return {"progress_schema": "agentvolve-progress-view-v1", "authority": "projection-only", "stage": 4,
             "stage_label": "[4/6] Evolving solution", "state": state, "activity": "bound fixture", "error": None,
@@ -114,7 +124,10 @@ with (base / "execs").open("a") as log: log.write(json.dumps(args) + "\\n")
 action = args[4] if len(args) > 4 else ""
 module = args[3] if len(args) > 3 else ""
 if module == "connectors.fixed.pi.runtime":
- if action == "discover-configured":
+ if action == "prepare-registry":
+  if (base / "registry-failure").exists(): sys.exit("Run registry cannot enforce private permissions")
+  print(json.dumps({{"registry_schema":"agentvolve-private-registry-v1", "runs_directory":args[5], "mode":"0700", "inference_performed":False}}))
+ elif action == "discover-configured":
   source = base / "setup-catalogue.json"
   print(source.read_text() if source.exists() else json.dumps({{"setup_schema":"agentvolve-setup-discovery-v1", "authority":"diagnostic-only", "options":[], "issues":[], "truncated":False}}))
  elif action == "review-configured":
@@ -125,7 +138,13 @@ if module == "connectors.fixed.pi.runtime":
    while not (base / "review-release").exists():
     if time.monotonic() > deadline: sys.exit("fixture review pause expired")
     time.sleep(.02)
-  print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"b"*64, "harness_candidate_id":"c"*64, "harness_descriptor_sha256":hashlib.sha256(pathlib.Path(args[6]).read_bytes()).hexdigest(), "worker_configuration":args[7], "runs_directory":args[8], "worker_models_sha256":hashlib.sha256((pathlib.Path(args[7]) / "models.json").read_bytes()).hexdigest(), "command":["/stable/pi-0.84.4"], "model":{{"connector":"pi-v1", "provider":"worker-provider", "model":"pinned-worker", "implementation_version":"0.84.4", "reasoning":"medium"}}}}))
+  harness_identity = "c" * 64
+  if (base / "review-identity-change").exists():
+   count_path = base / "review-count"
+   count = int(count_path.read_text()) + 1 if count_path.exists() else 1
+   count_path.write_text(str(count))
+   harness_identity = ("c" if count == 1 else "d") * 64
+  print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"b"*64, "harness_candidate_id":harness_identity, "harness_descriptor_sha256":hashlib.sha256(pathlib.Path(args[6]).read_bytes()).hexdigest(), "worker_configuration":args[7], "runs_directory":args[8], "worker_models_sha256":hashlib.sha256((pathlib.Path(args[7]) / "models.json").read_bytes()).hexdigest(), "command":["/stable/pi-0.84.4"], "model":{{"connector":"pi-v1", "provider":"worker-provider", "model":"pinned-worker", "implementation_version":"0.84.4", "reasoning":"medium"}}}}))
  elif action == "ready-configured":
   if (base / "model-unready").exists(): sys.exit("Model not loaded. Arrange safe startup separately; no service restart performed.")
   print(json.dumps({{"readiness_schema":"agentvolve-worker-readiness-v1", "authority":"diagnostic-only", "provider":"llamacpp", "model":"local", "state":"ready", "inference_performed":False}}))
@@ -144,9 +163,14 @@ if module == "connectors.fixed.pi.runtime":
   print(json.dumps(response))
  else: raise AssertionError(args)
 elif module == "apps.coding_agent.agentvolve_worker":
- if action == "registry": print(json.dumps({{"registry_schema":"agentvolve-registry-status-v1", "authority":"projection-only", "blocker":None, "legacy_unfinished_count":0}}))
- elif action == "verify":
-  print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "action":"verify", "pid":12345, "state":"queued", "workflow_id":"a"*64, "workflow_root":args[5]}}))
+ if action == "registry":
+  source = base / "registry-blocker.json"
+  blocker = json.loads(source.read_text()) if source.exists() else None
+  print(json.dumps({{"registry_schema":"agentvolve-registry-status-v1", "authority":"projection-only", "blocker":blocker, "legacy_unfinished_count":0}}))
+ elif action == "control":
+  print(json.dumps({{"control_schema":"agentvolve-workflow-control-v1", "authority":"projection-only", "workflow_root":args[5], "workflow_id":"a"*64, "runtime_manifest":str(base / "runtime.json"), "active":True, "complete":False, "closed":False, "retry_required":False}}))
+ elif action in {{"verify", "stop"}}:
+  print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1", "action":action, "pid":12345, "state":"stopped" if action == "stop" else "queued", "workflow_id":"a"*64, "workflow_root":args[5]}}))
  else: raise AssertionError(args)
 elif module == "apps.coding_agent.operator_view":
  if action == "progress":
@@ -190,18 +214,100 @@ def bind(rpc, root, *, pid=12345):
     rpc.prompt("/job-test-reload")
 
 
+def test_model_can_validate_and_save_worker_settings_without_approval_ui(tmp_path, boundary):
+    with deployed(tmp_path, environment=boundary) as rpc:
+        events = talk(rpc, "Configure worker")
+        configured = result(events)
+        assert configured["details"]["status"] == "configured"
+        assert configured["details"]["manifest"] == boundary["METERING_EVOLUTION_RUNTIME_MANIFEST"]
+        assert configured["details"]["harness"] == boundary["METERING_EVOLUTION_HARNESS_DESCRIPTOR"]
+        assert configured["details"]["configuration"] == boundary["METERING_PI_CONFIG_DIR"]
+        assert configured["details"]["runs"] == boundary["METERING_EVOLUTION_RUNS_DIR"]
+        assert not [e for e in events if e.get("method") in {"input", "select", "confirm", "editor"}]
+        assert not (tmp_path / "dispatched").exists()
+
+
+def test_model_fills_start_form_without_ui_and_can_stop_bound_subagent(tmp_path, boundary):
+    with deployed(tmp_path, environment=boundary) as rpc:
+        events = talk(rpc, "Start job directly")
+        call = next(e for e in events if e.get("type") == "tool_execution_start")
+        assert call["args"] == {"action": "workflow_start", "goal": "Produce the validated output",
+                                "max_rounds": 1, "fresh_workspace": True}
+        assert not [e for e in events if e.get("method") in {"input", "select", "confirm", "editor"}]
+        assert result(events)["details"]["state"] == "preparing"
+        job = wait_submission(rpc, "launched")
+        assert Path(job["workflow"]["workflow_root"]).is_dir()
+        ordinary(rpc, tmp_path)
+
+        stopped = result(talk(rpc, "Stop job"))
+        assert stopped["details"]["status"] == "stopped"
+        assert stopped["details"]["workflow"] == job["workflow"]["workflow_root"]
+        calls = [json.loads(line) for line in (tmp_path / "execs").read_text().splitlines()]
+        assert [a[4] for a in calls if a[3] == "apps.coding_agent.agentvolve_worker"][-3:] == ["control", "control", "stop"]
+        ordinary(rpc, tmp_path)
+
+
+def test_concurrent_start_cannot_mutate_background_preparation_settings(tmp_path, boundary):
+    (tmp_path / "review-pause").touch()
+    with deployed(tmp_path, environment=boundary) as rpc:
+        talk(rpc, "Start job directly")
+        deadline = time.monotonic() + 10
+        while not (tmp_path / "review-waiting").exists():
+            assert time.monotonic() < deadline
+            time.sleep(.02)
+        events = talk(rpc, "Start replacement", error=True)
+        assert any(event.get("isError") for event in events)
+        configurations = [entry["data"] for entry in rpc.entries()
+                          if entry.get("customType") == "agentvolve-workflow-configuration"]
+        assert configurations
+        assert all(item.get("maxRounds") != 9 and item.get("goal") != "Replacement must not leak"
+                   for item in configurations)
+        talk(rpc, "Stop job")
+        assert wait_submission(rpc, "cancelled")["state"] == "cancelled"
+        ordinary(rpc, tmp_path)
+
+
+def test_stop_action_finds_one_registry_blocker_when_submission_is_unbound(tmp_path, boundary):
+    root = tmp_path / "runs" / NAME
+    root.mkdir(parents=True)
+    blocker = {"control_schema": "agentvolve-workflow-control-v1", "authority": "projection-only",
+               "workflow_root": str(root), "workflow_id": "a" * 64,
+               "runtime_manifest": boundary["METERING_EVOLUTION_RUNTIME_MANIFEST"],
+               "active": True, "complete": False, "closed": False, "retry_required": False}
+    (tmp_path / "registry-blocker.json").write_text(json.dumps(blocker))
+    with deployed(tmp_path, environment=boundary) as rpc:
+        stopped = result(talk(rpc, "Stop job"))
+        assert stopped["details"]["status"] == "stopped"
+        assert stopped["details"]["workflow"] == str(root)
+        ordinary(rpc, tmp_path)
+
+
+def test_stop_action_cancels_background_preparation_before_dispatch(tmp_path, boundary):
+    (tmp_path / "review-pause").touch()
+    with deployed(tmp_path, environment=boundary) as rpc:
+        talk(rpc, "Start job directly")
+        deadline = time.monotonic() + 10
+        while not (tmp_path / "review-waiting").exists():
+            assert time.monotonic() < deadline
+            time.sleep(.02)
+        stopped = result(talk(rpc, "Stop job"))
+        assert stopped["details"]["status"] == "cancelling-preparation"
+        assert wait_submission(rpc, "cancelled")["state"] == "cancelled"
+        assert not (tmp_path / "dispatched").exists()
+        ordinary(rpc, tmp_path)
+
+
 def test_real_submission_tracks_exact_job_not_newer_or_older_and_preserves_tools(tmp_path, boundary):
     with deployed(tmp_path, environment=boundary) as rpc:
         ordinary(rpc, tmp_path)
         rpc.prompt("/limit 17")
         rpc.prompt("/goal Produce the reviewed output, at most one generation", approve)
-        job = submission(rpc)
-        assert job["state"] == "launched"
+        job = wait_submission(rpc, "launched")
         root = Path(job["workflow"]["workflow_root"])
         evidence = (root / "evidence.jsonl").read_bytes()
         profile = next((tmp_path / "tasks").glob("*.task.json"))
         frozen_profile = profile.read_bytes()
-        assert json.loads(frozen_profile)["limits"]["max_rounds"] == 1
+        assert json.loads(frozen_profile)["limits"]["max_rounds"] == 17
         newer = tmp_path / "runs/workflow-pi-20260909T190000000Z"
         newer.mkdir()
         older = tmp_path / "runs/workflow-pi-20260901T190000000Z"
@@ -216,9 +322,15 @@ def test_real_submission_tracks_exact_job_not_newer_or_older_and_preserves_tools
         (tmp_path / "projection.json").write_text(json.dumps(projection(root, state="completed")))
         ordinary(rpc, tmp_path)
         assert result(talk(rpc, "Job status"))["details"]["state"] == "completed"
+        (tmp_path / "review-pause").touch()
         rpc.prompt("/goal New request cancelled")
-        assert submission(rpc)["state"] == "not-launched"
-        assert "not-launched" in result(talk(rpc, "Job status"))["content"][0]["text"]
+        deadline = time.monotonic() + 10
+        while not (tmp_path / "review-waiting").exists():
+            assert time.monotonic() < deadline
+            time.sleep(.02)
+        rpc.prompt("/agentvolve-stop")
+        assert wait_submission(rpc, "cancelled")["state"] == "cancelled"
+        assert "cancelled" in result(talk(rpc, "Job status"))["content"][0]["text"]
         rpc.prompt("/progress")
         ordinary(rpc, tmp_path)
         assert (root / "evidence.jsonl").read_bytes() == evidence
@@ -233,34 +345,39 @@ def test_malformed_launch_acknowledgement_cannot_bind_or_inherit(tmp_path, bound
     with deployed(tmp_path, environment=boundary) as rpc:
         bind(rpc, tmp_path / "runs" / NAME)
         (tmp_path / "ack-override.json").write_text(json.dumps(override))
-        rpc.prompt("/goal A fresh requested job", approve)
+        rpc.prompt("/limit 1")
+        rpc.prompt("/goal A fresh requested job")
+        wait_submission(rpc, "uncertain-dispatch")
+        deadline = time.monotonic() + 10
+        while not (tmp_path / "dispatched").exists():
+            assert time.monotonic() < deadline
+            time.sleep(.02)
         assert submission(rpc)["state"] == "uncertain-dispatch"
         assert "workflow" not in submission(rpc)
         assert result(talk(rpc, "Job status"))["details"]["state"] == "uncertain-dispatch"
         ordinary(rpc, tmp_path)
 
 
-def test_review_identity_change_before_dispatch_requires_fresh_approval(tmp_path, boundary):
-    def change_after_review(event):
-        answer = approve(event)
-        if event["method"] == "confirm":
-            Path(boundary["METERING_EVOLUTION_HARNESS_DESCRIPTOR"]).write_text("changed after review")
-        return answer
+def test_review_identity_change_before_dispatch_requires_fresh_validated_request(tmp_path, boundary):
+    (tmp_path / "review-identity-change").touch()
     with deployed(tmp_path, environment=boundary) as rpc:
-        events = rpc.prompt("/goal A reviewed task", change_after_review)
-        assert any("configuration changed during review" in e.get("message", "") for e in events)
-        assert submission(rpc)["state"] == "not-launched"
+        rpc.prompt("/limit 1")
+        events = rpc.prompt("/goal A validated task")
+        assert not [event for event in events if event.get("method") in {"input", "select", "confirm", "editor"}]
+        stopped = wait_submission(rpc, "not-launched")
+        assert "configuration changed during validation" in stopped["diagnostic"]
         assert not (tmp_path / "dispatched").exists()
         ordinary(rpc, tmp_path)
 
 
-def test_goal_without_text_records_failure_instead_of_showing_previous_job(tmp_path, boundary):
+def test_goal_without_text_does_not_replace_or_restart_previous_job(tmp_path, boundary):
     with deployed(tmp_path, environment=boundary) as rpc:
-        bind(rpc, tmp_path / "runs" / NAME)
+        root = tmp_path / "runs" / NAME
+        bind(rpc, root)
         rpc.prompt("/goal")
-        assert submission(rpc)["state"] == "not-launched"
-        assert "workflow" not in submission(rpc)
-        assert "Usage: /goal" in result(talk(rpc, "Job status"))["content"][0]["text"]
+        assert submission(rpc)["state"] == "launched"
+        assert submission(rpc)["workflow"]["workflow_root"] == str(root)
+        assert result(talk(rpc, "Job status"))["details"]["workflow_root"] == str(root)
         assert not (tmp_path / "dispatched").exists()
 
 
@@ -275,15 +392,20 @@ def test_interrupted_submission_restores_without_restarting(tmp_path, boundary, 
         ordinary(rpc, tmp_path)
 
 
-@pytest.mark.parametrize("failure,state", [("review-failure", "failed"), ("dispatch-failure", "uncertain-dispatch"), ("cancel-review", "cancelled")])
-def test_new_failed_or_cancelled_request_never_reports_old_result(tmp_path, boundary, failure, state):
+@pytest.mark.parametrize("failure,state", [("review-failure", "failed"), ("dispatch-failure", "uncertain-dispatch")])
+def test_new_failed_request_never_reports_old_result(tmp_path, boundary, failure, state):
     root = tmp_path / "runs" / NAME
     with deployed(tmp_path, environment=boundary) as rpc:
         bind(rpc, root)
-        if failure != "cancel-review":
-            (tmp_path / failure).touch()
-        rpc.prompt("/goal A new requested job", lambda e: {"confirmed": False} if failure == "cancel-review" and e["method"] == "confirm" else {"cancelled": True} if e["method"] == "select" else approve(e))
-        assert submission(rpc)["state"] == state
+        (tmp_path / failure).touch()
+        rpc.prompt("/limit 1")
+        rpc.prompt("/goal A new requested job")
+        if failure == "dispatch-failure":
+            deadline = time.monotonic() + 10
+            while not (tmp_path / "dispatched").exists():
+                assert time.monotonic() < deadline
+                time.sleep(.02)
+        wait_submission(rpc, state)
         assert "workflow" not in submission(rpc)
         assert result(talk(rpc, "Job status"))["details"]["state"] == state
         assert any(e.get("isError") for e in talk(rpc, "Verify job", error=True))
@@ -303,7 +425,8 @@ def test_restore_resume_tree_fork_and_legacy_output_do_not_restrict_main_pi(tmp_
         rpc.prompt("/job-test-tools")
         metadata = [e["data"] for e in rpc.entries() if e.get("customType") == "job-test-tools"][-1]
         coding = next(t for t in metadata if t["name"] == "darwinian_coding")
-        assert coding["parameters"]["properties"]["action"]["enum"] == ["workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify", "workflow_manage", "workflow_configure"]
+        assert coding["parameters"]["properties"]["action"]["enum"] == ["workflow_from_session", "workflow_start", "workflow_status", "workflow_history", "workflow_verify", "workflow_stop", "workflow_manage", "workflow_configure"]
+        assert {"goal", "max_rounds", "max_wall_seconds", "repository", "fresh_workspace", "manifest", "harness", "configuration", "runs", "workflow", "management_action", "reason"} <= set(coding["parameters"]["properties"])
         rpc.request({"id": "clone", "type": "clone"})
         ordinary(rpc, tmp_path)
         assert result(talk(rpc, "Job status"))["details"]["status"] == "unbound"
@@ -339,6 +462,9 @@ def test_inflight_monitor_invalidated_without_worker_or_evidence_effects(tmp_pat
             if initial_refresh:
                 (tmp_path / "pause").touch()
             bind(rpc, root, pid=worker.pid)
+            if not shutdown:
+                rpc.prompt("/limit 1")
+                (tmp_path / "review-failure").touch()
             evidence = root / "evidence.jsonl"
             evidence.write_bytes(b"immutable evidence\n")
             before = (evidence.read_bytes(), evidence.stat().st_mtime_ns)
@@ -352,7 +478,8 @@ def test_inflight_monitor_invalidated_without_worker_or_evidence_effects(tmp_pat
             if shutdown:
                 rpc.request({"id": "new", "type": "new_session"})
             else:
-                rpc.prompt("/goal New job cancelled before dispatch")
+                rpc.prompt("/goal New job rejected before dispatch")
+                wait_submission(rpc, "failed")
             (tmp_path / "release").touch()
             time.sleep(.2)
             events = talk(rpc, "Inspect job boundary")
@@ -370,6 +497,7 @@ def test_inflight_monitor_invalidated_without_worker_or_evidence_effects(tmp_pat
                 ("apps.coding_agent.agentvolve_worker", "registry"),
                 ("apps.coding_agent.operator_view", "progress"),
                 ("apps.coding_agent.operator_view", "trace"),
+                ("connectors.fixed.pi.runtime", "review-configured"),
             } for args in calls), calls
         assert worker.poll() is None
     finally:
@@ -382,6 +510,9 @@ def test_inflight_progress_view_cannot_publish_after_submission_or_session_chang
     root = tmp_path / "runs" / NAME
     with deployed(tmp_path, environment=boundary) as rpc:
         bind(rpc, root)
+        if not shutdown:
+            rpc.prompt("/limit 1")
+            (tmp_path / "review-failure").touch()
         (tmp_path / "pause").touch()
         rpc.send({"id": "paused-progress", "type": "prompt", "message": "/progress"})
         deadline = time.monotonic() + 15
@@ -392,6 +523,7 @@ def test_inflight_progress_view_cannot_publish_after_submission_or_session_chang
             rpc.request({"id": "new", "type": "new_session"})
         else:
             rpc.prompt("/goal A new request")
+            wait_submission(rpc, "failed")
         (tmp_path / "release").touch()
         time.sleep(.2)
         assert not [e for e in rpc.entries() if e.get("customType") in {"agentvolve-progress-view", "agentvolve-trace-view"}]
@@ -423,9 +555,11 @@ def test_missing_explicit_harness_refuses_newest_guessing_without_setup(tmp_path
     newest.mkdir(parents=True)
     (newest / "selected-harness.json").write_text("incompatible newest seal")
     with deployed(tmp_path, environment=boundary) as rpc:
-        events = rpc.prompt("/goal New job", lambda e: {"value": "1"} if e.get("title", "").startswith("Enter the exact") else {"cancelled": True})
-        assert any("separately approved/budgeted Level-2 setup" in e.get("message", "") for e in events)
-        assert submission(rpc)["state"] == "not-launched"
+        rpc.prompt("/limit 1")
+        events = rpc.prompt("/goal New job")
+        assert not [event for event in events if event.get("method") in {"input", "select", "confirm", "editor"}]
+        stopped = wait_submission(rpc, "not-launched")
+        assert "harness" in stopped["diagnostic"]
         assert not (tmp_path / "dispatched").exists()
         assert not (tmp_path / "tasks").exists()
         ordinary(rpc, tmp_path)
@@ -440,9 +574,11 @@ def test_local_readiness_failure_never_restarts_shared_service(tmp_path, boundar
     systemctl.write_text(f"#!{sys.executable}\nfrom pathlib import Path\nPath({str(service_log)!r}).touch()\n")
     systemctl.chmod(0o755)
     with deployed(tmp_path, environment=boundary) as rpc:
-        events = rpc.prompt("/goal New job", approve)
-        assert any("Arrange safe startup separately" in e.get("message", "") for e in events)
-        assert submission(rpc)["state"] == "not-launched"
+        rpc.prompt("/limit 1")
+        events = rpc.prompt("/goal New job")
+        assert not [event for event in events if event.get("method") in {"input", "select", "confirm", "editor"}]
+        stopped = wait_submission(rpc, "not-launched")
+        assert "Arrange safe startup separately" in stopped["diagnostic"]
         assert not service_log.exists() and not (tmp_path / "dispatched").exists()
         assert not (tmp_path / 'tasks').exists(), 'Readiness must fail before draft/registration effects'
         assert not any(entry.get('customType') == 'agentvolve-preparation-draft' for entry in rpc.entries())

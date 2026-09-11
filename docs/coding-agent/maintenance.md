@@ -110,22 +110,26 @@ monitor/progress/verification never discover the latest run. Failed newer reques
 cannot inherit older results. Restoration never dispatches; forks inherit no
 ownership. Old activation records/messages impose no ordinary-tool restrictions.
 
-`workflow_configure` records directly reviewed existing paths for this session,
-without environment mutation, a second interactive Pi, or process restart. `/goal`
-offers configuration when defaults are absent. Restoration never launches and
+`workflow_configure` accepts editable paths and records them after fixed validation,
+without modal approval, environment mutation, a second interactive Pi, or process
+restart. `/goal` reports missing configuration so the assistant can ask only for
+those fields and call configuration again. Restoration never launches and
 malformed/latest version-1 records fail closed; changes affect future jobs only.
 Version-2 records bind an owner-controlled 0700 run registry as well as worker
 runtime/harness/configuration. Configured review and start refuse permission-
 incapable filesystems before creating a workflow; never remove the privacy check. The normal
-route uses bounded read-only discovery and labelled choices before full seal
-verification, not mandatory path typing. Missing setup yields actionable preparation
-instructions; advanced inputs support correction/cancellation. No implicit
+configuration flow prepares a missing selected registry before review, without
+changing existing permissions. Discovery and review themselves remain read-only.
+Aborting after registry preparation may leave the empty private directory. The
+normal route uses bounded read-only discovery: one match validates directly, while
+multiple labelled choices are returned for conversational selection. Missing setup
+yields actionable preparation instructions and exact missing fields. No implicit
 credential copying, newest-run selection or service/model loading is allowed.
-`connectors.fixed.pi.runtime review-configured` is a read-only execution-approval boundary:
+`connectors.fixed.pi.runtime review-configured` is a read-only execution-validation boundary:
 exact runtime/Pi/configuration identities, explicit compatible verified reused
 harness and finite budgets. New Pi jobs neither guess a seal nor implicitly fund
-Level 2 or restart a model service. Configured CLI dispatch rechecks the strict
-approved document before creating a v2 workflow request with command/version/runtime
+Level 2 or restart a model service. Configured CLI dispatch rechecks the strict validated document before creating a
+v2 workflow request with command/version/runtime
 and models hash binding. Only explicitly selected bounded models/auth files are
 copied privately for the job; models remain hash-bound, auth can refresh. Recovery
 uses the job-owned binding; offline replay needs neither credentials nor a live Pi.
@@ -134,8 +138,9 @@ reviewed installation. This limited copy is not a controller snapshot or host
 sandbox. Legacy v1 jobs, experiment/evidence/replay and the installed package remain unchanged.
 
 Deployed deterministic job tests replace mode tests and exercise actual ordinary
-Pi tools, fresh caps, cancellation/failure/uncertain acknowledgement, restoration,
-identity-specific views/verification, and initial/steady-state monitor races using
+Pi tools, editable typed fields, no-modal configuration/start, background preparation,
+stop during preparation and after launch, failure/uncertain acknowledgement,
+restoration, identity-specific views/verification, and monitor races using
 test-owned boundary doubles. `tests/test_agentvolve_session_configuration.py`
 covers same-process configuration/delegation, unchanged interactive environment,
 future-only selection, private registry routing, corruption and session races. The worker configuration tests

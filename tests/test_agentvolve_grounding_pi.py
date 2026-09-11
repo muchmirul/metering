@@ -1,4 +1,4 @@
-"""Deploy the real Pi extension: source handoff, approval, and drafting failures.
+"""Deploy the real Pi extension: source handoff and background drafting failures.
 
 Only inference and detached launch are doubles. Git reads/registration are real.
 """
@@ -19,7 +19,7 @@ from test_task_profile_tool import git
 
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="Pi is not installed")
-@pytest.mark.parametrize("mode", ["absolute", "named", "read", "local", "directory", "directory-read", "protected", "credential", "example-url", "unprovided-url", "malformed", "duplicate", "correct", "bad-timeout", "fix-timeout", "scalar-stdout", "fix-scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint", "escape", "cancel", "head-change"])
+@pytest.mark.parametrize("mode", ["absolute", "named", "read", "local", "directory", "directory-read", "protected", "credential", "example-url", "unprovided-url", "malformed", "duplicate", "bad-timeout", "scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint", "escape"])
 def test_deployed_source_grounding_and_safe_recovery(tmp_path: Path, mode: str):
     root = tmp_path / "referenced-project"
     root.mkdir()
@@ -52,15 +52,15 @@ def test_deployed_source_grounding_and_safe_recovery(tmp_path: Path, mode: str):
         "context": {"sources": [{"content": "FORGED_SOURCE_MUST_NOT_SURVIVE"}]},
     }
     responses = [json.dumps(draft)]
-    if mode in {"malformed", "correct"}:
+    if mode == "malformed":
         responses = ["Can you paste the file?"]
     elif mode == "duplicate":
         responses = ['{"clarification":"first","clarification":"second"}']
-    elif mode in {"bad-timeout", "fix-timeout", "scalar-stdout", "fix-scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint"}:
+    elif mode in {"bad-timeout", "scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint"}:
         invalid = json.loads(json.dumps(draft))
-        if mode in {"bad-timeout", "fix-timeout"}:
+        if mode == "bad-timeout":
             invalid["development_checks"][0]["timeout_ms"] = "1000"
-        elif mode in {"scalar-stdout", "fix-scalar-stdout"}:
+        elif mode == "scalar-stdout":
             invalid["development_checks"][0]["expected_stdout"] = "seven"
         elif mode == "no-checks":
             invalid["development_checks"] = []
@@ -112,6 +112,8 @@ if args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","check"]:
  print(json.dumps({{"runtime_selection_schema":"agentvolve-pi-runtime-selection-v1","authority":"diagnostic-only"}}))
 elif args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","review-configured"]:
  print(json.dumps({{"review_schema":"agentvolve-execution-review-v1", "authority":"diagnostic-only", "runtime_id":"a"*64, "harness_candidate_id":"b"*64, "worker_configuration":"/reviewed/worker", "runs_directory":args[8], "command":["/pinned/pi"], "model":{{"provider":"fixture", "model":"worker", "implementation_version":"0.84.4"}}}}))
+elif args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","ready-configured"]:
+ print(json.dumps({{"readiness_schema":"agentvolve-worker-readiness-v1", "authority":"diagnostic-only", "provider":"fixture", "model":"worker", "state":"ready", "inference_performed":False}}))
 elif args[:5] == ["run","python","-m","connectors.fixed.pi.runtime","start-configured"]:
  with open(os.environ["LAUNCHES"], "a") as stream: stream.write(json.dumps(args)+"\\n")
  print(json.dumps({{"worker_response_schema":"agentvolve-worker-response-v1","action":"start","pid":12345,"state":"queued","workflow_id":"a"*64,"workflow_root":args[5]+"/workflow-pi-20260906T190000000Z"}}))
@@ -130,44 +132,30 @@ else:
         "METERING_EVOLUTION_TASKS_DIR": str(tasks), "METERING_EVOLUTION_RUNS_DIR": str(tmp_path / "runs"), "METERING_EVOLUTION_RUNTIME_MANIFEST": str(runtime)})
     process = subprocess.Popen(["pi", "--mode", "rpc", "--no-session", "--no-extensions", "-e", str(EXTENSION), "-e", str(provider), "--provider", "grounding-fixture", "--model", "fixture"],
         cwd=tmp_path, env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    reviews = []
     try:
         rpc = RPC(process)
         rpc.prompt("/limit 2")
         reference = "board.txt in referenced-project repo" if mode == "named" else str(root / "board.txt")
-        def dialog(event):
-            if event["method"] == "input":
-                assert event["title"].startswith("Enter the exact")
-                return {"value": "2"}
-            if event["method"] == "select":
-                if event["title"] == "Task preparation needs attention":
-                    return {"value": "Edit task details (advanced JSON)"} if mode in {"correct", "fix-timeout", "fix-scalar-stdout"} else {"cancelled": True}
-                if event["title"].startswith("Use a reviewed task"):
-                    return {"value": "Prepare a new task from this goal"}
-                return {"cancelled": True}
-            if event["method"] == "editor":
-                assert mode in {"correct", "fix-timeout", "fix-scalar-stdout"}
-                return {"value": json.dumps(draft)}
-            assert event["method"] == "confirm", "No repository path or task facts should be requested"
-            assert event["title"] == "Register and run this reviewed task?"
-            reviews.append(event)
-            assert str(root) in event["message"] and commit in event["message"]
-            assert "SHA-256" in event["message"] and "Read-only inputs" in event["message"]
-            assert "FORGED_SOURCE" not in event["message"] and not launches.exists()
-            if mode == "head-change":
-                (root / "rules.txt").write_text("New HEAD during review\n")
-                git(root, "add", ".")
-                git(root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "Move HEAD")
-            return {"confirmed": mode != "cancel"}
         extra = f"; also inspect {external}" if mode in {"local", "protected", "credential"} else ""
         if mode in {"directory", "directory-read"}:
             extra = f"; old setup location {external} is a directory, not a task input"
         if mode == "example-url":
             extra = "; https://example.com is only an example URL, do not fetch it"
-        events = rpc.prompt(f"/goal Use {reference} without changing it; write the answer to answer.txt{extra}", dialog)
+        events = rpc.prompt(f"/goal Use {reference} without changing it; write the answer to answer.txt{extra}")
+        assert not [event for event in events if event.get("method") in {"input", "select", "confirm", "editor"}]
+        invalid_modes = {"malformed", "duplicate", "bad-timeout", "scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint", "escape", "protected", "credential", "unprovided-url", "directory-read"}
+        expected_states = {"failed", "not-launched"} if mode in invalid_modes else {"launched"}
+        deadline = __import__("time").monotonic() + 60
+        while True:
+            entries = rpc.entries()
+            submissions = [entry["data"] for entry in entries if entry.get("customType") == "agentvolve-submission"]
+            if submissions and submissions[-1]["state"] in expected_states:
+                break
+            assert __import__("time").monotonic() < deadline
+            __import__("time").sleep(.02)
         calls = [json.loads(line) for line in prompts.read_text().splitlines()]
         assert len(calls) == (2 if mode in {"read", "local"} else 1), "No automatic retry of invalid model output"
-        drafts = [event["entry"]["data"] for event in events if event.get("entry", {}).get("customType") == "agentvolve-preparation-draft"]
+        drafts = [entry["data"] for entry in entries if entry.get("customType") == "agentvolve-preparation-draft"]
         assert len(drafts) == len(calls)
         assert all(item["authority"] == "diagnostic-only" and not item["truncated"] for item in drafts)
         assert drafts[0]["text"] == responses[0]
@@ -186,25 +174,24 @@ else:
             assert "DIRECTORY_CONTENT_MUST_NOT_BE_READ" not in json.dumps(calls)
         if mode == "local":
             assert "LOCAL_EXTRA_INPUT" in json.dumps(calls[1])
-        if mode in {"malformed", "duplicate", "bad-timeout", "scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint", "escape", "protected", "credential", "unprovided-url", "directory-read", "cancel", "head-change"}:
-            assert not launches.exists(), events
+        if mode in invalid_modes:
+            assert submissions[-1]["state"] in {"failed", "not-launched"}
+            assert not launches.exists(), entries
             assert not list(tasks.glob("grounded-*.task.json"))
+            diagnostics = [entry["data"] for entry in entries if entry.get("customType") == "agentvolve-preparation-diagnostic"]
+            summary = diagnostics[-1]["message"] if diagnostics else submissions[-1]["diagnostic"]
             if mode in {"malformed", "duplicate"}:
-                assert any("invalid JSON" in event.get("message", "") for event in events)
-                assert "Unexpected token" not in json.dumps(events)
+                assert "invalid JSON" in summary
+                assert "Unexpected token" not in json.dumps(entries)
             if mode in {"bad-timeout", "scalar-stdout", "no-checks", "bad-check", "unknown-schema", "missing-entrypoint"}:
-                assert not reviews, "Invalid contracts must not reach approval"
-                assert any("Invalid task contract" in event.get("message", "") for event in events)
-                assert any(event.get("title") == "Task preparation needs attention" for event in events)
-                assert any(event.get("entry", {}).get("customType") == "agentvolve-preparation-diagnostic" for event in events)
+                assert "Invalid task contract" in summary
             if mode in {"escape", "unprovided-url", "directory-read"}:
-                assert any("unknown or already-read" in event.get("message", "") for event in events)
+                assert "unknown or already-read" in summary
             if mode in {"protected", "credential"}:
-                assert any("Protected/operator" in event.get("message", "") for event in events)
-            if mode == "head-change":
-                assert any("HEAD changed" in event.get("message", "") for event in events)
+                assert "Protected/operator" in summary
         else:
-            assert reviews and launches.exists(), events
+            diagnostics = [entry["data"] for entry in entries if entry.get("customType") == "agentvolve-preparation-diagnostic"]
+            assert submissions[-1]["state"] == "launched" and launches.exists(), (submissions[-1], diagnostics)
             args = json.loads(launches.read_text())
             profile = json.loads(Path(args[6]).read_text())
             assert profile["allowed_paths"] == ["answer.txt"]

@@ -52,33 +52,37 @@ session mode. Ordinary configured tools remain available at all times; excluded
 tools stay excluded. Activation/deactivation and mode restoration are removed.
 Reload once: historical active-mode output is never current restriction.
 See [job and migration semantics](operations.md#delegated-jobs-and-reload-migration).
-Clarify a coding goal in ordinary conversation. The four commands remain `/goal`,
-`/limit`, `/history`, and `/progress`. /limit saves a suggested cap; every /goal asks
-for the exact directly approved cap for that job. Casual sessions need no
-repository/path input. Messy
-requests become organized requirements, explicit assumptions, and proposed checks
-for direct review. It resolves referenced files and known project names, inspects
-actual bounded source snapshots, and binds their provenance/content and read-only
-permissions into the reviewed task. Source instructions are never executed.
-Malformed drafting output offers correction/cancellation rather than a raw JSON
-error. See [source limits](task-profile.md#source-grounded-preparation).
-It proposes an existing project when available; otherwise,
-approval creates a private Git seed with TASK.md and empty output files before
-launching the detached workflow. Existing projects need a clean committed HEAD
-and are never initialized/committed automatically. Task review selects the
-destination; declining offers an optional change. The suggested limit and existing-project
-selection persist; unrelated later casual tasks get fresh workspaces. Pi's cwd
-does not change, and essential missing facts are clarified rather than invented. Pi can
-also prepare a reviewed canonical task from user messages and inspected sources after an
-explicit conversational solve request.
+Clarify a coding goal in ordinary conversation. The five commands are `/goal`,
+`/limit`, `/history`, `/progress`, and `/agentvolve-stop`. `/limit` saves the next
+job's finite cap; the model-facing start action can submit goal, cap, wall
+reservation, and repository-or-fresh-workspace choice together. Complete validated
+input queues background preparation without save/start approval dialogs. Casual
+sessions need no repository/path input. Messy requests become organized
+requirements, explicit assumptions, and proposed checks for fixed validation. The
+adapter resolves referenced files and known project names, inspects bounded source
+snapshots, and binds their provenance/content and read-only permissions into the
+validated task. Source instructions are never executed. Invalid drafting output
+stops before registration and returns a bounded diagnostic; conversational
+correction requires a new explicit attempt, never an automatic retry. See
+[source limits](task-profile.md#source-grounded-preparation).
+
+The adapter uses an existing project when unambiguous; otherwise an explicit fresh
+workspace creates a private Git seed with TASK.md and empty output files before
+launch. Existing projects need a clean committed HEAD and are never initialized or
+committed automatically. Ambiguous destinations are returned to the assistant for
+a user choice. The cap and existing-project selection persist; unrelated later
+casual tasks get fresh workspaces. Pi's cwd does not change, and essential missing
+facts are clarified rather than invented.
 There is no model picker: Pi keeps its normal interactive `/model` and starts a
 separate detached worker whose identity and budgets remain pinned to the
-canonical runtime manifest. Review shows the distinct interactive drafting model
-and worker Pi/version/provider/configuration/runtime/harness identities. An explicit
-compatible verified harness, separate worker configuration and a private 0700 run
-registry are required. Say “configure Agentvolve” to select existing setup in this session; `/goal` offers the
-dialog when defaults are absent. No exports, second interactive Pi or restart is
-needed. Selection starts no job and affects future approvals only. New jobs own
+canonical runtime manifest. Validation records distinguish the interactive drafting
+model from worker Pi/version/provider/configuration/runtime/harness identities. An
+explicit compatible verified harness, separate worker configuration, and private
+0700 run registry are required. Say “configure Agentvolve”; a sole discovered setup
+is validated directly, while missing fields or multiple options are returned to the
+assistant for the smallest necessary user question. `/goal` reports missing setup
+instead of opening a dialog. No exports, second interactive Pi, or restart is
+needed. Configuration starts no job and affects only future submissions. New jobs own
 private models/auth file copies and a bound command; recovery ignores changed
 session configuration. The run registry defaults to
 `~/.local/share/metering/agentvolve-runs` and permission-incapable mounts fail before workflow creation. No newest-harness guess, implicit Level-2 setup or model-service restart is allowed.
@@ -88,12 +92,16 @@ The compact `[1/6]`–`[6/6]` widget follows only the bound queued/running job.
 newer unrelated runs and older results never replace it. Reload/resume does not
 restart work; forks do not inherit ownership. /history selection never rebinds it.
 `/history` browses past runs, all recorded
-generations in bounded pages, completed-stage reports, and results. Operators do not choose between internal
-harness and solution levels. Say “manage the interrupted Agentvolve workflow”
-for directly approved resume, reserved retry, stop, verification, or permanent
-closure as incomplete. New goals offer that recovery dialog for blocking detached
-workflows; unmanaged legacy history no longer blocks new startup. Closure preserves
-existing evidence and does not claim success. See [recovery](operations.md#status-resume-and-retry). The worker status, tracker, graph, diff preview,
+generations in bounded pages, completed-stage reports, and results. Operators do
+not choose between internal harness and solution levels. Say “manage the interrupted
+Agentvolve workflow” for resume, reserved retry, stop, verification, or permanent
+closure as incomplete. The tool returns applicable actions; the assistant asks for
+an exact action and retry/close reason only when missing, then submits without a
+confirmation dialog. New goals report blocking detached workflows and require an
+explicit manage/stop call. `workflow_stop` and `/agentvolve-stop` can abort
+preparation or terminate the identity-checked worker/effect process groups without
+blocking normal Pi. Closure and stop preserve existing evidence and do not claim
+success. See [recovery](operations.md#status-resume-and-retry). The worker status, tracker, graph, diff preview,
 and reports are convenience projections. Candidate Git objects, canonical
 hash-linked JSONL, exact allocations, and content-addressed receipts remain the
 authoritative evidence. Level-1 recurrence can stop at a numeric round cap or at

@@ -7,7 +7,7 @@ Live runs require:
 - Python 3.11+, Git, Docker, and cgroup v2;
 - a reviewed digest-pinned runtime image already present locally;
 - a canonical runtime manifest;
-- a canonical operator-approved task profile;
+- a canonical caller-owned, validated task profile;
 - a sealed Level-2 harness selected under the same runtime identity; and
 - a pinned Pi/model endpoint.
 
@@ -74,9 +74,10 @@ when expected answer values are available. Preflight does not run checks or prov
 that runtime dependencies or the model endpoint are available. It also rejects
 a development wall budget that cannot reserve one generation, reporting the
 configured and required seconds. Partial-cap funding remains allowed with a
-warning. [Task review](task-profile.md#development-timeout-reservations) discloses
-the existing reservation calculation; Pi prompts for an operator-entered budget
-correction before approving a new task, without editing any existing profile/run.
+warning. [Task validation](task-profile.md#development-timeout-reservations)
+records the reservation calculation; when no generation is funded, Pi returns the
+required `max_wall_seconds` so the assistant can ask the user and explicitly
+resubmit, without editing any existing profile/run.
 If development has no archive, its real stop reason is reported without attempting
 protected-final work. A budget stop with an archive still permits final selection.
 
@@ -112,17 +113,18 @@ uv run python apps/coding_agent/solution_experiment.py \
 ## Status, resume, and retry
 
 In Pi, say **“manage the interrupted Agentvolve workflow”**. The
-`darwinian_coding` action `workflow_manage` opens paginated workflow selection
-and a direct operation review. You may resume, explicitly authorize one reserved
-retry, stop a live worker, verify completed work, or close inactive work as
-incomplete. Retry and closure require a reason entered by the operator, not
-supplied by the model. Cancelling starts nothing. No extra slash commands are
-registered; reload Pi once after upgrading the extension.
+`darwinian_coding` action `workflow_manage` accepts an exact workflow and one
+applicable `resume`, `retry`, `stop`, `verify`, or `close` action. If either is
+missing, it returns bounded choices so the assistant asks only what is needed.
+Retry and closure require a user-provided reason. Complete validated arguments
+proceed without a confirmation dialog, after fixed code rechecks state. Use
+`workflow_stop` or `/agentvolve-stop [RUN_NAME_OR_PATH]` for immediate cancellation
+or stop. Reload Pi once after upgrading the extension.
 
 `/goal` and conversational task starts check the registry before task drafting or
-model-service effects. An unfinished detached workflow opens this recovery dialog
-instead of sending you to a terminal. Closing it continues the new task's normal
-review; any other choice leaves the new goal pending. Existing unmanaged legacy
+model-service effects. An unfinished detached workflow is reported with an
+explicit manage/stop instruction; it is never recovered or retired implicitly.
+After handling it, queue the new goal again. Existing unmanaged legacy
 experiments are counted and left unchanged in `/history`, not treated as owners of
 the detached registry. Their absence of a final report is not proof of a live
 worker, failure, or success; new startup does not recover them automatically.
@@ -193,8 +195,12 @@ uv run python -m apps.coding_agent.operator_view history RUNS_DIRECTORY [OFFSET]
 uv run python -m apps.coding_agent.operator_view trace RUNS_DIRECTORY RUN_NAME [OFFSET]
 ```
 
-Each effectful worker command returns one bounded JSON response. `close` returns
-`state: closed-incomplete` and PID 0 because it launches nothing. Start responses
+Each effectful worker command returns one bounded JSON response. `stop` verifies
+the lock-owning worker's PID start token and current direct effect process group,
+sends both groups `SIGTERM`, waits a bounded grace period, escalates survivors to
+`SIGKILL`, and records `stopped`. It preserves all evidence and never claims
+success. `close` returns `state: closed-incomplete` and PID 0 because it launches
+nothing. Start responses
 add `legacy_unfinished_count`, a diagnostic count rather than evidence of liveness.
 `registry` returns a blocking detached workflow, if any, plus that count; `control`
 returns lock/completion/closure/retry hints. These projections do not authorize
@@ -230,11 +236,11 @@ deployment is required. For bootstrap maintenance with an obsolete extension,
 Submission entries (`agentvolve-submission-v1`) record an attempt ID and owning
 session UUID. /progress and model-facing status show that exact request:
 
-- preparing: a review is in progress, no acknowledged worker;
+- preparing: background validation/preparation is in progress, no acknowledged worker;
 - not-launched/cancelled/failed: preparation did not dispatch the task;
 - uncertain-dispatch: the launch call was attempted but its acknowledgement is
   missing/invalid/interrupted; work may exist, so inspect explicit /history and
-  reviewed management before any retry;
+  explicit management before any retry;
 - launched: a successful validated acknowledgement bound the workflow ID/root;
   this is not a successful task result.
 
@@ -253,96 +259,100 @@ Closing Pi cancels unfinished preparation, never an acknowledged worker. Views,
 ordinary task-source edits and interactive model changes do not rebind a worker
 to another base commit or runtime. Host Pi keeps its configured permissions;
 job artifacts, evidence and the running controller/configuration must not be edited.
-The adapter requests stop/retry only through directly approved management.
+The adapter requests stop/retry only through explicit typed management arguments.
 
 The normal flow may begin entirely in conversation: describe a coding goal, answer
-needed clarifications, and explicitly ask Agentvolve to solve that job.
-Session task preparation uses user messages and
-actual bounded source snapshots, shows a human-readable review of repository,
-source provenance/digests, read-only/writable paths, checks, budgets, stopping,
-and final policy, and registers canonical JSON only
-after direct operator approval. Advanced JSON editing remains available when a
-generated draft needs correction.
+only needed clarifications, and explicitly ask Agentvolve to solve that job. The
+assistant submits typed goal/cap/destination settings; complete data queues
+preparation in the background without a modal approval. Session task preparation
+uses user messages and actual bounded source snapshots. Fixed code validates the
+repository, source provenance/digests, read-only/writable paths, checks, budgets,
+stopping, and final policy, retaining a human-readable validation record before
+canonical registration. Invalid model JSON or contracts return diagnostics and
+require a new explicit attempt; there is no automatic model retry or editor dialog.
 
-The only Agentvolve slash commands are:
+The Agentvolve slash commands are:
 
 ```text
 /limit 10
 /goal Describe the independently checkable task
 /history [RUN_NAME]
 /progress
+/agentvolve-stop [RUN_NAME_OR_PATH]
 ```
 
-`/limit` saves a suggested 1–256 cap. Every /goal asks the operator to enter the
-exact generation cap for this job; a stale suggestion cannot override a newer
-request. It then prepares the task from casual user input without asking for a
-repository path. It organizes requirements, labels inferred assumptions, and
-requests only essential missing task meaning/data/acceptance criteria. Task review
-resolves literal file/directory references and known project names first (asking
-when ambiguous), then falls back to remembered/configured/current projects;
-with no project, it proposes a private `TASK-DIRECTORY/workspaces/task-UUID` seed.
-Only after approval, fixed setup creates TASK.md plus empty output files and a
-clean Git commit, then registers the profile and starts the detached workflow.
-Generated checks never run on the host, and setup does not implement a solution.
+`/limit` sets the 1–256 cap used by the next `/goal`; typed model-facing starts may
+provide the cap in their call. Preparation organizes requirements, labels inferred
+assumptions, and requests only essential missing task meaning/data/acceptance
+criteria. It resolves literal file/directory references and known project names
+first; ambiguity is returned to the assistant for a user choice, then it falls back
+to remembered/configured/current projects. With no project, an explicit fresh
+workspace uses a private `TASK-DIRECTORY/workspaces/task-UUID` seed. After fixed
+validation, setup creates TASK.md plus empty output files and a clean Git commit,
+registers the profile, and launches the detached workflow. Generated checks never
+run on the host, and setup does not implement a solution.
 
 Existing projects still need a clean committed HEAD. They are never initialized,
-committed, stashed, or copied automatically. An invalid project offers an explicitly
-approved fresh workspace instead. Declining a draft review exposes an optional
-change-destination dialog; only that optional route asks for typed paths. Pi's cwd
-and ordinary tools never move; shell `cd` cannot change the session binding. Even a sole discovered contract requires selection. Direct
-human-readable task approval is mandatory in both TUI and RPC before start.
-Cancelling or invalid input starts no worker. Pending goals may be resubmitted
-with `/goal` alone; successful launch clears the goal but retains the last limit
-and existing-project selection. Later unrelated casual tasks receive fresh private
-workspaces; previous files/evidence remain untouched. Cancelling before approval
-creates no workspace; later preparation failures retain created files and report
-their path without retrying. Reload the extension once to enable casual preparation
-in an existing session; there is no run or session migration.
-Session restore starts no task. Changing `/limit` never changes a running task
-and is refused during task review.
+committed, stashed, or copied automatically. An invalid project is reported so the
+assistant can ask for another repository or `fresh_workspace=true`. Pi's cwd and
+ordinary tools never move; shell `cd` cannot change the session binding. Complete
+validated data is sufficient in both TUI and RPC; no approval response is expected.
+Cancelling with `workflow_stop` or invalid input starts no later worker. Pending
+goals may be resubmitted with `/goal` alone; successful launch clears the goal but
+retains the cap and existing-project selection. Later unrelated casual tasks
+receive fresh private workspaces; previous files/evidence remain untouched. A stop
+before registration creates no workspace; later preparation failures retain
+created files and report their path without retrying. Reload the extension once to
+enable this flow; there is no run or session migration. Session restore starts no
+task. Changing `/limit` never changes a running task and is refused during
+preparation.
 
 Pi keeps its model and thinking level for clarification/drafting only. The
 worker uses the reviewed runtime's independent provider/model/reasoning and budgets.
-The task review includes exact worker Pi command/version, runtime ID, OCI kernel
+The validation record includes exact worker Pi command/version, runtime ID, OCI kernel
 bounds, per-execution model-call/time limits, separate worker configuration path
 and models digest, and verified reused harness identity. One generation may make
 multiple model calls; development reservations are not a total-workflow deadline.
 
 Say **“configure Agentvolve”** to select the existing runtime, original compatible
 sealed selected-harness.json, separately provisioned worker directory containing
-models.json and optional auth.json, and a private run registry in the invoking session. `/goal` offers the same
-dialog when defaults are absent. Environment variables are optional defaults, not
-mandatory exports: no second interactive Pi or process restart is required.
+models.json and optional auth.json, and a private run registry in the invoking
+session. Complete tool-supplied paths validate and save without a confirmation
+dialog. When defaults are absent, `/goal` reports missing configuration; the
+assistant uses `workflow_configure`. Environment variables are optional defaults,
+not mandatory exports: no second interactive Pi or process restart is required.
 Configuration starts no job and changes no interactive tools/model/environment.
-Normal setup offers named existing combinations from bounded discovery, including
-the conventional separately provisioned ~/.config/metering/agentvolve-worker.
-It never chooses the newest seal; each selected original seal is replayed before
-confirmation. Missing setup returns preparation instructions, not an unexplained
-blank-path error. Advanced paths still support correction/cancellation. The conventional registry
-is `~/.local/share/metering/agentvolve-runs`; create it with mode 0700 on a
-permission-capable filesystem such as ext4. The selected registry and owner/mode
+Bounded discovery offers named existing combinations, including the conventional
+separately provisioned `~/.config/metering/agentvolve-worker`. A sole match is
+validated directly; multiple matches are returned for user choice. It never chooses
+the newest seal; fixed code replays each selected original seal. Missing setup
+returns preparation instructions and exact missing fields. The conventional registry
+is `~/.local/share/metering/agentvolve-runs`. Explicit configuration creates it
+if absent and validates ownership/mode 0700; ext4 is not required. Existing unsafe
+registries are rejected unchanged. Discovery, restoration and execution review
+remain read-only. Cancelling configuration after path selection can leave an
+empty private registry; it starts no workflow and copies no credentials. The selected registry and owner/mode
 are part of execution review. A fuseblk/NTFS path that cannot retain 0700/0600 is
 rejected before workflow creation; credential privacy is never weakened.
 Per-user setup checklist:
 
 - [ ] Keep the worker configuration and run registry outside every Git checkout.
-- [ ] Run `install -d -m 700 ~/.local/share/metering/agentvolve-runs` (or choose another reviewed permission-capable local filesystem).
+- [ ] Let configuration prepare the registry, or run `uv run python -m connectors.fixed.pi.runtime prepare-registry [PATH]`.
 - [ ] Verify the mount with `findmnt -T PATH` and verify owner/mode 0700 with `stat -c '%U %a %n' PATH`.
 - [ ] Provision a separate worker `models.json` and optional `auth.json`; never paste secrets into chat or copy interactive Pi state implicitly.
-- [ ] Use **configure Agentvolve** to review runtime, original seal, worker configuration, and registry. Configuration itself must start no job.
+- [ ] Use **configure Agentvolve** to validate runtime, original seal, worker configuration, and registry; answer only reported missing fields/choices. Configuration itself must start no job.
 - [ ] Reconfigure a version-1 session selection; do not rewrite or move its existing job/evidence.
 - [ ] Before committing or pushing, inspect `git status --short` and the staged diff. Private configuration, credentials, `pi-configuration/`, run roots, and evidence must remain untracked and outside the repository.
 
-Approved paths survive reload/resume/tree navigation in this session, not forks or
-new sessions; cancellation preserves the previous selection. Changing selection
+Validated paths survive reload/resume/tree navigation in this session, not forks
+or new sessions; failed reconfiguration preserves the previous selection. Changing selection
 never changes existing job ownership. Version-1 session selections must be
 reviewed again because they did not bind a run registry; existing jobs and evidence
 need no migration. Before a new registry is used, blockers in the historical
 default registry are still handled rather than bypassed. Setup/provisioning remains separately approved.
 
 The read-only `python -m connectors.fixed.pi.runtime review-configured RUNTIME.json HARNESS.json CONFIG_DIRECTORY PRIVATE_RUNS_DIRECTORY`
-checks exact runtime compatibility and offline-verifies the source seal. The
-adapter and configured CLI compare the approved review again before dispatch. No newest-harness guessing
+checks exact runtime compatibility and offline-verifies the source seal. The adapter and configured CLI compare the validated review again before dispatch. No newest-harness guessing
 or implicit Level-2 costs are allowed. Legacy CLI start without a descriptor still
 supports deliberately approved Level-2 workflows and replay, not the new Pi route.
 
@@ -362,7 +372,7 @@ stable controller installation is operationally required: the worker still loads
 trusted code from its source paths. Do not edit its live engine checkout or runtime
 provenance while a worker runs. The bounded Pi configuration copy is NOT a host Pi
 sandbox or immutable controller deployment; no general deployment engine is added.
-Launch returns after detachment; ordinary Pi remains usable.
+The start request returns after queueing background preparation; ordinary Pi remains usable before and after detachment.
 
 `/progress` inspects only the exact submitted job, including completion or failure
 to launch. Verification also targets that job. `/history` pages through every run
@@ -388,7 +398,7 @@ job is queued/running. Inactive/terminal jobs, cancelled or failed preparation,
 and session shutdown clear Agentvolve-owned status/widget entries only. Unrelated
 runs cannot replace them. Completion notices and deduplicated monitor errors
 remain, with details available through /progress and /history. No historical
-messages, approvals or evidence are deleted. Reload once to replace an older
+messages, validation records, or evidence are deleted. Reload once to replace an older
 loaded extension and clear its stale idle UI; there is no activation mode.
 
 For upgrade-safe Pi recovery, use
@@ -397,12 +407,12 @@ For upgrade-safe Pi recovery, use
 These resolve the original runtime's executable before delegating to the same
 worker; they never grant retry authority or extend budgets.
 
-Recovery and verification use the fixed worker CLI above, either through the
-operator-reviewed session management dialog or directly, not additional slash
-commands. Resume cannot repeat an indeterminate model call; retry needs a
-reserved pending intent and operator reason. Stop does not declare success.
-Verification is a detached offline replay after completion. Inherited workflow
-locks still prevent concurrent workers.
+Recovery and verification use the fixed worker CLI above, through typed
+`workflow_manage`/`workflow_stop` calls or directly. Applicable actions and missing
+reasons are returned as data; complete arguments require no modal review. Resume
+cannot repeat an indeterminate model call; retry needs a reserved pending intent
+and user reason. Stop does not declare success. Verification is a detached offline
+replay after completion. Inherited workflow locks still prevent concurrent workers.
 
 The UI files are projection-only. `workflow.json` and ordinal job records bind
 orchestration identity, while `worker-status.json`, `workflow-report.json`, the
@@ -410,30 +420,26 @@ dashboard, and stage notices confer no experimental authority. Candidate Git
 objects, canonical ledgers, allocations, receipts, and permanent seals remain
 authoritative.
 
-Old `/evolve*`, `/agentvolve*`, `/view-progress`, and `/view-history` registrations
-and their unused UI handlers are removed. This includes the reference Pi tool
+Old `/evolve*`, `/view-progress`, `/view-history`, and Agentvolve slash commands
+other than `/agentvolve-stop` are removed with their unused UI handlers. This includes the reference Pi tool
 and low-level harness/solution tool actions, not the shared engine, reference
 CLI, or existing evidence. Run artifacts require no migration. Reload Pi and
 update command automation.
 
-The model-facing `darwinian_coding` tool supports only operator-reviewed
-`workflow_from_session`, detached
+The model-facing `darwinian_coding` tool supports `workflow_from_session`,
 `workflow_start`, read-only `workflow_status` and `workflow_history`,
-`workflow_verify`, operator-reviewed `workflow_manage`, and session-only
-`workflow_configure`. Management selects
-a detached workflow from history rather than accepting a model-chosen path.
-It
-cannot carry task text, evaluator commands, candidates, output paths,
-task-profile paths, protected checks, or retry authority as action arguments.
-The current user remains the source of session task text and the direct reviewer
-of the generated contract.
+`workflow_verify`, `workflow_stop`, `workflow_manage`, and session-only
+`workflow_configure`. Editable arguments carry the conversationally collected
+task/cap/destination, worker paths, or exact workflow/action/reason. They cannot
+carry evaluator commands, candidates, task-profile paths, protected checks, or
+output/apply paths. The current user remains the source of task facts and recovery
+choices; fixed code validates them and retains evaluator authority.
 
-For Pi RPC automation, send `/limit`, then `/goal`, and service the direct task
-selection, exact per-job cap input and approval UI protocol. Destination approval is included in the
-full task review; ordinary casual starts require no path input. Never synthesize
-approval for an unreviewed target or task.
-Launch returns after detachment; wait for the bound workflow's terminal status,
-not merely the command response. Progress/history/trace projections are JSON and
+For Pi RPC automation, send `/limit`, then `/goal`; no UI approval responses are
+required. Alternatively invoke the typed tool with complete fields. The command or
+tool returns after queueing preparation, before detached launch is necessarily
+acknowledged. Continue using Pi and poll the exact submission for `launched`, a
+terminal preparation state, or final worker status. Progress/history/trace projections are JSON and
 can be inspected without attaching to the worker.
 
 ## Run output
@@ -522,35 +528,35 @@ METERING_PI_CONFIG_DIR=/absolute/separate-reviewed-worker-config \
 METERING_EVOLUTION_LIVE_CONNECTOR=pi-v2 \
 METERING_EVOLUTION_RUNTIME_MANIFEST=/absolute/reviewed-runtime.json \
 METERING_EVOLUTION_LIVE_HARNESS=/absolute/harness-run/selected-harness.json \
-METERING_EVOLUTION_LIVE_RUNS_DIR=/absolute/ext4-backed-private-0700-registry \
+METERING_EVOLUTION_LIVE_RUNS_DIR=/absolute/private-0700-registry \
 METERING_EVOLUTION_LIVE_TASK_PROFILES="/abs/one.task.json:/abs/two.task.json:/abs/three.task.json" \
 uv run --extra test pytest -q -m live_agents tests/test_agentvolve_live_workflow.py
 ```
 
 The required gate fails if approval/prerequisites are absent; it cannot pass by
 skipping. Before the first task it validates **all** contracts, clean pinned bases,
-full development reservations, exact `METERING_EVOLUTION_LIVE_CONNECTOR`,
-compatible replayed seal, worker config/Pi pin,
+full development reservations, stdout-json-v1 contracts for both development and
+protected checks, exact `METERING_EVOLUTION_LIVE_CONNECTOR`, compatible replayed
+seal, worker config/Pi pin,
 registry blockers, cgroup-v2 Docker/image availability and the reviewed loopback
 model endpoint. This inspection performs no inference and never starts services.
 An unloaded requested model is a blocker, not permission to load it, evict another
 model or silently change aliases.
 
 The live RPC sessions receive no exported worker runtime/harness/config defaults:
-they exercise setup selection and exact execution approval in the same Pi process
-that submits each task. The operator test configuration is private and separate
+they exercise typed setup selection and fixed execution validation in the same Pi
+process that submits each task. The operator test configuration is private and separate
 from interactive Pi. Job-owned configuration, ordinary shell availability, exact
 submission binding, protected checks and offline replay are asserted.
 
 The old optional automatic-retry environment flags are now rejected. A failing
 acceptance run retains its persistent registry/evidence. Inspect its exact job and
-obtain directly reviewed recovery outside the gate; never retry automatically or
+obtain explicit workflow-bound recovery outside the gate; never retry automatically or
 rerun into a fresh temporary registry. Shell availability is tested with the RPC
 `bash` command and actual output, not a `!text` model prompt.
 
-On POSIX, separate profiles with `:` (`os.pathsep`). Any retry outside this gate
-requires direct job-specific operator approval, a reason, and an existing finite
-reservation. The test is deliberately not part of unattended deterministic CI:
+On POSIX, separate profiles with `:` (`os.pathsep`). Any retry outside this gate requires an explicit job-specific user choice, a
+reason, and an existing finite reservation. The test is deliberately not part of unattended deterministic CI:
 it requires Docker, cgroup v2, the
 reviewed image, a running pinned local endpoint, separate reviewed worker config,
 an explicitly compatible verified sealed harness, and

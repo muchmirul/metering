@@ -1,6 +1,6 @@
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { decodeOperatorHistory, decodeOutput, repositoryRoot, runsDirectory } from "./population_evolution_support.ts";
+import { basename, dirname, isAbsolute, resolve } from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { decodeOutput, repositoryRoot, runsDirectory } from "./population_evolution_support.ts";
 
 interface ControlState {
 	workflow_root: string;
@@ -17,9 +17,19 @@ export interface RegistryStatus {
 	legacy_unfinished_count: number;
 }
 
+export type ManagementAction = "resume" | "retry" | "stop" | "verify" | "close";
+
+export interface ManagementRequest {
+	workflow?: string;
+	action?: ManagementAction;
+	reason?: string;
+}
+
 export interface ManagementResult {
 	status: string;
 	message: string;
+	workflow?: string;
+	actions?: ManagementAction[];
 }
 
 type PrepareRuntime = (manifest: string, signal?: AbortSignal, boundExecution?: boolean) => Promise<void>;
@@ -51,60 +61,53 @@ export async function registryStatus(pi: ExtensionAPI, signal?: AbortSignal, reg
 	return { blocker: result.blocker === null ? null : controlState(result.blocker, registry), legacy_unfinished_count: result.legacy_unfinished_count as number };
 }
 
-async function chooseWorkflow(pi: ExtensionAPI, ctx: ExtensionContext, registry: string, signal?: AbortSignal): Promise<string | undefined> {
-	let offset = 0;
-	for (;;) {
-		const history = decodeOperatorHistory(decodeOutput(await pi.exec("uv", ["run", "python", "-m", "apps.coding_agent.operator_view",
-			"history", registry, String(offset)], { cwd: repositoryRoot(), signal, timeout: 15_000 })));
-		const workflows = history.runs.filter((run) => run.name.startsWith("workflow-pi-"));
-		const labels = workflows.map((run) => `${run.name} · ${run.state} · ${run.goal?.replaceAll(/\s+/g, " ").slice(0, 100) ?? "goal unavailable"}`);
-		if (!history.total_runs) return undefined;
-		const chosen = await ctx.ui.select("Manage an Agentvolve workflow (legacy evidence stays in /history)", [
-			...labels, ...(offset > 0 ? ["Newer runs"] : []), ...(history.next_offset !== null ? ["Older runs"] : []), "Cancel",
-		], { signal });
-		if (chosen === "Newer runs") offset = Math.max(0, offset - history.page_size);
-		else if (chosen === "Older runs" && history.next_offset !== null) offset = history.next_offset;
-		else return chosen && labels.includes(chosen) ? join(registry, workflows[labels.indexOf(chosen)]!.name) : undefined;
+function availableActions(control: ControlState): ManagementAction[] {
+	if (control.closed) return [];
+	if (control.active) return ["stop"];
+	if (control.complete) return ["verify"];
+	return [control.retry_required ? "retry" : "resume", "close"];
+}
+
+function workflowPath(value: string, registry: string): string {
+	const root = resolve(value);
+	if (!isAbsolute(value) || resolve(dirname(root)) !== resolve(registry) || !/^workflow-pi-\d{8}T\d{9}Z(?:-\d+)?$/.test(basename(root))) {
+		throw new Error(`Workflow must be an absolute workflow-pi-* path directly under ${registry}.`);
 	}
+	return root;
 }
 
 export async function manageWorkflow(
-	pi: ExtensionAPI, ctx: ExtensionContext, prepareRuntime: PrepareRuntime, root?: string, signal?: AbortSignal,
+	pi: ExtensionAPI, prepareRuntime: PrepareRuntime, request: ManagementRequest = {}, signal?: AbortSignal,
 	registry = runsDirectory(),
 ): Promise<ManagementResult> {
-	const cancelled = { status: "cancelled", message: "No workflow operation was approved; existing work and evidence are unchanged." };
-	if (!ctx.hasUI) return { status: "needs-operator-approval", message: "Workflow management requires direct approval in interactive or RPC Pi." };
 	signal?.throwIfAborted();
-	root ??= await chooseWorkflow(pi, ctx, registry, signal);
-	if (!root) return cancelled;
+	let root = request.workflow;
+	if (!root) {
+		const status = await registryStatus(pi, signal, registry);
+		root = status.blocker?.workflow_root;
+		if (!root) return { status: "needs-workflow", message: "Name the exact workflow from workflow_history, then call workflow_manage again.", actions: [] };
+	}
+	root = workflowPath(root, registry);
 	const control = controlState(await workerCommand(pi, ["control", root], signal), registry);
 	if (control.workflow_root !== root) throw new Error("Agentvolve control state targets another workflow");
-	if (control.closed) return { status: "closed-incomplete", message: "This workflow was closed as incomplete. Its evidence is preserved; submit a new reviewed goal rather than reopening it." };
-	const actions = control.active ? { "Stop worker": "stop" }
-		: control.complete ? { "Verify offline": "verify" }
-		: { [control.retry_required ? "Retry one reserved attempt" : "Resume workflow"]: control.retry_required ? "retry" : "resume",
-			"Close as incomplete (keep evidence)": "close" };
-	const choice = await ctx.ui.select(`Agentvolve workflow: ${basename(root)}`, [...Object.keys(actions), "Cancel"], { signal });
-	const action = choice ? (actions as Record<string, string>)[choice] : undefined;
-	if (!action) return cancelled;
-	let reason: string | undefined;
+	if (control.closed) return { status: "closed-incomplete", workflow: root, message: "This workflow was closed as incomplete. Its evidence is preserved; submit a new goal rather than reopening it.", actions: [] };
+	const actions = availableActions(control);
+	const action = request.action;
+	if (!action || !actions.includes(action)) return {
+		status: "needs-action", workflow: root, actions,
+		message: `Workflow ${basename(root)} accepts: ${actions.join(", ")}. Ask the user what to do, then call workflow_manage with action and workflow.`,
+	};
+	let reason = request.reason;
 	if (action === "retry" || action === "close") {
-		reason = await ctx.ui.input(`Operator reason to ${action} this workflow`, "Explain the decision (required, at most 2000 characters)", { signal });
-		if (reason === undefined) return cancelled;
-		if (!reason.trim() || reason.includes("\0") || reason.length > 2000) throw new Error("An operator-authored reason of 1–2000 characters without NUL is required; nothing changed.");
-	}
-	const explanation = action === "close"
-		? "Permanently close this inactive workflow as INCOMPLETE, not successful. Keep all candidates, receipts, pending attempts and history at their original paths. No retry, final assay or patch application occurs. It cannot resume; a new goal needs its own review and budget."
-		: action === "retry" ? "Request one explicit retry under the original pending intent and remaining reserved call/time budget. This may spend model time; it cannot extend limits or replace an indeterminate protected assay."
-		: action === "resume" ? "Resume the original reviewed workflow under its original runtime and budgets. Replay-authorized work may continue; an unreceipted model call is never implicitly repeated."
-		: action === "stop" ? "Signal only the identified live worker. This does not create a clean checkpoint or declare success; later recovery may require explicit retry."
-		: "Replay the completed evidence offline. No model calls or patch application.";
-	if (!(await ctx.ui.confirm("Approve Agentvolve workflow operation?", `${choice}\nWorkflow: ${root}\nRuntime: ${control.runtime_manifest}\n${explanation}` +
-		(reason === undefined ? "" : `\nOperator reason: ${JSON.stringify(reason)}`), { signal }))) return cancelled;
+		if (reason === undefined) return { status: "needs-reason", workflow: root, actions,
+			message: `Ask the user for a reason to ${action} this workflow, then call workflow_manage again.` };
+		if (!reason.trim() || reason.includes("\0") || reason.length > 2000) throw new Error("A reason of 1–2000 characters without NUL is required; nothing changed.");
+	} else if (reason !== undefined) throw new Error(`A reason is accepted only for retry or close, not ${action}.`);
 	signal?.throwIfAborted();
-	// Recheck after the human review. Projections never authorize effects by themselves.
+	// Recheck immediately before the requested effect. Projection data alone never
+	// authorizes recurrence, and immutable runtime/budget rules still apply.
 	const current = controlState(await workerCommand(pi, ["control", root], signal), registry);
-	if (JSON.stringify(current) !== JSON.stringify(control)) throw new Error("Workflow state changed during review; inspect it again. No operation started.");
+	if (JSON.stringify(current) !== JSON.stringify(control)) throw new Error("Workflow state changed; inspect it again. No operation started.");
 	const args = [action, root, ...(reason === undefined ? [] : [reason])];
 	let result: Record<string, unknown>;
 	if (action === "resume" || action === "retry") {
@@ -115,6 +118,8 @@ export async function manageWorkflow(
 	if (result.worker_response_schema !== "agentvolve-worker-response-v1" || result.workflow_id !== control.workflow_id ||
 		result.workflow_root !== root || result.action !== action || typeof result.state !== "string") throw new Error("Agentvolve returned an unexpected operation response; inspect progress before retrying.");
 	pi.appendEntry("agentvolve-workflow-operation", result);
-	return { status: result.state, message: action === "close" ? "Workflow closed as incomplete. Evidence is preserved and new goals are unblocked."
-		: `Agentvolve ${action} requested for ${root}. Inspect /history ${basename(root)}; this selection does not rebind the session's submitted job. Completion is not yet established.` };
+	return { status: result.state as string, workflow: root, actions: [], message: action === "close" ? "Workflow closed as incomplete. Evidence is preserved and new goals are unblocked."
+		: action === "stop" && result.state === "stopped" ? `Agentvolve process tree stopped for ${root}. Evidence is preserved; this does not declare success.`
+		: action === "stop" ? `Workflow ${basename(root)} reached ${String(result.state)} before stop finalized. Evidence is preserved.`
+		: `Agentvolve ${action} requested for ${root}. Inspect /history ${basename(root)}; completion is not yet established.` };
 }

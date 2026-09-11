@@ -245,7 +245,8 @@ def test_pi_agentvolve_jobs_use_a_thin_fixed_connector_entrypoint():
     operator_view = (ROOT / "apps/coding_agent/operator_view.py").read_text(
         encoding="utf-8"
     )
-    for command in ("goal", "limit", "history", "progress"):
+    execution = (ROOT / "connectors/fixed/pi/agentvolve_execution.ts").read_text(encoding="utf-8")
+    for command in ("goal", "limit", "history", "progress", "agentvolve-stop"):
         assert f'command("{command}"' in implementation
     assert "pi.registerCommand(name" in implementation
     for removed in ("registerNoArgumentCommand", "executePopulation", "commandWithLoader", "launchDetachedAction", "showPopulationStatus"):
@@ -271,14 +272,23 @@ def test_pi_agentvolve_jobs_use_a_thin_fixed_connector_entrypoint():
         '"workflow_status"',
         '"workflow_history"',
         '"workflow_verify"',
+        '"workflow_stop"',
+        '"workflow_manage"',
+        '"workflow_configure"',
     ):
         assert action in implementation
     assert '"workflow_activate"' not in implementation
     assert '"workflow_deactivate"' not in implementation
     assert "modeActive" not in implementation
     assert "agentvolve-submission-v1" in implementation
-    assert "await chooseTaskProfile(ctx, repository, operationSignal)" in implementation
-    assert "Register and run this reviewed task?" in implementation
+    assert "function queueGoal(" in implementation
+    assert "Agentvolve preparation queued in the background" in implementation
+    assert "Register and run this reviewed task?" not in implementation
+    assert "ctx.ui.confirm(" not in implementation
+    assert "ctx.ui.input(" not in implementation
+    assert "ctx.ui.editor(" not in implementation
+    assert "ctx.ui." not in execution
+    assert "ctx.ui." not in (ROOT / "connectors/fixed/pi/agentvolve_recovery.ts").read_text(encoding="utf-8")
     assert 'await pi.exec("uv", [' in implementation
     assert 'pi.exec("systemctl"' not in implementation
     assert "executionReview" in implementation
@@ -299,6 +309,9 @@ def test_pi_agentvolve_jobs_use_a_thin_fixed_connector_entrypoint():
     assert 'this.theme.fg("accent", "Completed-stage reports")' in dashboard
     assert "start_new_session=True" in worker
     assert "pass_fds=(lock.fileno(),)" in worker
+    assert "_terminate_process_groups" in worker
+    assert "os.killpg" in worker and "signal.SIGKILL" in worker
+    assert '"verify WORKFLOW | stop WORKFLOW | close WORKFLOW REASON | "' in worker
     assert 'runs_directory / ".agentvolve.lock"' in worker
     assert (
         "_preflight_workflow(task_profile, runtime_manifest, harness_descriptor)"
@@ -311,7 +324,6 @@ def test_pi_agentvolve_jobs_use_a_thin_fixed_connector_entrypoint():
     assert 'entry.message.role !== "user"' in implementation
     assert "agentvolve-workflow-configuration" in implementation
     assert "apps.coding_agent.task_profile_tool" in implementation
-    execution = (ROOT / "connectors/fixed/pi/agentvolve_execution.ts").read_text(encoding="utf-8")
     assert "METERING_EVOLUTION_HARNESS_DESCRIPTOR" in execution
     assert '"workflow_configure"' in implementation
     assert '"start-configured"' in implementation and '"review-configured"' in execution

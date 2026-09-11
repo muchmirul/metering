@@ -82,6 +82,11 @@ History is opt-in and requires Git. See the
 
 ## Agentvolve
 
+For a local cybersecurity exercise, use [Secure TAR Upload](tests/fixtures/security_archive/README.md):
+repair a vulnerable extractor against traversal, links, resource limits and partial
+writes, with public and separate protected filesystem checks. Preparing the task
+does not start a model run.
+
 **Agentvolve** is the source checkout's bounded two-level coding evolution
 system:
 
@@ -96,11 +101,13 @@ Independent protected checks produce a reviewable commit and patch
 ### Agentvolve as a Pi subagent
 
 Agentvolve is invoked by the current Pi session as a **background subagent job**.
-The invoking Pi remains the operator UI: it clarifies the task, collects the exact
-finite cap and approvals, tracks the submitted job, and presents results. Its
-configured model, thinking level, and ordinary tools do not change, so other work
-can continue while the detached worker runs. Closing Pi does not stop an
-acknowledged worker.
+The invoking assistant clarifies only missing task/configuration fields, submits
+validated settings directly, tracks the exact job, and presents results. There are
+no save/start approval dialogs once the typed inputs validate. Its configured
+model, thinking level, and ordinary tools do not change, so other work can continue
+while preparation and the detached worker run. Closing Pi cancels unfinished
+preparation but does not stop an acknowledged worker; `workflow_stop` or
+`/agentvolve-stop` does.
 
 The subagent is not an unrestricted second interactive Pi. A trusted controller
 launches pinned noninteractive Pi proposer calls under job-owned configuration,
@@ -112,14 +119,14 @@ and patches are review artifacts; applying them requires separate authorization.
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ Invoking Pi session (parent/operator UI)                     │
-│ clarify task · select setup · approve cap · continue coding  │
+│ Invoking Pi session (parent assistant)                       │
+│ collect missing fields · queue subagent · continue coding    │
 └──────────────────────────────┬───────────────────────────────┘
                                │ reviewed job contract
                                ▼
 ┌──────────────────────────────────────────────────────────────┐
 │ Fixed Pi adapter                                             │
-│ session ownership · exact job binding · status/recovery UI   │
+│ validation · session ownership · exact binding · stop/recovery│
 └──────────────────────────────┬───────────────────────────────┘
                                │ detached launch
                                ▼
@@ -160,39 +167,47 @@ always remains mandatory.
 ### Use from Pi
 
 Register the reviewed `.pi/extensions/population-evolution.ts` entrypoint. The
-extension exposes exactly four Agentvolve commands:
+extension exposes five Agentvolve commands:
 
 ```text
 /limit 10
-/goal Fix the behavior described here and satisfy the reviewed checks
+/goal Fix the behavior described here and satisfy the validated checks
 /history [RUN_NAME]
 /progress
+/agentvolve-stop [RUN_NAME_OR_PATH]
 ```
+
+Normally, ask the assistant to configure or run Agentvolve. Its
+`darwinian_coding` tool accepts editable `goal`, cap, destination, worker paths,
+workflow, recovery action, and reason fields. The assistant asks only for fields
+or choices reported missing by validation.
 
 **Use Agentvolve in a casual Pi session—no repository or path entry required.**
 Describe the task normally, even with messy wording, and explicitly ask Agentvolve
 to solve it. It organizes requirements, labels inferred defaults as assumptions,
-and drafts executable checks for your review. It asks only essential task
-clarifications and a freshly entered exact per-job generation cap; unknown facts are not
-invented. `/goal TEXT` uses the same preparation flow.
+and drafts an executable contract for fixed validation. The assistant asks only
+for missing essential facts, including a finite generation cap; unknown facts are
+not invented. `/goal TEXT` uses the saved `/limit`, while the model-facing start
+action can provide both values in one call.
 
 Referenced files/directories and known project names (for example, `maze.html
 in metering repo`) are resolved before remembered defaults. Ambiguous references
-ask for a choice, not a filesystem search. Otherwise a remembered project,
-explicitly configured task repository, or current Git project is proposed automatically. With no project, task approval creates a
-private workspace under `metering-live-tasks/workspaces/task-UUID/` by default.
-Its initial commit contains the reviewed `TASK.md` and **empty output files**, not
-a solution. The detached worker still owns mutation and independent evaluation.
-Pi's cwd never changes. Existing projects need a clean committed HEAD and are
-never initialized, committed, or stashed automatically. An invalid project offers
-an explicitly approved fresh workspace instead, without copying the old project.
+are returned to the assistant for a user choice, not a filesystem search. Otherwise
+a remembered project, explicitly supplied repository, or current Git project is
+used. With no project, `fresh_workspace=true` (or a casual session with no Git
+project) creates a private workspace under
+`metering-live-tasks/workspaces/task-UUID/` by default. Its initial commit contains
+the validated `TASK.md` and **empty output files**, not a solution. The detached
+worker still owns mutation and independent evaluation. Pi's cwd never changes.
+Existing projects need a clean committed HEAD and are never initialized, committed,
+or stashed automatically. Invalid destinations are reported so the assistant can
+ask for another repository or an explicit fresh workspace.
 
-Review selects the destination and includes the original request, requirements,
-assumptions, paths, checks, budgets, stopping, and final policy. Declining lets you
-optionally change destination or edit JSON; neither is required for normal use.
-Cancelling before approval creates no workspace and starts no worker. The last
-`/limit` (1–256) persists as a suggestion across goals/restores, never silent
-approval for a new job; each submission asks for its exact cap. A successful launch clears the
+Fixed validation binds the original request, requirements, assumptions, paths,
+checks, budgets, stopping policy, destination, and final policy before registration.
+Cancelling preparation with `workflow_stop` creates no later effects and starts no
+worker. `/limit` (1–256) persists across goals/restores and is the next job's cap;
+model-facing starts may replace it explicitly. A successful launch clears the
 pending goal. Existing project selections persist; later unrelated casual tasks
 get fresh private workspaces. Existing runs/sessions need no migration.
 Preparation now reads actual pinned Git files, explicit local UTF-8 inputs, and
@@ -200,21 +215,22 @@ bounded public HTTP(S) documents. The drafter can request additional tracked
 files or user-supplied URLs; it cannot run source instructions or browse freely.
 Reviewed requirements, assumptions, source snapshots/digests and read-only paths
 are bound into the task and passed to the worker. New output files and
-self-contained checks are allowed without modifying input data. Malformed JSON
-or invalid task fields (such as check timeouts) offer correction/change-destination/
-cancellation **before approval**, rather than a raw parser/registration failure.
+self-contained checks are allowed without modifying input data. Malformed JSON or invalid task fields (such as check timeouts) stop preparation
+before registration. The assistant receives a bounded diagnostic, asks for any
+needed correction conversationally, and must explicitly queue another attempt.
 Bounded drafts and source snapshots remain in diagnostic-only session records;
 there is no automatic retry or silent repair. See the [source-grounding limits](docs/coding-agent/task-profile.md#source-grounded-preparation).
 
 Run `/reload` once to load this behavior. Register the reviewed absolute extension
 path in `~/.pi/agent/settings.json`'s `extensions` array for use in every session.
 
-Task review shows development timeout reservations, not elapsed runtime: one
-120-second check currently requires **3,680 reserved seconds per generation**
-(**7,360 for two**, without retries). An insufficient budget prompts for an
-operator-entered correction before approval; cancellation starts nothing. Fixed
-preflight rejects budgets that cannot fund even one generation. Partially funded
-caps are allowed and disclosed. Existing budgets are never increased in place.
+Task validation records development timeout reservations, not elapsed runtime:
+one 120-second check currently requires **3,680 reserved seconds per generation**
+(**7,360 for two**, without retries). An insufficient budget returns the exact
+minimum `max_wall_seconds` to the assistant; it asks the user and resubmits rather
+than opening a dialog. Fixed preflight rejects budgets that cannot fund even one
+generation. Partially funded caps are allowed and recorded. Existing task profiles
+are never increased in place.
 
 Agentvolve is a **delegated job, not a Pi session mode**. Task preparation treats
 directory references as locations, not readable files, and does not recursively
@@ -225,35 +241,37 @@ actions and mode restoration are removed. `/goal` activates nothing. Reload the
 reviewed extension once: all historical active-mode records/messages are treated
 as history, never restrictions. No existing run or evidence needs migration.
 
-Pi's interactive model may clarify and draft the review only. The existing detached
-worker executes isolated noninteractive Pi calls under its own pinned runtime,
+Pi's interactive model may clarify and draft the task contract only; fixed code
+validates it and retains evaluation authority. The detached worker executes
+isolated noninteractive Pi calls under its own pinned runtime,
 provider/model/reasoning, configuration and finite budgets. `pi-v1` preserves its
 historical cap over the complete raw JSON event stream. The additive `pi-v2`
 transport drains and validates transient events incrementally while keeping each
 event, the authoritative final action, stderr, and cumulative harness output
 bounded. Selecting v2 changes runtime identity and requires a compatible verified
-Level-2 seal. Task review displays both identities and the reused harness. Say
-**“configure Agentvolve”** to select
-an existing runtime, original compatible verified harness, separately provisioned
-worker Pi configuration, and private run registry in this session. Setup first offers labelled compatible
-choices from a bounded read-only catalogue; you need not type paths when existing
-setup is found. It also checks the conventional separate directory
-`~/.config/metering/agentvolve-worker`. Missing prerequisites return preparation
-instructions, and advanced path entry supports correction/cancellation.
-`/goal` offers setup when defaults are missing; no second interactive Pi, exports,
-or process restart is needed. The run-registry default is the ext4-backed
-`~/.local/share/metering/agentvolve-runs` on this installation; it must remain an
-owner-controlled 0700 directory. Permission-incapable fuseblk/NTFS paths are
+Level-2 seal. Validation records both identities and the reused harness. Say
+**“configure Agentvolve”** to select an existing runtime, original compatible
+verified harness, separately provisioned worker Pi configuration, and private run
+registry in this session. A single compatible setup from the bounded read-only
+catalogue is validated directly. Multiple options or missing fields are returned
+to the assistant, which asks only for the necessary user choice or paths and calls
+configuration again. It also checks the conventional separate directory
+`~/.config/metering/agentvolve-worker`. `/goal` reports missing setup rather than
+opening a dialog; no second interactive Pi, exports, or process restart is needed.
+Configuration creates the selected registry if absent,
+defaulting to `~/.local/share/metering/agentvolve-runs`, then verifies ownership and
+mode 0700. Any filesystem that enforces these permissions is supported; ext4 is
+not required. Existing unsafe directories are rejected without changing permissions. Permission-incapable fuseblk/NTFS paths are
 refused before workflow creation rather than weakening credential privacy.
 Configuration alone starts no job.
 
 **Per-user private setup checklist**
 
 - [ ] Keep worker configuration, credentials, run registry, and evidence outside the Git checkout.
-- [ ] Create the registry: `install -d -m 700 ~/.local/share/metering/agentvolve-runs`.
+- [ ] Let configuration prepare the registry, or run `uv run python -m connectors.fixed.pi.runtime prepare-registry [PATH]`.
 - [ ] Confirm `findmnt -T ~/.local/share/metering/agentvolve-runs` reports a permission-capable filesystem and `stat -c %a ~/.local/share/metering/agentvolve-runs` reports `700`.
 - [ ] Keep worker `models.json` and optional `auth.json` in the separate reviewed configuration; job copies must be `0600`.
-- [ ] Say **“configure Agentvolve”** and approve all four paths. Reconfigure old version-1 session selections.
+- [ ] Say **“configure Agentvolve”**; answer only if the assistant reports missing paths or multiple compatible setups. Reconfigure old version-1 session selections.
 - [ ] Before any commit/push, check `git status --short`; no auth, model configuration, run directory, or evidence belongs in Git.
 
 No newest-harness guessing or automatic Level-2 setup:
@@ -270,11 +288,15 @@ use a separate reviewed stable installation. Editing a running worker's engine
 checkout is unsafe. This is not a controller deployment/snapshot framework.
 
 You can also say **“manage the interrupted Agentvolve workflow”** to resume,
-authorize a reserved retry, stop, or close an inactive workflow as incomplete.
-The session asks you to select the run and approve the operation; no terminal
-command is required. `/goal` offers the same recovery when a current workflow
-blocks startup. Closing preserves all evidence and history but permanently ends
-that workflow without claiming success. Old unmanaged legacy runs remain visible
+authorize a reserved retry, stop, verify, or close an inactive workflow as
+incomplete. The tool returns applicable actions; the assistant asks for the exact
+workflow/action and a retry/close reason only when missing, then submits them
+without a second approval dialog. `/goal` reports a blocking workflow and requires
+an explicit `workflow_manage` or `workflow_stop` call before a new attempt. Closing
+preserves all evidence and history but permanently ends that workflow without
+claiming success. Stop sends identity-checked `SIGTERM` to the detached worker and
+current effect process groups, waits briefly, escalates to `SIGKILL` if needed, and
+records `stopped` without claiming success. Old unmanaged legacy runs remain visible
 in `/history` and no longer block a separately reviewed new goal; no directory
 switching, deletion, automatic retry, or evidence migration is needed.
 
@@ -315,13 +337,14 @@ cancelled or failed. Completion/error notifications remain; /progress and
 New submissions and shutdown invalidate in-flight monitor output. After updating
 an already-loaded extension, use /reload once to clear its old idle UI.
 
-Old `/evolve*`, `/agentvolve*`, and `/view-*` slash commands, the reference Pi
-tool, and low-level compatibility tool handlers are removed. Reload Pi with
-`/reload` and migrate scripts to the four-command flow and RPC approval. Shared
-engines, existing evidence, and explicit worker CLI recovery/verification remain
-available; the additive session management and `close` operation are documented
-in the [operations guide](docs/coding-agent/operations.md). Reload once to expose
-`workflow_manage` and session-only `workflow_configure` to the session model.
+Old `/evolve*`, `/view-*`, and Agentvolve slash commands other than
+`/agentvolve-stop`, the reference Pi tool, and low-level compatibility handlers are
+removed. Reload Pi with `/reload` and migrate scripts to the five-command or typed
+tool flow; no RPC approval response is needed. Shared engines, existing evidence,
+and explicit worker CLI recovery/verification remain available; session management
+and `close` are documented in the [operations guide](docs/coding-agent/operations.md).
+Reload once to expose `workflow_stop`, `workflow_manage`, and session-only
+`workflow_configure` to the session model.
 No run migration is required.
 
 The dashboard and worker status are projections only. Candidate Git objects,

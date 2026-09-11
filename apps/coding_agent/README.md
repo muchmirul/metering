@@ -2,7 +2,7 @@
 
 **Agentvolve** is the user-facing name for the two-level coding evolution
 workflow. `apps/coding_agent/` remains the compatibility-stable implementation
-path for Level-1 solution evolution. It receives an operator-approved repository
+path for Level-1 solution evolution. It receives a caller-owned validated repository
 task and a verified sealed Level-2 harness, creates
 immutable Git descendants, evaluates them in fresh containers, asks Population
 to retain and allocate candidates, runs one protected final assay, and returns a
@@ -13,14 +13,14 @@ required.
 It never modifies the source repository, installs the result, or changes
 Metering's installed API. Interactive Pi submits delegated jobs, not a session
 mode; historical activation records impose no restrictions on ordinary tools.
-`/limit` saves a suggestion and every `/goal` asks for the exact cap.
-These commands derive a run profile only from a reviewed discovered
-profile and a clean Git `HEAD`; user-message plus source-grounded task generation shows
-a complete human-readable contract for direct operator approval and creates an
-operator-reviewed draft, not model-owned evaluation authority. Casual sessions need
-no repository/path setup: when no project is selected, approval creates a private
-Git seed containing the reviewed TASK.md and empty output files, then registers
-the same task profile. It never implements a solution during preparation. Existing
+`/limit` sets the next `/goal` cap; typed model-facing starts can supply goal, cap,
+wall budget, and destination together. Complete validated data queues preparation
+without save/start approval dialogs. These paths derive a run profile only from a
+validated configured profile and clean Git `HEAD`; user-message plus source-grounded
+task generation retains a human-readable fixed-validation record, not model-owned
+evaluation authority. Casual sessions need no repository/path setup: when no project
+is selected, an explicit fresh-workspace request creates a private Git seed
+containing the validated TASK.md and empty output files, then registers the task. It never implements a solution during preparation. Existing
 projects are never initialized or committed automatically. Bounded fixed input
 inspection reads pinned Git files and explicit local/public-URL documents, never
 source instructions. Optional reviewed context binds the brief, source snapshots
@@ -28,8 +28,8 @@ and read-only paths into the task and proposer input; old profiles retain their
 identities. See [source grounding](../../docs/coding-agent/task-profile.md#source-grounded-preparation).
 Fixed preflight
 rejects development wall budgets that cannot reserve even one generation. Task
-review shows the unchanged reservation calculation and collects any budget
-correction explicitly for a new task only. A stop before an archive exists
+validation records the unchanged reservation calculation and returns the required
+`max_wall_seconds` for conversational correction on a new explicit attempt. A stop before an archive exists
 reports the Driver reason without attempting protected-final selection; an
 available archive still permits final work after budget stopping.
 
@@ -59,9 +59,8 @@ Level-2 harness implementation details are in the
 [harness README](../harness/README.md).
 
 The directory name, `darwinian-coding-*` schemas, and `darwinian_coding` tool
-retain their identities. The Pi command surface is now only `/goal`, `/limit`,
-`/history`, and `/progress`; old slash commands and low-level tool actions were
-removed. Existing task profiles, run receipts, shared engines, and worker CLI
+retain their identities. The Pi command surface is `/goal`, `/limit`, `/history`, `/progress`, and
+`/agentvolve-stop`; old slash commands and low-level tool actions were removed. Existing task profiles, run receipts, shared engines, and worker CLI
 recovery/verification remain compatible; no run migration is required.
 
 ## Boundary
@@ -89,7 +88,9 @@ kernel state, and unexported files are not inherited.
 `python -m apps.coding_agent.agentvolve_worker` provides detached full-workflow
 `start`, `resume`, `retry`, `stop`, and `verify` operations, plus `close` for
 explicitly ending inactive work as incomplete without altering its evidence.
-Read-only `registry` and `control` commands support in-session recovery menus.
+Read-only `registry` and `control` commands return in-session recovery choices.
+`stop` validates worker/effect process identity, uses bounded TERM/KILL escalation,
+and records a non-success terminal state while preserving evidence.
 The additive `closed.json` orchestration record permanently prevents workflow
 continuation, not experimental replay through existing compatibility entrypoints.
 Commands emit one bounded response; canonical status and logs live under the
@@ -144,9 +145,14 @@ precedes runtime protected copying. Opt-in `stdout-json-v1` checks use v2 evalua
 receipts, while legacy checks retain exit-status semantics and an assurance
 warning. New selected v2 patches preserve bytes and must reproduce the selected
 Git tree in a disposable index. V1 replay remains available without migration.
-`pi-v1` keeps its raw JSON-event-stream cap. `pi-v2` incrementally validates and
-discards transient framing while separately bounding every event and the retained
-final action. Connector version is runtime identity, so v2 needs a new compatible
+The multi-task live acceptance gate requires stdout contracts for development
+and protected checks; historical exit-status-only tasks cannot satisfy that gate.
+Explicit Pi configuration creates a missing private run registry and validates
+mode 0700 without repairing existing directories. Any filesystem enforcing these
+permissions is supported; no manual ext4-specific setup is required. `pi-v1`
+keeps its raw JSON-event-stream cap. `pi-v2` incrementally validates and discards
+transient framing while separately bounding every event and the retained final
+action. Connector version is runtime identity, so v2 needs a new compatible
 Level-2 seal rather than relabelling or retrying a v1 run.
 These are correctness changes, not a claim that arbitrary checks prove a goal.
 
